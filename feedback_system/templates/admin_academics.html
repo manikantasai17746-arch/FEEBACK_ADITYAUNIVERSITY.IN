@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Academic structure — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
+<h1>Academic structure</h1>
+<div class="grid grid-3">
+  <div class="card">
+    <h3>Academic years</h3>
+    <div class="table-wrap" style="max-height:320px">
+      <table class="data"><thead><tr><th>Year</th><th>Active</th></tr></thead><tbody>
+        {% for y in years %}<tr><td>{{ y.name }}</td><td>{{ 'Yes' if y.is_active else '—' }}</td></tr>
+        {% else %}<tr><td colspan="2">No academic years.</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Semesters</h3>
+    <div class="table-wrap" style="max-height:320px">
+      <table class="data"><thead><tr><th>#</th><th>Label</th></tr></thead><tbody>
+        {% for s in semesters %}<tr><td>{{ s.number }}</td><td>{{ s.label }}</td></tr>
+        {% else %}<tr><td colspan="2">No semesters.</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Branches</h3>
+    <div class="table-wrap" style="max-height:320px">
+      <table class="data"><thead><tr><th>Code</th><th>Name</th></tr></thead><tbody>
+        {% for b in branches %}<tr><td>{{ b.code }}</td><td class="wrap">{{ b.name }}</td></tr>
+        {% else %}<tr><td colspan="2">No branches.</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+</div>
+<p class="sub">Academic year→semester mapping: Year 1 = Sem 1–2 · Year 2 = Sem 3–4 ·
+  Year 3 = Sem 5–6 · Year 4 = Sem 7–8.</p>
+{% endblock %}

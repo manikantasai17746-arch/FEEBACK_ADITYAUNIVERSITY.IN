@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Admin Dashboard — Faculty Feedback{% endblock %}
+{% block body %}
+<h1>Admin Dashboard</h1>
+<p class="sub">Faculty Feedback System — administration console.</p>
+
+<div class="tiles mb">
+  <div class="tile"><div class="num">{{ stats.students }}</div><div class="lbl">Students</div></div>
+  <div class="tile"><div class="num">{{ stats.teachers }}</div><div class="lbl">Teachers</div></div>
+  <div class="tile"><div class="num">{{ stats.branches }}</div><div class="lbl">Branches</div></div>
+  <div class="tile"><div class="num">{{ stats.timetables }}</div><div class="lbl">Timetables</div></div>
+  <div class="tile"><div class="num">{{ stats.sessions }}</div><div class="lbl">Class sessions</div></div>
+  <div class="tile"><div class="num">{{ stats.forms }}</div><div class="lbl">Feedback forms</div></div>
+  <div class="tile ok"><div class="num">{{ stats.forms_open }}</div><div class="lbl">Open forms</div></div>
+  <div class="tile"><div class="num">{{ stats.submissions }}</div><div class="lbl">Submissions</div></div>
+</div>
+
+<div class="card">
+  <h2>Quick Actions</h2>
+  <div class="quick-actions">
+    <a class="qa" href="{{ url_for('admin.subjects') }}">
+      <span class="qa-title">Subjects</span>
+      <span class="qa-sub">Course catalogue and teachers</span></a>
+    <a class="qa" href="{{ url_for('admin.teachers') }}">
+      <span class="qa-title">Teachers</span>
+      <span class="qa-sub">Faculty and assignments</span></a>
+    <a class="qa" href="{{ url_for('admin.students') }}">
+      <span class="qa-title">Students</span>
+      <span class="qa-sub">Records and timetables</span></a>
+    <a class="qa" href="{{ url_for('admin.form_new') }}">
+      <span class="qa-title">Create feedback form</span>
+      <span class="qa-sub">Question builder</span></a>
+    <a class="qa" href="{{ url_for('admin.bulk_forms') }}">
+      <span class="qa-title">Bulk create forms</span>
+      <span class="qa-sub">One form per teacher &amp; period</span></a>
+    <a class="qa" href="{{ url_for('admin.forms') }}">
+      <span class="qa-title">Manage forms</span>
+      <span class="qa-sub">Draft · open · closed · archived</span></a>
+    <a class="qa" href="{{ url_for('admin.tracking') }}">
+      <span class="qa-title">Submission tracking</span>
+      <span class="qa-sub">Submitted / not submitted</span></a>
+    <a class="qa" href="{{ url_for('admin.results') }}">
+      <span class="qa-title">Preview &amp; publish results</span>
+      <span class="qa-sub">Publish to teachers</span></a>
+    <a class="qa" href="{{ url_for('admin.reports') }}">
+      <span class="qa-title">Reports &amp; exports</span>
+      <span class="qa-sub">CSV of filtered results</span></a>
+    <a class="qa" href="{{ url_for('admin.import_excel') }}">
+      <span class="qa-title">Import semester (Excel)</span>
+      <span class="qa-sub">Upload the new timetable</span></a>
+    <a class="qa" href="{{ url_for('admin.hod_dean_accounts') }}">
+      <span class="qa-title">HOD &amp; Dean import</span>
+      <span class="qa-sub">Accounts, scopes, credentials</span></a>
+    <a class="qa" href="{{ url_for('admin.second_faculty_status') }}">
+      <span class="qa-title">Second faculty</span>
+      <span class="qa-sub">Assignments and imports</span></a>
+  </div>
+</div>
+
+<div class="card" style="display:none" aria-hidden="true">
+  <!-- Change 5: Download PDF reports removed from dashboard (use Reports page) -->
+  <form method="get" action="{{ url_for('admin.report_submitted_pdf') }}" class="filter-bar">
+    <div class="field"><label for="r_year">Academic year</label>
+      <select id="r_year" name="academic_year_id"><option value="">All</option>
+        {% for y in years %}<option value="{{ y.id }}">{{ y.name }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="r_sem">Semester</label>
+      <select id="r_sem" name="semester_id"><option value="">All</option>
+        {% for s in semesters %}<option value="{{ s.id }}">{{ s.number }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="r_branch">Branch</label>
+      <select id="r_branch" name="branch_id"><option value="">All</option>
+        {% for b in branches %}<option value="{{ b.id }}">{{ b.code }}</option>{% endfor %}</select></div>
+    <div class="field"><label for="r_tt">Timetable / section</label>
+      <select id="r_tt" name="timetable_id"><option value="">All</option>
+        {% for t in timetables %}<option value="{{ t.id }}">{{ t.branch }} · {{ t.code }}</option>{% endfor %}</select></div>
+    <div class="field" style="min-width:260px"><label for="r_form">Feedback form</label>
+      <select id="r_form" name="form_id"><option value="">All matching forms</option>
+        {% for f in report_forms %}<option value="{{ f.id }}">#{{ f.id }} · {{ f.title }}{% if f.subject_name %} · {{ f.subject_name }}{% endif %}</option>{% endfor %}</select></div>
+    <div class="btn-row">
+      <button class="btn btn-ok" type="submit">⬇ Submitted students (PDF)</button>
+      <button class="btn btn-warn" type="submit"
+        formaction="{{ url_for('admin.report_not_submitted_pdf') }}">⬇ Not submitted (PDF)</button>
+    </div>
+  </form>
+  <p class="sub">Tip: choose a specific <strong>feedback form</strong> for the most precise
+    eligible-student list; leave it on “All matching forms” to combine reports across filters.</p>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Recent forms</h3>
+    {% if recent %}
+    <div class="table-wrap" style="max-height:none">
+      <table class="data">
+        <thead><tr><th>ID</th><th>Title</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for f in recent %}
+          <tr><td>{{ f.id }}</td><td class="wrap">{{ f.title }}</td>
+            <td>{{ m.status_badge(f.status) }}</td>
+            <td><a class="btn btn-ghost btn-sm" href="{{ url_for('admin.form_edit', fid=f.id) }}">Edit</a></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}{{ m.empty('No forms created yet.', 'Use “Create feedback form” in Quick Actions.') }}{% endif %}
+  </div>
+  <div class="card">
+    <h3>Awaiting result publication</h3>
+    {% if to_publish %}
+    <div class="table-wrap" style="max-height:none">
+      <table class="data">
+        <thead><tr><th>ID</th><th>Subject</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+        {% for f in to_publish %}
+          <tr><td>{{ f.id }}</td><td class="wrap">{{ f.subject_name or f.title }}</td>
+            <td>{{ m.status_badge(f.status) }}</td>
+            <td><a class="btn btn-ghost btn-sm" href="{{ url_for('admin.result_detail', fid=f.id) }}">Review</a></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}{{ m.empty('Nothing awaiting publication.') }}{% endif %}
+  </div>
+</div>
+{% endblock %}

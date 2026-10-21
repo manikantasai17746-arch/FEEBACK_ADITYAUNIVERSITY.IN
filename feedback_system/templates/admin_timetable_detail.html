@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Timetable {{ tt.code }} — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.timetables'), 'All timetables') }}
+<h1>{{ tt.branch }} · {{ tt.code }}</h1>
+<p class="sub">{{ tt.branch_name }} · Semester {{ tt.semester }} · Academic year {{ tt.academic_year }}
+  · {{ 'Deleted' if tt.is_deleted else 'Active' }}</p>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Class periods ({{ sessions|length }})</h3>
+    <div class="table-wrap" style="max-height:420px">
+      <table class="data">
+        <thead><tr><th>Period</th><th>Subject code</th><th>Subject</th><th>Teacher</th>
+          <th>Eligible students</th></tr></thead>
+        <tbody>
+        {% for s in sessions %}
+          <tr><td>{{ s.period_no }}</td><td>{{ s.subject_code }}</td>
+            <td class="wrap">{{ s.subject_name }}</td><td class="wrap">{{ s.teacher_name or '—' }}</td>
+            <td>{{ eligible[s.id] }}</td></tr>
+        {% else %}<tr><td colspan="5">No periods.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Students ({{ students|length }})</h3>
+    <div class="table-wrap" style="max-height:420px">
+      <table class="data"><thead><tr><th>#</th><th>Roll number</th></tr></thead><tbody>
+        {% for s in students %}<tr><td>{{ loop.index }}</td><td>{{ s.roll }}</td></tr>
+        {% else %}<tr><td colspan="2">No students.</td></tr>{% endfor %}
+      </tbody></table>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Faculty Performance — Dean{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>Faculty Performance</h1>
+    <nav class="subnav">
+      <a href="{{ url_for('dean.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('dean.performance') }}" class="active">Performance</a>
+      <a href="{{ url_for('dean.actions') }}">Actions</a>
+      <a href="{{ url_for('auth.logout') }}">Logout</a>
+    </nav>
+  </div>
+  <form method="get" class="filter-bar card">
+    <div class="field"><label>Academic year</label>
+      <select name="academic_year_id"><option value="">All</option>
+        {% for y in years %}<option value="{{ y.id }}" {{ 'selected' if filters.academic_year_id == y.id }}>{{ y.name }}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label>Semester</label>
+      <select name="semester_id"><option value="">All</option>
+        {% for s in semesters %}<option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>{{ s.number }}</option>{% endfor %}
+      </select></div>
+    <button class="btn" type="submit">Filter</button>
+  </form>
+  <div class="card">
+    <p class="sub">Scores from the central scoring service (same as HOD). Below-threshold groups show N/A.</p>
+    <table class="data data-table">
+      <thead><tr><th>Faculty</th><th>Dept</th><th>Subject</th><th>Responses</th><th>Overall /100</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="wrap">{{ r.teacher_name or '—' }} ({{ r.teacher_emp_code or '—' }})</td>
+          <td>{{ r.branch_code or '—' }}</td>
+          <td class="wrap">{{ r.subject_code or '—' }}</td>
+          <td>{{ r.valid_responses }}</td>
+          <td>{% if r.hidden or r.overall_score is none %}<span class="badge">N/A</span>{% else %}<strong>{{ '%.1f'|format(r.overall_score) }}</strong>{% endif %}</td>
+          <td><span class="badge">{{ r.status }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="muted">No data for assigned departments.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

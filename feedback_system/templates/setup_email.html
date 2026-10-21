@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Add your email — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="eyebrow">Step 1 of 2 · One-time setup</div>
+    <h2>Add your email</h2>
+    <p class="sub" style="margin-bottom:1.2rem">Hi <strong>{{ current_user.name }}</strong>! Enter your
+      email (Gmail) address. We will send you a <strong>6-digit code</strong> to confirm it.
+      {% if current_user.role == 'student' %}Your feedback stays <strong>anonymous</strong>.{% endif %}</p>
+    <form method="post" autocomplete="off" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ request.args.get('next','') }}">
+      <div class="field">
+        <label for="email">Email address</label>
+        <input type="email" id="email" name="email" placeholder="yourname@gmail.com" required autofocus>
+      </div>
+      <button class="btn btn-block" type="submit">Send code</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Historical Results — Dean{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header"><h1>Historical results</h1>
+    <nav class="subnav">
+      <a href="{{ url_for('dean.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('dean.publication') }}">Publication</a>
+      <a href="{{ url_for('dean.analytics') }}">Analytics</a>
+      <a href="{{ url_for('dean.historical') }}" class="active">Historical</a>
+    </nav>
+  </div>
+  {% if not comparison_available %}
+  <div class="alert alert-info"><strong>Comparison unavailable.</strong> {{ reason }}</div>
+  {% endif %}
+</div>
+{% endblock %}

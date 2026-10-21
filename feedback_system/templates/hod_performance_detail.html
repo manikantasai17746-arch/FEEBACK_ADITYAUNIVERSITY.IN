@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% block title %}{{ teacher.name }} — Performance{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>{{ teacher.name }} <span class="muted">({{ teacher.emp_code }})</span></h1>
+    <nav class="subnav">
+      <a href="{{ url_for('hod.performance') }}">← Performance</a>
+      <a href="{{ url_for('hod.performance_compare', teacher_id=teacher.id) }}">Compare periods</a>
+      <a href="{{ url_for('auth.logout') }}">Logout</a>
+    </nav>
+  </div>
+
+  {% for r in rows %}
+  <div class="card" style="margin-bottom:1.25rem">
+    <h2>#{{ r.form_id }} · {{ r.title }}</h2>
+    <p class="sub">{{ r.subject_code or '' }} {{ r.subject_name or '' }} · {{ r.branch_code or '' }} · {{ r.valid_responses }} responses</p>
+    <div class="stat-grid" style="margin:1rem 0">
+      <div class="stat-card">
+        <div class="stat-label">Overall score</div>
+        <div class="stat-value">
+          {% if r.hidden or r.overall_score is none %}N/A{% else %}{{ '%.1f'|format(r.overall_score) }}{% endif %}
+        </div>
+      </div>
+    </div>
+    {% if r.criteria %}
+    <table class="data data-table">
+      <thead><tr><th>Criterion</th><th>Score /100</th><th>Answers</th><th>Distribution</th></tr></thead>
+      <tbody>
+        {% for c in r.criteria %}
+        <tr>
+          <td class="wrap">{{ c.text }}</td>
+          <td>{% if c.score is none %}N/A{% else %}{{ '%.1f'|format(c.score) }}{% endif %}</td>
+          <td>{{ c.valid_answers }}</td>
+          <td class="wrap" style="font-size:.85rem">
+            {% for lbl, d in c.distribution.items() %}
+              {{ lbl }}: {{ d.count }} ({{ d.pct }}%){% if not loop.last %}; {% endif %}
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">{{ r.reason or 'No criterion scores available.' }}</p>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="card"><p class="muted">No forms found for this faculty member in your department scope.</p></div>
+  {% endfor %}
+</div>
+{% endblock %}

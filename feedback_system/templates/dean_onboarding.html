@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block title %}Dean Onboarding{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>Dean first-login setup</h1>
+    <p class="muted">Verify your official email and select the HODs you oversee.</p>
+  </div>
+
+  <div class="wizard-steps" style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
+    <span class="badge {{ 'primary' if step in ['email','verify'] else '' }}">1. Email</span>
+    <span class="badge {{ 'primary' if step == 'hods' else '' }}">2. Select HODs</span>
+    <span class="badge {{ 'primary' if step == 'preview' else '' }}">3. Preview</span>
+  </div>
+
+  {% if step in ['email', 'verify'] %}
+  <div class="card">
+    <h2>Verify official email</h2>
+    {% if not email_verified %}
+    <form method="post">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="send_code">
+      <label>Official email
+        <input type="email" name="email" value="{{ user.email or '' }}" required>
+      </label>
+      <button type="submit" class="btn primary">Send verification code</button>
+    </form>
+    {% if step == 'verify' %}
+    <form method="post" style="margin-top:1rem">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="verify_code">
+      <label>6-digit code
+        <input type="text" name="code" pattern="[0-9]{6}" maxlength="6" required>
+      </label>
+      <button type="submit" class="btn primary">Verify</button>
+    </form>
+    {% endif %}
+    {% else %}
+    <p>Email verified.</p>
+    <a class="btn primary" href="{{ url_for('dean.onboarding', step='hods') }}">Continue</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if step == 'hods' and email_verified %}
+  <div class="card">
+    <h2>Select HODs</h2>
+    <p class="muted">You may only select active HODs within your organisational scope.</p>
+    {% if eligible_hods %}
+    <table class="data-table">
+      <thead><tr><th></th><th>Emp</th><th>Name</th><th>Email</th><th>Onboarded</th></tr></thead>
+      <tbody>
+      {% for h in eligible_hods %}
+        <tr>
+          <td>
+            <form method="post" style="display:inline">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="toggle_hod">
+              <input type="hidden" name="hod_id" value="{{ h.id }}">
+              <button type="submit" class="btn small {{ 'primary' if h.id in staging else '' }}">
+                {{ 'Selected' if h.id in staging else 'Select' }}
+              </button>
+            </form>
+          </td>
+          <td>{{ h.emp_code }}</td>
+          <td>{{ h.name }}</td>
+          <td>{{ h.email or '—' }}</td>
+          <td>{{ 'Yes' if h.onboarding_complete else 'No' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% if staging %}
+    <form method="post" style="margin-top:1rem">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="preview">
+      <button type="submit" class="btn primary">Preview combined scope</button>
+    </form>
+    {% endif %}
+    {% else %}
+    <p class="muted">No eligible HOD accounts in your scope yet. Contact Admin.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if step == 'preview' %}
+  <div class="card">
+    <h2>Combined scope preview</h2>
+    {% if preview %}
+    <ul>
+      <li>Class sessions (de-duplicated): <strong>{{ preview.sessions }}</strong></li>
+      <li>Eligible students (de-duplicated): <strong>{{ preview.students }}</strong></li>
+      <li>Feedback forms: <strong>{{ preview.forms }}</strong></li>
+    </ul>
+    <form method="post" style="margin-top:1rem">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="confirm">
+      <button type="submit" class="btn primary">Confirm and complete onboarding</button>
+    </form>
+    <a class="btn" href="{{ url_for('dean.onboarding', step='hods') }}">Back</a>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,21 @@
+# Secrets - never commit
+.env
+.env.*
+!.env.example
+instance/
+*.pem
+*.key
+
+# Local state
+feedback.db
+feedback.db.*
+*.pre-v5.bak
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+.vercel/
+
+# Student data. Uncomment if this repository is public or shared:
+# *.xlsx

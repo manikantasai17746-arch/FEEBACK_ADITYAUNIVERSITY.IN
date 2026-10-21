@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}HOD Dashboard — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="perf-welcome">
+  <div>
+    <h1 style="margin:0;display:flex;align-items:center;gap:.5rem">
+      <span aria-hidden="true">📊</span> HOD Dashboard
+    </h1>
+    <p class="sub" style="margin:.35rem 0 0">Overview of your department forms, faculty and second-faculty status.</p>
+  </div>
+</div>
+
+{% if not stats.branches %}
+<div class="card alert alert-warning">
+  <strong>No department scope assigned.</strong>
+  Ask an Administrator to import HOD accounts and assign department scopes.
+</div>
+{% else %}
+
+<div class="perf-tiles" style="grid-template-columns:repeat(6,1fr)">
+  <div class="perf-tile t-subjects">
+    <div class="ic">🏛</div>
+    <div>
+      <div class="num">{{ stats.branches|length }}</div>
+      <div class="lbl">Departments</div>
+      <div class="sub" style="font-size:.75rem">{% for b in stats.branches %}{{ b.code }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+    </div>
+  </div>
+  <div class="perf-tile t-eligible">
+    <div class="ic">👥</div>
+    <div><div class="num">{{ stats.student_count }}</div><div class="lbl">Students</div></div>
+  </div>
+  <div class="perf-tile t-score">
+    <div class="ic">👤</div>
+    <div><div class="num">{{ stats.faculty_count }}</div><div class="lbl">Faculty</div></div>
+  </div>
+  <div class="perf-tile">
+    <div class="ic" style="background:#ede9fe">📄</div>
+    <div>
+      <div class="num">{{ stats.forms_draft }} / {{ stats.forms_open }} / {{ stats.forms_closed }}</div>
+      <div class="lbl">Forms (draft / open / closed)</div>
+    </div>
+  </div>
+  <div class="perf-tile t-responses">
+    <div class="ic">✓</div>
+    <div><div class="num">{{ stats.sfa_confirmed }}</div><div class="lbl">Second-faculty confirmed</div></div>
+  </div>
+  <div class="perf-tile">
+    <div class="ic" style="background:#fee2e2">!</div>
+    <div><div class="num">{{ stats.sfa_unresolved }}</div><div class="lbl">Second-faculty unresolved</div></div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1.25rem">
+  <h2 style="margin-top:0">📋 Recent forms</h2>
+  {% if stats.recent_forms %}
+  <div style="overflow-x:auto">
+    <table class="marks-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Title</th>
+          <th>Category</th>
+          <th>Subject</th>
+          <th>Branch</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for f in stats.recent_forms %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ f.title }}</td>
+          <td><span class="badge" style="background:#ede9fe;color:#5b21b6">{{ f.category or 'main' }}</span></td>
+          <td>{{ f.snapshot_subject_code or '—' }}</td>
+          <td>{{ f.snapshot_branch or '—' }}</td>
+          <td>
+            {% if f.status == 'open' %}
+              <span class="score-pill">OPEN</span>
+            {% elif f.status == 'draft' %}
+              <span class="badge" style="background:#fef3c7;color:#92400e">DRAFT</span>
+            {% elif f.status == 'closed' %}
+              <span class="badge" style="background:#fee2e2;color:#991b1b">CLOSED</span>
+            {% else %}
+              <span class="badge">{{ f.status }}</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="sub">No forms yet for your department(s).</p>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

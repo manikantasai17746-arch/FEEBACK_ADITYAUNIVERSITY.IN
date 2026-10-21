@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Teachers — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
+<h1>Teachers</h1>
+<form method="get" class="filter-bar">
+  <div class="field"><label for="q">Search</label>
+    <input type="search" id="q" name="q" value="{{ q }}" placeholder="Name or employee code…"></div>
+  <button class="btn" type="submit">Search</button>
+</form>
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Employee code</th><th>Name</th><th>Sessions</th><th>Subjects</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for t in rows %}
+        <tr>
+          <td>{{ t.emp_code }}</td><td class="wrap">{{ t.name }}</td>
+          <td>{{ t.sessions }}</td><td>{{ t.subjects }}</td>
+          <td class="btn-row">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('admin.teacher_detail', uid=t.id) }}">Assignments</a>
+            <form method="post" action="{{ url_for('admin.reset_password', uid=t.id) }}"
+                  onsubmit="return confirm('Reset this teacher password to the default?')">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="role" value="teacher">
+              <button class="btn btn-ghost btn-sm" type="submit">Reset password</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="5">No teachers match your search.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ m.pagination(pg, 'admin.teachers', {'q': q}) }}
+</div>
+{% endblock %}

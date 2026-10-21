@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}Faculty Feedback System{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body class="role-{{ current_user.role if current_user else 'guest' }}">
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="{{ url_for('auth.landing') }}">
+      <img class="brand-logo" src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="Aditya University">
+      <span class="brand-text">Faculty Feedback<small>Feedback Portal</small></span>
+    </a>
+    <button class="nav-toggle" type="button" aria-label="Toggle navigation"
+            onclick="document.body.classList.toggle('nav-open')">☰</button>
+    <nav class="topnav">
+      {% if current_user and current_user.role == 'admin' %}
+        <a href="{{ url_for('admin.dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('admin.forms') }}">Forms</a>
+        <a href="{{ url_for('admin.tracking') }}">Tracking</a>
+        <a href="{{ url_for('admin.results') }}">Results</a>
+        <a href="{{ url_for('admin.students') }}">Students</a>
+        <a href="{{ url_for('admin.teachers') }}">Teachers</a>
+        <a href="{{ url_for('admin.reports') }}">Reports</a>
+        <a href="{{ url_for('admin.import_excel') }}">Import</a>
+      {% elif current_user and current_user.role == 'teacher' %}
+        <a href="{{ url_for('teacher.dashboard') }}">My Performance</a>
+      {% elif current_user and current_user.role == 'student' %}
+        <a href="{{ url_for('student.dashboard') }}">My Feedback</a>
+        <a href="{{ url_for('student.notifications') }}">Notifications</a>
+      {% elif current_user and current_user.role == 'hod' %}
+        <a href="{{ url_for('hod.dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('hod.forms') }}">Forms</a>
+        <a href="{{ url_for('hod.results') }}">Results</a>
+        <a href="{{ url_for('hod.performance') }}">Performance</a>
+      {% elif current_user and current_user.role == 'dean' %}
+        <a href="{{ url_for('dean.dashboard') }}">Dashboard</a>
+        <a href="{{ url_for('dean.performance') }}">Performance</a>
+        <a href="{{ url_for('dean.actions') }}">Actions</a>
+        <a href="{{ url_for('dean.publication') }}">Publication</a>
+      {% else %}
+        <a href="{{ url_for('auth.student_login') }}">Student</a>
+        <a href="{{ url_for('auth.teacher_login') }}">Teacher</a>
+        <a href="{{ url_for('auth.hod_login') }}">HOD</a>
+        <a href="{{ url_for('auth.dean_login') }}">Dean</a>
+        <a href="{{ url_for('auth.admin_login') }}">Admin</a>
+      {% endif %}
+      <span class="a11y-bar" title="Accessibility">
+        <button type="button" id="btnDarkMode" aria-label="Toggle dark mode">Dark</button>
+        <button type="button" id="btnLargeText" aria-label="Toggle larger text">A+</button>
+      </span>
+      {% if current_user %}
+        <a href="{{ url_for('auth.change_password') }}">Password</a>
+        <a class="nav-user" href="{{ url_for('auth.logout') }}">Logout ({{ current_user.name }})</a>
+      {% endif %}
+    </nav>
+  </div>
+</header>
+
+<main class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flashes">
+        {% for category, message in messages %}
+          <div class="flash flash-{{ category or 'info' }}">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+  {% block body %}{% endblock %}
+</main>
+
+<footer class="site-footer">
+  <div class="site-footer-inner">
+    <div class="brand-col">
+      <img src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="Aditya University">
+      <div>
+        <strong style="font-family:'Spartan',sans-serif;color:var(--au-blue-deep);font-size:1rem">Aditya University</strong>
+        <p style="margin-top:.3rem">Faculty Feedback System — anonymous student feedback platform</p>
+      </div>
+    </div>
+    <div>
+      <h4>Contact</h4>
+      <p>Call: +91 63 00 45 90 01</p>
+      <p>Email: <a href="mailto:support_tt@adityauniversity.in">support_tt@adityauniversity.in</a></p>
+      <p style="margin-top:.5rem">Surampalem, Kakinada District,<br>Andhra Pradesh</p>
+    </div>
+    <div>
+      <h4>Our Social Media</h4>
+      <div class="socials">
+        <a href="https://www.linkedin.com/school/adityauniversity/" target="_blank" rel="noopener" aria-label="LinkedIn">in</a>
+        <a href="https://www.youtube.com/@adityauniversity" target="_blank" rel="noopener" aria-label="YouTube">▶</a>
+        <a href="https://www.facebook.com/adityauniversity" target="_blank" rel="noopener" aria-label="Facebook">f</a>
+        <a href="https://www.instagram.com/aditya_university/" target="_blank" rel="noopener" aria-label="Instagram">◎</a>
+      </div>
+      <p style="margin-top:.7rem;font-size:.78rem"><span style="color:var(--au-orange);font-weight:600">#AchieveWithAditya</span></p>
+    </div>
+    <div class="copy">Copyright 2026 © Aditya University. All Rights Reserved</div>
+  </div>
+</footer>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script>
+(function(){
+  try {
+    if (localStorage.getItem('ffs_dark') === '1') document.documentElement.classList.add('dark-mode');
+    if (localStorage.getItem('ffs_large') === '1') document.documentElement.classList.add('large-text');
+  } catch(e){}
+  document.getElementById('btnDarkMode')?.addEventListener('click', function(){
+    document.documentElement.classList.toggle('dark-mode');
+    try { localStorage.setItem('ffs_dark', document.documentElement.classList.contains('dark-mode') ? '1' : '0'); } catch(e){}
+  });
+  document.getElementById('btnLargeText')?.addEventListener('click', function(){
+    document.documentElement.classList.toggle('large-text');
+    try { localStorage.setItem('ffs_large', document.documentElement.classList.contains('large-text') ? '1' : '0'); } catch(e){}
+  });
+})();
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,35 @@
+{% macro status_badge(status) -%}
+  {%- set labels = {'draft':'Draft','open':'Published / Open','closed':'Closed','archived':'Archived'} -%}
+  <span class="badge badge-{{ status }}">{{ labels.get(status, status|capitalize) }}</span>
+{%- endmacro %}
+
+{% macro back(url=None, label='Back') -%}
+  <a class="btn btn-ghost btn-sm btn-back" data-back
+     href="{{ url if url else '#' }}">← {{ label }}</a>
+{%- endmacro %}
+
+{% macro empty(message, hint=None) -%}
+  <div class="empty">
+    <div class="empty-icon">∅</div>
+    <p>{{ message }}</p>
+    {% if hint %}<p class="sub">{{ hint }}</p>{% endif %}
+  </div>
+{%- endmacro %}
+
+{% macro pagination(pg, endpoint, params={}) -%}
+  {% if pg.pages and pg.pages > 1 %}
+  <nav class="pagination" aria-label="Pagination">
+    {% if pg.page > 1 %}
+      <a class="btn btn-ghost btn-sm" href="{{ url_for(endpoint, page=pg.page-1, **params) }}">← Prev</a>
+    {% else %}<span class="btn btn-ghost btn-sm is-disabled">← Prev</span>{% endif %}
+    <span class="page-info">Page {{ pg.page }} of {{ pg.pages }} · {{ pg.total }} records</span>
+    {% if pg.page < pg.pages %}
+      <a class="btn btn-ghost btn-sm" href="{{ url_for(endpoint, page=pg.page+1, **params) }}">Next →</a>
+    {% else %}<span class="btn btn-ghost btn-sm is-disabled">Next →</span>{% endif %}
+  </nav>
+  {% endif %}
+{%- endmacro %}
+
+{% macro bar(pct, label=None) -%}
+  <div class="bar" title="{{ pct }}%"><i style="width: {{ pct }}%"></i></div>
+{%- endmacro %}

@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}Create Form — HOD{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>Create feedback form</h1>
+    <nav class="subnav">
+      <a href="{{ url_for('hod.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('hod.forms') }}">Forms</a>
+      <a href="{{ url_for('hod.form_new') }}" class="active">New form</a>
+      <a href="{{ url_for('hod.results') }}">Results</a>
+    </nav>
+  </div>
+
+  {% if not branches %}
+  <div class="alert alert-warning">No department scope assigned. Contact Admin.</div>
+  {% else %}
+  <p class="sub">Forms are limited to your authorised department(s):
+    {% for b in branches %}<span class="badge">{{ b.code }}</span> {% endfor %}
+  </p>
+
+  <div id="builder-errors" class="flashes" style="display:none"></div>
+  <div id="save-toast" class="flash flash-success" style="display:none"></div>
+
+  <div id="builder"
+       data-save-url="{{ url_for('hod.form_save') }}"
+       data-status-url="{{ url_for('hod.form_status', fid=0) }}"
+       data-form-id=""
+       data-scope="session"
+       data-selected-subject=""
+       data-selected-timetable=""
+       data-selected-session=""
+       data-preview-url="{{ url_for('hod.api_subject_preview') }}"
+       data-api-timetables="{{ url_for('hod.api_timetables') }}"
+       data-api-sessions="{{ url_for('hod.api_sessions') }}"
+       data-api-subjects="{{ url_for('hod.api_subjects') }}"
+       data-edit-url="{{ url_for('hod.form_new') }}"
+       data-forms-list-url="{{ url_for('hod.forms') }}">
+
+    <div class="card">
+      <div class="step">Step 1 · Form configuration</div>
+
+      <div class="field">
+        <span class="field-label" id="mode-label">Feedback target mode</span>
+        <div class="mode-toggle" role="group" aria-labelledby="mode-label">
+          <button type="button" class="mode-btn is-active" data-mode="session" aria-pressed="true">
+            Normal
+            <span class="mode-desc">Subject + Teacher + Period</span>
+          </button>
+          <button type="button" class="mode-btn" data-mode="subject" aria-pressed="false">
+            Subject only
+            <span class="mode-desc">One form per subject · all sections</span>
+          </button>
+        </div>
+        <div class="hint" id="mode-hint">Normal mode targets a single subject / teacher / period.</div>
+      </div>
+
+      <div class="field">
+        <label for="category">Faculty type</label>
+        <select id="category">
+          <option value="main" selected>Main faculty (class teacher)</option>
+          <option value="second">Second faculty (requires confirmed assignment)</option>
+        </select>
+        <div class="hint">Second faculty forms are only allowed when a confirmed second-faculty
+          assignment exists for the selected session.</div>
+      </div>
+
+      <div class="grid grid-3">
+        <div class="field"><label for="academic_year_id">Academic year</label>
+          <select id="academic_year_id">
+            <option value="">— Select —</option>
+            {% for y in years %}<option value="{{ y.id }}">{{ y.name }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label for="semester_id">Semester</label>
+          <select id="semester_id">
+            <option value="">— Select —</option>
+            {% for s in semesters %}<option value="{{ s.id }}">{{ s.label or s.number }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label for="branch_id">Department</label>
+          <select id="branch_id">
+            <option value="">— Select —</option>
+            {% for b in branches %}<option value="{{ b.id }}">{{ b.code }} — {{ b.name }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label for="timetable_id">Timetable / section</label>
+          <select id="timetable_id"><option value="">— Select year, semester &amp; department first —</option></select>
+          <div class="hint" id="timetable-hint">Pick the timetable that contains the class period.</div></div>
+        <div class="field" id="subject-field" style="grid-column:span 2;display:none"><label for="subject_code">Subject</label>
+          <select id="subject_code"><option value="">— Select year, semester &amp; department first —</option></select>
+        </div>
+        <div class="field" id="session-field" style="grid-column:span 2">
+          <label for="session_id">Subject · Teacher · Period</label>
+          <select id="session_id"><option value="">— Select a timetable first —</option></select>
+          <div class="hint">Select the teaching session. Only sessions in your department appear.</div>
+        </div>
+      </div>
+
+      <div id="subject-preview" class="preview-panel" style="display:none" aria-live="polite"></div>
+
+      <div class="field"><label for="title">Feedback form title</label>
+        <input type="text" id="title" maxlength="200"
+               value="" placeholder="e.g. Mid-semester teaching feedback"></div>
+      <div class="field"><label for="instructions">Instructions for students</label>
+        <textarea id="instructions" rows="2" maxlength="2000"
+          placeholder="Explain the purpose and that responses are anonymous."></textarea></div>
+    </div>
+
+    <div class="card">
+      <div class="step">Step 2 · Questions</div>
+      <div id="questions"></div>
+      <button type="button" class="add-q" id="add-question">＋ Add a question</button>
+      <div class="btn-row mt">
+        <button type="button" class="btn btn-ghost btn-sm" id="add-text">＋ Add written/suggestion question</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="btn-row">
+        <button type="button" class="btn" id="save-draft">Save Draft</button>
+        <button type="button" class="btn btn-ok" id="publish-form">Publish Form</button>
+        <a class="btn btn-ghost" href="{{ url_for('hod.forms') }}">Cancel</a>
+      </div>
+      <p class="sub mt">Saving a draft keeps the form hidden from students. Publishing validates the
+        questions and makes the form available to eligible students only.</p>
+    </div>
+  </div>
+
+  <script type="application/json" id="initial-questions">[]</script>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}{% endblock %}

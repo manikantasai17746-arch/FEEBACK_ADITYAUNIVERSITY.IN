@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Second Faculty — Admin{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>Second-faculty assignments</h1>
+    <a class="btn" href="{{ url_for('admin.second_faculty_import') }}">Import workbook</a>
+  </div>
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-label">Confirmed</div><div class="stat-value">{{ summary.confirmed }}</div></div>
+    <div class="stat-card"><div class="stat-label">Unresolved</div><div class="stat-value">{{ summary.unresolved }}</div></div>
+    <div class="stat-card"><div class="stat-label">Conflict</div><div class="stat-value">{{ summary.conflict }}</div></div>
+    <div class="stat-card"><div class="stat-label">Rejected</div><div class="stat-value">{{ summary.rejected }}</div></div>
+  </div>
+  <div class="card" style="margin-top:1rem">
+    <h2>Import batches</h2>
+    {% if batches %}
+    <table class="data-table">
+      <thead><tr><th>ID</th><th>File</th><th>Status</th><th>Rows</th><th>Confirmed</th><th>Unresolved</th><th>Created</th></tr></thead>
+      <tbody>
+      {% for b in batches %}
+        <tr>
+          <td>{{ b.id }}</td><td>{{ b.filename }}</td><td>{{ b.status }}</td>
+          <td>{{ b.total_rows }}</td><td>{{ b.confirmed_rows }}</td><td>{{ b.unresolved_rows }}</td>
+          <td>{{ b.created_at }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No import batches yet. Official source files
+      <code>Individual Workload.xlsx</code> and
+      <code>CSE_III_Sem_Second_Faculty_Import.xlsx</code> were not included with the project ZIP.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

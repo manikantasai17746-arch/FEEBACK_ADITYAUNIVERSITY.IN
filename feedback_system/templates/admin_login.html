@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Admin Login — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-deco" aria-hidden="true">
+  <div class="deco-dots" style="top:8%;left:5%;width:140px;height:130px;opacity:.7"></div>
+  <div class="deco-arc" style="top:10%;right:6%;width:170px;height:170px;opacity:.75"></div>
+  <div class="deco-blob soft" style="bottom:15%;left:-40px;width:160px;height:130px;opacity:.55"></div>
+  <div class="deco-circle" style="width:220px;height:220px;bottom:8%;right:-70px"></div>
+  <div class="deco-dots red" style="bottom:20%;right:10%;width:100px;height:90px;opacity:.55"></div>
+</div>
+  <div class="auth-card">
+    <div class="role-tabs">
+      <a href="{{ url_for('auth.student_login') }}">Student</a>
+      <a href="{{ url_for('auth.teacher_login') }}">Teacher</a>
+      <a href="{{ url_for('auth.hod_login') }}">HOD</a>
+      <a href="{{ url_for('auth.dean_login') }}">Dean</a>
+      <a href="{{ url_for('auth.admin_login') }}" class="active">Admin</a>
+    </div>
+    <div class="eyebrow">Administrator Login</div>
+    <h2>Admin sign in</h2>
+    <p class="sub" style="margin-bottom:1.2rem">Authorised administrators only.</p>
+    <form method="post" autocomplete="off" class="card" style="position:relative;overflow:hidden">
+      <div class="deco-dots blue" style="position:absolute;right:-15px;top:-15px;width:70px;height:60px;opacity:.25"></div>
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="email">Email Address</label>
+        <input type="email" id="email" name="email" placeholder="admin@college.edu" required autofocus>
+        
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+        
+      </div>
+      <button class="btn btn-block" type="submit">Log In</button>
+      <p style="margin-top:.9rem;text-align:center;font-size:.85rem">
+        <a href="{{ url_for('auth.forgot_password', role='admin') }}">Forgot password?</a></p>
+    </form>
+  </div>
+</div>
+{% endblock %}

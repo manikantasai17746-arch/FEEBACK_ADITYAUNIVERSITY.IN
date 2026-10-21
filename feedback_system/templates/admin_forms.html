@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Feedback forms — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
+<div class="btn-row" style="justify-content:space-between">
+  <h1 style="margin:0">Feedback forms</h1>
+  <div class="btn-row">
+    <a class="btn btn-ghost" href="{{ url_for('admin.bulk_forms') }}">Bulk create</a>
+    <a class="btn btn-accent" href="{{ url_for('admin.form_new') }}">+ Create feedback form</a>
+  </div>
+</div>
+<p class="sub">{{ pg.total }} form(s). Status distinguishes <strong>draft</strong>,
+  <strong>published/open</strong>, <strong>closed</strong> and <strong>archived</strong>.</p>
+
+<form method="get" class="filter-bar">
+  <div class="field"><label for="q">Search</label>
+    <input type="search" id="q" name="q" value="{{ filters.q or '' }}" placeholder="Title or subject…"></div>
+  <div class="field"><label for="status">Status</label>
+    <select id="status" name="status">
+      <option value="">All</option>
+      {% for s in ['draft','open','closed','archived'] %}
+        <option value="{{ s }}" {{ 'selected' if filters.status == s }}>{{ status_labels[s] }}</option>
+      {% endfor %}
+    </select></div>
+  <div class="field"><label for="branch_id">Branch</label>
+    <select id="branch_id" name="branch_id"><option value="">All</option>
+      {% for b in branches %}<option value="{{ b.id }}" {{ 'selected' if filters.branch_id == b.id }}>{{ b.code }}</option>{% endfor %}
+    </select></div>
+  <div class="field"><label for="semester_id">Semester</label>
+    <select id="semester_id" name="semester_id"><option value="">All</option>
+      {% for s in semesters %}<option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>{{ s.number }}</option>{% endfor %}
+    </select></div>
+  <label class="btn btn-ghost btn-sm"><input type="checkbox" name="include_deleted" value="1"
+    {{ 'checked' if filters.include_deleted }}> Include archived/deleted</label>
+  <button class="btn" type="submit">Filter</button>
+  <a class="btn btn-ghost" href="{{ url_for('admin.forms') }}">Reset</a>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Subject</th><th>Teacher</th>
+        <th>Timetable</th><th>Branch</th><th>Sem</th><th>Period</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for f in rows %}
+        <tr {% if f.is_deleted %}style="opacity:.6"{% endif %}>
+          <td>{{ f.id }}</td>
+          <td class="wrap">{{ f.title }}{% if f.is_deleted %} <span class="badge badge-draft">Deleted</span>{% endif %}</td>
+          <td>{{ m.status_badge(f.status) }}</td>
+          <td>{{ f.subject_name or '—' }}{% if f.subject_code %} <span class="sub">({{ f.subject_code }})</span>{% endif %}</td>
+          <td class="wrap">{% if f.scope == 'subject' %}<span class="sub">Multiple teachers</span>{% else %}{{ f.teacher_name or '—' }}{% endif %}</td>
+          <td>{% if f.scope == 'subject' and not f.timetable_id %}<span class="badge badge-published">All timetables</span>{% else %}{{ f.timetable or '—' }}{% endif %}</td>
+          <td>{{ f.branch or '—' }}</td>
+          <td>{{ f.semester or '—' }}</td>
+          <td>{{ f.period_no or '—' }}</td>
+          <td>
+            <div class="btn-row">
+              <a class="btn btn-ghost btn-sm" href="{{ url_for('admin.form_edit', fid=f.id) }}">Edit</a>
+              {% if not f.is_deleted %}
+              <form method="post" action="{{ url_for('admin.form_status', fid=f.id) }}" class="btn-row">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <input type="hidden" name="next" value="{{ url_for('admin.forms') }}">
+                {% if f.status in ('draft','closed','archived') %}
+                  <button class="btn btn-ok btn-sm" name="status" value="open">Publish/Open</button>
+                {% endif %}
+                {% if f.status == 'open' %}
+                  <button class="btn btn-warn btn-sm" name="status" value="closed">Close</button>
+                {% endif %}
+                {% if f.status != 'archived' %}
+                  <button class="btn btn-ghost btn-sm" name="status" value="archived">Archive</button>
+                {% endif %}
+              </form>
+              <form method="post" action="{{ url_for('admin.form_delete', fid=f.id) }}"
+                    onsubmit="return confirm('Soft-delete this form? Responses are preserved.')">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+              </form>
+              {% else %}
+              <form method="post" action="{{ url_for('admin.form_restore', fid=f.id) }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <button class="btn btn-ghost btn-sm" type="submit">Restore</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="10">{{ m.empty('No forms match your filters.') }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ m.pagination(pg, 'admin.forms', {'q': filters.q or '', 'status': filters.status or '',
+      'branch_id': filters.branch_id or '', 'semester_id': filters.semester_id or '',
+      'include_deleted': '1' if filters.include_deleted else ''}) }}
+</div>
+{% endblock %}

@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Import semester timetable — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
+<h1>Import semester timetable (Excel)</h1>
+<p class="sub">Upload the student timetable report for a new semester. Existing records,
+  forms and feedback are kept; only new teachers, students, timetables and subject sessions
+  are added.</p>
+
+{% if problems %}
+<div class="flash flash-error"><strong>Cannot import this file:</strong>
+  <ul style="margin:.4rem 0 0 1.1rem">{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+{% if result %}
+<div class="card">
+  <h2>Import complete</h2>
+  <p>{{ result.filename }} → <strong>Semester {{ result.semester }}</strong>, {{ result.academic_year }}</p>
+  <div class="table-wrap"><table class="data"><tbody>
+    <tr><td>Rows read</td><td>{{ result.rows }}</td></tr>
+    <tr><td>Branches</td><td>{{ result.branches }}</td></tr>
+    <tr><td>Timetables</td><td>{{ result.timetables }}</td></tr>
+    <tr><td>Class sessions</td><td>{{ result.sessions }}</td></tr>
+    <tr><td>Teachers in system</td><td>{{ result.teachers }}</td></tr>
+    <tr><td>Students in system</td><td>{{ result.students }}</td></tr>
+  </tbody></table></div>
+  {% for w in result.warnings %}<p class="sub">⚠ {{ w }}</p>{% endfor %}
+  <p><a class="btn btn-primary btn-sm" href="{{ url_for('admin.timetables') }}">View timetables</a>
+     <a class="btn btn-ghost btn-sm" href="{{ url_for('admin.bulk_forms') }}">Create feedback forms</a></p>
+</div>
+{% endif %}
+
+{% if preview %}
+<div class="card">
+  <h2>File check — nothing saved yet</h2>
+  <div class="table-wrap"><table class="data"><tbody>
+    <tr><td>Rows</td><td>{{ preview.rows }}</td></tr>
+    <tr><td>Branches (sheets)</td><td>{{ preview.branches }}</td></tr>
+    <tr><td>Timetables</td><td>{{ preview.timetables }}</td></tr>
+    <tr><td>Subjects</td><td>{{ preview.subjects }}</td></tr>
+    <tr><td>Teachers</td><td>{{ preview.teachers }}</td></tr>
+    <tr><td>Students</td><td>{{ preview.students }}</td></tr>
+  </tbody></table></div>
+  <p class="sub">Sheets: {% for name, n in preview.sheets %}{{ name }} ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}</p>
+  {% for w in preview.warnings %}<p class="sub">⚠ {{ w }}</p>{% endfor %}
+  <p class="sub">Looks right? Choose the file again below and press <strong>Import</strong>.</p>
+</div>
+{% endif %}
+
+<div class="card">
+  <form method="post" enctype="multipart/form-data" id="import-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="grid grid-3">
+      <label>Semester
+        <select name="semester" required>
+          <option value="">Select…</option>
+          {% for n in range(1, 9) %}
+          <option value="{{ n }}" {{ 'selected' if form.semester|string == n|string }}>Semester {{ n }}</option>
+          {% endfor %}
+        </select></label>
+      <label>Academic year
+        <input name="academic_year" value="{{ form.academic_year }}" pattern="\d{4}-\d{2}"
+               placeholder="2025-26" required></label>
+      <label>Excel file (.xlsx)
+        <input type="file" name="workbook" accept=".xlsx" required></label>
+    </div>
+    <p class="sub">Each sheet is one branch. Required columns (any order):
+      <em>Time Table, Course Code, Course Name, Emp.Code, Emp.Name, Roll.No</em>.</p>
+    <p>
+      <button class="btn btn-ghost" type="submit" name="action" value="check">Check file</button>
+      <button class="btn btn-primary" type="submit" name="action" value="import"
+              id="import-submit">Import</button>
+    </p>
+    <div id="import-progress" class="import-progress" role="status" aria-live="polite"
+         aria-atomic="true" hidden>
+      <span class="import-progress__spinner" aria-hidden="true"></span>
+      <div>
+        <strong>Import in progress — please wait</strong>
+        <p>The workbook is being checked and saved to the database. Keep this page open
+          and do not submit the import again.</p>
+      </div>
+      <div class="import-progress__track" aria-hidden="true"><span></span></div>
+    </div>
+  </form>
+</div>
+<script>
+(function () {
+  var form = document.getElementById('import-form');
+  var status = document.getElementById('import-progress');
+  var importButton = document.getElementById('import-submit');
+  if (!form || !status || !importButton) return;
+
+  form.addEventListener('submit', function (event) {
+    var submitter = event.submitter;
+    if (submitter !== importButton) return;
+    if (!window.confirm('Import this timetable into the selected semester?')) {
+      event.preventDefault();
+      return;
+    }
+    if (form.dataset.importing === 'true') {
+      event.preventDefault();
+      return;
+    }
+    form.dataset.importing = 'true';
+    var action = document.createElement('input');
+    action.type = 'hidden';
+    action.name = 'action';
+    action.value = 'import';
+    form.appendChild(action);
+    importButton.removeAttribute('name');
+    form.setAttribute('aria-busy', 'true');
+    status.hidden = false;
+    importButton.disabled = true;
+    importButton.textContent = 'Importing…';
+    form.querySelectorAll('button[type="submit"]').forEach(function (button) {
+      button.disabled = true;
+    });
+  });
+}());
+</script>
+{% endblock %}

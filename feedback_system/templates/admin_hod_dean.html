@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+{% block title %}HOD / Dean Accounts — Admin{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>HOD &amp; Dean accounts</h1>
+    <a class="btn" href="{{ url_for('admin.hod_dean_template') }}">Download CSV template</a>
+  </div>
+
+  {% if import_creds %}
+  <div class="card" style="border-left:4px solid #1558C0;margin-bottom:1rem">
+    <h2>Initial credentials (show once — deliver securely)</h2>
+    <p class="muted">Temporary passwords are not stored in plaintext. Deliver them out-of-band to each employee, then require password change on first login.</p>
+    <table class="data-table">
+      <thead><tr><th>Role</th><th>Employee ID</th><th>Name</th><th>Email</th><th>Temporary password</th></tr></thead>
+      <tbody>
+      {% for c in import_creds %}
+        <tr>
+          <td>{{ c.role }}</td><td>{{ c.employee_id }}</td><td>{{ c.name }}</td>
+          <td>{{ c.email }}</td><td><code>{{ c.temp_password }}</code></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="card">
+    <h2>Import accounts from CSV</h2>
+    <form method="post" action="{{ url_for('admin.hod_dean_import') }}" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="form-row">
+        <input type="file" name="csv_file" accept=".csv" required>
+        <button type="submit" class="btn primary">Import</button>
+      </div>
+    </form>
+    <p class="muted" style="margin-top:.5rem">
+      Columns: role, employee_id, full_name, official_email, designation, department_codes, active.
+      Multiple departments separated by <code>|</code>. No passwords in the file.
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:1rem">
+    <h2>HOD accounts</h2>
+    {% if hods %}
+    <table class="data-table">
+      <thead><tr>
+        <th>Emp</th><th>Name</th><th>Email</th><th>Branches</th>
+        <th>Verified</th><th>Onboarded</th><th>Active</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+      {% for h in hods %}
+        <tr>
+          <td>{{ h.emp_code or h.username }}</td>
+          <td>{{ h.name }}</td>
+          <td>{{ h.email or '—' }}</td>
+          <td>{{ h.branches or '—' }}</td>
+          <td>{{ 'Yes' if h.email_verified else 'No' }}</td>
+          <td>{{ 'Yes' if h.onboarding_complete else 'No' }}</td>
+          <td>{{ 'Yes' if h.is_active else 'No' }}</td>
+          <td class="actions">
+            <form method="post" action="{{ url_for('admin.hod_dean_reset_onboarding', uid=h.id) }}" style="display:inline">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button type="submit" class="btn small">Reset onboarding</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.hod_dean_toggle_active', uid=h.id) }}" style="display:inline">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button type="submit" class="btn small">{{ 'Deactivate' if h.is_active else 'Activate' }}</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No HOD accounts yet. Import via CSV.</p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:1rem">
+    <h2>Dean accounts</h2>
+    {% if deans %}
+    <table class="data-table">
+      <thead><tr>
+        <th>Emp</th><th>Name</th><th>Email</th><th>Scopes</th>
+        <th>Verified</th><th>Onboarded</th><th>Active</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+      {% for d in deans %}
+        <tr>
+          <td>{{ d.emp_code or d.username }}</td>
+          <td>{{ d.name }}</td>
+          <td>{{ d.email or '—' }}</td>
+          <td>{{ d.branches or '—' }}</td>
+          <td>{{ 'Yes' if d.email_verified else 'No' }}</td>
+          <td>{{ 'Yes' if d.onboarding_complete else 'No' }}</td>
+          <td>{{ 'Yes' if d.is_active else 'No' }}</td>
+          <td class="actions">
+            <form method="post" action="{{ url_for('admin.hod_dean_reset_onboarding', uid=d.id) }}" style="display:inline">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button type="submit" class="btn small">Reset onboarding</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.hod_dean_toggle_active', uid=d.id) }}" style="display:inline">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button type="submit" class="btn small">{{ 'Deactivate' if d.is_active else 'Activate' }}</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No Dean accounts yet. Import via CSV.</p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:1rem">
+    <h2>HOD allocations (exclusive)</h2>
+    <p class="muted">Key: academic year + department + semester + timetable. One HOD per exact key.</p>
+    {% if allocations %}
+    <table class="data-table">
+      <thead><tr><th>HOD</th><th>Year</th><th>Dept</th><th>Sem</th><th>Timetable</th></tr></thead>
+      <tbody>
+      {% for a in allocations %}
+        <tr>
+          <td>{{ a.hod_name }} ({{ a.emp_code }})</td>
+          <td>{{ a.academic_year }}</td>
+          <td>{{ a.branch_code }}</td>
+          <td>{{ a.semester_number }}</td>
+          <td>{{ a.timetable_code }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No exclusive allocations claimed yet (HODs claim them during onboarding).</p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:1rem">
+    <h2>Dean → HOD assignments</h2>
+    {% if dean_hods %}
+    <table class="data-table">
+      <thead><tr><th>Dean</th><th>HOD</th></tr></thead>
+      <tbody>
+      {% for r in dean_hods %}
+        <tr>
+          <td>{{ r.dean_name }} ({{ r.dean_emp }})</td>
+          <td>{{ r.hod_name }} ({{ r.hod_emp }})</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="muted">No Dean–HOD assignments yet.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

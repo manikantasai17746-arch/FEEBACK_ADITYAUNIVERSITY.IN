@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Timetables — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
+<h1>Timetables &amp; sections</h1>
+<p class="sub">{{ rows|length }} timetable(s). Each timetable groups a batch/section of students
+  and the class periods (subjects) they attend.</p>
+<form method="get" class="filter-bar">
+  <div class="field"><label for="q">Search</label>
+    <input type="search" id="q" name="q" value="{{ q }}" placeholder="Timetable, branch…"></div>
+  <label class="btn btn-ghost btn-sm" style="gap:6px">
+    <input type="checkbox" name="include_deleted" value="1" {{ 'checked' if include_deleted }}
+      onchange="this.form.submit()"> Include deleted</label>
+  <button class="btn" type="submit">Search</button>
+</form>
+<div class="card">
+  <div class="table-wrap">
+    <table class="data" id="tt-table">
+      <thead><tr><th>Branch</th><th>Timetable</th><th>Semester</th><th>Academic year</th>
+        <th>Class periods</th><th>Students</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.branch }}</td><td>{{ r.code }}</td><td>{{ r.semester }}</td>
+          <td>{{ r.academic_year }}</td><td>{{ counts[r.id] }}</td><td>{{ students[r.id] }}</td>
+          <td>{{ 'Deleted' if r.is_deleted else 'Active' }}</td>
+          <td><a class="btn btn-ghost btn-sm" href="{{ url_for('admin.timetable_detail', tid=r.id) }}">Open</a></td>
+        </tr>
+        {% else %}<tr><td colspan="8">No timetables match.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

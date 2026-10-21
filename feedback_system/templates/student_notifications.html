@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Notifications — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>Notifications {% if unread %}<span class="badge badge-warn">{{ unread }} unread</span>{% endif %}</h1>
+    <nav class="subnav">
+      <a href="{{ url_for('student.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('student.notifications') }}" class="active">Notifications</a>
+      <a href="{{ url_for('auth.logout') }}">Logout</a>
+    </nav>
+  </div>
+
+  {% if rows %}
+  <div class="btn-row" style="margin-bottom:1rem">
+    <form method="post" action="{{ url_for('student.notifications_read_all') }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn btn-ghost btn-sm" type="submit">Mark all as read</button>
+    </form>
+  </div>
+  <div class="card">
+    <ul class="notif-list">
+      {% for n in rows %}
+      <li class="notif-item {% if not n.is_read %}unread{% endif %}">
+        <div class="notif-kind">{{ n.kind }}</div>
+        <div class="notif-body">
+          <strong>{{ n.title }}</strong>
+          <p>{{ n.body }}</p>
+          <span class="muted">{{ n.created_at }}</span>
+          {% if n.link %}<a href="{{ n.link }}">Open</a>{% endif %}
+        </div>
+        {% if not n.is_read %}
+        <form method="post" action="{{ url_for('student.notification_read', nid=n.id) }}">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <button class="btn btn-ghost btn-sm" type="submit">Mark read</button>
+        </form>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% else %}
+  <div class="card"><p class="muted">No notifications yet. Deadlines, new forms and announcements will appear here.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

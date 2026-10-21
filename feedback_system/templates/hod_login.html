@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}HOD Login — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="role-tabs">
+      <a href="{{ url_for('auth.student_login') }}">Student</a>
+      <a href="{{ url_for('auth.teacher_login') }}">Teacher</a>
+      <a href="{{ url_for('auth.hod_login') }}" class="active">HOD</a>
+      <a href="{{ url_for('auth.dean_login') }}">Dean</a>
+      <a href="{{ url_for('auth.admin_login') }}">Admin</a>
+    </div>
+    <div class="eyebrow">HOD Login</div>
+    <h2>Head of Department</h2>
+    <p class="sub" style="margin-bottom:1.2rem">Sign in with your employee code to manage department feedback forms and results.</p>
+    <form method="post" autocomplete="off" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="emp_code">Employee Code</label>
+        <input type="text" id="emp_code" name="emp_code" placeholder="e.g. 6817" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+      </div>
+      <button class="btn btn-block" type="submit">Log In</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

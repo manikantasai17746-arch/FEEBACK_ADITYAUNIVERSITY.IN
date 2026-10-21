@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}HOD Second Faculty{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header"><h1>Second-faculty mapping status</h1>
+    <nav class="subnav">
+      <a href="{{ url_for('hod.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('hod.forms') }}">Forms</a>
+      <a href="{{ url_for('hod.results') }}">Results</a>
+      <a href="{{ url_for('hod.second_faculty') }}" class="active">Second Faculty</a>
+    </nav>
+  </div>
+  <div class="stat-grid">
+    <div class="stat-card"><div class="stat-label">Confirmed</div><div class="stat-value">{{ summary.confirmed }}</div></div>
+    <div class="stat-card"><div class="stat-label">Unresolved</div><div class="stat-value">{{ summary.unresolved }}</div></div>
+    <div class="stat-card"><div class="stat-label">Conflict</div><div class="stat-value">{{ summary.conflict }}</div></div>
+    <div class="stat-card"><div class="stat-label">Rejected</div><div class="stat-value">{{ summary.rejected }}</div></div>
+  </div>
+  {% if rows %}
+  <table class="data-table" style="margin-top:1rem">
+    <thead><tr><th>Subject</th><th>Main emp</th><th>Second emp</th><th>Status</th><th>Branch</th></tr></thead>
+    <tbody>{% for r in rows %}<tr>
+      <td>{{ r.subject_code }}</td><td>{{ r.main_emp_code or '—' }}</td>
+      <td>{{ r.second_emp_code or '—' }}</td><td>{{ r.status }}</td>
+      <td>{{ r.branch_code or '—' }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+  {% else %}
+  <p class="muted" style="margin-top:1rem">No second-faculty mappings for your department.
+    Official workload / import workbooks were not supplied with the project.</p>
+  {% endif %}
+</div>
+{% endblock %}

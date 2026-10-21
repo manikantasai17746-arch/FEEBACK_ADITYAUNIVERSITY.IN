@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Submission tracking — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
+<h1>Submission tracking</h1>
+<p class="sub">Track which eligible students have completed each feedback requirement. Counts are
+  calculated from the real eligible-student population for each session.</p>
+
+<form method="get" class="filter-bar">
+  <div class="field"><label for="academic_year_id">Academic year</label>
+    <select id="academic_year_id" name="academic_year_id"><option value="">All</option>
+      {% for y in years %}<option value="{{ y.id }}" {{ 'selected' if filters.academic_year_id == y.id }}>{{ y.name }}</option>{% endfor %}
+    </select></div>
+  <div class="field"><label for="semester_id">Semester</label>
+    <select id="semester_id" name="semester_id"><option value="">All</option>
+      {% for s in semesters %}<option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>{{ s.number }}</option>{% endfor %}
+    </select></div>
+  <div class="field"><label for="branch_id">Branch</label>
+    <select id="branch_id" name="branch_id"><option value="">All</option>
+      {% for b in branches %}<option value="{{ b.id }}" {{ 'selected' if filters.branch_id == b.id }}>{{ b.code }}</option>{% endfor %}
+    </select></div>
+  <div class="field"><label for="timetable_id">Timetable</label>
+    <select id="timetable_id" name="timetable_id"><option value="">All</option>
+      {% for t in timetables %}<option value="{{ t.id }}" {{ 'selected' if filters.timetable_id == t.id }}>{{ t.branch }} · {{ t.code }}</option>{% endfor %}
+    </select></div>
+  <div class="field"><label for="teacher_id">Teacher</label>
+    <select id="teacher_id" name="teacher_id"><option value="">All</option>
+      {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if filters.teacher_id == t.id }}>{{ t.name }}</option>{% endfor %}
+    </select></div>
+  <div class="field"><label for="subject_code">Subject</label>
+    <select id="subject_code" name="subject_code"><option value="">All</option>
+      {% for s in subjects %}<option value="{{ s.course_code }}" {{ 'selected' if filters.subject_code == s.course_code }}>{{ s.course_code }} — {{ s.course_name }}</option>{% endfor %}
+    </select></div>
+  <div class="field"><label for="status">Form status</label>
+    <select id="status" name="status"><option value="">All</option>
+      {% for s in ['draft','open','closed','archived'] %}
+        <option value="{{ s }}" {{ 'selected' if filters.status == s }}>{{ status_labels[s] }}</option>{% endfor %}
+    </select></div>
+  <label class="btn btn-ghost btn-sm"><input type="checkbox" name="include_deleted" value="1"
+    {{ 'checked' if filters.include_deleted }}> Include archived/deleted</label>
+  <button class="btn" type="submit">Apply filters</button>
+  <a class="btn btn-ghost" href="{{ url_for('admin.tracking') }}">Reset</a>
+  <a class="btn btn-ghost"
+     href="{{ url_for('admin.tracking_export') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">Export CSV</a>
+</form>
+
+<div class="tiles mb">
+  <div class="tile"><div class="num">{{ totals.eligible }}</div><div class="lbl">Total eligible</div></div>
+  <div class="tile ok"><div class="num">{{ totals.submitted }}</div><div class="lbl">Submitted</div></div>
+  <div class="tile warn"><div class="num">{{ totals.not_submitted }}</div><div class="lbl">Not submitted</div></div>
+  <div class="tile"><div class="num">{{ totals.pct }}%</div><div class="lbl">Completion</div></div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>ID</th><th>Form</th><th>Status</th><th>Academic year</th><th>Sem</th>
+        <th>Branch</th><th>Timetable</th><th>Subject</th><th>Teacher</th><th>Period</th>
+        <th>Eligible</th><th>Submitted</th><th>Not submitted</th><th>Completion</th><th>Roll lists</th></tr></thead>
+      <tbody>
+        {% for r in rows %}{% set f = r.form %}
+        <tr>
+          <td>{{ f.id }}</td>
+          <td class="wrap">{{ f.title }}{% if f.is_deleted %} <span class="badge badge-draft">Deleted</span>{% endif %}</td>
+          <td>{{ m.status_badge(f.status) }}</td>
+          <td>{{ f.academic_year or f.snapshot_academic_year or '—' }}</td>
+          <td>{{ f.semester or f.snapshot_semester or '—' }}</td>
+          <td>{{ f.branch or f.snapshot_branch or '—' }}</td>
+          <td>{{ f.timetable or f.snapshot_timetable or '—' }}</td>
+          <td>{{ f.subject_name or f.snapshot_subject_name or '—' }}</td>
+          <td class="wrap">{{ f.teacher_name or f.snapshot_teacher or '—' }}</td>
+          <td>{{ f.period_no or f.snapshot_period or '—' }}</td>
+          <td>{{ r.eligible }}</td><td>{{ r.submitted }}</td><td>{{ r.not_submitted }}</td>
+          <td>{{ r.pct }}%</td>
+          <td class="btn-row">
+            <button class="btn btn-ghost btn-sm" data-rolls="submitted" data-form-id="{{ f.id }}">Submitted</button>
+            <button class="btn btn-ghost btn-sm" data-rolls="not_submitted" data-form-id="{{ f.id }}">Not Submitted</button>
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="15">{{ m.empty('No forms match these filters.') }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Roll number lists</h3>
+  <p class="sub">Choose “Submitted” or “Not Submitted” above to list roll numbers for that form.</p>
+  <div id="roll-panel" data-url="{{ url_for('admin.tracking_rolls') }}">
+    <div class="empty"><p>No list selected yet.</p></div>
+  </div>
+  <p class="sub">Historical note: timetable identifiers and academic context are snapshotted on each
+    form, so records stay understandable even if a timetable is later modified or deleted.</p>
+</div>
+{% endblock %}

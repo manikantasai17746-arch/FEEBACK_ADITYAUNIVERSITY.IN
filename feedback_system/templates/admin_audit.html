@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Audit log — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
+<h1>Audit log</h1>
+<p class="sub">Administrative actions recorded for accountability.</p>
+<div class="card">
+  <input type="search" placeholder="Filter rows…" data-table-filter="#audit-table" class="mb">
+  <div class="table-wrap">
+    <table class="data" id="audit-table">
+      <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>ID</th><th>Detail</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr><td class="nowrap">{{ r.created_at }}</td><td>{{ r.actor_label }}</td>
+          <td>{{ r.action }}</td><td>{{ r.entity }}</td><td>{{ r.entity_id }}</td>
+          <td class="wrap">{{ r.detail }}</td></tr>
+        {% else %}<tr><td colspan="6">No audit entries.</td></tr>{% endfor %}
+        <tr class="no-match" style="display:none"><td colspan="6">No rows match.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  {{ m.pagination(pg, 'admin.audit_log') }}
+</div>
+{% endblock %}

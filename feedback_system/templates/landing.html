@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aditya University — Faculty Feedback Portal</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+</head>
+<body class="landing-page">
+<header class="lp-header">
+  <div class="lp-header-inner">
+    <a class="lp-brand" href="{{ url_for('auth.landing') }}">
+      <img src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="Aditya University">
+      <span>Faculty Feedback<small>FEEDBACK PORTAL</small></span>
+    </a>
+    <nav class="lp-nav lp-nav-desktop">
+      <a href="#home" class="active">Home</a>
+      <a href="#about">About</a>
+      <a href="#how">How It Works</a>
+      <a href="#portals">Contact</a>
+    </nav>
+    <a class="lp-btn lp-btn-primary lp-login-desktop" href="#portals">🔒 Login to Portal</a>
+    <button type="button" class="lp-menu-btn" id="lpMenuBtn" aria-label="Open menu" aria-expanded="false">☰</button>
+  </div>
+</header>
+
+<!-- Mobile drawer -->
+<div class="lp-drawer-backdrop" id="lpDrawerBackdrop" hidden></div>
+<aside class="lp-drawer" id="lpDrawer" aria-hidden="true">
+  <div class="lp-drawer-head">
+    <a class="lp-brand" href="{{ url_for('auth.landing') }}">
+      <img src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="">
+      <span>Faculty Feedback<small>FEEDBACK PORTAL</small></span>
+    </a>
+    <button type="button" class="lp-menu-btn lp-menu-close" id="lpMenuClose" aria-label="Close menu">✕</button>
+  </div>
+  <nav class="lp-drawer-nav">
+    <a href="#home" data-close-drawer><span class="di">🏠</span> Home</a>
+    <a href="#about" data-close-drawer><span class="di">ℹ</span> About</a>
+    <a href="#how" data-close-drawer><span class="di">⚙</span> How It Works</a>
+    <a href="#portals" data-close-drawer><span class="di">📞</span> Contact</a>
+    <hr>
+    <a href="{{ url_for('auth.student_login') }}"><span class="di">👤</span> Student Login <span class="chev">›</span></a>
+    <a href="{{ url_for('auth.teacher_login') }}"><span class="di">📋</span> Faculty Login <span class="chev">›</span></a>
+    <a href="{{ url_for('auth.hod_login') }}"><span class="di">🏛</span> HOD Login <span class="chev">›</span></a>
+    <a href="{{ url_for('auth.dean_login') }}"><span class="di">🧑‍💼</span> Dean Login <span class="chev">›</span></a>
+    <a href="{{ url_for('auth.admin_login') }}"><span class="di">⚙</span> Admin Login <span class="chev">›</span></a>
+  </nav>
+</aside>
+
+<section class="lp-hero" id="home">
+  <div class="lp-hero-inner">
+    <div class="lp-hero-copy">
+      <p class="lp-kicker">ADITYA UNIVERSITY <span class="lp-kicker-line"></span></p>
+      <h1>Empowering<br><span>Faculty Excellence</span></h1>
+      <p class="lp-lead">
+        An anonymous and transparent Faculty Feedback System to foster continuous
+        improvement in teaching, learning and academic growth at Aditya University.
+      </p>
+      <div class="lp-hero-actions">
+        <a class="lp-btn lp-btn-primary" href="#portals">✈ Go to Feedback Portal</a>
+        <a class="lp-btn lp-btn-outline" href="#about">Learn More →</a>
+      </div>
+
+      <div class="lp-features">
+        <div class="lp-feature">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#1d4ed8" stroke-width="2"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
+          <div><strong>100% Anonymous</strong><span>Your identity is always protected</span></div>
+        </div>
+        <div class="lp-feature">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#1d4ed8" stroke-width="2"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
+          <div><strong>Data-Driven Improvement</strong><span>Insights for better academics</span></div>
+        </div>
+        <div class="lp-feature">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#1d4ed8" stroke-width="2"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c3 0 6 1.5 6 5.5"/></svg>
+          <div><strong>Stronger Academic Community</strong><span>Together we build a brighter future</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lp-hero-visual">
+      <div class="lp-campus-photo" role="img" aria-label="Aditya University campus"></div>
+      <div class="lp-hero-note">
+        <h3>Shaping Futures,<br>Empowering Minds</h3>
+        <p>At Aditya University, we believe in continuous learning, innovation and excellence for a brighter tomorrow.</p>
+        <span class="lp-note-bar"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="lp-stats">
+  <div class="lp-stats-inner">
+    <div class="lp-stat">
+      <div class="ic ic-orange">👥</div>
+      <div class="num">{{ '{:,}'.format(stats.students) }}{% if stats.students >= 100 %}+{% endif %}</div>
+      <div class="lbl">Students</div>
+    </div>
+    <div class="lp-stat">
+      <div class="ic ic-blue">👤</div>
+      <div class="num">{{ '{:,}'.format(stats.faculty) }}{% if stats.faculty >= 10 %}+{% endif %}</div>
+      <div class="lbl">Faculty Members</div>
+    </div>
+    <div class="lp-stat">
+      <div class="ic ic-green">📘</div>
+      <div class="num">{{ '{:,}'.format(stats.subjects) }}{% if stats.subjects >= 10 %}+{% endif %}</div>
+      <div class="lbl">Subjects</div>
+    </div>
+    <div class="lp-stat">
+      <div class="ic ic-purple">📈</div>
+      <div class="num">{{ stats.completion }}%</div>
+      <div class="lbl">Feedback Completion</div>
+    </div>
+  </div>
+</section>
+
+<section class="lp-section" id="about">
+  <div class="lp-section-inner">
+    <p class="lp-eyebrow">WHY IT MATTERS</p>
+    <h2>Why Faculty Feedback Matters</h2>
+    <p class="lp-sub">Your feedback helps us ensure quality teaching, supports academic improvement, and creates a better learning environment for everyone.</p>
+    <div class="lp-grid-4">
+      <article class="lp-card">
+        <div class="ic ic-blue">🎓</div>
+        <h3>Improves Teaching Quality</h3>
+        <p>Helps faculty enhance their teaching methods and course delivery.</p>
+      </article>
+      <article class="lp-card">
+        <div class="ic ic-orange">📊</div>
+        <h3>Strengthens Academic Standards</h3>
+        <p>Supports data-driven decisions for better learning outcomes.</p>
+      </article>
+      <article class="lp-card">
+        <div class="ic ic-green">👥</div>
+        <h3>Encourages Student Engagement</h3>
+        <p>Gives students a voice in shaping their academic experience.</p>
+      </article>
+      <article class="lp-card">
+        <div class="ic ic-purple">💡</div>
+        <h3>Builds a Positive Learning Environment</h3>
+        <p>Creates a more effective, interactive and student-centric campus culture.</p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="lp-section lp-section-alt" id="portals">
+  <div class="lp-section-inner">
+    <p class="lp-eyebrow">GET STARTED</p>
+    <h2>Select Your Portal</h2>
+    <p class="lp-sub">Choose your role to access the appropriate portal.</p>
+    <div class="lp-portals">
+      <article class="lp-portal">
+        <div class="ic ic-blue">👤</div>
+        <h3>Student Portal</h3>
+        <ul>
+          <li>Give feedback</li>
+          <li>View status</li>
+          <li>Track submissions</li>
+        </ul>
+        <a class="lp-btn lp-btn-primary" href="{{ url_for('auth.student_login') }}">Login as Student →</a>
+      </article>
+      <article class="lp-portal">
+        <div class="ic ic-orange">📋</div>
+        <h3>Faculty Portal</h3>
+        <ul>
+          <li>View results</li>
+          <li>Track performance</li>
+          <li>Download reports</li>
+        </ul>
+        <a class="lp-btn lp-btn-faculty" href="{{ url_for('auth.teacher_login') }}">Login as Faculty →</a>
+      </article>
+      <article class="lp-portal">
+        <div class="ic ic-green">🏛</div>
+        <h3>HOD Portal</h3>
+        <ul>
+          <li>Manage forms</li>
+          <li>View consolidated results</li>
+          <li>Generate reports</li>
+        </ul>
+        <a class="lp-btn lp-btn-hod" href="{{ url_for('auth.hod_login') }}">Login as HOD →</a>
+      </article>
+      <article class="lp-portal">
+        <div class="ic ic-yellow">🧑‍💼</div>
+        <h3>Dean Portal</h3>
+        <ul>
+          <li>View college-wide results</li>
+          <li>Monitor departments</li>
+          <li>Generate insights</li>
+        </ul>
+        <a class="lp-btn lp-btn-dean" href="{{ url_for('auth.dean_login') }}">Login as Dean →</a>
+      </article>
+      <article class="lp-portal lp-portal-admin">
+        <div class="ic ic-red">⚙</div>
+        <h3>Admin Portal</h3>
+        <ul>
+          <li>Manage users and data</li>
+          <li>Configure academic settings</li>
+          <li>Monitor system activity</li>
+        </ul>
+        <a class="lp-btn lp-btn-admin" href="{{ url_for('auth.admin_login') }}">Login as Admin →</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="lp-section" id="how">
+  <div class="lp-section-inner">
+    <p class="lp-eyebrow">HOW IT WORKS</p>
+    <h2>A Simple Process</h2>
+    <p class="lp-sub">From feedback collection to academic improvement.</p>
+    <div class="lp-steps">
+      <div class="lp-step"><span class="n">1</span><div class="ic">📄</div><h3>Collect Feedback</h3></div>
+      <div class="lp-arrow">→</div>
+      <div class="lp-step"><span class="n">2</span><div class="ic">📊</div><h3>Analyze Data</h3></div>
+      <div class="lp-arrow">→</div>
+      <div class="lp-step"><span class="n">3</span><div class="ic">📑</div><h3>Publish Results</h3></div>
+      <div class="lp-arrow">→</div>
+      <div class="lp-step"><span class="n">4</span><div class="ic">🎯</div><h3>Drive Improvement</h3></div>
+    </div>
+  </div>
+</section>
+
+<footer class="lp-footer" id="contact">
+  <div class="lp-footer-inner">
+    <div>
+      <div class="lp-brand lp-brand-foot">
+        <img src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="">
+        <span>ADITYA UNIVERSITY</span>
+      </div>
+      <p>Faculty Feedback System<br><small>Transparent · Fair · Continuous Growth</small></p>
+    </div>
+    <div>
+      <h4>Contact</h4>
+      <p>📞 +91 63 00 45 90 01<br>
+         ✉ support_tt@adityauniversity.in<br>
+         📍 Surampalem, Kakinada District, Andhra Pradesh</p>
+    </div>
+    <div>
+      <h4>Our Social Media</h4>
+      <p class="lp-social">
+        <a href="https://www.linkedin.com" target="_blank" rel="noopener">in</a>
+        <a href="https://www.youtube.com" target="_blank" rel="noopener">▶</a>
+        <a href="https://www.facebook.com" target="_blank" rel="noopener">f</a>
+        <a href="https://www.instagram.com" target="_blank" rel="noopener">ig</a>
+      </p>
+    </div>
+  </div>
+  <div class="lp-footer-bottom">
+    <span>© 2026 Aditya University. All Rights Reserved.</span>
+    <span>Privacy Policy · Terms of Service · Contact Us</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var btn = document.getElementById('lpMenuBtn');
+  var closeBtn = document.getElementById('lpMenuClose');
+  var drawer = document.getElementById('lpDrawer');
+  var backdrop = document.getElementById('lpDrawerBackdrop');
+  function openMenu() {
+    document.body.classList.add('lp-menu-open');
+    drawer.setAttribute('aria-hidden', 'false');
+    btn.setAttribute('aria-expanded', 'true');
+    backdrop.hidden = false;
+  }
+  function closeMenu() {
+    document.body.classList.remove('lp-menu-open');
+    drawer.setAttribute('aria-hidden', 'true');
+    btn.setAttribute('aria-expanded', 'false');
+    backdrop.hidden = true;
+  }
+  if (btn) btn.addEventListener('click', openMenu);
+  if (closeBtn) closeBtn.addEventListener('click', closeMenu);
+  if (backdrop) backdrop.addEventListener('click', closeMenu);
+  document.querySelectorAll('[data-close-drawer]').forEach(function (a) {
+    a.addEventListener('click', closeMenu);
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block title %}Teacher Login — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-deco" aria-hidden="true">
+  <div class="deco-dots" style="top:8%;left:5%;width:140px;height:130px;opacity:.7"></div>
+  <div class="deco-arc" style="top:10%;right:6%;width:170px;height:170px;opacity:.75"></div>
+  <div class="deco-blob soft" style="bottom:15%;left:-40px;width:160px;height:130px;opacity:.55"></div>
+  <div class="deco-circle" style="width:220px;height:220px;bottom:8%;right:-70px"></div>
+  <div class="deco-dots red" style="bottom:20%;right:10%;width:100px;height:90px;opacity:.55"></div>
+</div>
+  <div class="auth-card">
+    <div class="role-tabs">
+      <a href="{{ url_for('auth.student_login') }}">Student</a>
+      <a href="{{ url_for('auth.teacher_login') }}" class="active">Teacher</a>
+      <a href="{{ url_for('auth.hod_login') }}">HOD</a>
+      <a href="{{ url_for('auth.dean_login') }}">Dean</a>
+      <a href="{{ url_for('auth.admin_login') }}">Admin</a>
+    </div>
+    <div class="eyebrow">Teacher Login</div>
+    <h2>Welcome back</h2>
+    <p class="sub" style="margin-bottom:1.2rem">Scan your staff ID card or type your employee code to view your published feedback results.</p>
+    <button type="button" id="scanBtn" class="btn btn-accent btn-block">Scan ID Card</button>
+    <div class="divider-or">or enter it manually</div>
+    <form method="post" autocomplete="off" class="card" style="position:relative;overflow:hidden">
+      <div class="deco-dots blue" style="position:absolute;right:-15px;top:-15px;width:70px;height:60px;opacity:.25"></div>
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="emp_code">Employee Code</label>
+        <input type="text" id="emp_code" name="emp_code" placeholder="e.g. 6817" required autofocus>
+        <div class="scan-ok" id="scanOk">✓ ID card scanned — now enter your password.</div>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" required>
+        
+      </div>
+      <button class="btn btn-block" type="submit">Log In</button>
+      <p style="margin-top:.9rem;text-align:center;font-size:.85rem">
+        <a href="{{ url_for('auth.forgot_password', role='teacher') }}">Forgot password?</a></p>
+    </form>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
+<script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
+<script>
+document.getElementById('scanBtn').addEventListener('click', async function () {
+  var code;
+  try { code = await openIdCardScanner(); } catch (e) { return; }
+  if (!code) return;
+  var f = document.getElementById('emp_code');
+  f.value = String(code).trim();
+  document.getElementById('scanOk').style.display = 'block';
+  document.getElementById('password').focus();
+});
+</script>
+{% endblock %}

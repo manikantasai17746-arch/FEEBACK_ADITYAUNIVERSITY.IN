@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+{% block title %}Teacher Performance — HOD{% endblock %}
+{% block body %}
+<div class="perf-welcome">
+  <div>
+    <h1 style="margin:0;display:flex;align-items:center;gap:.5rem">
+      <span aria-hidden="true">👥</span> HOD Dashboard — Teacher Performance Analytics
+    </h1>
+    <p class="sub" style="margin:.35rem 0 0">View subject-wise feedback scores for your authorized department.</p>
+  </div>
+  <div class="badge" style="background:#e0f2fe;color:#075985;padding:.45rem .9rem;border-radius:999px;font-weight:600">
+    Department: {% for b in branches %}{{ b.name }} ({{ b.code }}){% if not loop.last %}, {% endif %}{% else %}{{ dept_label }}{% endfor %}
+  </div>
+</div>
+
+{# Mode tabs #}
+<div class="card card-tight" style="padding:.5rem;margin-bottom:1rem">
+  <div class="btn-row" style="gap:.35rem;flex-wrap:wrap">
+    <a class="btn {% if mode != 'teacher' %}btn-accent{% else %}btn-ghost{% endif %} btn-sm"
+       href="{{ url_for('hod.performance', mode='timetable',
+         academic_year_id=filters.academic_year_id, semester_id=filters.semester_id,
+         branch_id=filters.branch_id) }}">📅 Select by Timetable</a>
+    <a class="btn {% if mode == 'teacher' %}btn-accent{% else %}btn-ghost{% endif %} btn-sm"
+       href="{{ url_for('hod.performance', mode='teacher',
+         academic_year_id=filters.academic_year_id, semester_id=filters.semester_id,
+         branch_id=filters.branch_id) }}">👤 Select by Teacher</a>
+  </div>
+</div>
+
+<form method="get" class="card" style="margin-bottom:1rem">
+  <input type="hidden" name="mode" value="{{ mode }}">
+  <div class="grid grid-3" style="gap:.75rem">
+    <div class="field"><label>Academic Year</label>
+      <select name="academic_year_id">
+        <option value="">All</option>
+        {% for y in years %}
+        <option value="{{ y.id }}" {{ 'selected' if filters.academic_year_id == y.id }}>{{ y.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field"><label>Semester</label>
+      <select name="semester_id">
+        <option value="">All</option>
+        {% for s in semesters %}
+        <option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>{{ s.number }}{% if s.label is defined and s.label %} — {{ s.label }}{% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field"><label>Branch</label>
+      <select name="branch_id">
+        <option value="">All my departments</option>
+        {% for b in branches %}
+        <option value="{{ b.id }}" {{ 'selected' if filters.branch_id == b.id }}>{{ b.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field"><label>Section / Timetable</label>
+      <select name="timetable_id">
+        <option value="">All</option>
+        {% for t in timetables %}
+        <option value="{{ t.id }}" {{ 'selected' if filters.timetable_id == t.id }}>{{ t.branch }} · {{ t.code }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field"><label>Teacher</label>
+      <select name="teacher_user_id">
+        <option value="">All teachers</option>
+        {% for t in teachers_list %}
+        <option value="{{ t.id }}" {{ 'selected' if filters.teacher_user_id == t.id }}>{{ t.name }}{% if t.emp_code %} ({{ t.emp_code }}){% endif %}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field"><label>Subject</label>
+      <select name="subject_code">
+        <option value="">All subjects</option>
+        {% for s in subjects_list %}
+        <option value="{{ s.code }}" {{ 'selected' if filters.subject_code == s.code }}>
+          {{ s.code }}{% if s.name %} — {{ s.name }}{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field"><label>Feedback Form</label>
+      <select name="form_id">
+        <option value="">All published forms</option>
+        {% for f in forms_list %}
+        <option value="{{ f.id }}" {{ 'selected' if filters.form_id == f.id }}>#{{ f.id }} — {{ f.title }} ({{ f.status }})</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="btn-row" style="margin-top:.75rem">
+    <button class="btn btn-accent" type="submit">⬇ Apply Filters</button>
+    <a class="btn btn-ghost" href="{{ url_for('hod.performance', mode=mode) }}">Reset</a>
+  </div>
+</form>
+
+<div class="perf-tiles">
+  <div class="perf-tile t-subjects">
+    <div class="ic">👥</div>
+    <div><div class="num">{{ summary.teachers }}</div><div class="lbl">Teachers</div></div>
+  </div>
+  <div class="perf-tile t-eligible">
+    <div class="ic">📘</div>
+    <div><div class="num">{{ summary.subjects }}</div><div class="lbl">Subjects</div></div>
+  </div>
+  <div class="perf-tile t-responses">
+    <div class="ic">✓</div>
+    <div><div class="num">{{ summary.responses }}</div><div class="lbl">Feedback Responses</div></div>
+  </div>
+  <div class="perf-tile t-score">
+    <div class="ic">★</div>
+    <div>
+      <div class="num">{% if summary.avg_score is not none %}{{ '%.2f'|format(summary.avg_score) }}{% else %}—{% endif %}</div>
+      <div class="lbl">Department Avg. Score / 100</div>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="btn-row" style="justify-content:space-between;flex-wrap:wrap;gap:.5rem">
+    <h2 style="margin:0">📊 Teacher &amp; Subject Performance</h2>
+    <div class="btn-row">
+      <span class="sub">Report Type</span>
+      <select disabled style="min-width:140px">
+        <option>Department-wise</option>
+      </select>
+      <a class="btn btn-accent btn-sm" href="#" onclick="window.print();return false;">⬇ Download PDF</a>
+    </div>
+  </div>
+  <div style="overflow-x:auto;margin-top:.75rem">
+    <table class="marks-table">
+      <thead>
+        <tr>
+          <th>S.No</th>
+          <th>Teacher Name</th>
+          <th>Subject</th>
+          <th>Responses</th>
+          <th>Obtained Marks</th>
+          <th>Max Marks</th>
+          <th>Score / 100</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ r.teacher_name or '—' }}</td>
+          <td>{{ r.subject_code or '—' }}{% if r.subject_name %} - {{ r.subject_name }}{% endif %}</td>
+          <td>{{ r.responses or 0 }}</td>
+          <td>{{ r.obtained_marks if r.obtained_marks is not none else '—' }}</td>
+          <td>{{ r.max_marks if r.max_marks is not none else '—' }}</td>
+          <td>
+            {% if r.overall_score is not none %}
+              <span class="score-pill">{{ '%.2f'|format(r.overall_score) }}</span>
+            {% else %}
+              <span class="badge">N/A</span>
+            {% endif %}
+          </td>
+          <td>
+            {% if r.teacher_user_id %}
+            <a class="btn btn-ghost btn-sm"
+               href="{{ url_for('hod.performance_detail', teacher_id=r.teacher_user_id) }}">👁 View</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="sub">No faculty performance data for the current filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="detail-grid" style="margin-top:1rem">
+  <div class="chart-card">
+    <h3>📊 Teacher Performance Comparison</h3>
+    {% set maxv = 100 %}
+    <div class="bar-chart" style="height:160px">
+      {% for r in rows[:8] %}
+      {% set sc = r.overall_score if r.overall_score is not none else 0 %}
+      {% set h = ((sc / maxv) * 100)|int %}
+      <div class="col">
+        <span class="cnt">{% if r.overall_score is not none %}{{ '%.1f'|format(r.overall_score) }}{% else %}—{% endif %}</span>
+        <div class="bar c{{ (loop.index % 5) + 1 }}" style="height:{{ h }}%"></div>
+        <span class="nm">{{ (r.teacher_name or '—')[:12] }}{% if r.subject_code %}<br>({{ r.subject_code }}){% endif %}</span>
+      </div>
+      {% else %}
+      <p class="sub">No data to compare.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h3>◉ Rating Distribution</h3>
+    {% if distribution and dist_total %}
+    {% set colors = ['#3b82f6','#22c55e','#eab308','#f97316','#ef4444','#94a3b8'] %}
+    <ul class="pie-legend">
+      {% for d in distribution %}
+      <li>
+        <i style="background:{{ colors[loop.index0 % 6] }}"></i>
+        <span style="flex:1">{{ d.label }}</span>
+        <strong>{{ d.pct }}%</strong>
+      </li>
+      {% endfor %}
+    </ul>
+    <div class="rb-track" style="height:14px;margin-top:.85rem;display:flex;overflow:hidden;border-radius:999px">
+      {% for d in distribution %}
+      <div style="width:{{ d.pct }}%;background:{{ colors[loop.index0 % 6] }};height:100%"
+           title="{{ d.label }}: {{ d.pct }}%"></div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="sub">No rating distribution for current filters.</p>
+    {% endif %}
+  </div>
+
+  <div class="chart-card">
+    <h3>📋 Rating Marks Summary</h3>
+    <table class="marks-table">
+      <thead>
+        <tr><th>Rating</th><th>Marks</th><th>Number of Students</th><th>Total Marks</th></tr>
+      </thead>
+      <tbody>
+        {% for d in distribution %}
+        <tr>
+          <td>{{ d.label }}</td>
+          <td>{{ d.marks if d.marks is not none else '—' }}</td>
+          <td>{{ d.count }}</td>
+          <td>{{ d.total_marks }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="sub">No data</td></tr>
+        {% endfor %}
+        {% if distribution %}
+        <tr style="font-weight:700;background:#f0f7ff">
+          <td>Total</td>
+          <td>—</td>
+          <td>{{ dist_total }}</td>
+          <td>{{ dist_marks_total }}</td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<p class="sub" style="margin-top:1rem;padding:.75rem 1rem;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd">
+  ℹ Reports use actual submitted feedback. Student identities remain anonymous. Marks and scores are calculated from valid responses only.
+</p>
+{% endblock %}

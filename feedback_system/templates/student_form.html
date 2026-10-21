@@ -1,0 +1,143 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}{{ form.title }} — Feedback{% endblock %}
+{% block body %}
+{{ m.back(url_for('student.dashboard'), 'Back to my feedback') }}
+
+{# --- Teacher identity card --- #}
+{% set tname = form.teacher_name or 'Faculty Member' %}
+{% set initials = (tname.split()|map('first')|join('')|upper)[:2] %}
+<div class="teacher-card">
+   {% if form.teacher_emp %}
+  <img class="photo"
+       src="{{ url_for('static', filename='img/teachers/' ~ form.teacher_emp ~ '.jpg') }}"
+       alt="{{ tname }}"
+       onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+  {% endif %}
+  <div class="photo-fallback" aria-hidden="true"
+       {% if form.teacher_emp %}style="display:none"{% endif %}>{{ initials }}</div>
+  <div class="meta">
+    <p class="eyebrow">You are giving feedback for</p>
+    <h2>{{ tname }}</h2>
+    <p class="desig">{{ form.teacher_designation or 'Faculty' }}</p>
+    <div class="line"><span class="ic">🏛</span>
+      <span>Department: {{ form.branch_name or form.branch or '—' }}</span></div>
+    <div class="line"><span class="ic">📘</span>
+      <span>Subject: {{ form.subject_code or '—' }}{% if form.subject_name %} — {{ form.subject_name }}{% endif %}</span></div>
+    <div class="line"><span class="ic">👥</span>
+      <span>Timetable: {{ form.timetable or '—' }}
+        {% if form.semester %} | Semester: {{ form.semester }}{% endif %}
+        {% if form.academic_year %} | Academic Year: {{ form.academic_year }}{% endif %}
+      </span></div>
+  </div>
+  <div class="verify">
+    <span class="vicon">✓</span>Please verify the teacher details before giving your feedback.
+  </div>
+</div>
+
+<div class="anon-banner">
+  <span class="lock" aria-hidden="true">🔒</span>
+  <div>
+    <strong>Your responses are anonymous.</strong>
+    <span>Your name and roll number are never linked to individual answers shown to teachers.</span>
+  </div>
+</div>
+
+{% if form.instructions %}
+<div class="card card-tight" style="margin-bottom:1rem">
+  <p style="margin:0">{{ form.instructions }}</p>
+</div>
+{% endif %}
+
+{% if already %}
+  <div class="card">
+    <h2>✅ Feedback already submitted</h2>
+    <p class="sub">Submitted on {{ already.submitted_at }}. Thank you — you cannot submit twice
+      for the same session.</p>
+    <a class="btn btn-ghost" href="{{ url_for('student.dashboard') }}">Back to my feedback</a>
+  </div>
+{% elif form.status != 'open' %}
+  <div class="card">
+    <h2>This form is {{ status_labels.get(form.status, form.status) }}</h2>
+    <p class="sub">It is no longer accepting responses.</p>
+    <a class="btn btn-ghost" href="{{ url_for('student.dashboard') }}">Back to my feedback</a>
+  </div>
+{% else %}
+<form method="post" action="{{ url_for('student.submit', form_id=form.id) }}">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% for q in questions %}
+  <div class="card q-card">
+    <div class="q-head">
+      <h3 style="margin:0">Q{{ loop.index }}. {{ q.text }}</h3>
+      {% if q.is_required %}<span class="badge-req">Required</span>
+      {% else %}<span class="badge-opt">Optional</span>{% endif %}
+    </div>
+    {% set saved = form_data.get('q_' ~ q.id) if form_data is defined and form_data else None %}
+    {% if q.qtype == 'text' %}
+      <div class="mt"></div>
+      <textarea name="q_{{ q.id }}" rows="3" maxlength="2000"
+        placeholder="Write your suggestion (optional if not required)">{{ saved or '' }}</textarea>
+    {% elif q.qtype == 'multiple_choice' %}
+      <div class="opts mt">
+        {% for o in q.options %}
+        <label class="opt">
+          <input type="checkbox" name="q_{{ q.id }}" value="{{ o.id }}"
+            {% if form_data is defined and form_data and o.id|string in form_data.getlist('q_' ~ q.id) %}checked{% endif %}>
+          {{ o.label }}</label>
+        {% endfor %}
+      </div>
+    {% else %}
+      {# Rating / single choice — marks from LABEL (Excellent=5 … Poor=1), not raw DB value #}
+      <div class="mark-opts" role="radiogroup" aria-label="{{ q.text }}">
+        {% for o in q.options %}
+          {% set lab = (o.label or '')|trim|lower %}
+          {% set pts = none %}
+          {% if 'excellent' in lab %}{% set pts = 5 %}
+          {% elif 'very good' in lab or 'verygood' in lab %}{% set pts = 4 %}
+          {% elif lab == 'good' or lab.startswith('good ') %}{% set pts = 3 %}
+          {% elif 'average' in lab or 'fair' in lab %}{% set pts = 2 %}
+          {% elif 'poor' in lab or lab == 'bad' %}{% set pts = 1 %}
+          {% elif o.value is not none %}
+            {% set pts = o.value %}
+          {% endif %}
+          {% set rank = pts if pts is not none and pts >= 1 and pts <= 5 else loop.revindex %}
+          {% if rank > 5 %}{% set rank = 5 %}{% endif %}
+          {% if rank < 1 %}{% set rank = 1 %}{% endif %}
+        <label class="mark-opt {% if saved == o.id|string %}is-selected{% endif %}" data-rank="{{ rank }}">
+          <input type="radio" name="q_{{ q.id }}" value="{{ o.id }}"
+            {% if saved == o.id|string %}checked{% endif %}
+            {% if q.is_required and loop.first %}required{% endif %}>
+          <span class="dot" aria-hidden="true"></span>
+          <span class="txt">
+            <span class="lab">{{ o.label }}</span>
+            {% if pts is not none %}
+            <span class="pts">({{ pts }} mark{% if pts != 1 %}s{% endif %})</span>
+            {% endif %}
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  <div class="btn-row form-actions" style="margin-top:1rem">
+    <button class="btn btn-accent" type="submit">✈ Submit feedback</button>
+    <a class="btn btn-ghost" href="{{ url_for('student.dashboard') }}">Cancel</a>
+  </div>
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function(){
+  document.querySelectorAll('.mark-opt input').forEach(function(inp){
+    inp.addEventListener('change', function(){
+      var group = inp.closest('.mark-opts');
+      if (!group) return;
+      group.querySelectorAll('.mark-opt').forEach(function(l){ l.classList.remove('is-selected'); });
+      if (inp.checked) inp.closest('.mark-opt').classList.add('is-selected');
+    });
+  });
+})();
+</script>
+{% endblock %}

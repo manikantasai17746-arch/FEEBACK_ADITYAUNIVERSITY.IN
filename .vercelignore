@@ -1,0 +1,20 @@
+# Keep the deployment bundle small and never ship local state or secrets.
+.git
+.gitignore
+.vercel
+.venv
+venv
+env
+__pycache__
+*.pyc
+.pytest_cache
+tests
+feedback.db
+feedback.db.*
+instance
+.env
+.env.*
+*.pre-v5.bak
+extracted
+DEPLOY.md
+UPGRADE_NOTES.md

@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Preview results — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.results'), 'Back to preview &amp; publish') }}
+<div class="card">
+  <div class="btn-row" style="justify-content:space-between">
+    <h2 style="margin:0">{{ form.title }}</h2>
+    {% if pub and pub.is_published %}<span class="badge badge-published">Results published</span>
+    {% else %}<span class="badge badge-draft">Not published</span>{% endif %}
+  </div>
+  <p class="sub">
+    {{ form.subject_name }} ({{ form.subject_code }}) · Period {{ form.period_no }} ·
+    Teacher: {{ form.teacher_name or '—' }}<br>
+    {{ form.branch }} ·
+    {% if form.scope == 'subject' and not form.timetable_id %}Timetable: <strong>All timetables</strong>
+    {% else %}Timetable {{ form.timetable }}{% endif %} · Semester {{ form.semester }} ·
+    Academic year {{ form.academic_year }} · Form status: {{ status_labels.get(form.status, form.status) }}
+  </p>
+  {% if form.scope == 'subject' %}
+  <p class="sub">This form is subject-scoped and covers {{ covered_sessions|length }} teaching
+    session(s) across {{ covered_sessions|map(attribute='timetable')|unique|list|length }} timetable(s).</p>
+  {% endif %}
+  <div class="tiles">
+    <div class="tile"><div class="num">{{ responses }}</div><div class="lbl">Responses</div></div>
+    <div class="tile"><div class="num">{{ eligible }}</div><div class="lbl">Eligible students</div></div>
+    {% if pub and pub.is_published %}
+    <div class="tile ok"><div class="num">{{ pub.published_at }}</div><div class="lbl">Published</div></div>
+    <div class="tile"><div class="num">{{ pub.published_by_name or '—' }}</div><div class="lbl">Published by</div></div>
+    {% endif %}
+  </div>
+  <div class="btn-row mt">
+    {% if pub and pub.is_published %}
+      <form method="post" action="{{ url_for('admin.result_unpublish', fid=form.id) }}"
+            onsubmit="return confirm('Unpublish these results?')">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn btn-warn" type="submit">Unpublish results</button></form>
+    {% else %}
+      <form method="post" action="{{ url_for('admin.result_publish', fid=form.id) }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn btn-ok" type="submit">Publish results to teacher</button></form>
+    {% endif %}
+    <a class="btn btn-ghost" href="{{ url_for('admin.tracking', form_id=form.id) }}">Submission tracking</a>
+    <a class="btn btn-ghost" href="{{ url_for('admin.form_edit', fid=form.id) }}">Edit form</a>
+  </div>
+</div>
+
+{% for q in stats %}
+<div class="card">
+  <h3>Q{{ loop.index }}. {{ q.text }}</h3>
+  {% if q.qtype == 'text' %}
+    <p class="sub">{{ q.suggestions|length }} written response(s).</p>
+  {% else %}
+    <p class="sub">{{ q.valid }} valid response(s) to this question (unanswered optional questions
+      are excluded from the denominator).</p>
+    {% for o in q.options %}
+      <div class="stat-row">
+        <span class="stat-label">{{ o.label }}</span>
+        <div class="bar"><i style="width: {{ o.pct }}%"></i></div>
+        <span class="stat-count">{{ o.count }} · {{ o.pct }}%</span>
+      </div>
+    {% endfor %}
+  {% endif %}
+</div>
+{% endfor %}
+
+<div class="card">
+  <h2>Anonymous written suggestions</h2>
+  {% if suggestions.comments %}
+    {% for s in suggestions.comments %}<div class="suggestion">{{ s }}</div>{% endfor %}
+    {% if suggestions.pages > 1 %}
+    <nav class="pagination">
+      {% if suggestions.page > 1 %}<a class="btn btn-ghost btn-sm"
+        href="{{ url_for('admin.result_detail', fid=form.id, page=suggestions.page-1) }}">← Prev</a>{% endif %}
+      <span class="page-info">Page {{ suggestions.page }} of {{ suggestions.pages }}</span>
+      {% if suggestions.page < suggestions.pages %}<a class="btn btn-ghost btn-sm"
+        href="{{ url_for('admin.result_detail', fid=form.id, page=suggestions.page+1) }}">Next →</a>{% endif %}
+    </nav>
+    {% endif %}
+  {% else %}{{ m.empty('No written suggestions for this session.') }}{% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Bulk create forms — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.forms'), 'All forms') }}
+<h1>Bulk create feedback forms</h1>
+<p class="sub">Create one form per teaching session in a single action. Define the questions once,
+  choose which sessions to target, and the system generates a separate, correctly-scoped form for
+  each subject/teacher/period — so results stay separated per class period.</p>
+
+<div id="builder-errors" class="flashes" style="display:none"></div>
+<div id="bulk-result" style="display:none"></div>
+
+<div id="builder"
+     data-mode="bulk"
+     data-bulk-url="{{ url_for('admin.bulk_create') }}"
+     data-preview-url="{{ url_for('admin.bulk_preview') }}">
+
+  <div class="card">
+    <div class="step">Step 1 · Which sessions?</div>
+    <p class="sub">Leave a filter on “All” to include everything. Sessions that already have a form
+      are automatically skipped, so this is safe to run repeatedly.</p>
+    <div class="grid grid-3">
+      <div class="field"><label for="f_academic_year_id">Academic year</label>
+        <select id="f_academic_year_id"><option value="">All</option>
+          {% for y in years %}<option value="{{ y.id }}">{{ y.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="f_semester_id">Semester</label>
+        <select id="f_semester_id"><option value="">All</option>
+          {% for s in semesters %}<option value="{{ s.id }}">{{ s.label }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="f_branch_id">Branch</label>
+        <select id="f_branch_id"><option value="">All</option>
+          {% for b in branches %}<option value="{{ b.id }}">{{ b.code }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="f_timetable_id">Timetable / section</label>
+        <select id="f_timetable_id"><option value="">All</option>
+          {% for t in timetables %}<option value="{{ t.id }}">{{ t.branch }} · {{ t.code }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="f_teacher_id">Teacher</label>
+        <select id="f_teacher_id"><option value="">All</option>
+          {% for t in teachers %}<option value="{{ t.id }}">{{ t.name }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="f_subject_code">Subject</label>
+        <select id="f_subject_code"><option value="">All</option>
+          {% for s in subjects %}<option value="{{ s.course_code }}">{{ s.course_code }} — {{ s.course_name }}</option>{% endfor %}</select></div>
+      <div class="field" style="grid-column:span 3;display:flex;gap:10px;align-items:flex-end">
+        <button type="button" class="btn btn-ghost" id="bulk-preview">Preview matching sessions</button>
+        <span class="sub" id="bulk-preview-result"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="step">Step 2 · Title &amp; availability</div>
+    <div class="grid grid-2">
+      <div class="field"><label for="title_pattern">Form title pattern</label>
+        <input type="text" id="title_pattern" value="{subject} — {teacher} (Period {period})">
+        <div class="hint">Placeholders: <code>{subject}</code> <code>{subject_code}</code>
+          <code>{teacher}</code> <code>{period}</code> <code>{timetable}</code>
+          <code>{branch}</code> <code>{semester}</code></div></div>
+      <div class="field"><label>Availability</label>
+        <label class="opt" style="display:block"><input type="radio" name="bulk_status" value="draft" checked>
+          Save as drafts (review &amp; open later)</label>
+        <label class="opt" style="display:block"><input type="radio" name="bulk_status" value="open">
+          Publish immediately (open to eligible students)</label></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="step">Step 3 · Question template</div>
+    <p class="sub">These questions are applied to every generated form. Each form keeps its own copy.</p>
+    <div id="questions"></div>
+    <button type="button" class="add-q" id="add-question">＋ Add a question</button>
+    <div class="btn-row mt">
+      <button type="button" class="btn btn-ghost btn-sm" id="add-text">＋ Add written/suggestion question</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="btn-row">
+      <button type="button" class="btn btn-ok" id="bulk-generate">Generate forms</button>
+      <a class="btn btn-ghost" href="{{ url_for('admin.forms') }}">Cancel</a>
+    </div>
+    <p class="sub mt">Nothing is created until you click <strong>Generate forms</strong>.</p>
+  </div>
+</div>
+
+<script type="application/json" id="initial-questions">{{ default_questions_json|safe }}</script>
+{% endblock %}

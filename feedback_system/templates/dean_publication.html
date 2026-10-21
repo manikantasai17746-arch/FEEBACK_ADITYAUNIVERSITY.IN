@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Publication Monitoring — Dean{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header"><h1>HOD publication monitoring</h1>
+    <nav class="subnav">
+      <a href="{{ url_for('dean.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('dean.publication') }}" class="active">Publication</a>
+      <a href="{{ url_for('dean.analytics') }}">Analytics</a>
+      <a href="{{ url_for('dean.historical') }}">Historical</a>
+    </nav>
+  </div>
+  {% if not requirements_configured %}
+  <div class="alert alert-info"><strong>Requirements not configured.</strong>
+    Pending cannot be calculated until Admin defines feedback requirements.</div>
+  {% elif rows %}
+  <table class="data-table">
+    <thead><tr><th>Branch</th><th>Title</th><th>Category</th><th>Deadline</th><th>Req status</th><th>Form status</th></tr></thead>
+    <tbody>{% for r in rows %}<tr>
+      <td>{{ r.branch_code }}</td><td>{{ r.title }}</td><td>{{ r.category }}</td>
+      <td>{{ r.deadline or '—' }}</td><td>{{ r.status }}</td>
+      <td>{{ r.form_status or 'not matched' }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+  {% else %}
+  <p class="muted">No requirement rows for your authorised departments.</p>
+  {% endif %}
+</div>
+{% endblock %}

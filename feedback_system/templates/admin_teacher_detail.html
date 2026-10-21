@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}{{ teacher.name }} — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.teachers'), 'All teachers') }}
+<h1>{{ teacher.name }}</h1>
+<p class="sub">Employee code {{ teacher.emp_code }} · {{ sessions|length }} session(s)</p>
+<div class="card">
+  <h3>Teacher–subject assignments</h3>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Branch</th><th>Timetable</th><th>Period</th><th>Subject code</th>
+        <th>Subject</th><th>Semester</th><th>Academic year</th><th>Eligible students</th></tr></thead>
+      <tbody>
+        {% for s in sessions %}
+        <tr><td>{{ s.branch }}</td><td>{{ s.timetable }}</td><td>{{ s.period_no }}</td>
+          <td>{{ s.subject_code }}</td><td class="wrap">{{ s.subject_name }}</td>
+          <td>{{ s.semester }}</td><td>{{ s.academic_year }}</td><td>{{ eligible[s.id] }}</td></tr>
+        {% else %}<tr><td colspan="8">No assignments.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

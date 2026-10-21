@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Department Analytics — Dean{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header"><h1>Department analytics</h1>
+    <nav class="subnav">
+      <a href="{{ url_for('dean.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('dean.publication') }}">Publication</a>
+      <a href="{{ url_for('dean.analytics') }}" class="active">Analytics</a>
+      <a href="{{ url_for('dean.historical') }}">Historical</a>
+    </nav>
+  </div>
+  {% if dept_stats %}
+  <table class="data-table">
+    <thead><tr><th>Department</th><th>Forms</th><th>Main</th><th>Second</th><th>Responses</th></tr></thead>
+    <tbody>{% for d in dept_stats %}<tr>
+      <td>{{ d.code }} — {{ d.name }}</td>
+      <td>{{ d.form_count }}</td><td>{{ d.main_forms }}</td>
+      <td>{{ d.second_forms }}</td><td>{{ d.response_count }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+  {% else %}
+  <p class="muted">No department data in your authorised scope, or scopes not assigned.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+{% block title %}HOD Onboarding{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>HOD first-login setup</h1>
+    <p class="muted">Verify your official email and claim exclusive department/semester/timetable scopes.</p>
+  </div>
+
+  <div class="wizard-steps" style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
+    <span class="badge {{ 'primary' if step in ['email','verify'] else '' }}">1. Email</span>
+    <span class="badge {{ 'primary' if step == 'scopes' else '' }}">2. Scopes</span>
+    <span class="badge {{ 'primary' if step == 'preview' else '' }}">3. Preview</span>
+    <span class="badge">4. Confirm</span>
+  </div>
+
+  {% if step in ['email', 'verify'] %}
+  <div class="card">
+    <h2>Verify official email</h2>
+    {% if not email_verified %}
+    <form method="post">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="send_code">
+      <label>Official email
+        <input type="email" name="email" value="{{ user.email or '' }}" required>
+      </label>
+      <button type="submit" class="btn primary">Send verification code</button>
+    </form>
+    {% if step == 'verify' %}
+    <form method="post" style="margin-top:1rem">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="verify_code">
+      <label>6-digit code
+        <input type="text" name="code" pattern="[0-9]{6}" maxlength="6" required autocomplete="one-time-code">
+      </label>
+      <button type="submit" class="btn primary">Verify</button>
+    </form>
+    {% endif %}
+    {% else %}
+    <p class="success">Email verified. Continue to scope selection.</p>
+    <a class="btn primary" href="{{ url_for('hod.onboarding', step='scopes') }}">Continue</a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if step == 'scopes' and email_verified %}
+  <div class="card">
+    <h2>Claim exclusive allocations</h2>
+    <p class="muted">Each combination of academic year + department + semester + timetable can be owned by only one HOD.</p>
+    <form method="post" class="grid-form">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="add_scope">
+      <label>Academic year
+        <select name="academic_year_id" required>
+          <option value="">—</option>
+          {% for y in years %}<option value="{{ y.id }}">{{ y.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Department
+        <select name="branch_id" required>
+          <option value="">—</option>
+          {% for b in branches %}<option value="{{ b.id }}">{{ b.code }} — {{ b.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Semester
+        <select name="semester_id" required>
+          <option value="">—</option>
+          {% for s in semesters %}<option value="{{ s.id }}">{{ s.label or s.number }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Timetable
+        <select name="timetable_id" required>
+          <option value="">—</option>
+          {% for t in timetables %}
+          <option value="{{ t.id }}">{{ t.branch_code }} / {{ t.code }} — {{ t.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button type="submit" class="btn primary">Add combination</button>
+    </form>
+
+    <h3 style="margin-top:1.5rem">Selected allocations</h3>
+    {% if display_scopes %}
+    <table class="data-table">
+      <thead><tr><th>Year</th><th>Dept</th><th>Sem</th><th>Timetable</th><th></th></tr></thead>
+      <tbody>
+      {% for s in display_scopes %}
+        <tr>
+          <td>{{ s.academic_year }}</td><td>{{ s.branch_code }}</td>
+          <td>{{ s.semester_label }}</td><td>{{ s.timetable_code }}</td>
+          <td>
+            <form method="post" style="display:inline">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="action" value="remove_scope">
+              <input type="hidden" name="index" value="{{ loop.index0 }}">
+              <button type="submit" class="btn small">Remove</button>
+            </form>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <form method="post" style="margin-top:1rem">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="preview">
+      <button type="submit" class="btn primary">Preview data</button>
+    </form>
+    {% else %}
+    <p class="muted">No allocations selected yet.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if step == 'preview' %}
+  <div class="card">
+    <h2>Data preview (read-only)</h2>
+    {% if preview %}
+    <ul>
+      <li>Class sessions: <strong>{{ preview.sessions }}</strong></li>
+      <li>Eligible students: <strong>{{ preview.students }}</strong></li>
+      <li>Teachers: <strong>{{ preview.teachers }}</strong></li>
+      <li>Feedback forms: <strong>{{ preview.forms }}</strong></li>
+    </ul>
+    <form method="post" style="margin-top:1rem">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="confirm">
+      <button type="submit" class="btn primary">Confirm and complete onboarding</button>
+    </form>
+    <a class="btn" href="{{ url_for('hod.onboarding', step='scopes') }}">Back to scopes</a>
+    {% else %}
+    <p class="muted">Nothing to preview.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

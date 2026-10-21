@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}{{ form.subject_name or form.title }} — Performance{% endblock %}
+{% block body %}
+{{ m.back(url_for('teacher.dashboard', subject_code=form.subject_code), 'Back to my performance') }}
+
+<div class="subject-detail-head">
+  <div>
+    <h1 style="margin:0 0 .35rem;font-size:1.25rem">
+      {{ form.subject_code or '' }}{% if form.subject_code and form.subject_name %} — {% endif %}{{ form.subject_name or form.title }}
+    </h1>
+    <p class="sub" style="margin:0">
+      {% if form.subject_code %}{{ form.subject_code }}{% endif %}
+      {% if form.timetable %} · {{ form.branch }} · {{ form.timetable }}{% endif %}
+      {% if form.semester %} · Semester {{ form.semester }}{% endif %}
+      {% if form.academic_year %} · Academic Year {{ form.academic_year }}{% endif %}
+    </p>
+  </div>
+  <a class="btn btn-accent btn-sm" href="#" onclick="window.print();return false;">⬇ Download PDF Report</a>
+</div>
+
+{% set tname = (profile.name if profile else current_user.name) or 'Faculty' %}
+{% set initials = (tname.split()|map('first')|join('')|upper)[:2] %}
+<div class="teacher-card">
+    {% if profile and profile.emp_code %}
+  <img class="photo"
+       src="{{ url_for('static', filename='img/teachers/' ~ profile.emp_code ~ '.jpg') }}"
+       alt="{{ tname }}"
+       onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+  {% endif %}
+  <div class="photo-fallback" aria-hidden="true"
+       {% if profile and profile.emp_code %}style="display:none"{% endif %}>{{ initials }}</div>
+  <div class="meta">
+    <h2 style="font-size:1.2rem">{{ tname }}</h2>
+    <p class="desig">{{ (profile.designation if profile and profile.designation else 'Faculty') }}</p>
+    <div class="line"><span class="ic">🏛</span>
+      <span>Department: {{ form.branch_name or form.branch or '—' }}</span></div>
+    <div class="line"><span class="ic">📘</span>
+      <span>Subject: {{ form.subject_name or form.subject_code or '—' }}</span></div>
+    <div class="line"><span class="ic">👥</span>
+      <span>
+        {% if form.timetable %}Section: {{ form.timetable }}{% endif %}
+        {% if form.semester %} | Semester: {{ form.semester }}{% endif %}
+        {% if form.academic_year %} | Academic Year: {{ form.academic_year }}{% endif %}
+      </span></div>
+  </div>
+  <div class="mini-stats">
+    <div class="mini-stat"><div class="n">{{ row.eligible }}</div><div class="l">Eligible Students</div></div>
+    <div class="mini-stat"><div class="n">{{ responses }}</div><div class="l">Feedback Responses</div></div>
+    <div class="mini-stat"><div class="n">{{ row.not_submitted }}</div><div class="l">Not Submitted</div></div>
+    <div class="mini-stat">
+      <div class="n">{% if row.score is not none %}{{ '%.2f'|format(row.score) }}{% else %}—{% endif %}</div>
+      <div class="l">Performance Score / 100</div>
+    </div>
+  </div>
+</div>
+
+<div class="detail-grid">
+  <div class="chart-card">
+    <h3>Rating-wise Student Count</h3>
+    {% set maxc = distribution|map(attribute='count')|max if distribution else 1 %}
+    {% if maxc < 1 %}{% set maxc = 1 %}{% endif %}
+    <div class="bar-chart">
+      {% for d in distribution %}
+      {% set h = ((d.count / maxc) * 100)|int %}
+      {% set rank = d.marks if d.marks is not none else loop.revindex %}
+      <div class="col">
+        <span class="cnt">{{ d.count }}</span>
+        <div class="bar c{{ rank if rank in [1,2,3,4,5] else 3 }}" style="height:{{ h }}%"></div>
+        <span class="nm">{{ d.label }}</span>
+      </div>
+      {% else %}
+      <p class="sub">No rating data yet.</p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <h3>Feedback Rating Distribution</h3>
+    {% if distribution and dist_total %}
+    {% set colors = ['#3b82f6','#22c55e','#eab308','#f97316','#ef4444','#94a3b8'] %}
+    <ul class="pie-legend">
+      {% for d in distribution %}
+      <li>
+        <i style="background:{{ colors[loop.index0 % 6] }}"></i>
+        <span style="flex:1">{{ d.label }}</span>
+        <strong>{{ d.count }}</strong>
+        <span class="sub">({{ d.pct }}%)</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <div class="rb-track" style="height:14px;margin-top:.85rem;display:flex;overflow:hidden;border-radius:999px">
+      {% for d in distribution %}
+      <div style="width:{{ d.pct }}%;background:{{ colors[loop.index0 % 6] }};height:100%" title="{{ d.label }}: {{ d.pct }}%"></div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="sub">No distribution data yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="chart-card">
+    <h3>Marks Summary</h3>
+    <table class="marks-table">
+      <thead><tr><th>Rating</th><th>No. of Students</th><th>Total Marks</th></tr></thead>
+      <tbody>
+        {% for m in marks_summary %}
+        <tr>
+          <td>{{ m.label }}{% if m.marks is not none %} ({{ m.marks }} mark{% if m.marks != 1 %}s{% endif %}){% endif %}</td>
+          <td>{{ m.count }}</td>
+          <td>{{ m.total_marks if m.total_marks is not none else '—' }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="3" class="sub">No data</td></tr>
+        {% endfor %}
+        <tr style="font-weight:700;background:#f0f7ff">
+          <td>Total</td>
+          <td>{{ dist_total or responses }}</td>
+          <td>{{ obtained_total }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="chart-card" style="text-align:center">
+    <h3>Performance Score</h3>
+    {% set pct = (row.score or 0) %}
+    <div class="score-ring" style="--pct: {{ pct * 3.6 }}deg; background: conic-gradient(#22c55e {{ pct }}%, #e2e8f0 0);">
+      <div class="inner">
+        <div class="big">{% if row.score is not none %}{{ '%.2f'|format(row.score) }}{% else %}—{% endif %}</div>
+        <div class="sub">/ 100</div>
+      </div>
+    </div>
+    <div style="margin-top:.75rem">
+      <div class="sub">Total Marks: {{ obtained_total }} / {{ max_marks_total or '—' }}</div>
+      {% if row.score is not none %}
+        {% if row.score >= 80 %}
+        <span class="perf-label">Good Performance</span>
+        {% elif row.score >= 60 %}
+        <span class="perf-label" style="background:#fef3c7;color:#92400e">Average Performance</span>
+        {% else %}
+        <span class="perf-label" style="background:#fee2e2;color:#991b1b">Needs Improvement</span>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="detail-grid" style="margin-top:1rem">
+  {% for q in stats %}
+  <div class="chart-card">
+    <h3>Q{{ loop.index }}. {{ q.text }}</h3>
+    {% if q.qtype == 'text' %}
+      <p class="sub">{{ q.suggestions|length }} written response(s).</p>
+    {% else %}
+    <div class="rating-bars">
+      {% for o in q.options %}
+      <div class="rb-row">
+        <span>{{ o.label }}</span>
+        <div class="rb-track">
+          {% set colors = ['#3b82f6','#22c55e','#eab308','#f97316','#ef4444'] %}
+          <div class="rb-fill" style="width:{{ o.pct }}%;background:{{ colors[loop.index0 % 5] }}"></div>
+        </div>
+        <span>{{ o.count }} ({{ o.pct }}%)</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% if not q.valid %}<p class="sub">No responses to this question yet.</p>{% endif %}
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="chart-card">
+    <h3>Student Suggestions (Anonymous)</h3>
+    <p class="sub">Written comments are shown without any student identity.</p>
+    {% if suggestions.comments %}
+      {% for s in suggestions.comments %}
+        <div class="suggestion">{{ s }}</div>
+      {% endfor %}
+      {% if suggestions.pages > 1 %}
+      <nav class="pagination" style="margin-top:.75rem">
+        {% if suggestions.page > 1 %}
+          <a class="btn btn-ghost btn-sm"
+             href="{{ url_for('teacher.results', form_id=form.id, page=suggestions.page-1) }}">← Prev</a>
+        {% endif %}
+        <span class="page-info">Page {{ suggestions.page }} of {{ suggestions.pages }}</span>
+        {% if suggestions.page < suggestions.pages %}
+          <a class="btn btn-ghost btn-sm"
+             href="{{ url_for('teacher.results', form_id=form.id, page=suggestions.page+1) }}">Next →</a>
+        {% endif %}
+      </nav>
+      {% endif %}
+    {% else %}
+      {{ m.empty('No written suggestions for this session.') }}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

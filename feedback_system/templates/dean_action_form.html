@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}{% if action %}Edit{% else %}New{% endif %} Action — Dean{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>{% if action %}Edit action{% else %}New improvement action{% endif %}</h1>
+    <nav class="subnav">
+      <a href="{{ url_for('dean.actions') }}">← Actions</a>
+    </nav>
+  </div>
+  <form method="post" class="card">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="field"><label>Title *</label>
+      <input type="text" name="title" required maxlength="200"
+             value="{{ action.title if action else '' }}"></div>
+    <div class="field"><label>Description</label>
+      <textarea name="description" rows="4">{{ action.description if action else '' }}</textarea></div>
+    <div class="field"><label>Department</label>
+      <select name="branch_id">
+        <option value="">—</option>
+        {% for b in branches %}
+        <option value="{{ b.id }}" {{ 'selected' if action and action.branch_id == b.id }}>{{ b.code }} — {{ b.name }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="field"><label>Status</label>
+      <select name="status">
+        {% for s in ['planned','in_progress','completed','cancelled'] %}
+        <option value="{{ s }}" {{ 'selected' if action and action.status == s }}>{{ s }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="field"><label>Priority</label>
+      <select name="priority">
+        {% for p in ['low','medium','high','critical'] %}
+        <option value="{{ p }}" {{ 'selected' if (action and action.priority == p) or (not action and p == 'medium') }}>{{ p }}</option>
+        {% endfor %}
+      </select></div>
+    <div class="field"><label>Owner name</label>
+      <input type="text" name="owner_name" maxlength="120"
+             value="{{ action.owner_name if action else '' }}"></div>
+    <div class="field"><label>Due date</label>
+      <input type="date" name="due_date" value="{{ action.due_date if action and action.due_date else '' }}"></div>
+    {% if action %}
+    <div class="field"><label>Change note</label>
+      <input type="text" name="note" placeholder="Optional note for the audit log"></div>
+    {% endif %}
+    <button class="btn btn-ok" type="submit">Save</button>
+  </form>
+  {% if logs %}
+  <div class="card" style="margin-top:1rem">
+    <h2>Audit log</h2>
+    <ul>
+      {% for l in logs %}
+      <li><span class="muted">{{ l.created_at }}</span> —
+        {{ l.old_status or '—' }} → {{ l.new_status or '—' }}
+        {% if l.note %}: {{ l.note }}{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

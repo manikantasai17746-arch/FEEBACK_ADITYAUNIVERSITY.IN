@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}Dean Dashboard — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>Dean Dashboard</h1>
+    <nav class="subnav">
+      <a href="{{ url_for('dean.dashboard') }}" class="active">Dashboard</a>
+      <a href="{{ url_for('dean.publication') }}">Publication</a>
+      <a href="{{ url_for('dean.analytics') }}">Analytics</a>
+      <a href="{{ url_for('dean.performance') }}">Performance</a>
+      <a href="{{ url_for('dean.actions') }}">Actions</a>
+      <a href="{{ url_for('dean.historical') }}">Historical</a>
+      <a href="{{ url_for('auth.logout') }}">Logout</a>
+    </nav>
+  </div>
+  {% if not branches %}
+  <div class="card alert alert-warning">
+    <strong>No authorised scope.</strong> Ask Admin to assign school/department scopes to this Dean account.
+  </div>
+  {% else %}
+  <div class="card">
+    <h2>Authorised departments</h2>
+    <p>{% for b in branches %}<span class="badge">{{ b.code }} — {{ b.name }}</span> {% endfor %}</p>
+  </div>
+  <div class="card" style="margin-top:1rem">
+    <h2>HOD publication monitoring</h2>
+    {% if not requirements_configured %}
+    <p class="alert alert-info"><strong>Requirements not configured.</strong>
+      Administrators must define feedback requirements (department, year, semester, deadline)
+      before publication progress can be calculated. Do not assume 100% completion.</p>
+    {% else %}
+    <table class="data-table">
+      <thead><tr><th>Department</th><th>Required</th><th>Published</th><th>Pending</th></tr></thead>
+      <tbody>
+      {% for r in pub_rows %}
+        <tr>
+          <td>{{ r.branch_code }} — {{ r.branch_name }}</td>
+          <td>{{ r.required_count }}</td>
+          <td>{{ r.published_count }}</td>
+          <td>{{ r.required_count - r.published_count }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

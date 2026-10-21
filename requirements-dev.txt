@@ -1,0 +1,3 @@
+-r requirements.txt
+pytest>=8
+pglast>=6        # PostgreSQL syntax validation for the translation tests

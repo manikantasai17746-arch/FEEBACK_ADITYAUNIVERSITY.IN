@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Improvement Actions — Dean{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>Improvement Action Tracker</h1>
+    <nav class="subnav">
+      <a href="{{ url_for('dean.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('dean.publication') }}">Publication</a>
+      <a href="{{ url_for('dean.analytics') }}">Analytics</a>
+      <a href="{{ url_for('dean.performance') }}">Performance</a>
+      <a href="{{ url_for('dean.actions') }}" class="active">Actions</a>
+      <a href="{{ url_for('dean.historical') }}">Historical</a>
+      <a href="{{ url_for('auth.logout') }}">Logout</a>
+    </nav>
+  </div>
+  <div class="btn-row" style="margin-bottom:1rem">
+    <a class="btn btn-ok" href="{{ url_for('dean.action_new') }}">+ New action</a>
+  </div>
+  <div class="card">
+    <table class="data data-table">
+      <thead>
+        <tr><th>Title</th><th>Dept</th><th>Status</th><th>Priority</th><th>Owner</th><th>Due</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for a in rows %}
+        <tr class="{% if a.due_date and a.status not in ('completed','cancelled') and a.due_date < now_iso %}overdue{% endif %}">
+          <td class="wrap">{{ a.title }}</td>
+          <td>{{ a.branch_code or '—' }}</td>
+          <td><span class="badge">{{ a.status }}</span></td>
+          <td>{{ a.priority }}</td>
+          <td>{{ a.owner_name or '—' }}</td>
+          <td>{{ a.due_date or '—' }}</td>
+          <td><a class="btn btn-ghost btn-sm" href="{{ url_for('dean.action_edit', aid=a.id) }}">Edit</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="muted">No improvement actions yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

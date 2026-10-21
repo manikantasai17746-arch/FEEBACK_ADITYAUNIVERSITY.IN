@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Confirm your email — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="eyebrow">Step 2 of 2 · One-time setup</div>
+    <h2>Enter the code</h2>
+    <p class="sub" style="margin-bottom:1.2rem">We sent a 6-digit code to <strong>{{ email }}</strong>.
+      It expires in 10 minutes. Check your spam folder if you can't see it.</p>
+    <form method="post" autocomplete="off" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="next" value="{{ request.args.get('next','') }}">
+      <div class="field">
+        <label for="code">6-digit code</label>
+        <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+               placeholder="123456" autocomplete="one-time-code" required autofocus
+               style="font-size:1.4rem;letter-spacing:.35em;text-align:center">
+      </div>
+      <button class="btn btn-block" type="submit">Confirm email</button>
+    </form>
+    <form method="post" style="margin-top:.8rem;display:flex;gap:.6rem;flex-wrap:wrap">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="resend">
+      <button class="btn btn-ghost btn-sm" type="submit">Resend code</button>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('auth.setup_email') }}">Use a different email</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

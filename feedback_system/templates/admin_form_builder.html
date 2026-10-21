@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}{{ 'Edit' if form else 'New' }} feedback form — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.forms'), 'All forms') }}
+<h1>{{ 'Edit feedback form #' ~ form.id if form else 'Create feedback form' }}</h1>
+<p class="sub">Pick the target students, then build your questions. In <strong>Subject only</strong>
+  mode you can create a single form for every student studying a subject — including across
+  <strong>all timetables</strong> — without creating one form per period.</p>
+
+<div id="builder-errors" class="flashes" style="display:none"></div>
+<div id="save-toast" class="flash flash-success" style="display:none"></div>
+
+<div id="builder"
+     data-save-url="{{ url_for('admin.form_save') }}"
+     data-status-url="{{ url_for('admin.form_status', fid=0) }}"
+     data-form-id="{{ form.id if form else '' }}"
+     data-scope="{{ (form.scope if form and form.scope else 'subject') }}"
+     data-selected-subject="{{ form.subject_code if form and form.scope == 'subject' else '' }}"
+     data-selected-timetable="{{ form.timetable_id if form and form.scope != 'subject' else '' }}"
+     data-selected-session="{{ form.session_id if form and form.scope != 'subject' else '' }}"
+     data-preview-url="{{ url_for('admin.api_subject_preview') }}"
+     data-forms-list-url="{{ url_for('admin.forms') }}">
+
+  <div class="card">
+    <div class="step">Step 1 · Form configuration</div>
+
+    <div class="field">
+      <span class="field-label" id="mode-label">Feedback target mode</span>
+      <div class="mode-toggle" role="group" aria-labelledby="mode-label">
+        <button type="button" class="mode-btn" data-mode="session" aria-pressed="false">
+          Normal
+          <span class="mode-desc">Subject + Teacher + Period</span>
+        </button>
+        <button type="button" class="mode-btn" data-mode="subject" aria-pressed="true">
+          Subject only
+          <span class="mode-desc">One form per subject · all timetables</span>
+        </button>
+      </div>
+      <div class="hint" id="mode-hint">Subject-only mode is recommended: it creates
+        <strong>one</strong> form for every eligible student of the subject instead of one form
+        per timetable.</div>
+    </div>
+
+    <div class="grid grid-3">
+      <div class="field"><label for="academic_year_id">Academic year</label>
+        <select id="academic_year_id">
+          <option value="">— Select —</option>
+          {% for y in years %}<option value="{{ y.id }}"
+            {{ 'selected' if form and form.academic_year_id == y.id }}>{{ y.name }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="semester_id">Semester</label>
+        <select id="semester_id">
+          <option value="">— Select —</option>
+          {% for s in semesters %}<option value="{{ s.id }}"
+            {{ 'selected' if form and form.semester_id == s.id }}>{{ s.label }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="branch_id">Branch</label>
+        <select id="branch_id">
+          <option value="">— Select —</option>
+          {% for b in branches %}<option value="{{ b.id }}"
+            {{ 'selected' if form and form.branch_id == b.id }}>{{ b.code }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="timetable_id">Timetable / section</label>
+        <select id="timetable_id"><option value="">— Select year, semester &amp; branch first —</option></select>
+        <div class="hint" id="timetable-hint">Choose <strong>No Preference (All Timetables)</strong>
+          to include every matching timetable.</div></div>
+      <div class="field" id="subject-field" style="grid-column:span 2"><label for="subject_code">Subject</label>
+        <select id="subject_code"><option value="">— Select year, semester &amp; branch first —</option></select>
+        <div class="hint">One form serves all eligible students of this subject in the selected
+          academic configuration.</div></div>
+      <div class="field" id="session-field" style="grid-column:span 2;display:none">
+        <label for="session_id">Subject · Teacher · Period</label>
+        <select id="session_id"><option value="">— Select a timetable first —</option></select>
+        <div class="hint">Normal mode targets a single class period, so a teacher teaching two
+          subjects (e.g. ADSA and ASE) keeps their results separate.</div></div>
+    </div>
+
+    <div id="subject-preview" class="preview-panel" style="display:none" aria-live="polite"></div>
+
+    <div class="field"><label for="title">Feedback form title</label>
+      <input type="text" id="title" maxlength="200"
+             value="{{ form.title if form else '' }}" placeholder="e.g. Mid-semester teaching feedback"></div>
+    <div class="field"><label for="instructions">Instructions for students</label>
+      <textarea id="instructions" rows="2" maxlength="2000"
+        placeholder="Explain the purpose and that responses are anonymous.">{{ form.instructions if form else '' }}</textarea></div>
+  </div>
+
+  <div class="card">
+    <div class="step">Step 2 · Questions</div>
+    <div id="questions"></div>
+    <button type="button" class="add-q" id="add-question">＋ Add a question</button>
+    <div class="btn-row mt">
+      <button type="button" class="btn btn-ghost btn-sm" id="add-text">＋ Add written/suggestion question</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="btn-row">
+      <button type="button" class="btn" id="save-draft">Save Draft</button>
+      <button type="button" class="btn btn-ok" id="publish-form">Publish Form</button>
+      <a class="btn btn-ghost" href="{{ url_for('admin.forms') }}">Cancel</a>
+      {% if form %}
+      <a class="btn btn-ghost" href="{{ url_for('admin.result_detail', fid=form.id) }}">Preview results</a>
+      {% endif %}
+    </div>
+    <p class="sub mt">Saving a draft keeps the form hidden from students. Publishing validates the
+      questions and makes the form available to eligible students only. Publishing a form and
+      publishing its results are separate operations.</p>
+  </div>
+</div>
+
+<script type="application/json" id="initial-questions">{{ (form_questions_json or '[]')|safe }}</script>
+{% endblock %}
+{% block scripts %}{% endblock %}

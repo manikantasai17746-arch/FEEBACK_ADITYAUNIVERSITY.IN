@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}{{ student.roll }} — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.students'), 'All students') }}
+<h1>{{ student.roll }}</h1>
+<div class="grid grid-2">
+  <div class="card">
+    <h3>Student timetable</h3>
+    <div class="table-wrap" style="max-height:420px">
+      <table class="data">
+        <thead><tr><th>Period</th><th>Subject</th><th>Teacher</th><th>Timetable</th></tr></thead>
+        <tbody>
+        {% for s in sessions %}
+          <tr><td>{{ s.period_no }}</td><td class="wrap">{{ s.subject_name }} ({{ s.subject_code }})</td>
+            <td class="wrap">{{ s.teacher_name or '—' }}</td><td>{{ s.timetable }}</td></tr>
+        {% else %}<tr><td colspan="4">No sessions.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Feedback completion</h3>
+    <div class="table-wrap" style="max-height:420px">
+      <table class="data">
+        <thead><tr><th>Subject</th><th>Period</th><th>Status</th><th>Submitted</th></tr></thead>
+        <tbody>
+        {% for f in forms %}
+          <tr><td class="wrap">{{ f.subject_name }}</td><td>{{ f.period_no }}</td>
+            <td>{% if f.submission_id %}<span class="badge badge-open">Submitted</span>
+                {% else %}{{ m.status_badge(f.status) }}{% endif %}</td>
+            <td>{{ f.submitted_at or '—' }}</td></tr>
+        {% else %}<tr><td colspan="4">No forms available.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="sub">Submission completion is visible to administrators for monitoring. Individual
+      answers remain anonymous in teacher-facing results.</p>
+  </div>
+</div>
+{% endblock %}

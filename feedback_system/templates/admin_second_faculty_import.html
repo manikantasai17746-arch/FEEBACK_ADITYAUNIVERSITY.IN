@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Import Second Faculty — Admin{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header"><h1>Import second-faculty workbook</h1></div>
+  {% if problems %}
+  <div class="alert alert-error">{% for p in problems %}<p>{{ p }}</p>{% endfor %}</div>
+  {% endif %}
+  {% if result %}
+  <div class="alert alert-info"><p>{{ result.message }}</p>
+    <p>Fingerprint: <code>{{ result.fingerprint }}</code></p></div>
+  {% endif %}
+  <div class="card">
+    <p>Upload a validated second-faculty mapping workbook. The import uses a
+      preview/staging step; assignments are never invented from incomplete data.</p>
+    <form method="post" enctype="multipart/form-data">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field"><label>Workbook (.xlsx)</label>
+        <input type="file" name="file" accept=".xlsx,.xlsm" required></div>
+      <button class="btn" type="submit">Upload for preview</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

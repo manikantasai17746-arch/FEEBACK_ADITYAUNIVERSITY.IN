@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}Historical Comparison — HOD{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>Historical Comparison</h1>
+    <nav class="subnav">
+      <a href="{{ url_for('hod.performance') }}">Performance</a>
+      <a href="{{ url_for('hod.performance_compare') }}" class="active">Compare</a>
+      <a href="{{ url_for('auth.logout') }}">Logout</a>
+    </nav>
+  </div>
+
+  <form method="get" class="card filter-bar">
+    <div class="field"><label>Faculty</label>
+      <select name="teacher_id" required onchange="this.form.submit()">
+        <option value="">Select faculty…</option>
+        {% for t in teachers %}
+        <option value="{{ t.id }}" {{ 'selected' if teacher_id == t.id }}>{{ t.name }} ({{ t.emp_code }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if teacher_forms %}
+    <div class="field"><label>Period A</label>
+      <select name="form_a">
+        <option value="">Select…</option>
+        {% for f in teacher_forms %}
+        <option value="{{ f.form_id }}" {{ 'selected' if form_a == f.form_id }}>#{{ f.form_id }} {{ f.title }} ({{ f.subject_code or '—' }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field"><label>Period B</label>
+      <select name="form_b">
+        <option value="">Select…</option>
+        {% for f in teacher_forms %}
+        <option value="{{ f.form_id }}" {{ 'selected' if form_b == f.form_id }}>#{{ f.form_id }} {{ f.title }} ({{ f.subject_code or '—' }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn" type="submit">Compare</button>
+    {% endif %}
+  </form>
+
+  {% if error %}<div class="card alert alert-warning">{{ error }}</div>{% endif %}
+
+  {% if comparison %}
+  <div class="stat-grid" style="margin:1.25rem 0">
+    <div class="stat-card"><div class="stat-label">Period A score</div>
+      <div class="stat-value">{% if comparison.overall_a is none %}N/A{% else %}{{ '%.1f'|format(comparison.overall_a) }}{% endif %}</div>
+      <div class="muted">{{ comparison.responses_a }} responses</div></div>
+    <div class="stat-card"><div class="stat-label">Period B score</div>
+      <div class="stat-value">{% if comparison.overall_b is none %}N/A{% else %}{{ '%.1f'|format(comparison.overall_b) }}{% endif %}</div>
+      <div class="muted">{{ comparison.responses_b }} responses</div></div>
+    <div class="stat-card"><div class="stat-label">Change</div>
+      <div class="stat-value">
+        {% if comparison.overall_change is none %}N/A
+        {% elif comparison.overall_change > 0 %}+{{ '%.1f'|format(comparison.overall_change) }}
+        {% else %}{{ '%.1f'|format(comparison.overall_change) }}{% endif %}
+      </div></div>
+  </div>
+
+  <div class="card">
+    <h2>Criterion-wise changes</h2>
+    <table class="data data-table">
+      <thead><tr><th>Criterion</th><th>Period A</th><th>Period B</th><th>Change</th><th>Note</th></tr></thead>
+      <tbody>
+        {% for c in comparison.criterion_changes %}
+        <tr>
+          <td class="wrap">{{ c.text }}</td>
+          <td>{% if c.score_a is none %}N/A{% else %}{{ '%.1f'|format(c.score_a) }}{% endif %}</td>
+          <td>{% if c.score_b is none %}N/A{% else %}{{ '%.1f'|format(c.score_b) }}{% endif %}</td>
+          <td>{% if c.change is none %}N/A{% elif c.change > 0 %}+{{ '%.1f'|format(c.change) }}{% else %}{{ '%.1f'|format(c.change) }}{% endif %}</td>
+          <td class="muted">{{ c.reason or '' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

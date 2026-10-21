@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}My Feedback — Faculty Feedback{% endblock %}
+{% block body %}
+<h1>My Feedback</h1>
+{% if ctx %}
+  <p class="sub">
+    {{ current_user.roll }} ·
+    Year {{ year }} (Semester {{ ctx.semester }}) ·
+    {{ ctx.branch }}{% if ctx.branch_name and ctx.branch_name != ctx.branch %} — {{ ctx.branch_name }}{% endif %} ·
+    Timetable <strong>{{ ctx.timetable }}</strong> ·
+    Academic year {{ ctx.academic_year }}
+  </p>
+{% endif %}
+
+<div class="tiles mb">
+  <div class="tile"><div class="num">{{ pending|length }}</div><div class="lbl">Pending</div></div>
+  <div class="tile ok"><div class="num">{{ submitted|length }}</div><div class="lbl">Submitted</div></div>
+  <div class="tile warn"><div class="num">{{ closed|length }}</div><div class="lbl">Closed</div></div>
+</div>
+
+<div class="card">
+  <h2>Pending feedback</h2>
+  {% if pending %}
+    <div class="grid grid-2">
+      {% for f in pending %}
+        <div class="card card-tight">
+          <div class="btn-row" style="justify-content:space-between">
+            <strong>{{ f.subject_name }}</strong>
+            {{ m.status_badge(f.status) }}
+          </div>
+          <p class="sub">Period {{ f.period_no }} · {{ f.subject_code }} · {{ f.teacher_name }}<br>
+            {{ f.timetable }} · Semester {{ f.semester }} · {{ f.title }}</p>
+          <a class="btn btn-accent btn-sm" href="{{ url_for('student.view_form', form_id=f.id) }}">Give feedback →</a>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    {{ m.empty('No pending feedback. Great job!', 'New forms will appear here when your administrator publishes them.') }}
+  {% endif %}
+</div>
+
+{% if submitted %}
+<div class="card">
+  <h2>Completed</h2>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Subject</th><th>Period</th><th>Teacher</th><th>Timetable</th><th>Submitted</th><th></th></tr></thead>
+      <tbody>
+        {% for f in submitted %}
+        <tr>
+          <td>{{ f.subject_name }}</td><td>{{ f.period_no }}</td><td>{{ f.teacher_name }}</td>
+          <td>{{ f.timetable }}</td><td>{{ f.submitted_at }}</td>
+          <td><a class="btn btn-ghost btn-sm" href="{{ url_for('student.view_form', form_id=f.id) }}">View</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if closed %}
+<div class="card">
+  <h2>Closed / missed</h2>
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Subject</th><th>Period</th><th>Teacher</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for f in closed %}
+        <tr><td>{{ f.subject_name }}</td><td>{{ f.period_no }}</td><td>{{ f.teacher_name }}</td>
+          <td>{{ m.status_badge(f.status) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

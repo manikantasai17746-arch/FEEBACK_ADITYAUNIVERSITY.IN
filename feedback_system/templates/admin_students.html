@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Students — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
+<h1>Students</h1>
+<form method="get" class="filter-bar">
+  <div class="field"><label for="q">Search roll number</label>
+    <input type="search" id="q" name="q" value="{{ q }}" placeholder="e.g. 25B11CS015"></div>
+  <div class="field"><label for="branch_id">Branch</label>
+    <select id="branch_id" name="branch_id">
+      <option value="">All branches</option>
+      {% for b in branches %}<option value="{{ b.id }}" {{ 'selected' if b.id == branch_id }}>{{ b.code }}</option>{% endfor %}
+    </select></div>
+  <button class="btn" type="submit">Search</button>
+</form>
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Roll number</th><th>Branch</th><th>Timetable</th><th>Semester</th>
+        <th>Academic year</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for s in rows %}
+        <tr>
+          <td>{{ s.roll }}</td><td>{{ s.branch or '—' }}</td><td>{{ s.timetable or '—' }}</td>
+          <td>{{ s.semester or '—' }}</td><td>{{ s.academic_year or '—' }}</td>
+          <td class="btn-row">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('admin.student_detail', uid=s.id) }}">Timetable</a>
+            <form method="post" action="{{ url_for('admin.reset_password', uid=s.id) }}"
+                  onsubmit="return confirm('Reset this student password to the default?')">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="role" value="student">
+              <button class="btn btn-ghost btn-sm" type="submit">Reset password</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="6">No students match your search.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ m.pagination(pg, 'admin.students', {'q': q, 'branch_id': branch_id}) }}
+</div>
+{% endblock %}

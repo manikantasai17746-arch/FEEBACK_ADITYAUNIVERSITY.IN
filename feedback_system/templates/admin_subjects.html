@@ -1,0 +1,25 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Subjects — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
+<h1>Subjects</h1>
+<form method="get" class="filter-bar">
+  <div class="field"><label for="q">Search</label>
+    <input type="search" id="q" name="q" value="{{ q }}" placeholder="Code or name…"></div>
+  <button class="btn" type="submit">Search</button>
+</form>
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Code</th><th>Subject</th><th>Teachers</th><th>Branches</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr><td>{{ r.course_code }}</td><td class="wrap">{{ r.course_name }}</td>
+          <td>{{ r.teachers }}</td><td>{{ r.branches }}</td></tr>
+        {% else %}<tr><td colspan="4">No subjects match your search.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

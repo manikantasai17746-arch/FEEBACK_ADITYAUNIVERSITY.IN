@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Reports &amp; exports — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
+<h1>Reports &amp; exports</h1>
+<p class="sub">All exports use the actual filtered records.</p>
+
+<div class="tiles mb">
+  <div class="tile"><div class="num">{{ stats.students }}</div><div class="lbl">Students</div></div>
+  <div class="tile"><div class="num">{{ stats.teachers }}</div><div class="lbl">Teachers</div></div>
+  <div class="tile"><div class="num">{{ stats.submissions }}</div><div class="lbl">Submissions</div></div>
+  <div class="tile ok"><div class="num">{{ totals.submitted }}/{{ totals.eligible }}</div>
+    <div class="lbl">Submitted / eligible</div></div>
+</div>
+
+<form method="get" class="filter-bar">
+  <div class="field"><label for="academic_year_id">Academic year</label>
+    <select id="academic_year_id" name="academic_year_id"><option value="">All</option>
+      {% for y in years %}<option value="{{ y.id }}" {{ 'selected' if filters.academic_year_id == y.id }}>{{ y.name }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="semester_id">Semester</label>
+    <select id="semester_id" name="semester_id"><option value="">All</option>
+      {% for s in semesters %}<option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>{{ s.number }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="branch_id">Branch</label>
+    <select id="branch_id" name="branch_id"><option value="">All</option>
+      {% for b in branches %}<option value="{{ b.id }}" {{ 'selected' if filters.branch_id == b.id }}>{{ b.code }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="timetable_id">Timetable / section</label>
+    <select id="timetable_id" name="timetable_id"><option value="">All</option>
+      {% for t in timetables %}<option value="{{ t.id }}" {{ 'selected' if filters.timetable_id == t.id }}>{{ t.branch }} · {{ t.code }}</option>{% endfor %}</select></div>
+  <div class="field" style="min-width:240px"><label for="form_id">Feedback form</label>
+    <select id="form_id" name="form_id"><option value="">All matching forms</option>
+      {% for f in report_forms %}<option value="{{ f.id }}" {{ 'selected' if filters.form_id == f.id }}>#{{ f.id }} · {{ f.title }}</option>{% endfor %}</select></div>
+  <button class="btn" type="submit">Filter</button>
+  <a class="btn btn-ghost" href="{{ url_for('admin.reports') }}">Reset</a>
+  <a class="btn btn-ok"
+     href="{{ url_for('admin.tracking_export') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
+     ⬇ Export CSV</a>
+</form>
+
+<div class="card">
+  <h3>Student PDF reports</h3>
+  <p class="sub">Two separate, accurate reports generated from the live database — for students who
+    submitted and eligible students who have not. Both respect the filters above.</p>
+  <div class="btn-row">
+    <a class="btn btn-ok"
+       href="{{ url_for('admin.report_submitted_pdf') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
+       ⬇ Submitted students (PDF)</a>
+    <a class="btn btn-warn"
+       href="{{ url_for('admin.report_not_submitted_pdf') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}">
+       ⬇ Not submitted students (PDF)</a>
+  </div>
+</div>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>ID</th><th>Form</th><th>Status</th><th>Branch</th><th>Timetable</th>
+        <th>Subject</th><th>Teacher</th><th>Eligible</th><th>Submitted</th><th>Completion</th></tr></thead>
+      <tbody>
+        {% for r in rows %}{% set f = r.form %}
+        <tr><td>{{ f.id }}</td><td class="wrap">{{ f.title }}</td><td>{{ m.status_badge(f.status) }}</td>
+          <td>{{ f.branch or '—' }}</td><td>{{ f.timetable or '—' }}</td>
+          <td>{{ f.subject_name or '—' }}</td><td class="wrap">{{ f.teacher_name or '—' }}</td>
+          <td>{{ r.eligible }}</td><td>{{ r.submitted }}</td><td>{{ r.pct }}%</td></tr>
+        {% else %}<tr><td colspan="10">{{ m.empty('No data for these filters.') }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

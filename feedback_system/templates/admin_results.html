@@ -1,0 +1,92 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Preview &amp; publish results — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
+<h1>Preview &amp; publish results</h1>
+<p class="sub">Review feedback before releasing it. Teachers only see results you publish here.
+  Publishing a form and publishing its results are separate operations.</p>
+
+<form method="get" class="filter-bar">
+  <div class="field"><label for="academic_year_id">Academic year</label>
+    <select id="academic_year_id" name="academic_year_id"><option value="">All</option>
+      {% for y in years %}<option value="{{ y.id }}" {{ 'selected' if filters.academic_year_id == y.id }}>{{ y.name }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="semester_id">Semester</label>
+    <select id="semester_id" name="semester_id"><option value="">All</option>
+      {% for s in semesters %}<option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>{{ s.number }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="branch_id">Branch</label>
+    <select id="branch_id" name="branch_id"><option value="">All</option>
+      {% for b in branches %}<option value="{{ b.id }}" {{ 'selected' if filters.branch_id == b.id }}>{{ b.code }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="timetable_id">Timetable</label>
+    <select id="timetable_id" name="timetable_id"><option value="">All</option>
+      {% for t in timetables %}<option value="{{ t.id }}" {{ 'selected' if filters.timetable_id == t.id }}>{{ t.branch }} · {{ t.code }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="teacher_id">Teacher</label>
+    <select id="teacher_id" name="teacher_id"><option value="">All</option>
+      {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if filters.teacher_id == t.id }}>{{ t.name }}</option>{% endfor %}</select></div>
+  <div class="field"><label for="subject_code">Subject</label>
+    <select id="subject_code" name="subject_code"><option value="">All</option>
+      {% for s in subjects %}<option value="{{ s.course_code }}" {{ 'selected' if filters.subject_code == s.course_code }}>{{ s.course_code }}</option>{% endfor %}</select></div>
+  <button class="btn" type="submit">Filter</button>
+  <a class="btn btn-ghost" href="{{ url_for('admin.results') }}">Reset</a>
+</form>
+
+<form method="post" action="{{ url_for('admin.results_publish_selected') }}" id="bulkPublishForm">
+<input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+<div class="card" style="margin-bottom:1rem">
+  <div class="btn-row">
+    <button class="btn btn-ok" type="submit" onclick="return confirm('Publish results for selected forms?')">Publish selected</button>
+    <button class="btn btn-ok" type="submit" formaction="{{ url_for('admin.results_publish_all') }}"
+            onclick="return confirm('Publish ALL unpublished results?')">Publish all</button>
+    <label style="margin-left:1rem;display:inline-flex;align-items:center;gap:.4rem">
+      <input type="checkbox" name="skip_zero" value="1" checked> Skip forms with 0 responses
+    </label>
+  </div>
+</div>
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th><input type="checkbox" id="checkAll" title="Select all"></th>
+        <th>ID</th><th>Subject</th><th>Teacher</th><th>Timetable</th><th>Period</th>
+        <th>Responses</th><th>Eligible</th><th>Result status</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for r in rows %}{% set f = r.form %}
+        <tr>
+          <td>{% if not r.published %}<input type="checkbox" name="form_ids" value="{{ f.id }}">{% endif %}</td>
+          <td>{{ f.id }}</td>
+          <td class="wrap">{{ f.subject_name or '—' }}</td>
+          <td class="wrap">{{ f.teacher_name or '—' }}</td>
+          <td>{{ f.timetable or '—' }}</td><td>{{ f.period_no or '—' }}</td>
+          <td>{{ r.responses }}</td><td>{{ r.eligible }}</td>
+          <td>{% if r.published %}<span class="badge badge-published">Published</span>
+              {% else %}<span class="badge badge-draft">Not published</span>{% endif %}</td>
+          <td class="btn-row">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('admin.result_detail', fid=f.id) }}">Preview</a>
+            {% if r.published %}
+            <form method="post" action="{{ url_for('admin.result_unpublish', fid=f.id) }}"
+                  onsubmit="return confirm('Unpublish these results? The teacher will no longer see them.')">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="next" value="{{ url_for('admin.results') }}">
+              <button class="btn btn-warn btn-sm" type="submit">Unpublish</button></form>
+            {% else %}
+            <form method="post" action="{{ url_for('admin.result_publish', fid=f.id) }}">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="next" value="{{ url_for('admin.results') }}">
+              <button class="btn btn-ok btn-sm" type="submit">Publish results</button></form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="9">{{ m.empty('No published forms match these filters.') }}</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('checkAll')?.addEventListener('change', function(){
+  document.querySelectorAll('input[name=form_ids]').forEach(cb => cb.checked = this.checked);
+});
+</script>
+{% endblock %}
