@@ -83,8 +83,16 @@ def form_rating_questions(form_id: int) -> List[dict]:
     return out
 
 
-def compute_form_scores(form_id: int, min_responses: int = MIN_RESPONSE_THRESHOLD
-                        ) -> Dict[str, Any]:
+def _session_filter(session_ids, alias='s'):
+    """SQL fragment + args limiting submissions to given teaching sessions."""
+    ids = [int(i) for i in (session_ids or [])]
+    if not ids:
+        return '', ()
+    return f' AND {alias}.session_id IN ({",".join("?" * len(ids))})', tuple(ids)
+
+
+def compute_form_scores(form_id: int, min_responses: int = MIN_RESPONSE_THRESHOLD,
+                        session_ids=None) -> Dict[str, Any]:
     """Aggregate scores for one feedback form.
 
     Returns dict with:
@@ -105,9 +113,10 @@ def compute_form_scores(form_id: int, min_responses: int = MIN_RESPONSE_THRESHOL
         }
 
     # Valid submissions for this form
+    sf, sargs = _session_filter(session_ids, 'submissions')
     sub_count = db.query(
-        'SELECT COUNT(*) c FROM submissions WHERE form_id=?',
-        (form_id,), one=True)['c']
+        'SELECT COUNT(*) c FROM submissions WHERE form_id=?' + sf,
+        (form_id,) + sargs, one=True)['c']
 
     if sub_count < min_responses:
         return {
@@ -124,14 +133,15 @@ def compute_form_scores(form_id: int, min_responses: int = MIN_RESPONSE_THRESHOL
     ph = ','.join('?' * len(qids))
 
     # All answers for scoreable questions (anonymous view — no student link)
+    sf2, sargs2 = _session_filter(session_ids, 's')
     rows = db.query(
         f"""SELECT a.question_id, a.option_id, qo.label, qo.value, qo.position
             FROM answers a
             JOIN submissions s ON s.id = a.submission_id
             LEFT JOIN question_options qo ON qo.id = a.option_id
             WHERE s.form_id = ? AND a.question_id IN ({ph})
-              AND a.option_id IS NOT NULL""",
-        (form_id, *qids))
+              AND a.option_id IS NOT NULL{sf2}""",
+        (form_id, *qids, *sargs2))
 
     # Group by question
     by_q: Dict[int, List[dict]] = defaultdict(list)
@@ -407,7 +417,7 @@ def rating_share(label: Optional[str]) -> Optional[float]:
     return None
 
 
-def form_marks(form_id: int, eligible: int) -> Dict[str, Any]:
+def form_marks(form_id: int, eligible: int, session_ids=None) -> Dict[str, Any]:
     """Compute obtained / maximum marks under the 10-marks-per-student rule.
 
     Returns:
@@ -424,9 +434,10 @@ def form_marks(form_id: int, eligible: int) -> Dict[str, Any]:
     n = len(questions)
     mpq = marks_per_question(n)
 
+    sf, sargs = _session_filter(session_ids, 'submissions')
     sub_count = db.query(
-        'SELECT COUNT(*) c FROM submissions WHERE form_id=?',
-        (form_id,), one=True)['c']
+        'SELECT COUNT(*) c FROM submissions WHERE form_id=?' + sf,
+        (form_id,) + sargs, one=True)['c']
 
     eligible = int(eligible or 0)
     maximum = round(10.0 * eligible, 2)
@@ -446,14 +457,15 @@ def form_marks(form_id: int, eligible: int) -> Dict[str, Any]:
 
     qids = [q['id'] for q in questions]
     ph = ','.join('?' * len(qids))
+    sf2, sargs2 = _session_filter(session_ids, 's')
     rows = db.query(
         f"""SELECT a.question_id, a.option_id, qo.label, qo.value
             FROM answers a
             JOIN submissions s ON s.id = a.submission_id
             LEFT JOIN question_options qo ON qo.id = a.option_id
             WHERE s.form_id = ? AND a.question_id IN ({ph})
-              AND a.option_id IS NOT NULL""",
-        (form_id, *qids))
+              AND a.option_id IS NOT NULL{sf2}""",
+        (form_id, *qids, *sargs2))
 
     # Aggregate by rating label
     buckets: Dict[str, dict] = {}
