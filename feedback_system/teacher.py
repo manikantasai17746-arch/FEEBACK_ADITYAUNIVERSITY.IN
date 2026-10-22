@@ -189,7 +189,13 @@ def dashboard():
                     score_sum += row['score']
                     score_n += 1
         else:
-            # No published results yet — still show the subject as a placeholder
+            # No feedback form yet — still show the subject as a placeholder,
+            # with the real eligible population from this teacher's sessions
+            # of the subject (responses are necessarily 0 without a form).
+            ph_session_ids = [r['id'] for r in services.teacher_sessions(
+                user['id'], subject_code=code)]
+            ph_eligible = services.eligible_count_for_sessions(ph_session_ids) or 0
+            total_eligible += ph_eligible
             rows.append({
                 'form': {
                     'id': None,
@@ -202,14 +208,14 @@ def dashboard():
                     'academic_year': None,
                 },
                 'responses': 0,
-                'eligible': 0,
-                'not_submitted': 0,
+                'eligible': ph_eligible,
+                'not_submitted': ph_eligible,
                 'score': None,
                 'obtained_marks': None,
                 'max_marks': None,
                 'marks_per_question': None,
                 'question_count': 0,
-                'session_ids': [],
+                'session_ids': ph_session_ids,
                 'scores': None,
                 'unpublished': True,
             })
