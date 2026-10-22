@@ -790,6 +790,36 @@ def teacher_published_forms(teacher_user_id, subject_code=None):
                     tuple(args))
 
 
+def teacher_unpublished_forms(teacher_user_id, subject_code=None):
+    """Forms (open/closed/archived) covering this teacher's sessions whose
+    results are NOT published yet.
+
+    Used only so the teacher can see the form name and how many students are
+    eligible / have responded.  Scores and marks are never exposed for these;
+    ``teacher_published_forms`` remains the gate for the results pages.
+    """
+    sql = """SELECT f.*, MIN(cs.period_no) AS period_no,
+                MIN(t.code) AS timetable, MIN(b.code) AS branch,
+                MIN(s.number) AS semester, MIN(ay.name) AS academic_year
+            FROM feedback_forms f
+            JOIN form_sessions fs ON fs.form_id=f.id
+            JOIN class_sessions cs ON cs.id=fs.session_id
+            JOIN timetables t ON t.id=cs.timetable_id
+            JOIN branches b ON b.id=t.branch_id
+            JOIN semesters s ON s.id=t.semester_id
+            LEFT JOIN academic_years ay ON ay.id=t.academic_year_id
+            WHERE cs.teacher_user_id=? AND f.is_deleted=0 AND f.status<>'draft'
+              AND NOT EXISTS (SELECT 1 FROM result_publications rp
+                              WHERE rp.form_id=f.id AND rp.is_published=1)"""
+    args = [teacher_user_id]
+    if subject_code:
+        sql += ' AND cs.subject_code=?'
+        args.append(subject_code)
+    return db.query(sql + ' GROUP BY f.id '
+                    'ORDER BY f.subject_name, MIN(b.code), MIN(cs.period_no)',
+                    tuple(args))
+
+
 # --------------------------------------------------------------------------- #
 # Admin submission tracking
 # --------------------------------------------------------------------------- #
