@@ -420,6 +420,7 @@ def action_edit(aid):
 def performance():
     """Dean faculty performance — reuses central scoring service."""
     from . import scoring
+    from . import services
     user = current_user()
     branches = _dean_branches(user)
     branch_ids = [b['id'] for b in branches]
@@ -431,6 +432,21 @@ def performance():
             branch_ids,
             academic_year_id=academic_year_id,
             semester_id=semester_id)
+        enriched = []
+        for r in rows:
+            r = dict(r)
+            eligible = 0
+            try:
+                eligible = services.eligible_count_for_form(r['form_id'])
+            except Exception:
+                eligible = 0
+            fm = scoring.form_marks(r['form_id'], eligible)
+            r['eligible'] = eligible
+            r['students'] = fm['students']
+            r['obtained_marks'] = fm['obtained']
+            r['max_marks'] = fm['maximum']
+            enriched.append(r)
+        rows = enriched
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
     semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
     return render_template(
