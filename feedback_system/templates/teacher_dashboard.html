@@ -120,21 +120,28 @@
           </td>
           <td>{{ r.eligible }}</td>
           <td>{{ r.responses }}</td>
+          {% if r.get('unpublished') %}
+          {# Not published: only form name, eligible and responded are shown. #}
+          <td class="sub">—</td>
+          <td class="sub">—</td>
+          <td class="sub">—</td>
+          <td class="sub">—</td>
+          <td><span class="sub">Not published yet</span></td>
+          {% else %}
           <td>{% if r.marks_per_question is not none %}{{ '%.2f'|format(r.marks_per_question) }}{% else %}—{% endif %}</td>
           <td>{{ r.obtained_marks if r.obtained_marks is not none else '—' }}</td>
           <td>{{ r.max_marks if r.max_marks is not none else '—' }}</td>
           <td>
             {% if r.score is not none %}
               <span class="score-pill">{{ '%.2f'|format(r.score) }}</span>
-            {% else %}N/A{% endif %}
+            {% else %}—{% endif %}
           </td>
           <td>
-            {% if f.id and not r.get('unpublished') %}
+            {% if f.id %}
             <a class="btn btn-ghost btn-sm" href="{{ url_for('teacher.results', form_id=f.id) }}">👁 View Details</a>
-            {% else %}
-            <span class="sub">Not published yet</span>
-            {% endif %}
+            {% else %}<span class="sub">—</span>{% endif %}
           </td>
+          {% endif %}
         </tr>
         {% endfor %}
       </tbody>
