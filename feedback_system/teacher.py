@@ -73,8 +73,10 @@ def _aggregate_rating_distribution(stats):
 
 def _subject_row(user_id, form, session_ids):
     responses = services.response_count(form['id'], session_ids=session_ids)
+    # Prefer form-level eligible (DISTINCT across all covered sections) so a
+    # student enrolled in multiple sections of the same subject is not double-counted.
     eligible = services.eligible_count_for_form(form['id']) if hasattr(services, 'eligible_count_for_form') else 0
-    if session_ids:
+    if not eligible and session_ids:
         try:
             ph = ','.join('?' * len(session_ids))
             eligible = db.query(
@@ -84,24 +86,21 @@ def _subject_row(user_id, form, session_ids):
             pass
     scores = scoring.compute_form_scores(form['id'], min_responses=1)
     overall = scores.get('overall_score')
-    max_marks = None
-    obtained = None
-    if responses and overall is not None:
-        qs = scoring.form_rating_questions(form['id'])
-        if qs:
-            max_per = scoring._question_max_points(qs[0]['options']) or 5
-            max_marks = max_per * responses
-            obtained = round(overall / 100.0 * max_marks, 0)
+    fm = scoring.form_marks(form['id'], eligible or 0)
     return {
         'form': form,
         'responses': responses,
         'eligible': eligible or 0,
         'not_submitted': max(0, (eligible or 0) - responses),
         'score': overall,
-        'obtained_marks': int(obtained) if obtained is not None else None,
-        'max_marks': int(max_marks) if max_marks is not None else None,
+        'obtained_marks': fm['obtained'],
+        'max_marks': fm['maximum'],
+        'marks_per_question': fm['marks_per_question'],
+        'question_count': fm['question_count'],
+        'answer_count': fm['answer_count'],
         'session_ids': session_ids,
         'scores': scores,
+        'form_marks': fm,
     }
 
 
@@ -139,6 +138,8 @@ def dashboard():
     rows = []
     total_eligible = 0
     total_responses = 0
+    total_obtained = 0.0
+    total_max = 0.0
     score_sum = 0.0
     score_n = 0
     listed_codes = set()
@@ -158,6 +159,8 @@ def dashboard():
                 rows.append(row)
                 total_eligible += row['eligible']
                 total_responses += row['responses']
+                total_obtained += row.get('obtained_marks') or 0
+                total_max += row.get('max_marks') or 0
                 if row['score'] is not None:
                     score_sum += row['score']
                     score_n += 1
@@ -180,6 +183,8 @@ def dashboard():
                 'score': None,
                 'obtained_marks': None,
                 'max_marks': None,
+                'marks_per_question': None,
+                'question_count': 0,
                 'session_ids': [],
                 'scores': None,
                 'unpublished': True,
@@ -193,6 +198,8 @@ def dashboard():
             rows.append(row)
             total_eligible += row['eligible']
             total_responses += row['responses']
+            total_obtained += row.get('obtained_marks') or 0
+            total_max += row.get('max_marks') or 0
             if row['score'] is not None:
                 score_sum += row['score']
                 score_n += 1
@@ -226,6 +233,8 @@ def dashboard():
             'eligible': total_eligible,
             'responses': total_responses,
             'avg_score': avg_score,
+            'obtained': round(total_obtained, 2),
+            'maximum': round(total_max, 2),
         },
     )
 
@@ -249,29 +258,24 @@ def results(form_id):
     distribution, dist_total = _aggregate_rating_distribution(stats)
     scores = scoring.compute_form_scores(form_id, min_responses=1)
 
+    fm = row.get('form_marks') or scoring.form_marks(form_id, row.get('eligible') or 0)
     marks_summary = []
-    obtained_total = 0
-    max_total = 0
-    for d in distribution:
-        m = d.get('marks')
-        cnt = d.get('count') or 0
-        tot = (m * cnt) if m is not None else 0
+    for b in fm.get('rating_breakdown') or []:
         marks_summary.append({
-            'label': d['label'],
-            'marks': m,
-            'count': cnt,
-            'total_marks': tot,
-            'pct': d.get('pct') or 0,
+            'label': b['label'],
+            'marks': b['marks_each'],
+            'count': b['count'],
+            'total_marks': b['total_marks'],
+            'pct': 0,
         })
-        obtained_total += tot
-        if m is not None:
-            max_total = max(max_total, m)
-    rating_answers = sum(d['count'] for d in distribution) or responses
-    max_marks_total = (max_total * rating_answers) if max_total and rating_answers else row.get('max_marks')
-    if row.get('obtained_marks') is not None:
-        obtained_total = row['obtained_marks']
-    if row.get('max_marks') is not None:
-        max_marks_total = row['max_marks']
+    answer_count = fm.get('answer_count') or 0
+    if answer_count and marks_summary:
+        for m in marks_summary:
+            m['pct'] = round(m['count'] * 100.0 / answer_count, 1)
+
+    # Keep distribution chart counts (answer counts) but align marks with form_marks
+    obtained_total = fm['obtained']
+    max_marks_total = fm['maximum']
 
     profile = db.query(
         'SELECT id, name, emp_code, designation FROM users WHERE id=?',
@@ -284,4 +288,8 @@ def results(form_id):
         row=row, distribution=distribution, dist_total=dist_total,
         marks_summary=marks_summary, scores=scores,
         obtained_total=obtained_total, max_marks_total=max_marks_total or 0,
+        marks_per_question=fm['marks_per_question'],
+        question_count=fm['question_count'],
+        answer_count=answer_count,
+        students_count=fm['students'],
     )
