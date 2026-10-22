@@ -220,7 +220,7 @@
     var prevOut = document.getElementById('bulk-preview-result');
     if (prevBtn) prevBtn.addEventListener('click', function () {
       prevOut.textContent = 'Checking…';
-      fetch(previewUrl + '?' + queryString(collectFilters()),
+      fetch(previewUrl + '?' + queryString(Object.assign(collectFilters(), { title_pattern: val('title_pattern') })),
             { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(function (r) { return r.json(); })
         .then(function (d) {
