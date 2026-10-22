@@ -103,12 +103,13 @@
           <td>{{ f.subject_code or '—' }}</td>
           <td>{{ f.subject_name or f.title or '—' }}</td>
           <td class="form-cell">
-            {% if f.id and not r.get('unpublished') %}
+            {% if f.id %}
               <div class="form-title-line">{{ f.title or ('Feedback Form #' ~ f.id) }}</div>
               <div class="form-meta">
                 {% if r.round_label %}
                   <span class="round-badge">{{ r.round_label }}{% if r.rounds_total and r.rounds_total > 1 %} of {{ r.rounds_total }}{% endif %}</span>
                 {% endif %}
+                {% if r.get('unpublished') %}<span class="pending-badge">Results not published</span>{% endif %}
                 {% if f.category %}<span class="cat-badge">{{ f.category|replace('_', ' ')|title }}</span>{% endif %}
                 {% if r.created_at %}<span class="sub">{{ r.created_at|string|truncate(10, True, '') }}</span>{% endif %}
                 {% if r.response_pct is not none %}<span class="sub">{{ r.response_pct }}% responded</span>{% endif %}
