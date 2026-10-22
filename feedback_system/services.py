@@ -202,6 +202,23 @@ def eligible_count_for_form(form_id):
         (form_id,), one=True)['c']
 
 
+def eligible_count_for_sessions(session_ids):
+    """Distinct ACTIVE students enrolled in any of the given sessions.
+
+    Used for teacher-scoped numbers: a teacher's eligible population is only
+    the students of the sessions they teach, never the whole form's audience.
+    """
+    ids = [int(i) for i in (session_ids or [])]
+    if not ids:
+        return 0
+    ph = ','.join('?' * len(ids))
+    return db.query(
+        f"""SELECT COUNT(DISTINCT ss.student_user_id) c FROM session_students ss
+            JOIN users u ON u.id=ss.student_user_id
+            WHERE ss.session_id IN ({ph}) AND u.is_active=1""",
+        tuple(ids), one=True)['c']
+
+
 _ELIGIBLE_SELECT = """SELECT DISTINCT u.id, u.roll, u.name,
         t.code AS timetable, t.name AS timetable_name, b.code AS branch,
         b.name AS branch_name, s.number AS semester, ay.name AS academic_year
@@ -259,7 +276,8 @@ def student_form_session(student_user_id, form_id):
     """The covered session through which this student reaches the form."""
     return db.query("""SELECT fs.session_id FROM form_sessions fs
         JOIN session_students ss ON ss.session_id=fs.session_id
-        WHERE fs.form_id=? AND ss.student_user_id=? LIMIT 1""",
+        WHERE fs.form_id=? AND ss.student_user_id=?
+        ORDER BY fs.session_id LIMIT 1""",
         (form_id, student_user_id), one=True)
 
 
