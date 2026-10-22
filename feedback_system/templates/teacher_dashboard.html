@@ -60,13 +60,17 @@
   </div>
   <div class="perf-tile t-responses">
     <div class="ic">✓</div>
-    <div><div class="num">{{ stats.responses }}</div><div class="lbl">Total Responses</div></div>
+    <div><div class="num">{{ stats.responses }}</div><div class="lbl">Total Students Responded</div></div>
   </div>
   <div class="perf-tile t-score">
     <div class="ic">★</div>
     <div>
-      <div class="num">{% if stats.avg_score is not none %}{{ '%.2f'|format(stats.avg_score) }}{% else %}—{% endif %}</div>
-      <div class="lbl">Average Score / 100</div>
+      <div class="num">
+        {% if stats.obtained is defined and stats.maximum is defined and stats.maximum %}
+          {{ '%.1f'|format(stats.obtained) }} / {{ '%.0f'|format(stats.maximum) }}
+        {% else %}—{% endif %}
+      </div>
+      <div class="lbl">Total Marks (obtained / max)</div>
     </div>
   </div>
 </div>
@@ -82,7 +86,8 @@
           <th>Subject Code</th>
           <th>Subject Name</th>
           <th>Eligible Students</th>
-          <th>Responses</th>
+          <th>Students Responded</th>
+          <th>Marks / Question</th>
           <th>Obtained Marks</th>
           <th>Max Marks</th>
           <th>Score / 100</th>
@@ -98,6 +103,7 @@
           <td>{{ f.subject_name or f.title or '—' }}</td>
           <td>{{ r.eligible }}</td>
           <td>{{ r.responses }}</td>
+          <td>{% if r.marks_per_question is not none %}{{ '%.2f'|format(r.marks_per_question) }}{% else %}—{% endif %}</td>
           <td>{{ r.obtained_marks if r.obtained_marks is not none else '—' }}</td>
           <td>{{ r.max_marks if r.max_marks is not none else '—' }}</td>
           <td>
