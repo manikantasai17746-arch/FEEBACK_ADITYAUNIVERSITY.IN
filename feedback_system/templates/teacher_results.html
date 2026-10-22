@@ -46,7 +46,7 @@
   </div>
   <div class="mini-stats">
     <div class="mini-stat"><div class="n">{{ row.eligible }}</div><div class="l">Eligible Students</div></div>
-    <div class="mini-stat"><div class="n">{{ responses }}</div><div class="l">Feedback Responses</div></div>
+    <div class="mini-stat"><div class="n">{{ responses }}</div><div class="l">Students Responded</div></div>
     <div class="mini-stat"><div class="n">{{ row.not_submitted }}</div><div class="l">Not Submitted</div></div>
     <div class="mini-stat">
       <div class="n">{% if row.score is not none %}{{ '%.2f'|format(row.score) }}{% else %}—{% endif %}</div>
@@ -55,9 +55,15 @@
   </div>
 </div>
 
+<p class="sub" style="margin:1rem 0;padding:.75rem 1rem;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd">
+  Each student gives 10 marks in total. This form has {{ question_count or row.question_count or 'N' }} questions,
+  so each is worth {{ '%.2f'|format(marks_per_question or row.marks_per_question or 0) }} marks.
+  Maximum = 10 × eligible students ({{ row.eligible }} → {{ max_marks_total }}).
+</p>
+
 <div class="detail-grid">
   <div class="chart-card">
-    <h3>Rating-wise Student Count</h3>
+    <h3>Rating-wise Answer Count</h3>
     {% set maxc = distribution|map(attribute='count')|max if distribution else 1 %}
     {% if maxc < 1 %}{% set maxc = 1 %}{% endif %}
     <div class="bar-chart">
@@ -102,21 +108,31 @@
   <div class="chart-card">
     <h3>Marks Summary</h3>
     <table class="marks-table">
-      <thead><tr><th>Rating</th><th>No. of Students</th><th>Total Marks</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Rating</th>
+          <th>No. of Answers</th>
+          <th>Marks each</th>
+          <th>Total Marks</th>
+        </tr>
+      </thead>
       <tbody>
         {% for m in marks_summary %}
         <tr>
-          <td>{{ m.label }}{% if m.marks is not none %} ({{ m.marks }} mark{% if m.marks != 1 %}s{% endif %}){% endif %}</td>
+          <td>{{ m.label }}</td>
           <td>{{ m.count }}</td>
+          <td>{% if m.marks is not none %}{{ '%.2f'|format(m.marks) }}{% else %}—{% endif %}</td>
           <td>{{ m.total_marks if m.total_marks is not none else '—' }}</td>
         </tr>
         {% else %}
-        <tr><td colspan="3" class="sub">No data</td></tr>
+        <tr><td colspan="4" class="sub">No data</td></tr>
         {% endfor %}
         <tr style="font-weight:700;background:#f0f7ff">
           <td>Total</td>
-          <td>{{ dist_total or responses }}</td>
-          <td>{{ obtained_total }}</td>
+          <td colspan="2">
+            {{ answer_count or dist_total or 0 }} answers from {{ students_count or responses }} student{% if (students_count or responses) != 1 %}s{% endif %}
+          </td>
+          <td>{{ obtained_total }} / {{ max_marks_total or '—' }}</td>
         </tr>
       </tbody>
     </table>
