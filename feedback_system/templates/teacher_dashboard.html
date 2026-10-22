@@ -85,6 +85,7 @@
           <th>S.No</th>
           <th>Subject Code</th>
           <th>Subject Name</th>
+          <th>Feedback Form</th>
           <th>Eligible Students</th>
           <th>Students Responded</th>
           <th>Marks / Question</th>
@@ -101,6 +102,21 @@
           <td>{{ loop.index }}</td>
           <td>{{ f.subject_code or '—' }}</td>
           <td>{{ f.subject_name or f.title or '—' }}</td>
+          <td class="form-cell">
+            {% if f.id and not r.get('unpublished') %}
+              <div class="form-title-line">{{ f.title or ('Feedback Form #' ~ f.id) }}</div>
+              <div class="form-meta">
+                {% if r.round_label %}
+                  <span class="round-badge">{{ r.round_label }}{% if r.rounds_total and r.rounds_total > 1 %} of {{ r.rounds_total }}{% endif %}</span>
+                {% endif %}
+                {% if f.category %}<span class="cat-badge">{{ f.category|replace('_', ' ')|title }}</span>{% endif %}
+                {% if r.created_at %}<span class="sub">{{ r.created_at|string|truncate(10, True, '') }}</span>{% endif %}
+                {% if r.response_pct is not none %}<span class="sub">{{ r.response_pct }}% responded</span>{% endif %}
+              </div>
+            {% else %}
+              <span class="sub">No feedback form published</span>
+            {% endif %}
+          </td>
           <td>{{ r.eligible }}</td>
           <td>{{ r.responses }}</td>
           <td>{% if r.marks_per_question is not none %}{{ '%.2f'|format(r.marks_per_question) }}{% else %}—{% endif %}</td>
