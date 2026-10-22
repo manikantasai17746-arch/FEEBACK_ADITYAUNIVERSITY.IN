@@ -23,21 +23,38 @@
     <button class="btn" type="submit">Filter</button>
   </form>
   <div class="card">
-    <p class="sub">Scores from the central scoring service (same as HOD). Below-threshold groups show N/A.</p>
+    <p class="sub">Scores from the central scoring service (same as HOD). Each student contributes 10 marks total. Below-threshold groups show N/A.</p>
     <table class="data data-table">
-      <thead><tr><th>Faculty</th><th>Dept</th><th>Subject</th><th>Responses</th><th>Overall /100</th><th>Status</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Faculty</th>
+          <th>Dept</th>
+          <th>Subject</th>
+          <th>Eligible</th>
+          <th>Students Responded</th>
+          <th>Obtained / Max</th>
+          <th>Overall /100</th>
+          <th>Status</th>
+        </tr>
+      </thead>
       <tbody>
         {% for r in rows %}
         <tr>
           <td class="wrap">{{ r.teacher_name or '—' }} ({{ r.teacher_emp_code or '—' }})</td>
           <td>{{ r.branch_code or '—' }}</td>
           <td class="wrap">{{ r.subject_code or '—' }}</td>
-          <td>{{ r.valid_responses }}</td>
+          <td>{{ r.eligible if r.eligible is defined else '—' }}</td>
+          <td>{{ r.students if r.students is defined else r.valid_responses }}</td>
+          <td>
+            {% if r.obtained_marks is defined and r.max_marks is defined %}
+              {{ r.obtained_marks }} / {{ r.max_marks }}
+            {% else %}—{% endif %}
+          </td>
           <td>{% if r.hidden or r.overall_score is none %}<span class="badge">N/A</span>{% else %}<strong>{{ '%.1f'|format(r.overall_score) }}</strong>{% endif %}</td>
           <td><span class="badge">{{ r.status }}</span></td>
         </tr>
         {% else %}
-        <tr><td colspan="6" class="muted">No data for assigned departments.</td></tr>
+        <tr><td colspan="8" class="muted">No data for assigned departments.</td></tr>
         {% endfor %}
       </tbody>
     </table>
