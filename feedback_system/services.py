@@ -508,6 +508,7 @@ _STUDENT_FORM_SELECT = """SELECT f.*,
         MIN(t.code) AS timetable, MIN(b.code) AS branch, MIN(b.name) AS branch_name,
         MIN(s.number) AS semester, MIN(ay.name) AS academic_year,
         MIN(u.name) AS teacher_name, MIN(u.designation) AS teacher_designation,
+        MIN(u.emp_code) AS teacher_emp,
         (SELECT s2.id FROM submissions s2 WHERE s2.form_id=f.id AND s2.student_user_id=?)
             AS submission_id,
         (SELECT s2.submitted_at FROM submissions s2
