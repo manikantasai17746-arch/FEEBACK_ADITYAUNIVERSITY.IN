@@ -729,6 +729,7 @@ tr.overdue td { background: rgba(220, 80, 60, 0.08); }
 .marks-table .form-cell { min-width: 190px; }
 .form-title-line { font-weight: 600; color: #0f2744; line-height: 1.3; }
 .form-meta { display: flex; flex-wrap: wrap; gap: .3rem .5rem; align-items: center; margin-top: .25rem; font-size: .75rem; }
+.pending-badge { background: #fef3c7; color: #92400e; display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .72rem; font-weight: 600; }
 .round-badge, .cat-badge {
   display: inline-block; padding: .1rem .5rem; border-radius: 999px;
   font-size: .72rem; font-weight: 600;
