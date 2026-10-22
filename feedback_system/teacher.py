@@ -201,6 +201,28 @@ def dashboard():
                 score_sum += row['score']
                 score_n += 1
 
+    # Attach round identity (Round N, title, created date, response %) to each
+    # row so several feedback rounds of the same class stay distinguishable.
+    # Rounds are never merged: every row is one form with its own numbers.
+    info = services.round_info([r['form']['id'] for r in rows if r['form'].get('id')])
+    for r in rows:
+        ri = info.get(r['form'].get('id')) or {}
+        r['round_no'] = ri.get('round_no')
+        r['round_label'] = ri.get('label')
+        r['rounds_total'] = ri.get('rounds_total')
+        r['created_at'] = ri.get('created_at')
+        r['response_pct'] = (round(r['responses'] * 100.0 / r['eligible'], 1)
+                             if r.get('eligible') else None)
+    rows.sort(key=lambda r: ((r['form'].get('subject_name') or r['form'].get('title') or ''),
+                             r['form'].get('subject_code') or '',
+                             r.get('round_no') or 0))
+
+    # Header tiles: students are counted once (distinct) however many rounds
+    # exist, otherwise four rounds would show 4x the students.
+    all_sids = []
+    for r in rows:
+        all_sids.extend(r.get('session_ids') or [])
+    distinct_eligible = services.eligible_count_for_sessions(all_sids)
     avg_score = round(score_sum / score_n, 2) if score_n else None
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
     semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
@@ -227,7 +249,8 @@ def dashboard():
         academic_year_id=academic_year_id, semester_id=semester_id,
         stats={
             'subjects': len(subjects),
-            'eligible': total_eligible,
+            'eligible': distinct_eligible,
+            'rounds': sum(1 for r in rows if r['form'].get('id')),
             'responses': total_responses,
             'avg_score': avg_score,
             'obtained': round(total_obtained, 2),
@@ -283,6 +306,7 @@ def results(form_id):
     return render_template(
         'teacher_results.html',
         user=user, profile=profile, form=form, stats=stats,
+        round_label=(services.round_info([form_id]).get(form_id) or {}).get('label'),
         suggestions=suggestions, responses=responses,
         row=row, distribution=distribution, dist_total=dist_total,
         marks_summary=marks_summary, scores=scores,
