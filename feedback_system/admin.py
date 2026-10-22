@@ -292,7 +292,8 @@ def form_save():
         # second form (guards repeated clicks / concurrent requests).
         dup = services.find_duplicate_subject_form(
             payload['academic_year_id'], payload['semester_id'], payload['branch_id'],
-            payload['timetable_id'], subject_code)
+            payload['timetable_id'], subject_code,
+            title=(payload.get('title') or '').strip() or 'Untitled feedback form')
         if dup and dup['id'] != existing_id:
             return jsonify(ok=False, duplicate=True, form_id=dup['id'], errors=[
                 f'A feedback form for this exact configuration already exists '
@@ -393,7 +394,8 @@ def _bulk_filters():
 @bp.route('/api/bulk/preview')
 @admin_only
 def bulk_preview():
-    return jsonify(services.bulk_preview(_bulk_filters()))
+    return jsonify(services.bulk_preview(
+        _bulk_filters(), title_pattern=request.args.get('title_pattern') or None))
 
 
 @bp.route('/forms/bulk/create', methods=['POST'])
