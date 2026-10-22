@@ -7,6 +7,7 @@ without ever selecting student identity.
 """
 import csv
 import io
+import os
 from datetime import datetime
 
 from . import db
@@ -609,6 +610,11 @@ def submit_feedback(student_user_id, form_id, form_payload):
         return False, 'You have already submitted feedback for this form.'
     audit('feedback.submit', 'feedback_forms', form_id,
           'Anonymous response recorded', actor=None)
+    # Never let auto-publishing break a student's submission.
+    try:
+        maybe_auto_publish(form_id)
+    except Exception:
+        pass
     return True, 'Thank you! Your feedback has been recorded anonymously.'
 
 
@@ -711,6 +717,66 @@ def publish_results(form_id, admin_id):
             published_at=excluded.published_at, unpublished_by=NULL, unpublished_at=NULL""",
         (form_id, form['session_id'], admin_id, now))
     audit('results.publish', 'feedback_forms', form_id, 'Feedback results published')
+    return True
+
+
+def auto_publish_threshold_pct():
+    """Response percentage at which results publish automatically.
+
+    Default 84. Override with the AUTO_PUBLISH_THRESHOLD_PCT environment
+    variable; set it to 0 to switch auto-publishing off.
+    """
+    try:
+        return float(os.environ.get('AUTO_PUBLISH_THRESHOLD_PCT', '84'))
+    except (TypeError, ValueError):
+        return 84.0
+
+
+def auto_publish_required(eligible, pct=None):
+    """Responses needed before auto-publishing (84% of 72 -> 60)."""
+    pct = auto_publish_threshold_pct() if pct is None else pct
+    if pct <= 0 or not eligible:
+        return None
+    return max(1, int(eligible * pct // 100))
+
+
+def maybe_auto_publish(form_id):
+    """Publish a form's results to the teacher once enough students responded.
+
+    Runs after every successful submission. Does nothing if the form is a
+    draft/deleted, already published, or was deliberately unpublished by an
+    HOD/admin (their decision is never overridden). Returns True only when
+    this call published the results.
+    """
+    form = get_form(form_id)
+    if not form or form['status'] == 'draft' \
+            or not form['session_id']:
+        return False
+    row = db.query(
+        'SELECT is_published, unpublished_at FROM result_publications '
+        'WHERE form_id=? AND session_id=?', (form_id, form['session_id']), one=True)
+    if row and (row['is_published'] or row['unpublished_at']):
+        return False
+    eligible = eligible_count_for_form(form_id)
+    needed = auto_publish_required(eligible)
+    if needed is None or response_count(form_id) < needed:
+        return False
+    now = datetime.utcnow().isoformat(timespec='seconds')
+    db.execute("""INSERT INTO result_publications(form_id, session_id, is_published,
+            published_by, published_at) VALUES(?,?,1,NULL,?)
+        ON CONFLICT(form_id, session_id) DO UPDATE SET
+            is_published=1, published_by=NULL, published_at=excluded.published_at,
+            unpublished_by=NULL, unpublished_at=NULL""",
+        (form_id, form['session_id'], now))
+    try:
+        db.execute(
+            'INSERT INTO audit_log(actor_user_id, actor_label, action, entity, '
+            'entity_id, detail) VALUES(?,?,?,?,?,?)',
+            (None, 'system', 'results.auto_publish', 'feedback_forms', form_id,
+             'Auto-published: responses reached %s%% of eligible students'
+             % ('%g' % auto_publish_threshold_pct())))
+    except Exception:
+        pass
     return True
 
 
