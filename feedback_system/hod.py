@@ -935,22 +935,26 @@ def performance():
                     or q in (r.get('subject_code') or '').lower()
                     or q in (r.get('subject_name') or '').lower()]
 
-    # Enrich rows with approximate obtained / max marks
+    # Enrich rows with obtained / max marks from the 10-marks-per-student rule
     enriched = []
     for r in rows:
         r = dict(r)
-        score = r.get('overall_score')
         resp = r.get('valid_responses') or r.get('response_count') or 0
-        max_marks = obtained = None
-        if resp and score is not None:
-            qs = scoring.form_rating_questions(r['form_id'])
-            if qs:
-                max_per = scoring._question_max_points(qs[0]['options']) or 5
-                max_marks = int(max_per * resp)
-                obtained = int(round(score / 100.0 * max_marks))
-        r['max_marks'] = max_marks
-        r['obtained_marks'] = obtained
+        eligible = 0
+        try:
+            eligible = services.eligible_count_for_form(r['form_id'])
+        except Exception:
+            eligible = 0
+        fm = scoring.form_marks(r['form_id'], eligible)
+        r['eligible'] = eligible
+        r['max_marks'] = fm['maximum']
+        r['obtained_marks'] = fm['obtained']
         r['responses'] = resp
+        r['marks_per_question'] = fm['marks_per_question']
+        r['question_count'] = fm['question_count']
+        r['answer_count'] = fm['answer_count']
+        r['students'] = fm['students']
+        r['form_marks'] = fm
         enriched.append(r)
     rows = enriched
 
@@ -961,24 +965,29 @@ def performance():
     scores = [r['overall_score'] for r in rows if r.get('overall_score') is not None]
     avg_score = round(sum(scores) / len(scores), 2) if scores else None
 
-    # Rating distribution across visible forms (first scoreable question aggregate)
+    # Rating Marks Summary from form_marks per-rating breakdown (answer counts, not students)
     dist_buckets = {}
-    dist_marks_total = 0
+    dist_marks_total = 0.0
+    total_students_for_dist = 0
     for r in rows[:12]:  # cap work so page stays fast
-        try:
-            st = services.question_stats(r['form_id'])
-        except Exception:
+        fm = r.get('form_marks')
+        if not fm:
             continue
-        for q in st:
-            if q.get('qtype') == 'text':
-                continue
-            for o in q.get('options') or []:
-                lab = (o.get('label') or 'Option').strip()
-                if lab not in dist_buckets:
-                    dist_buckets[lab] = {'label': lab, 'count': 0, 'marks': o.get('value')}
-                dist_buckets[lab]['count'] += o.get('count') or 0
-                if dist_buckets[lab].get('marks') is None and o.get('value') is not None:
-                    dist_buckets[lab]['marks'] = o.get('value')
+        total_students_for_dist += fm.get('students') or 0
+        for b in fm.get('rating_breakdown') or []:
+            lab = (b.get('label') or 'Option').strip()
+            if lab not in dist_buckets:
+                dist_buckets[lab] = {
+                    'label': lab,
+                    'count': 0,
+                    'marks': b.get('marks_each'),
+                    'total_marks': 0.0,
+                }
+            dist_buckets[lab]['count'] += b.get('count') or 0
+            dist_buckets[lab]['total_marks'] = round(
+                dist_buckets[lab]['total_marks'] + (b.get('total_marks') or 0), 2)
+            if dist_buckets[lab].get('marks') is None and b.get('marks_each') is not None:
+                dist_buckets[lab]['marks'] = b['marks_each']
     distribution = list(dist_buckets.values())
     order = ['excellent', 'very good', 'good', 'average', 'poor']
     def _sk(it):
@@ -991,14 +1000,9 @@ def performance():
     dist_total = sum(d['count'] for d in distribution) or 0
     for d in distribution:
         d['pct'] = round(d['count'] * 100.0 / dist_total, 1) if dist_total else 0.0
-        m = d.get('marks')
-        try:
-            m = int(m) if m is not None else None
-        except (TypeError, ValueError):
-            m = None
-        d['marks'] = m
-        d['total_marks'] = (m * d['count']) if m is not None else 0
-    dist_marks_total = sum(d.get('total_marks') or 0 for d in distribution)
+        d['total_marks'] = round(d.get('total_marks') or 0, 2)
+    dist_marks_total = round(sum(d.get('total_marks') or 0 for d in distribution), 2)
+    dist_students_total = total_students_for_dist
 
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
     try:
@@ -1056,6 +1060,7 @@ def performance():
         timetables=timetables, teachers_list=teachers_list,
         subjects_list=subjects_list, forms_list=forms_list,
         distribution=distribution, dist_total=dist_total,
+        dist_students_total=dist_students_total,
         dept_label=dept_label, mode=mode,
         summary={
             'teachers': len(teachers),
