@@ -360,3 +360,154 @@ def department_average(
     if not scores:
         return None
     return round(sum(scores) / len(scores), 2)
+
+
+# ---------------------------------------------------------------------------
+# New 10-marks-per-student marking rule (each student contributes 10 marks
+# total, split equally across scoreable questions).
+# ---------------------------------------------------------------------------
+
+# Share of a question's marks by rating label (Excellent = full marks, etc.)
+RATING_SHARE = {
+    'excellent': 1.0,
+    'very good': 0.75,
+    'verygood': 0.75,
+    'good': 0.5,
+    'average': 0.375,
+    'fair': 0.375,
+    'poor': 0.25,
+    'very poor': 0.25,
+    'verypoor': 0.25,
+    'bad': 0.25,
+    'unsatisfactory': 0.25,
+    'satisfactory': 0.5,
+}
+
+
+def marks_per_question(n: int) -> float:
+    """Marks allocated to each scoreable question (10 / n), rounded to 2 dp."""
+    if not n or n <= 0:
+        return 0.0
+    return round(10.0 / n, 2)
+
+
+def rating_share(label: Optional[str]) -> Optional[float]:
+    """Return the fraction of question marks for a rating label, or None."""
+    if not label:
+        return None
+    lab = label.strip().lower()
+    if lab in RATING_SHARE:
+        return RATING_SHARE[lab]
+    first = lab.split()[0] if lab else ''
+    if first in RATING_SHARE:
+        return RATING_SHARE[first]
+    for key, share in RATING_SHARE.items():
+        if key in lab:
+            return share
+    return None
+
+
+def form_marks(form_id: int, eligible: int) -> Dict[str, Any]:
+    """Compute obtained / maximum marks under the 10-marks-per-student rule.
+
+    Returns:
+      questions          – scoreable question list
+      marks_per_question – float (10 / n)
+      students           – distinct submissions count
+      eligible           – eligible students (passed in; used for maximum)
+      obtained           – sum of marks over every answer (2 dp)
+      maximum            – 10 * eligible (2 dp)
+      rating_breakdown   – list of {label, count, marks_each, total_marks}
+      answer_count       – total rating answers across all questions
+    """
+    questions = form_rating_questions(form_id)
+    n = len(questions)
+    mpq = marks_per_question(n)
+
+    sub_count = db.query(
+        'SELECT COUNT(*) c FROM submissions WHERE form_id=?',
+        (form_id,), one=True)['c']
+
+    eligible = int(eligible or 0)
+    maximum = round(10.0 * eligible, 2)
+
+    if not questions:
+        return {
+            'questions': [],
+            'marks_per_question': 0.0,
+            'question_count': 0,
+            'students': sub_count,
+            'eligible': eligible,
+            'obtained': 0.0,
+            'maximum': maximum,
+            'rating_breakdown': [],
+            'answer_count': 0,
+        }
+
+    qids = [q['id'] for q in questions]
+    ph = ','.join('?' * len(qids))
+    rows = db.query(
+        f"""SELECT a.question_id, a.option_id, qo.label, qo.value
+            FROM answers a
+            JOIN submissions s ON s.id = a.submission_id
+            LEFT JOIN question_options qo ON qo.id = a.option_id
+            WHERE s.form_id = ? AND a.question_id IN ({ph})
+              AND a.option_id IS NOT NULL""",
+        (form_id, *qids))
+
+    # Aggregate by rating label
+    buckets: Dict[str, dict] = {}
+    obtained = 0.0
+    answer_count = 0
+
+    for r in rows:
+        label = (r['label'] or str(r.get('value') or '')).strip()
+        share = rating_share(label)
+        if share is None:
+            # Fallback: try option points relative to max (5-scale)
+            pts = _option_points(dict(r))
+            if pts is None:
+                continue
+            share = pts / 5.0
+        marks_each = round(mpq * share, 2)
+        obtained += marks_each
+        answer_count += 1
+        key = label or 'Option'
+        if key not in buckets:
+            buckets[key] = {
+                'label': key,
+                'count': 0,
+                'marks_each': marks_each,
+                'total_marks': 0.0,
+            }
+        buckets[key]['count'] += 1
+        buckets[key]['total_marks'] = round(
+            buckets[key]['total_marks'] + marks_each, 2)
+
+    order = ['excellent', 'very good', 'good', 'average', 'poor', 'bad', 'very poor']
+    breakdown = list(buckets.values())
+
+    def _sk(it):
+        lab = (it['label'] or '').lower()
+        for i, o in enumerate(order):
+            if o in lab:
+                return i
+        return 99
+
+    breakdown.sort(key=_sk)
+    for b in breakdown:
+        b['total_marks'] = round(b['total_marks'], 2)
+
+    obtained = round(obtained, 2)
+
+    return {
+        'questions': questions,
+        'marks_per_question': mpq,
+        'question_count': n,
+        'students': sub_count,
+        'eligible': eligible,
+        'obtained': obtained,
+        'maximum': maximum,
+        'rating_breakdown': breakdown,
+        'answer_count': answer_count,
+    }
