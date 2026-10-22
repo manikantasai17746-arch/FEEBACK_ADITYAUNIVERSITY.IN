@@ -914,6 +914,19 @@ def existing_form_session_ids():
         'WHERE is_deleted=0 AND session_id IS NOT NULL')}
 
 
+def existing_form_session_titles():
+    """{(session_id, normalised title)} of every live form.
+
+    Bulk generation uses this instead of "session has any form" so that a new
+    feedback round (a different title) can be generated for sessions that
+    already have earlier rounds, while an accidental re-run with the SAME title
+    stays idempotent.
+    """
+    return {(r['session_id'], (r['title'] or '').strip().lower()[:200]) for r in db.query(
+        'SELECT session_id, title FROM feedback_forms '
+        'WHERE is_deleted=0 AND session_id IS NOT NULL')}
+
+
 def format_bulk_title(pattern, session_row):
     p = pattern or '{subject} — {teacher} (Period {period})'
     repl = {
@@ -930,10 +943,11 @@ def format_bulk_title(pattern, session_row):
     return p.strip()[:200]
 
 
-def bulk_preview(filters):
+def bulk_preview(filters, title_pattern=None):
     sessions = sessions_for_bulk(filters)
-    existing = existing_form_session_ids()
-    to_create = [s for s in sessions if s['id'] not in existing]
+    existing = existing_form_session_titles()
+    to_create = [s for s in sessions
+                 if (s['id'], format_bulk_title(title_pattern, s).lower()) not in existing]
     sample = [{
         'label': f"Period {s['period_no']}: {s['subject_name']} ({s['subject_code']}) – "
                  f"{s['teacher_name'] or 'Unassigned'}",
@@ -944,12 +958,17 @@ def bulk_preview(filters):
 
 
 def bulk_create_forms(filters, questions, title_pattern, status, admin_id):
-    """Create one draft (or open) form per matching session that has none yet."""
+    """Create one draft (or open) form per matching session for this round.
+
+    A session is skipped only if it already has a form with the SAME title, so
+    giving the pattern a round name (e.g. "… — Round 2") adds a new round
+    without touching earlier forms.
+    """
     sessions = sessions_for_bulk(filters)
-    existing = existing_form_session_ids()
+    existing = existing_form_session_titles()
     created, skipped, opened, errors, created_ids = 0, 0, 0, [], []
     for s in sessions:
-        if s['id'] in existing:
+        if (s['id'], format_bulk_title(title_pattern, s).lower()) in existing:
             skipped += 1
             continue
         payload = {
@@ -970,7 +989,7 @@ def bulk_create_forms(filters, questions, title_pattern, status, admin_id):
             else:
                 set_form_status(fid, 'open', admin_id)
                 opened += 1
-        existing.add(s['id'])
+        existing.add((s['id'], payload['title'].lower()))
     audit('form.bulk_create', 'feedback_forms', None,
           f'{created} form(s) generated, {skipped} skipped (already existed)')
     return {'matched': len(sessions), 'created': created, 'skipped': skipped,
@@ -1043,24 +1062,80 @@ def subject_scope_preview(filters):
     return result
 
 
-def find_duplicate_subject_form(academic_year_id, semester_id, branch_id,
-                                timetable_id, subject_code):
-    """An existing, non-deleted subject-scoped form with the same configuration.
+def round_info(form_ids):
+    """{form_id: {round_no, rounds_total, label, created_at, title}}.
 
-    Used to prevent duplicate forms for repeated clicks or requests.  Session-
-    scoped (Normal-mode) forms are intentionally excluded: the application has
-    always allowed several forms per period (e.g. different cycles).
+    Forms for the same teacher + subject + academic year + semester + branch +
+    timetable are the feedback rounds of one class.  They are numbered by
+    creation order (oldest = Round 1) so users can tell them apart; every
+    round keeps its own form id, responses and results.
+    """
+    ids = list(dict.fromkeys(int(i) for i in form_ids if i))
+    if not ids:
+        return {}
+    ph = ','.join('?' * len(ids))
+    codes = {r['code'] for r in db.query(
+        f"SELECT DISTINCT COALESCE(subject_code, snapshot_subject_code) code "
+        f"FROM feedback_forms WHERE id IN ({ph})", tuple(ids)) if r['code']}
+    groups = {}
+    out = {}
+    if codes:
+        cph = ','.join('?' * len(codes))
+        for r in db.query(
+                f"""SELECT f.id, f.title, f.created_at, f.academic_year_id, f.semester_id,
+                       f.branch_id, f.timetable_id,
+                       COALESCE(f.subject_code, f.snapshot_subject_code) AS code,
+                       cs.teacher_user_id AS teacher_id
+                    FROM feedback_forms f LEFT JOIN class_sessions cs ON cs.id=f.session_id
+                    WHERE f.is_deleted=0 AND f.status<>'draft'
+                      AND COALESCE(f.subject_code, f.snapshot_subject_code) IN ({cph})""",
+                tuple(codes)):
+            key = (r['code'], r['academic_year_id'], r['semester_id'], r['branch_id'],
+                   r['timetable_id'], r['teacher_id'])
+            groups.setdefault(key, []).append(dict(r))
+        for members in groups.values():
+            members.sort(key=lambda m: (m['created_at'] or '', m['id']))
+            for n, m in enumerate(members, 1):
+                out[m['id']] = {'round_no': n, 'rounds_total': len(members),
+                                'label': f'Round {n}', 'created_at': m['created_at'],
+                                'title': m['title']}
+    for i in ids:  # drafts / forms without a subject: still identifiable
+        if i not in out:
+            r = db.query('SELECT title, created_at FROM feedback_forms WHERE id=?',
+                         (i,), one=True)
+            out[i] = {'round_no': 1, 'rounds_total': 1, 'label': 'Round 1',
+                      'created_at': r['created_at'] if r else None,
+                      'title': r['title'] if r else None}
+    return out
+
+
+def find_duplicate_subject_form(academic_year_id, semester_id, branch_id,
+                                timetable_id, subject_code, title=None):
+    """An existing, non-deleted subject-scoped form that is a true duplicate.
+
+    Used to stop repeated clicks / concurrent requests from creating the same
+    form twice.  A college runs several feedback rounds per semester for the
+    same subject and timetable, so the SAME configuration is only a duplicate
+    when the form TITLE (the round name) is also the same.  Pass ``title`` from
+    every create/save call; ``None`` keeps the old "any form" meaning and is
+    only meant for informational previews.
+
+    Session-scoped (Normal-mode) forms are intentionally excluded: the
+    application has always allowed several forms per period.
     """
     if not subject_code:
         return None
-    return db.query("""SELECT * FROM feedback_forms
+    sql = """SELECT * FROM feedback_forms
         WHERE is_deleted=0 AND scope='subject' AND subject_code=?
           AND COALESCE(academic_year_id,-1)=COALESCE(?,-1)
           AND COALESCE(semester_id,-1)=COALESCE(?,-1)
           AND COALESCE(branch_id,-1)=COALESCE(?,-1)
-          AND COALESCE(timetable_id,-1)=COALESCE(?,-1)
-        ORDER BY id LIMIT 1""",
-        (subject_code, academic_year_id, semester_id, branch_id, timetable_id), one=True)
+          AND COALESCE(timetable_id,-1)=COALESCE(?,-1)"""
+    args = [subject_code, academic_year_id, semester_id, branch_id, timetable_id]
+    if title is not None:
+        sql += " AND LOWER(TRIM(title))=?"
+        args.append((title or '').strip().lower()[:200])
+    return db.query(sql + " ORDER BY id LIMIT 1", tuple(args), one=True)
 
 
 # --------------------------------------------------------------------------- #
