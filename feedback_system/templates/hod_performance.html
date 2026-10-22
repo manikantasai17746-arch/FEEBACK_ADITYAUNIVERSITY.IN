@@ -135,7 +135,9 @@
           <th>S.No</th>
           <th>Teacher Name</th>
           <th>Subject</th>
-          <th>Responses</th>
+          <th>Eligible</th>
+          <th>Students Responded</th>
+          <th>Marks / Question</th>
           <th>Obtained Marks</th>
           <th>Max Marks</th>
           <th>Score / 100</th>
@@ -148,7 +150,9 @@
           <td>{{ loop.index }}</td>
           <td>{{ r.teacher_name or '—' }}</td>
           <td>{{ r.subject_code or '—' }}{% if r.subject_name %} - {{ r.subject_name }}{% endif %}</td>
+          <td>{{ r.eligible if r.eligible is defined else '—' }}</td>
           <td>{{ r.responses or 0 }}</td>
+          <td>{% if r.marks_per_question is defined and r.marks_per_question is not none %}{{ '%.2f'|format(r.marks_per_question) }}{% else %}—{% endif %}</td>
           <td>{{ r.obtained_marks if r.obtained_marks is not none else '—' }}</td>
           <td>{{ r.max_marks if r.max_marks is not none else '—' }}</td>
           <td>
@@ -166,7 +170,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="sub">No faculty performance data for the current filters.</td></tr>
+        <tr><td colspan="10" class="sub">No faculty performance data for the current filters.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -220,13 +224,13 @@
     <h3>📋 Rating Marks Summary</h3>
     <table class="marks-table">
       <thead>
-        <tr><th>Rating</th><th>Marks</th><th>Number of Students</th><th>Total Marks</th></tr>
+        <tr><th>Rating</th><th>Marks each</th><th>No. of Answers</th><th>Total Marks</th></tr>
       </thead>
       <tbody>
         {% for d in distribution %}
         <tr>
           <td>{{ d.label }}</td>
-          <td>{{ d.marks if d.marks is not none else '—' }}</td>
+          <td>{% if d.marks is not none %}{{ '%.2f'|format(d.marks) }}{% else %}—{% endif %}</td>
           <td>{{ d.count }}</td>
           <td>{{ d.total_marks }}</td>
         </tr>
@@ -237,7 +241,7 @@
         <tr style="font-weight:700;background:#f0f7ff">
           <td>Total</td>
           <td>—</td>
-          <td>{{ dist_total }}</td>
+          <td>{{ dist_total }} answers from {{ dist_students_total or '—' }} student{% if dist_students_total != 1 %}s{% endif %}</td>
           <td>{{ dist_marks_total }}</td>
         </tr>
         {% endif %}
