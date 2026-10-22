@@ -129,6 +129,33 @@ def dashboard():
         code = f.get('subject_code') or f.get('snapshot_subject_code') or ''
         form_rows_by_subject.setdefault(code, []).append(row)
 
+    # Forms whose results are not published yet: show the form name plus the
+    # eligible / responded counts only. No score or marks are computed or shown.
+    for f in services.teacher_unpublished_forms(user['id'], subject_code=subject_code):
+        f = dict(f)
+        if academic_year_id and f.get('academic_year_id') and int(f['academic_year_id']) != academic_year_id:
+            continue
+        if semester_id and f.get('semester_id') and int(f['semester_id']) != semester_id:
+            continue
+        session_ids = services.teacher_form_session_ids(user['id'], f['id'])
+        row = {
+            'form': f,
+            'responses': services.response_count(f['id'], session_ids=session_ids),
+            'eligible': services.eligible_count_for_sessions(session_ids) or 0,
+            'not_submitted': 0,
+            'score': None,
+            'obtained_marks': None,
+            'max_marks': None,
+            'marks_per_question': None,
+            'question_count': 0,
+            'session_ids': session_ids,
+            'scores': None,
+            'unpublished': True,
+        }
+        row['not_submitted'] = max(0, row['eligible'] - row['responses'])
+        code = f.get('subject_code') or f.get('snapshot_subject_code') or ''
+        form_rows_by_subject.setdefault(code, []).append(row)
+
     # Build one display row per subject the teacher handles.
     # Prefer published-form stats; if none published yet, still list the subject.
     rows = []
