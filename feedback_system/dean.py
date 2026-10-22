@@ -447,6 +447,9 @@ def performance():
             r['max_marks'] = fm['maximum']
             enriched.append(r)
         rows = enriched
+        _ri = services.round_info([r['form_id'] for r in rows])
+        for r in rows:
+            r['round_label'] = (_ri.get(r['form_id']) or {}).get('label')
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
     semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
     return render_template(
