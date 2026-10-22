@@ -259,7 +259,8 @@ def _hod_validate_form_payload(user, data):
                 return None, None, None, ['Session outside your department scope.']
         dup = services.find_duplicate_subject_form(
             payload['academic_year_id'], payload['semester_id'], payload['branch_id'],
-            payload['timetable_id'], subject_code)
+            payload['timetable_id'], subject_code,
+            title=(payload.get('title') or '').strip() or 'Untitled feedback form')
         if dup and dup['id'] != existing_id:
             return None, None, None, [
                 f'A feedback form for this exact configuration already exists '
@@ -957,6 +958,9 @@ def performance():
         r['form_marks'] = fm
         enriched.append(r)
     rows = enriched
+    _ri = services.round_info([r['form_id'] for r in rows])
+    for r in rows:
+        r['round_label'] = (_ri.get(r['form_id']) or {}).get('label')
 
     # Aggregate tiles
     teachers = {r.get('teacher_user_id') for r in rows if r.get('teacher_user_id')}
@@ -969,7 +973,7 @@ def performance():
     dist_buckets = {}
     dist_marks_total = 0.0
     total_students_for_dist = 0
-    for r in rows[:12]:  # cap work so page stays fast
+    for r in rows:
         fm = r.get('form_marks')
         if not fm:
             continue
