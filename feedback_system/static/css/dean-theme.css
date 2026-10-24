@@ -1,0 +1,51 @@
+/* Dean portal header + page background (loaded only when the user's role is dean). */
+body.role-dean{background:linear-gradient(180deg,#f2f6fd 0,#f7f9fd 340px,#f4f6fa 100%)}
+html.dark-mode body.role-dean{background:#0f172a}
+html.small-text, html.small-text body{font-size:13.5px}
+
+body.role-dean .topbar{background:#fff;color:#0f2a6b;box-shadow:0 2px 14px rgba(20,50,120,.08)}
+body.role-dean .topbar-inner{max-width:1480px;padding:12px 26px}
+body.role-dean .brand{color:#0f2a6b}
+body.role-dean .brand-logo{height:56px;width:auto}
+body.role-dean .brand-text{font-family:'Spartan','Poppins',sans-serif;font-weight:800;font-size:1.45rem;line-height:1.1;color:#0f2a6b;display:flex;flex-direction:column}
+body.role-dean .brand-text small{font-size:.8rem;font-weight:700;letter-spacing:.8px;color:#f5821f;text-transform:uppercase}
+body.role-dean .topnav{gap:6px}
+body.role-dean .topnav a{color:#1f2d4d}
+body.role-dean .topnav a.dn{display:inline-flex;align-items:center;gap:9px;padding:11px 18px;border-radius:12px;font-weight:600;font-size:.95rem;color:#1f2d4d}
+body.role-dean .topnav a.dn svg{color:#0f2a6b}
+body.role-dean .topnav a.dn:hover{background:#eef3fc;color:#0f2a6b;text-decoration:none}
+body.role-dean .topnav a.dn.active{background:#e3edfd;color:#1d5fd8;box-shadow:0 4px 12px rgba(29,95,216,.12)}
+body.role-dean .topnav a.dn.active svg{color:#1d5fd8}
+body.role-dean .a11y-bar{display:inline-flex;align-items:center;gap:4px;margin:0 8px}
+body.role-dean .a11y-bar button{background:transparent;border:0;color:#1f2d4d;font-weight:700;font-size:.95rem;padding:6px 8px;border-radius:8px;cursor:pointer}
+body.role-dean .a11y-bar button:hover{background:#eef3fc}
+body.role-dean .a11y-bar .theme-toggle{display:inline-flex;gap:2px;padding:4px;background:#f1f5fc;border-radius:999px;margin-right:14px}
+body.role-dean .theme-toggle span{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#6b7a94}
+body.role-dean .theme-toggle .sun{background:#fff;color:#f5a623;box-shadow:0 2px 6px rgba(20,50,120,.15)}
+html.dark-mode body.role-dean .theme-toggle .sun{background:transparent;box-shadow:none;color:#6b7a94}
+html.dark-mode body.role-dean .theme-toggle .moon{background:#1d5fd8;color:#fff}
+body.role-dean .dean-user{display:inline-flex;align-items:center;gap:10px;background:#e8effb;border-radius:16px;padding:8px 18px 8px 10px;color:#0f2a6b!important}
+body.role-dean .dean-user:hover{background:#dbe7fa;text-decoration:none}
+body.role-dean .dean-user svg{color:#1d5fd8}
+body.role-dean .dean-user span{display:flex;flex-direction:column;line-height:1.2}
+body.role-dean .dean-user b{font-size:.95rem}
+body.role-dean .dean-user small{font-size:.74rem;font-weight:500;color:#33415c}
+body.role-dean .container{max-width:1480px}
+body.role-dean .nav-toggle{border-color:#c9d6ee;color:#0f2a6b}
+
+html.dark-mode body.role-dean .topbar{background:#0b1220;color:#e5ecfa}
+html.dark-mode body.role-dean .brand-text,html.dark-mode body.role-dean .brand{color:#e5ecfa}
+html.dark-mode body.role-dean .topnav a,html.dark-mode body.role-dean .topnav a.dn svg,html.dark-mode body.role-dean .a11y-bar button{color:#c7d4ee}
+html.dark-mode body.role-dean .topnav a.dn.active{background:#1b2c52;color:#fff}
+html.dark-mode body.role-dean .topnav a.dn:hover,html.dark-mode body.role-dean .a11y-bar button:hover{background:#16213a}
+html.dark-mode body.role-dean .dean-user{background:#16213a;color:#e5ecfa!important}
+html.dark-mode body.role-dean .dean-user small{color:#a9b8d6}
+html.dark-mode body.role-dean .a11y-bar .theme-toggle{background:#16213a}
+
+@media (max-width:900px){
+  body.role-dean .topbar-inner{padding:10px 14px}
+  body.role-dean .brand-logo{height:44px}
+  body.role-dean .brand-text{font-size:1.1rem}
+  body.role-dean .topnav{background:#fff;border-radius:12px;padding:8px}
+  html.dark-mode body.role-dean .topnav{background:#0b1220}
+}
