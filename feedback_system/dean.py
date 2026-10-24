@@ -549,7 +549,9 @@ def actions():
                     ELSE 3 END,
                   ia.due_date IS NULL, ia.due_date""",
             tuple(branch_ids))
-    return render_template('dean_actions.html', user=user, branches=branches, rows=rows)
+    from datetime import date
+    return render_template('dean_actions.html', user=user, branches=branches, rows=rows,
+                           now_iso=date.today().isoformat())
 
 
 @bp.route('/actions/new', methods=['GET', 'POST'])
