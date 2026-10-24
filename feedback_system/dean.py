@@ -554,11 +554,52 @@ def actions():
                            now_iso=date.today().isoformat())
 
 
+def _hod_branch_map(hod_ids, branch_ids):
+    """hod_user_id -> set of branch ids (allocations + explicit scopes)."""
+    out = {h: set() for h in hod_ids}
+    if not hod_ids or not branch_ids:
+        return out
+    hph, bph = _in_clause(hod_ids), _in_clause(branch_ids)
+    args = tuple(hod_ids) + tuple(branch_ids)
+    for r in db.query(
+            f"""SELECT DISTINCT hod_user_id AS uid, branch_id FROM hod_allocations
+                WHERE hod_user_id IN ({hph}) AND branch_id IN ({bph})""", args):
+        out[r['uid']].add(r['branch_id'])
+    for r in db.query(
+            f"""SELECT DISTINCT user_id AS uid, branch_id FROM user_department_scopes
+                WHERE user_id IN ({hph}) AND branch_id IN ({bph})""", args):
+        out[r['uid']].add(r['branch_id'])
+    return out
+
+
+def _hod_choices(user, branch_ids):
+    """HODs a Dean may assign actions to, with the departments each one covers."""
+    hods = _dean_hods(user, branch_ids)
+    bmap = _hod_branch_map([h['id'] for h in hods], branch_ids)
+    return [{'id': h['id'], 'name': h['name'], 'emp_code': h['emp_code'],
+             'branches': sorted(bmap.get(h['id'], set()))} for h in hods]
+
+
+def _action_owner(user, branch_ids, branch_id, form):
+    """Resolve the 'assign to' field -> (owner_user_id, owner_name, error)."""
+    owner_id = form.get('owner_user_id', type=int)
+    typed = (form.get('owner_name') or '').strip()[:120]
+    if not owner_id:
+        return None, typed, None          # unassigned, or a free-text owner
+    chosen = next((h for h in _hod_choices(user, branch_ids) if h['id'] == owner_id), None)
+    if not chosen:
+        return None, typed, 'Invalid HOD selected.'
+    if branch_id and branch_id not in chosen['branches']:
+        return None, typed, 'That HOD does not belong to the selected department.'
+    return owner_id, chosen['name'], None
+
+
 @bp.route('/actions/new', methods=['GET', 'POST'])
 @role_required('dean')
 def action_new():
     user = current_user()
     branches = _dean_branches(user)
+    branch_ids_list = [b['id'] for b in branches]
     if request.method == 'POST':
         title = (request.form.get('title') or '').strip()[:200]
         if not title:
@@ -566,33 +607,41 @@ def action_new():
         else:
             branch_id = request.form.get('branch_id', type=int)
             allowed = {b['id'] for b in branches}
+            owner_id, owner_name, owner_err = _action_owner(
+                user, branch_ids_list, branch_id, request.form)
             if branch_id and branch_id not in allowed:
                 flash('Invalid department.', 'error')
+            elif owner_err:
+                flash(owner_err, 'error')
             else:
                 from datetime import datetime
                 now = datetime.utcnow().isoformat(timespec='seconds')
                 aid = db.insert_id(
                     """INSERT INTO improvement_actions
                        (branch_id, title, description, status, priority,
-                        owner_name, due_date, created_by, created_at, updated_at)
-                       VALUES(?,?,?,?,?,?,?,?,?,?)""",
+                        owner_user_id, owner_name, due_date, created_by,
+                        created_at, updated_at)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
                     (branch_id,
                      title,
                      (request.form.get('description') or '').strip()[:2000],
                      request.form.get('status') or 'planned',
                      request.form.get('priority') or 'medium',
-                     (request.form.get('owner_name') or '').strip()[:120],
+                     owner_id,
+                     owner_name,
                      (request.form.get('due_date') or '').strip() or None,
                      user['id'], now, now))
+                note = 'Created' + (f' and assigned to {owner_name}' if owner_id else '')
                 db.get_db().execute(
                     """INSERT INTO improvement_action_log
                        (action_id, actor_user_id, note, old_status, new_status)
                        VALUES(?,?,?,?,?)""",
-                    (aid, user['id'], 'Created', None, request.form.get('status') or 'planned'))
+                    (aid, user['id'], note, None, request.form.get('status') or 'planned'))
                 db.get_db().commit()
                 flash('Action created.', 'success')
                 return redirect(url_for('dean.actions'))
-    return render_template('dean_action_form.html', user=user, branches=branches, action=None)
+    return render_template('dean_action_form.html', user=user, branches=branches,
+                           action=None, hods=_hod_choices(user, branch_ids_list))
 
 
 @bp.route('/actions/<int:aid>/edit', methods=['GET', 'POST'])
@@ -606,12 +655,22 @@ def action_edit(aid):
         abort(404)
     if action['branch_id'] and action['branch_id'] not in branch_ids:
         abort(403)
+    hods = _hod_choices(user, list(branch_ids))
     if request.method == 'POST':
         from datetime import datetime
         now = datetime.utcnow().isoformat(timespec='seconds')
+        new_branch = request.form.get('branch_id', type=int) or action['branch_id']
+        if new_branch and new_branch not in branch_ids:
+            flash('Invalid department.', 'error')
+            return redirect(url_for('dean.action_edit', aid=aid))
+        owner_id, owner_name, owner_err = _action_owner(
+            user, list(branch_ids), new_branch, request.form)
+        if owner_err:
+            flash(owner_err, 'error')
+            return redirect(url_for('dean.action_edit', aid=aid))
         new_status = request.form.get('status') or action['status']
         old_status = action['status']
-        completed_at = action.get('completed_at')
+        completed_at = action['completed_at']
         if new_status == 'completed' and old_status != 'completed':
             completed_at = now
         elif new_status != 'completed':
@@ -619,16 +678,17 @@ def action_edit(aid):
         conn = db.get_db()
         conn.execute(
             """UPDATE improvement_actions SET
-               title=?, description=?, status=?, priority=?, owner_name=?,
-               due_date=?, branch_id=?, updated_at=?, completed_at=?
+               title=?, description=?, status=?, priority=?, owner_user_id=?,
+               owner_name=?, due_date=?, branch_id=?, updated_at=?, completed_at=?
                WHERE id=?""",
             ((request.form.get('title') or action['title']).strip()[:200],
              (request.form.get('description') or '').strip()[:2000],
              new_status,
              request.form.get('priority') or action['priority'],
-             (request.form.get('owner_name') or '').strip()[:120],
+             owner_id,
+             owner_name,
              (request.form.get('due_date') or '').strip() or None,
-             request.form.get('branch_id', type=int) or action['branch_id'],
+             new_branch,
              now, completed_at, aid))
         if new_status != old_status:
             conn.execute(
@@ -637,14 +697,22 @@ def action_edit(aid):
                    VALUES(?,?,?,?,?)""",
                 (aid, user['id'], (request.form.get('note') or 'Status changed')[:500],
                  old_status, new_status))
+        if owner_id != action['owner_user_id']:
+            conn.execute(
+                """INSERT INTO improvement_action_log
+                   (action_id, actor_user_id, note, old_status, new_status)
+                   VALUES(?,?,?,?,?)""",
+                (aid, user['id'],
+                 (f'Assigned to {owner_name}' if owner_id else 'Unassigned from HOD'),
+                 new_status, new_status))
         conn.commit()
         flash('Action updated.', 'success')
         return redirect(url_for('dean.actions'))
     logs = db.query(
-        'SELECT * FROM improvement_action_log WHERE action_id=? ORDER BY created_at DESC',
+        'SELECT * FROM improvement_action_log WHERE action_id=? ORDER BY created_at DESC, id DESC',
         (aid,))
     return render_template('dean_action_form.html', user=user, branches=branches,
-                           action=action, logs=logs)
+                           action=action, logs=logs, hods=hods)
 
 
 @bp.route('/performance')
