@@ -3,18 +3,75 @@
 {% block body %}
 <div class="container page">
   <div class="page-header"><h1>Feedback requirements</h1></div>
+
   <div class="card">
-    <p class="muted">Configure required feedback items by department, academic year,
-      semester and deadline so the Dean portal can compute publication progress.
-      Until requirements are configured, the Dean portal reports
-      <strong>Requirements not configured</strong>.</p>
+    <h3>{{ 'Edit requirement' if edit else 'Add requirement' }}</h3>
+    <p class="muted">Define which feedback forms each department must publish. When a HOD
+      publishes a form for the same department, year, semester and category, it is linked
+      automatically and the Dean portal shows it as published.</p>
+    <form method="post" action="{{ url_for('admin.requirement_save') }}" class="grid grid-3">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      {% if edit %}<input type="hidden" name="id" value="{{ edit.id }}">{% endif %}
+      <label>Department
+        <select name="branch_id" required>
+          <option value="">Select…</option>
+          {% for b in branches %}<option value="{{ b.id }}" {{ 'selected' if edit and edit.branch_id==b.id }}>{{ b.code }} — {{ b.name }}</option>{% endfor %}
+        </select></label>
+      <label>Title
+        <input name="title" required maxlength="200" value="{{ edit.title if edit else '' }}"></label>
+      <label>Category
+        <select name="category">
+          {% for v,l in [('main','Main faculty'),('second','Second faculty'),('subject_only','Subject only'),('any','Any')] %}
+          <option value="{{ v }}" {{ 'selected' if edit and edit.category==v }}>{{ l }}</option>{% endfor %}
+        </select></label>
+      <label>Academic year
+        <select name="academic_year_id">
+          <option value="">Any</option>
+          {% for y in years %}<option value="{{ y.id }}" {{ 'selected' if edit and edit.academic_year_id==y.id }}>{{ y.name }}</option>{% endfor %}
+        </select></label>
+      <label>Semester
+        <select name="semester_id">
+          <option value="">Any</option>
+          {% for s in semesters %}<option value="{{ s.id }}" {{ 'selected' if edit and edit.semester_id==s.id }}>{{ s.label }}</option>{% endfor %}
+        </select></label>
+      <label>Deadline
+        <input type="date" name="deadline" value="{{ (edit.deadline or '')[:10] if edit else '' }}"></label>
+      <label>Subject code (optional)
+        <input name="subject_code" maxlength="40" value="{{ edit.subject_code or '' if edit else '' }}"></label>
+      <label>Status
+        <select name="status">
+          {% for v in ['required','optional','cancelled'] %}<option value="{{ v }}" {{ 'selected' if edit and edit.status==v }}>{{ v|capitalize }}</option>{% endfor %}
+        </select></label>
+      <div style="align-self:end">
+        <button class="btn" type="submit">{{ 'Save changes' if edit else 'Add requirement' }}</button>
+        {% if edit %}<a class="btn" href="{{ url_for('admin.feedback_requirements') }}">Cancel</a>{% endif %}
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h3>All requirements</h3>
+      <form method="post" action="{{ url_for('admin.requirement_rematch') }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="btn" type="submit">Re-match published forms</button>
+      </form>
+    </div>
     {% if rows %}
     <table class="data-table">
-      <thead><tr><th>Title</th><th>Branch</th><th>Year</th><th>Sem</th><th>Category</th><th>Status</th><th>Deadline</th></tr></thead>
+      <thead><tr><th>Title</th><th>Branch</th><th>Year</th><th>Sem</th><th>Category</th><th>Status</th><th>Deadline</th><th>Matched form</th><th></th></tr></thead>
       <tbody>{% for r in rows %}<tr>
-        <td>{{ r.title }}</td><td>{{ r.branch_code }}</td><td>{{ r.academic_year }}</td>
-        <td>{{ r.semester_number }}</td><td>{{ r.category }}</td><td>{{ r.status }}</td>
+        <td>{{ r.title }}</td><td>{{ r.branch_code }}</td><td>{{ r.academic_year or 'Any' }}</td>
+        <td>{{ r.semester_number or 'Any' }}</td><td>{{ r.category }}</td><td>{{ r.status }}</td>
         <td>{{ r.deadline or '—' }}</td>
+        <td>{% if r.form_title %}{{ r.form_title }} ({{ r.form_status }}){% else %}<span class="muted">not matched</span>{% endif %}</td>
+        <td>
+          <a href="{{ url_for('admin.feedback_requirements', edit=r.id) }}">Edit</a>
+          <form method="post" action="{{ url_for('admin.requirement_delete', rid=r.id) }}" style="display:inline" onsubmit="return confirm('Delete this requirement?')">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="btn" type="submit">Delete</button>
+          </form>
+        </td>
       </tr>{% endfor %}</tbody>
     </table>
     {% else %}
