@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}My Actions — HOD{% endblock %}
+{% block body %}
+<style>
+  .ha-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px;box-shadow:var(--shadow)}
+  .ha-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:flex-start}
+  .ha-top h3{margin:0 0 4px;font-size:1.1rem}
+  .ha-meta{display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px}
+  .ha-pill{display:inline-block;padding:3px 11px;border-radius:999px;font-size:.78rem;font-weight:600;background:#eef2f9;color:#1f3a68}
+  .ha-pill.st-planned{background:#e8effb;color:#1d5fd8}
+  .ha-pill.st-in_progress{background:#fdebd0;color:#b45f06}
+  .ha-pill.st-completed{background:#d8f5e5;color:#0e8a46}
+  .ha-pill.st-cancelled{background:#eceff4;color:#6b7a94}
+  .ha-pill.pr-high,.ha-pill.pr-critical{background:#ffe0e3;color:#c8333a}
+  .ha-pill.overdue{background:#ffe0e3;color:#c8333a}
+  .ha-form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-top:10px;padding-top:12px;border-top:1px solid var(--line)}
+  .ha-form label{font-size:.8rem;color:var(--muted);display:block}
+  .ha-form select,.ha-form input[type=text]{display:block;height:38px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:inherit;background:#fff;color:var(--ink)}
+  .ha-form input[type=text]{min-width:260px}
+</style>
+<div class="container page">
+  <div class="page-header">
+    <h1>My Actions</h1>
+    <p class="muted">Improvement actions the Dean has assigned to you.
+      {% if open_count %}<strong>{{ open_count }} open</strong>.{% else %}Nothing is waiting on you right now.{% endif %}</p>
+  </div>
+
+  {% for a in rows %}
+  {% set overdue = a.due_date and a.status in ('planned','in_progress') and a.due_date < now_iso %}
+  <div class="ha-card">
+    <div class="ha-top">
+      <div>
+        <h3>{{ a.title }}</h3>
+        <div class="ha-meta">
+          <span class="ha-pill st-{{ a.status }}">{{ a.status|replace('_',' ')|title }}</span>
+          <span class="ha-pill pr-{{ a.priority }}">{{ a.priority|title }} priority</span>
+          {% if a.branch_code %}<span class="ha-pill" title="{{ a.branch_name }}">{{ a.branch_code }}</span>{% endif %}
+          {% if a.due_date %}<span class="ha-pill {{ 'overdue' if overdue }}">Due {{ a.due_date }}{{ ' · overdue' if overdue }}</span>{% endif %}
+          {% if a.assigned_by %}<span class="ha-pill">Assigned by {{ a.assigned_by }}</span>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% if a.description %}<p>{{ a.description }}</p>{% endif %}
+
+    {% if a.status == 'cancelled' %}
+    <p class="muted">This action was cancelled by the Dean.</p>
+    {% else %}
+    <form method="post" action="{{ url_for('hod.my_action_status', aid=a.id) }}" class="ha-form">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div><label>Status</label>
+        <select name="status">
+          {% for s in statuses %}<option value="{{ s }}" {{ 'selected' if a.status == s }}>{{ s|replace('_',' ')|title }}</option>{% endfor %}
+        </select></div>
+      <div><label>Note for the Dean (optional)</label>
+        <input type="text" name="note" maxlength="500" placeholder="What was done, or what is blocking?"></div>
+      <button class="btn btn-ok" type="submit">Update</button>
+    </form>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="card"><p class="muted">No actions have been assigned to you yet.</p></div>
+  {% endfor %}
+</div>
+{% endblock %}
