@@ -609,6 +609,75 @@ def results_publish_selected():
     flash(f'Published {published} result(s). Skipped {skipped}.', 'success')
     return redirect(url_for('hod.results'))
 
+# --------------------------------------------------------------------------- #
+# Improvement actions assigned to this HOD by the Dean
+# --------------------------------------------------------------------------- #
+_HOD_ACTION_STATUSES = ('planned', 'in_progress', 'completed')
+
+
+@bp.route('/actions')
+@role_required('hod')
+def my_actions():
+    from datetime import date
+    user = current_user()
+    rows = db.query(
+        """SELECT ia.id, ia.title, ia.description, ia.status, ia.priority,
+                  ia.due_date, ia.updated_at, ia.completed_at,
+                  b.code AS branch_code, b.name AS branch_name,
+                  cu.name AS assigned_by
+           FROM improvement_actions ia
+           LEFT JOIN branches b ON b.id = ia.branch_id
+           LEFT JOIN users cu ON cu.id = ia.created_by
+           WHERE ia.owner_user_id=?
+           ORDER BY
+             CASE ia.status WHEN 'in_progress' THEN 0 WHEN 'planned' THEN 1
+                            WHEN 'completed' THEN 2 ELSE 3 END,
+             CASE WHEN ia.due_date IS NULL THEN 1 ELSE 0 END, ia.due_date""",
+        (user['id'],))
+    open_count = sum(1 for r in rows if r['status'] in ('planned', 'in_progress'))
+    return render_template('hod_actions.html', user=user, rows=rows,
+                           open_count=open_count, now_iso=date.today().isoformat(),
+                           statuses=_HOD_ACTION_STATUSES)
+
+
+@bp.route('/actions/<int:aid>/status', methods=['POST'])
+@role_required('hod')
+def my_action_status(aid):
+    from datetime import datetime
+    user = current_user()
+    action = db.query('SELECT * FROM improvement_actions WHERE id=?', (aid,), one=True)
+    # A HOD can only touch actions the Dean assigned to them.
+    if not action or action['owner_user_id'] != user['id']:
+        abort(403)
+    new_status = request.form.get('status') or ''
+    if new_status not in _HOD_ACTION_STATUSES or action['status'] == 'cancelled':
+        flash('That status change is not allowed.', 'error')
+        return redirect(url_for('hod.my_actions'))
+    old_status = action['status']
+    note = (request.form.get('note') or '').strip()[:500]
+    if new_status == old_status and not note:
+        return redirect(url_for('hod.my_actions'))
+    now = datetime.utcnow().isoformat(timespec='seconds')
+    completed_at = action['completed_at']
+    if new_status == 'completed' and old_status != 'completed':
+        completed_at = now
+    elif new_status != 'completed':
+        completed_at = None
+    conn = db.get_db()
+    conn.execute(
+        'UPDATE improvement_actions SET status=?, updated_at=?, completed_at=? WHERE id=?',
+        (new_status, now, completed_at, aid))
+    conn.execute(
+        """INSERT INTO improvement_action_log
+           (action_id, actor_user_id, note, old_status, new_status)
+           VALUES(?,?,?,?,?)""",
+        (aid, user['id'], note or f'Updated by {user["name"]} (HOD)', old_status, new_status))
+    conn.commit()
+    audit('hod.action_status', 'improvement_actions', aid, f'{old_status}->{new_status}')
+    flash('Action updated. The Dean can see your update.', 'success')
+    return redirect(url_for('hod.my_actions'))
+
+
 @bp.route('/second-faculty')
 @role_required('hod')
 def second_faculty():
