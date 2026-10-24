@@ -1201,15 +1201,113 @@ def hod_dean_toggle_active(uid):
     return redirect(url_for('admin.hod_dean_accounts'))
 
 
-@bp.route('/requirements')
-@role_required('admin')
-def feedback_requirements():
-    rows = db.query(
+def _requirement_rows():
+    return db.query(
         """SELECT fr.*, b.code AS branch_code, b.name AS branch_name,
-                  ay.name AS academic_year, s.number AS semester_number
+                  ay.name AS academic_year, s.number AS semester_number,
+                  ff.title AS form_title, ff.status AS form_status
            FROM feedback_requirements fr
            LEFT JOIN branches b ON b.id=fr.branch_id
            LEFT JOIN academic_years ay ON ay.id=fr.academic_year_id
            LEFT JOIN semesters s ON s.id=fr.semester_id
+           LEFT JOIN feedback_forms ff ON ff.id=fr.matched_form_id
            ORDER BY fr.id DESC LIMIT 200""")
-    return render_template('admin_requirements.html', rows=rows)
+
+
+def _requirement_form_data():
+    f = request.form
+    def _id(name):
+        v = (f.get(name) or '').strip()
+        return int(v) if v.isdigit() else None
+    category = (f.get('category') or 'main').strip().lower()
+    if category not in ('main', 'second', 'subject_only', 'any'):
+        category = 'main'
+    status = (f.get('status') or 'required').strip().lower()
+    if status not in ('required', 'optional', 'cancelled'):
+        status = 'required'
+    deadline = (f.get('deadline') or '').strip()[:10] or None
+    if deadline:
+        try:
+            datetime.strptime(deadline, '%Y-%m-%d')
+        except ValueError:
+            return None, 'Deadline must be a valid date.'
+    title = (f.get('title') or '').strip()[:200]
+    branch_id = _id('branch_id')
+    if not title:
+        return None, 'Title is required.'
+    if not branch_id:
+        return None, 'Select a department.'
+    return dict(title=title, branch_id=branch_id,
+                academic_year_id=_id('academic_year_id'),
+                semester_id=_id('semester_id'), category=category,
+                subject_code=(f.get('subject_code') or '').strip()[:40] or None,
+                deadline=deadline, status=status), None
+
+
+@bp.route('/requirements')
+@role_required('admin')
+def feedback_requirements():
+    edit = None
+    eid = request.args.get('edit', type=int)
+    if eid:
+        edit = db.query('SELECT * FROM feedback_requirements WHERE id=?',
+                        (eid,), one=True)
+    return render_template('admin_requirements.html', rows=_requirement_rows(),
+                           edit=edit, branches=services.branches(),
+                           years=services.academic_years(),
+                           semesters=services.semesters())
+
+
+@bp.route('/requirements/save', methods=['POST'])
+@role_required('admin')
+def requirement_save():
+    data, err = _requirement_form_data()
+    rid = request.form.get('id', type=int)
+    if err:
+        flash(err, 'error')
+        return redirect(url_for('admin.feedback_requirements', edit=rid) if rid
+                        else url_for('admin.feedback_requirements'))
+    now = datetime.utcnow().isoformat(timespec='seconds')
+    if rid:
+        if not db.query('SELECT 1 FROM feedback_requirements WHERE id=?', (rid,), one=True):
+            abort(404)
+        db.execute(
+            """UPDATE feedback_requirements SET title=?, branch_id=?,
+               academic_year_id=?, semester_id=?, category=?, subject_code=?,
+               deadline=?, status=?, updated_at=? WHERE id=?""",
+            (data['title'], data['branch_id'], data['academic_year_id'],
+             data['semester_id'], data['category'], data['subject_code'],
+             data['deadline'], data['status'], now, rid))
+        audit('admin.requirement.update', 'feedback_requirements', rid, data['title'])
+        flash('Requirement updated.', 'success')
+    else:
+        rid = db.execute_returning_id(
+            """INSERT INTO feedback_requirements(title, branch_id,
+               academic_year_id, semester_id, category, subject_code,
+               deadline, status, created_by) VALUES(?,?,?,?,?,?,?,?,?)""",
+            (data['title'], data['branch_id'], data['academic_year_id'],
+             data['semester_id'], data['category'], data['subject_code'],
+             data['deadline'], data['status'], current_user()['id']))
+        audit('admin.requirement.create', 'feedback_requirements', rid, data['title'])
+        flash('Requirement added.', 'success')
+    linked = services.rematch_requirements()
+    if linked:
+        flash(f'{linked} already-published form(s) linked to requirements.', 'success')
+    return redirect(url_for('admin.feedback_requirements'))
+
+
+@bp.route('/requirements/<int:rid>/delete', methods=['POST'])
+@role_required('admin')
+def requirement_delete(rid):
+    db.execute('DELETE FROM feedback_requirements WHERE id=?', (rid,))
+    audit('admin.requirement.delete', 'feedback_requirements', rid, '')
+    flash('Requirement deleted.', 'success')
+    return redirect(url_for('admin.feedback_requirements'))
+
+
+@bp.route('/requirements/rematch', methods=['POST'])
+@role_required('admin')
+def requirement_rematch():
+    n = services.rematch_requirements()
+    flash(f'Linked {n} published form(s) to requirements.', 'success')
+    return redirect(url_for('admin.feedback_requirements'))
