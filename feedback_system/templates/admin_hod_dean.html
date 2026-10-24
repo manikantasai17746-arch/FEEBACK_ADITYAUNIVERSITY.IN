@@ -9,8 +9,8 @@
 
   {% if import_creds %}
   <div class="card" style="border-left:4px solid #1558C0;margin-bottom:1rem">
-    <h2>Initial credentials (show once — deliver securely)</h2>
-    <p class="muted">Temporary passwords are not stored in plaintext. Deliver them out-of-band to each employee, then require password change on first login.</p>
+    <h2>E-mail not delivered — send these credentials manually (shown once)</h2>
+    <p class="muted">Credentials were e-mailed automatically to everyone else. These accounts could not be e-mailed (mail not configured, bad address or time limit). Deliver each password securely; the employee must change it on first login.</p>
     <table class="data-table">
       <thead><tr><th>Role</th><th>Employee ID</th><th>Name</th><th>Email</th><th>Temporary password</th></tr></thead>
       <tbody>
@@ -67,6 +67,11 @@
               <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
               <button type="submit" class="btn small">{{ 'Deactivate' if h.is_active else 'Activate' }}</button>
             </form>
+            <form method="post" action="{{ url_for('admin.hod_dean_delete_request', uid=h.id) }}" style="display:inline"
+                  onsubmit="return confirm('Permanently delete this account? A confirmation code will be e-mailed for approval.')">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button type="submit" class="btn small btn-danger">Delete</button>
+            </form>
           </td>
         </tr>
       {% endfor %}
@@ -103,6 +108,11 @@
             <form method="post" action="{{ url_for('admin.hod_dean_toggle_active', uid=d.id) }}" style="display:inline">
               <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
               <button type="submit" class="btn small">{{ 'Deactivate' if d.is_active else 'Activate' }}</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.hod_dean_delete_request', uid=d.id) }}" style="display:inline"
+                  onsubmit="return confirm('Permanently delete this account? A confirmation code will be e-mailed for approval.')">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button type="submit" class="btn small btn-danger">Delete</button>
             </form>
           </td>
         </tr>
