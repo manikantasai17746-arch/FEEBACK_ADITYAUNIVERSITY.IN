@@ -117,7 +117,11 @@ def test_admin_login_via_email_case(app_factory):
     assert r.status_code == 302
 
 
-def test_hod_login_after_csv_import_full(app_factory):
+def test_hod_login_after_csv_import_full(app_factory, monkeypatch):
+    from feedback_system import mailer
+    mailed = []
+    monkeypatch.setattr(mailer, 'send_email',
+                        lambda to, subject, text, html=None: mailed.append(text) or True)
     app = app_factory(AUTO_IMPORT=True)
     client = app.test_client()
     # Admin login
@@ -149,8 +153,10 @@ def test_hod_login_after_csv_import_full(app_factory):
     }, content_type='multipart/form-data', follow_redirects=True)
     assert r.status_code == 200
     body = r.get_data(as_text=True)
-    m = re.search(r'<code>([^<]{8,40})</code>', body)
-    assert m, 'temp password must be shown once after import'
+    # Credentials are now e-mailed (and not shown on screen when delivery works).
+    assert len(mailed) == 1, 'credentials must be e-mailed after import'
+    m = re.search(r'Temporary password:\s+(\S+)', mailed[0])
+    assert m, 'e-mail must contain the temporary password'
     temp_pw = m.group(1)
 
     with app.app_context():
@@ -172,7 +178,11 @@ def test_hod_login_after_csv_import_full(app_factory):
     assert 'change-password' in (r3.headers.get('Location') or '')
 
 
-def test_dean_login_after_csv_import_full(app_factory):
+def test_dean_login_after_csv_import_full(app_factory, monkeypatch):
+    from feedback_system import mailer
+    mailed = []
+    monkeypatch.setattr(mailer, 'send_email',
+                        lambda to, subject, text, html=None: mailed.append(text) or True)
     app = app_factory(AUTO_IMPORT=True)
     client = app.test_client()
     assert login(client, '/admin/login',
@@ -200,7 +210,8 @@ def test_dean_login_after_csv_import_full(app_factory):
         'csv_file': (io.BytesIO(data), 'd.csv'),
     }, content_type='multipart/form-data', follow_redirects=True)
     assert r.status_code == 200
-    m = re.search(r'<code>([^<]{8,40})</code>', r.get_data(as_text=True))
+    assert len(mailed) == 1, 'credentials must be e-mailed after import'
+    m = re.search(r'Temporary password:\s+(\S+)', mailed[0])
     assert m
     temp_pw = m.group(1)
 
