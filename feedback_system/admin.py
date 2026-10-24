@@ -1,5 +1,6 @@
 """Admin area: dashboard, academic data, form builder, tracking, results."""
 import hashlib
+import os
 import json
 import math
 from datetime import datetime
@@ -7,7 +8,7 @@ from datetime import datetime
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
                    render_template, request, url_for, Response)
 
-from . import db, services
+from . import db, mailer, services, verification
 from .security import current_user, hash_password, role_required, audit
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -1161,11 +1162,35 @@ def hod_dean_import():
         flash(f'Import failed and was rolled back: {exc}', 'error')
         return redirect(url_for('admin.hod_dean_accounts'))
 
-    summary = f'Created {len(created)} account(s).'
+    # E-mail each new account its Employee ID + temporary password so the admin
+    # does not have to pass them on one by one. Time-boxed so a large import
+    # cannot hit the serverless request limit; anything not sent is shown on
+    # screen (once) as a fallback.
+    import time as _time
+    t0 = _time.monotonic()
+    for c in created:
+        if _time.monotonic() - t0 > 8:
+            c['emailed'] = False
+            continue
+        login_endpoint = 'auth.dean_login' if c['role'] == 'dean' else 'auth.hod_login'
+        base = (os.environ.get('APP_BASE_URL') or '').rstrip('/')
+        login_url = (base + url_for(login_endpoint)) if base \
+            else url_for(login_endpoint, _external=True)
+        subject, text, html = mailer.credentials_email(
+            c['role'], c['employee_id'], c['name'], c['temp_password'], login_url)
+        c['emailed'] = mailer.send_email(c['email'], subject, text, html)
+    sent = [c for c in created if c['emailed']]
+    failed = [c for c in created if not c['emailed']]
+
+    summary = f'Created {len(created)} account(s); credentials e-mailed to {len(sent)}.'
+    if failed:
+        summary += f' {len(failed)} e-mail(s) could not be sent - see the list below.'
     if errors:
         summary += f' {len(errors)} row(s) rejected: ' + '; '.join(errors[:5])
-    flash(summary, 'success')
-    _session['hod_dean_import_creds'] = created
+    flash(summary, 'success' if not failed else 'error')
+    # Only passwords that were NOT delivered by e-mail are kept for display.
+    _session['hod_dean_import_creds'] = [
+        {k: v for k, v in c.items() if k != 'emailed'} for c in failed]
     return redirect(url_for('admin.hod_dean_accounts'))
 
 
@@ -1198,6 +1223,123 @@ def hod_dean_toggle_active(uid):
     db.execute('UPDATE users SET is_active=? WHERE id=?', (new_val, uid))
     audit('admin.toggle_active', 'users', uid, f"is_active={new_val}")
     flash('Account status updated.', 'success')
+    return redirect(url_for('admin.hod_dean_accounts'))
+
+
+# --------------------------------------------------------------------------- #
+# Permanent deletion of HOD / Dean accounts (e-mail OTP to DELETE_OTP_EMAIL)
+# --------------------------------------------------------------------------- #
+def _delete_otp_recipients():
+    """Addresses that receive the deletion code (env DELETE_OTP_EMAIL, comma separated)."""
+    raw = os.environ.get('DELETE_OTP_EMAIL') or ''
+    return [e.strip() for e in raw.replace(';', ',').split(',') if '@' in e.strip()]
+
+
+def _mask_email(addr):
+    name, _, domain = addr.partition('@')
+    return (name[:2] + '*' * max(len(name) - 2, 2)) + '@' + domain
+
+
+def _hod_dean_or_404(uid):
+    user = db.query(
+        "SELECT id, role, username, emp_code, name, email FROM users "
+        "WHERE id=? AND role IN ('hod','dean')", (uid,), one=True)
+    if not user:
+        abort(404)
+    return user
+
+
+def _delete_purpose(uid):
+    return f'delete_account:{uid}'
+
+
+@bp.route('/accounts/hod-dean/<int:uid>/delete/request', methods=['POST'])
+@role_required('admin')
+def hod_dean_delete_request(uid):
+    user = _hod_dean_or_404(uid)
+    admin = current_user()
+    recipients = _delete_otp_recipients()
+    if not recipients:
+        flash('Deletion is disabled: set DELETE_OTP_EMAIL in the environment '
+              '(the address that receives the confirmation code).', 'error')
+        return redirect(url_for('admin.hod_dean_accounts'))
+    try:
+        code = verification.issue(admin['id'], _delete_purpose(uid), ', '.join(recipients))
+    except verification.Cooldown as c:
+        flash(f'A code was just sent. Wait {c.seconds}s before requesting another.', 'error')
+        return redirect(url_for('admin.hod_dean_delete_confirm', uid=uid))
+    subject, text, html = mailer.delete_code_email(
+        code, user['role'], user['emp_code'] or user['username'], user['name'],
+        admin['email'] or admin['username'], verification.CODE_TTL_SECONDS // 60)
+    ok = all([mailer.send_email(r, subject, text, html) for r in recipients])
+    if not ok:
+        verification.discard(admin['id'], _delete_purpose(uid))
+        flash('Could not send the confirmation code. Check the mail settings and try again.',
+              'error')
+        return redirect(url_for('admin.hod_dean_accounts'))
+    audit('admin.hod_dean_delete_requested', 'users', uid, 'Deletion code sent')
+    flash('A confirmation code was sent to the deletion-approval e-mail.', 'success')
+    return redirect(url_for('admin.hod_dean_delete_confirm', uid=uid))
+
+
+@bp.route('/accounts/hod-dean/<int:uid>/delete', methods=['GET', 'POST'])
+@role_required('admin')
+def hod_dean_delete_confirm(uid):
+    user = _hod_dean_or_404(uid)
+    admin = current_user()
+    purpose = _delete_purpose(uid)
+    pending = verification.pending(admin['id'], purpose)
+    if request.method == 'GET':
+        if not pending:
+            flash('Request a confirmation code first.', 'error')
+            return redirect(url_for('admin.hod_dean_accounts'))
+        masked = ', '.join(_mask_email(e.strip()) for e in pending['email'].split(','))
+        return render_template('admin_hod_dean_delete.html', user=user, masked=masked)
+
+    if not verification.check(admin['id'], purpose, request.form.get('code')):
+        audit('admin.hod_dean_delete_failed', 'users', uid, 'Wrong or expired code')
+        flash('Wrong or expired code. Request a new code and try again.', 'error')
+        return redirect(url_for('admin.hod_dean_accounts'))
+
+    ident = f"{user['role']} {user['emp_code'] or user['username']} ({user['name']})"
+    conn = db.get_db()
+    try:
+        # Remove rows that only make sense for this account...
+        for sql in (
+            'DELETE FROM email_codes WHERE user_id=?',
+            'DELETE FROM notifications WHERE user_id=?',
+            'DELETE FROM user_department_scopes WHERE user_id=?',
+            'DELETE FROM hod_allocations WHERE hod_user_id=?',
+            'DELETE FROM dean_hod_assignments WHERE dean_user_id=? OR hod_user_id=?',
+        ):
+            conn.execute(sql, (uid,) * sql.count('?'))
+        # ...and keep history (forms, results, audit) but detach this person.
+        for table, col in (
+            ('feedback_forms', 'created_by'),
+            ('result_publications', 'published_by'),
+            ('result_publications', 'unpublished_by'),
+            ('audit_log', 'actor_user_id'),
+            ('feedback_requirements', 'created_by'),
+            ('hod_allocations', 'created_by'),
+            ('dean_hod_assignments', 'created_by'),
+            ('allocation_history', 'actor_user_id'),
+            ('improvement_actions', 'owner_user_id'),
+            ('improvement_actions', 'created_by'),
+            ('improvement_action_log', 'actor_user_id'),
+            ('second_faculty_import_batches', 'imported_by'),
+        ):
+            conn.execute(f'UPDATE {table} SET {col}=NULL WHERE {col}=?', (uid,))
+        conn.execute("DELETE FROM users WHERE id=? AND role IN ('hod','dean')", (uid,))
+        conn.commit()
+    except Exception as exc:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        flash(f'Deletion failed and was rolled back: {exc}', 'error')
+        return redirect(url_for('admin.hod_dean_accounts'))
+    audit('admin.hod_dean_deleted', 'users', uid, f'Permanently deleted {ident}')
+    flash(f'{ident} was permanently deleted.', 'success')
     return redirect(url_for('admin.hod_dean_accounts'))
 
 
