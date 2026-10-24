@@ -17,6 +17,243 @@ def _dean_branches(user):
         tuple(ids))
 
 
+def _in_clause(ids):
+    return ','.join('?' * len(ids))
+
+
+def _pct(part, whole):
+    """Percentage rounded to 1 decimal; 0 when there is nothing to divide by."""
+    if not whole:
+        return 0.0
+    return round(min(100.0, 100.0 * part / whole), 1)
+
+
+def _fmt_date(value):
+    """'2026-10-24 10:24:00' -> '24 Oct 2026' (None when missing/unparseable)."""
+    from datetime import date
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value)[:10]).strftime('%d %b %Y')
+    except ValueError:
+        return str(value)[:10]
+
+
+def _dean_hods(user, branch_ids):
+    """Active HODs in the Dean's scope: assigned HODs first, else by branch."""
+    rows = db.query(
+        """SELECT u.id, u.name, u.emp_code, u.onboarding_complete
+           FROM dean_hod_assignments dha
+           JOIN users u ON u.id = dha.hod_user_id
+           WHERE dha.dean_user_id=? AND u.role='hod' AND u.is_active=1
+           ORDER BY u.name""", (user['id'],))
+    if rows or not branch_ids:
+        return rows
+    ph = _in_clause(branch_ids)
+    return db.query(
+        f"""SELECT DISTINCT u.id, u.name, u.emp_code, u.onboarding_complete
+            FROM users u
+            WHERE u.role='hod' AND u.is_active=1 AND (
+                  u.id IN (SELECT hod_user_id FROM hod_allocations
+                           WHERE branch_id IN ({ph}))
+               OR u.id IN (SELECT user_id FROM user_department_scopes
+                           WHERE branch_id IN ({ph})))
+            ORDER BY u.name""", tuple(branch_ids) * 2)
+
+
+def _dashboard_data(user, branches, ay_id, sem_id, form_id):
+    """Every number on the Dean dashboard, computed from real rows only."""
+    from datetime import date, timedelta
+
+    branch_ids = [b['id'] for b in branches]
+    ph = _in_clause(branch_ids)
+    data = {'branch_count': len(branches)}
+
+    # ---- HODs -------------------------------------------------------------
+    hods = _dean_hods(user, branch_ids)
+    hod_ids = [h['id'] for h in hods]
+    data['hod_count'] = len(hods)
+    data['hod_onboarded'] = sum(1 for h in hods if h['onboarding_complete'])
+    hod_names = {h['id']: h['name'] for h in hods}
+
+    # branch -> HOD names (allocations first, then explicit department scopes)
+    branch_hods = {b['id']: [] for b in branches}
+    if hod_ids:
+        hph = _in_clause(hod_ids)
+        pairs = db.query(
+            f"""SELECT DISTINCT hod_user_id, branch_id FROM hod_allocations
+                WHERE hod_user_id IN ({hph}) AND branch_id IN ({ph})""",
+            tuple(hod_ids) + tuple(branch_ids))
+        pairs += db.query(
+            f"""SELECT DISTINCT user_id AS hod_user_id, branch_id
+                FROM user_department_scopes
+                WHERE user_id IN ({hph}) AND branch_id IN ({ph})""",
+            tuple(hod_ids) + tuple(branch_ids))
+        for p in pairs:
+            lst = branch_hods.get(p['branch_id'])
+            if lst is not None and p['hod_user_id'] not in lst:
+                lst.append(p['hod_user_id'])
+
+    # ---- Forms (published ones only: open / closed / archived) ------------
+    sql = f"""SELECT ff.id, ff.title, ff.status, ff.branch_id
+              FROM feedback_forms ff
+              WHERE ff.branch_id IN ({ph}) AND ff.is_deleted=0
+                AND ff.status IN ('open','closed','archived')"""
+    args = list(branch_ids)
+    if ay_id:
+        sql += ' AND ff.academic_year_id=?'
+        args.append(ay_id)
+    if sem_id:
+        sql += ' AND ff.semester_id=?'
+        args.append(sem_id)
+    scope_forms = db.query(sql + ' ORDER BY ff.title', tuple(args))
+    data['form_options'] = [{'id': f['id'], 'title': f['title']} for f in scope_forms]
+    forms = [f for f in scope_forms if not form_id or f['id'] == form_id]
+    fids = [f['id'] for f in forms]
+    data['active_forms'] = sum(1 for f in forms if f['status'] == 'open')
+
+    elig, subs, last = {}, {}, {}
+    if fids:
+        fph = _in_clause(fids)
+        for r in db.query(
+                f"""SELECT fs.form_id, COUNT(DISTINCT ss.student_user_id) AS c
+                    FROM form_sessions fs
+                    JOIN session_students ss ON ss.session_id=fs.session_id
+                    JOIN users u ON u.id=ss.student_user_id AND u.is_active=1
+                    WHERE fs.form_id IN ({fph}) GROUP BY fs.form_id""",
+                tuple(fids)):
+            elig[r['form_id']] = r['c'] or 0
+        # Completion only — answers are never read, so anonymity is untouched.
+        for r in db.query(
+                f"""SELECT form_id, COUNT(*) AS c, MAX(submitted_at) AS last_at
+                    FROM submissions WHERE form_id IN ({fph}) GROUP BY form_id""",
+                tuple(fids)):
+            subs[r['form_id']] = r['c'] or 0
+            last[r['form_id']] = r['last_at']
+
+    per = {b['id']: {'eligible': 0, 'submitted': 0, 'last': None} for b in branches}
+    for f in forms:
+        d = per[f['branch_id']]
+        e = elig.get(f['id'], 0)
+        d['eligible'] += e
+        d['submitted'] += min(subs.get(f['id'], 0), e) if e else subs.get(f['id'], 0)
+        la = last.get(f['id'])
+        if la and (d['last'] is None or str(la) > str(d['last'])):
+            d['last'] = la
+    tot_e = sum(d['eligible'] for d in per.values())
+    tot_s = sum(d['submitted'] for d in per.values())
+    data['eligible'] = tot_e
+    data['submitted'] = tot_s
+    data['pending'] = max(tot_e - tot_s, 0)
+    data['rate'] = _pct(tot_s, tot_e)
+
+    # ---- Requirements / publication status --------------------------------
+    sql = f"""SELECT fr.id, fr.branch_id, fr.title, fr.deadline, fr.status,
+                     fr.matched_form_id, ff.status AS form_status
+              FROM feedback_requirements fr
+              LEFT JOIN feedback_forms ff ON ff.id=fr.matched_form_id
+              WHERE fr.branch_id IN ({ph}) AND fr.status != 'cancelled'"""
+    args = list(branch_ids)
+    if ay_id:
+        sql += ' AND fr.academic_year_id=?'
+        args.append(ay_id)
+    if sem_id:
+        sql += ' AND fr.semester_id=?'
+        args.append(sem_id)
+    reqs = db.query(sql, tuple(args))
+    published_states = ('open', 'closed', 'archived')
+    today = date.today()
+    soon = today + timedelta(days=7)
+
+    rb = {b['id']: {'total': 0, 'required': 0, 'published': 0} for b in branches}
+    deadline_soon = 0
+    for r in reqs:
+        d = rb[r['branch_id']]
+        d['total'] += 1
+        is_pub = bool(r['matched_form_id']) and r['form_status'] in published_states
+        if r['status'] == 'required':
+            d['required'] += 1
+            if is_pub:
+                d['published'] += 1
+            else:
+                try:
+                    dl = date.fromisoformat(str(r['deadline'] or '')[:10])
+                    if today <= dl <= soon:
+                        deadline_soon += 1
+                except ValueError:
+                    pass
+
+    rows = []
+    for i, b in enumerate(branches, 1):
+        d, p = rb[b['id']], per[b['id']]
+        if d['required']:
+            published = d['published'] == d['required']
+            detail = f"{d['published']}/{d['required']}"
+        else:
+            published = any(f['branch_id'] == b['id'] for f in forms)
+            detail = ''
+        rate = _pct(p['submitted'], p['eligible'])
+        names = [hod_names[h] for h in branch_hods[b['id']] if h in hod_names]
+        rows.append({
+            'n': i, 'id': b['id'], 'code': b['code'], 'name': b['name'],
+            'hod': ', '.join(names) if names else '\u2014',
+            'hod_ids': [h for h in branch_hods[b['id']] if h in hod_names],
+            'configured': d['total'] > 0,
+            'published': published, 'pub_detail': detail,
+            'rate': rate, 'has_rate': p['eligible'] > 0,
+            'last': _fmt_date(p['last']),
+            'eligible': p['eligible'], 'submitted': p['submitted'],
+            'pending': max(p['eligible'] - p['submitted'], 0),
+        })
+    data['rows'] = rows
+
+    # ---- Chart ------------------------------------------------------------
+    peak = max([r['eligible'] for r in rows] + [1])
+    step = 10000
+    # tidy "nice" axis step so there are at most 5 gridlines
+    for nice in (1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000, 5000, 10000):
+        if peak / nice <= 5:
+            step = nice
+            break
+    top = step * (-(-peak // step))
+    data['chart_top'] = top
+    data['chart_ticks'] = [top - i * step for i in range(int(top // step) + 1)]
+    data['chart'] = [{
+        'code': r['code'], 'eligible': r['eligible'], 'submitted': r['submitted'],
+        'pending': r['pending'],
+        'h_e': round(100.0 * r['eligible'] / top, 1) if top else 0,
+        'h_s': round(100.0 * r['submitted'] / top, 1) if top else 0,
+        'h_p': round(100.0 * r['pending'] / top, 1) if top else 0,
+    } for r in rows]
+
+    # ---- Alerts -----------------------------------------------------------
+    closed_ids = [f['id'] for f in forms if f['status'] == 'closed']
+    awaiting = 0
+    if closed_ids:
+        cph = _in_clause(closed_ids)
+        done = {r['form_id'] for r in db.query(
+            f"""SELECT DISTINCT form_id FROM result_publications
+                WHERE is_published=1 AND form_id IN ({cph})""", tuple(closed_ids))}
+        awaiting = sum(1 for i in closed_ids if i not in done)
+    unpublished_hods = set()
+    for r in rows:
+        if not r['published']:
+            unpublished_hods.update(r['hod_ids'])
+    data['alerts'] = [
+        {'label': 'Departments without feedback requirements', 'count': sum(1 for r in rows if not r['configured']),
+         'tone': 'red', 'icon': 'warn', 'endpoint': 'dean.publication'},
+        {'label': 'Feedback forms approaching deadline', 'count': deadline_soon,
+         'tone': 'amber', 'icon': 'clock', 'endpoint': 'dean.publication'},
+        {'label': 'Low submission rate (< 60%)', 'count': sum(1 for r in rows if r['has_rate'] and r['rate'] < 60),
+         'tone': 'amber', 'icon': 'clock', 'endpoint': 'dean.analytics'},
+        {'label': 'HODs yet to publish feedback', 'count': len(unpublished_hods),
+         'tone': 'blue', 'icon': 'info', 'endpoint': 'dean.publication'},
+        {'label': 'Completed forms awaiting publication', 'count': awaiting,
+         'tone': 'blue', 'icon': 'doc', 'endpoint': 'dean.performance'},
+    ]
+    return data
+
+
 @bp.route('/')
 @role_required('dean')
 def dashboard():
@@ -24,35 +261,28 @@ def dashboard():
     branches = _dean_branches(user)
     branch_ids = [b['id'] for b in branches]
 
-    # Publication monitoring requires configured feedback_requirements.
-    requirements_configured = False
-    pub_rows = []
+    years = db.query('SELECT id, name, is_active FROM academic_years ORDER BY name DESC')
+    semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
+
+    # Filters: a missing parameter means "default"; an empty one means "All".
+    if 'academic_year_id' in request.args:
+        ay_id = request.args.get('academic_year_id', type=int)
+    else:
+        active = [y for y in years if y['is_active']]
+        ay_id = active[0]['id'] if active else None
+    sem_id = request.args.get('semester_id', type=int)
+    form_id = request.args.get('form_id', type=int)
+
+    dash = None
     if branch_ids:
-        ph = ','.join('?' * len(branch_ids))
-        req_count = db.query(
-            f"""SELECT COUNT(*) c FROM feedback_requirements
-                WHERE branch_id IN ({ph}) AND status != 'cancelled'""",
-            tuple(branch_ids), one=True)['c']
-        requirements_configured = req_count > 0
+        dash = _dashboard_data(user, branches, ay_id, sem_id, form_id)
+        if form_id and form_id not in {f['id'] for f in dash['form_options']}:
+            form_id = None  # stale selection after changing year/semester
 
-        if requirements_configured:
-            pub_rows = db.query(
-                f"""SELECT b.code AS branch_code, b.name AS branch_name,
-                           COUNT(fr.id) AS required_count,
-                           SUM(CASE WHEN fr.matched_form_id IS NOT NULL
-                                    AND ff.status IN ('open','closed','archived')
-                                    THEN 1 ELSE 0 END) AS published_count
-                    FROM feedback_requirements fr
-                    JOIN branches b ON b.id=fr.branch_id
-                    LEFT JOIN feedback_forms ff ON ff.id=fr.matched_form_id
-                    WHERE fr.branch_id IN ({ph}) AND fr.status='required'
-                    GROUP BY b.id, b.code, b.name
-                    ORDER BY b.code""",
-                tuple(branch_ids))
-
-    return render_template('dean_dashboard.html', user=user, branches=branches,
-                           requirements_configured=requirements_configured,
-                           pub_rows=pub_rows)
+    return render_template(
+        'dean_dashboard.html', user=user, branches=branches, dash=dash,
+        years=years, semesters=semesters,
+        filters={'academic_year_id': ay_id, 'semester_id': sem_id, 'form_id': form_id})
 
 
 @bp.route('/publication')
