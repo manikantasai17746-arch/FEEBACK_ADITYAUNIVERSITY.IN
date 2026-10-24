@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Confirm deletion — Admin{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header"><h1>Confirm permanent deletion</h1></div>
+  <div class="card" style="border-left:4px solid #B3261E;max-width:560px">
+    <p>You are about to <strong>permanently delete</strong> this account. This cannot be undone.</p>
+    <p><strong>{{ user.role|upper }}:</strong> {{ user.name }} ({{ user.emp_code or user.username }})</p>
+    <p class="muted">A 6-digit confirmation code was sent to the deletion-approval e-mail
+      ({{ masked }}). It expires in 10 minutes.</p>
+    <form method="post" action="{{ url_for('admin.hod_dean_delete_confirm', uid=user.id) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label>Confirmation code
+        <input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autocomplete="off"></label>
+      <div style="margin-top:.75rem">
+        <button class="btn btn-danger" type="submit">Delete permanently</button>
+        <a class="btn" href="{{ url_for('admin.hod_dean_accounts') }}">Cancel</a>
+      </div>
+    </form>
+    <form method="post" action="{{ url_for('admin.hod_dean_delete_request', uid=user.id) }}" style="margin-top:.75rem">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn small" type="submit">Resend code</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
