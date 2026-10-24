@@ -34,9 +34,19 @@
         <option value="{{ p }}" {{ 'selected' if (action and action.priority == p) or (not action and p == 'medium') }}>{{ p }}</option>
         {% endfor %}
       </select></div>
-    <div class="field"><label>Owner name</label>
+    <div class="field"><label>Assign to HOD</label>
+      <select name="owner_user_id" id="ownerSel">
+        <option value="">— Not assigned to a HOD —</option>
+        {% for h in hods %}
+        <option value="{{ h.id }}" data-branches="{{ h.branches|join(',') }}"
+                {{ 'selected' if action and action.owner_user_id == h.id }}>{{ h.name }}{% if h.emp_code %} ({{ h.emp_code }}){% endif %}</option>
+        {% endfor %}
+      </select>
+      <small class="muted">The HOD will see this action under “My Actions” and can update its progress.
+        Only HODs of the selected department are listed.</small></div>
+    <div class="field"><label>Other owner (optional, if not a HOD)</label>
       <input type="text" name="owner_name" maxlength="120"
-             value="{{ action.owner_name if action else '' }}"></div>
+             value="{{ action.owner_name if action and not action.owner_user_id else '' }}"></div>
     <div class="field"><label>Due date</label>
       <input type="date" name="due_date" value="{{ action.due_date if action and action.due_date else '' }}"></div>
     {% if action %}
@@ -58,4 +68,24 @@
   </div>
   {% endif %}
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var dept = document.querySelector('select[name=branch_id]');
+  var owner = document.getElementById('ownerSel');
+  if (!dept || !owner) return;
+  function filter() {
+    var b = dept.value;
+    Array.prototype.forEach.call(owner.options, function (o) {
+      if (!o.value) return;
+      var ok = !b || (o.dataset.branches || '').split(',').indexOf(b) !== -1;
+      o.hidden = !ok; o.disabled = !ok;
+      if (!ok && o.selected) owner.value = '';
+    });
+  }
+  dept.addEventListener('change', filter);
+  filter();
+})();
+</script>
 {% endblock %}
