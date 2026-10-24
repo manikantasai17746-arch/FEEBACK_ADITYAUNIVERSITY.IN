@@ -29,7 +29,7 @@
           <td>{{ a.branch_code or '—' }}</td>
           <td><span class="badge">{{ a.status }}</span></td>
           <td>{{ a.priority }}</td>
-          <td>{{ a.owner_name or '—' }}</td>
+          <td>{{ a.owner_name or '—' }}{% if a.owner_user_id %} <span class="badge">HOD</span>{% endif %}</td>
           <td>{{ a.due_date or '—' }}</td>
           <td><a class="btn btn-ghost btn-sm" href="{{ url_for('dean.action_edit', aid=a.id) }}">Edit</a></td>
         </tr>
