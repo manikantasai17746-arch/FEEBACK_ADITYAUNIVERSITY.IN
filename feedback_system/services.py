@@ -456,6 +456,75 @@ def set_form_status(form_id, status, admin_id=None):
     db.execute(f'UPDATE feedback_forms SET status=?, updated_at=?{extra} WHERE id=?',
                (status, now, *args, form_id))
     audit(f'form.{status}', 'feedback_forms', form_id, f'Status set to {status}')
+    if status == 'open':
+        link_form_to_requirement(form_id)
+
+
+def _requirement_matches_form(req, form):
+    """True when a published form satisfies a feedback requirement.
+
+    Branch must match. Academic year / semester / subject code are only
+    compared when the requirement specifies them. Category must match unless
+    the requirement is 'any'; 'subject_only' requirements need a subject code.
+    """
+    if req['branch_id'] != form['branch_id']:
+        return False
+    for key in ('academic_year_id', 'semester_id'):
+        if req[key] and req[key] != form[key]:
+            return False
+    rc = req['category'] or 'main'
+    fc = form['category'] or 'main'
+    if rc == 'subject_only':
+        if not form['subject_code']:
+            return False
+    elif rc != 'any' and rc != fc:
+        return False
+    if req['subject_code'] and (req['subject_code'] or '').strip().lower() != \
+            (form['subject_code'] or '').strip().lower():
+        return False
+    return True
+
+
+def link_form_to_requirement(form_id):
+    """Attach a just-published form to the best unmatched requirement.
+
+    Returns the requirement id, or None. Earliest deadline wins; a requirement
+    with a subject code is preferred over a generic one.
+    """
+    form = db.query(
+        """SELECT id, branch_id, academic_year_id, semester_id, category,
+                  subject_code FROM feedback_forms
+           WHERE id=? AND is_deleted=0""", (form_id,), one=True)
+    if not form or not form['branch_id']:
+        return None
+    if db.query('SELECT 1 FROM feedback_requirements WHERE matched_form_id=?',
+                (form_id,), one=True):
+        return None
+    cands = [r for r in db.query(
+        """SELECT * FROM feedback_requirements
+           WHERE branch_id=? AND matched_form_id IS NULL
+             AND status != 'cancelled'""", (form['branch_id'],))
+        if _requirement_matches_form(r, form)]
+    if not cands:
+        return None
+    cands.sort(key=lambda r: (0 if r['subject_code'] else 1,
+                              str(r['deadline'] or '9999'), r['id']))
+    rid = cands[0]['id']
+    now = datetime.utcnow().isoformat(timespec='seconds')
+    db.execute('UPDATE feedback_requirements SET matched_form_id=?, updated_at=? WHERE id=?',
+               (form_id, now, rid))
+    audit('requirement.matched', 'feedback_requirements', rid,
+          f'Linked to form {form_id}')
+    return rid
+
+
+def rematch_requirements():
+    """Link already-published forms to unmatched requirements (backfill)."""
+    forms = db.query(
+        """SELECT id FROM feedback_forms
+           WHERE is_deleted=0 AND status IN ('open','closed','archived')
+           ORDER BY published_at, id""")
+    return sum(1 for f in forms if link_form_to_requirement(f['id']))
 
 
 def soft_delete_form(form_id):
