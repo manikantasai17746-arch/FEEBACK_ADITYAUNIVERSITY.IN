@@ -290,6 +290,11 @@
     ? MultiSelect.create(document.getElementById('timetable_ms'), {
         allLabel: 'No Preference (All Timetables)', noun: 'timetables',
         emptyText: 'Select year, semester & department first.' }) : null;
+  var subjMS = (document.getElementById('subject_ms') && window.MultiSelect)
+    ? MultiSelect.create(document.getElementById('subject_ms'), {
+        allLabel: '— Select subject(s) —', noun: 'subjects',
+        emptyText: 'Select year, semester & department first.' }) : null;
+  var subjectLabels = {};
   var sSel = document.getElementById('session_id');
   var subjSel = document.getElementById('subject_code');
   var sessionField = document.getElementById('session-field');
@@ -309,6 +314,12 @@
     });
     return parts.join('&');
   }
+  /* ticked subject codes */
+  function subjValues() {
+    if (subjMS) return subjMS.values();
+    return subjSel && subjSel.value ? [subjSel.value] : [];
+  }
+  function subjectName(code) { return subjectLabels[code] || code; }
   /* ticked timetables (array of id strings) */
   function ttValues() {
     if (ttMS) return ttMS.values();
@@ -404,32 +415,46 @@
   }
 
   function loadSubjects() {
-    if (!subjSel) return;
-    subjSel.innerHTML = '<option value="">Loading…</option>';
-    fetch(apiSubjects + '?' + qs(currentFilters()),
+    if (!subjSel && !subjMS) return;
+    var f = currentFilters();
+    if (subjMS) { delete f.subject_code; } else { subjSel.innerHTML = '<option value="">Loading…</option>'; }
+    fetch(apiSubjects + '?' + qs(f),
           { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        var html = '<option value="">— Select subject —</option>';
-        d.subjects.forEach(function (s) {
-          html += '<option value="' + esc(s.code) + '">' + esc(s.name + ' (' + s.code + ')') + '</option>';
-        });
-        subjSel.innerHTML = html;
-        if (selSubject) { subjSel.value = selSubject; }
-        else if (d.subjects.length === 1) { subjSel.value = d.subjects[0].code; }
+        d.subjects.forEach(function (x) { subjectLabels[x.code] = x.name + ' (' + x.code + ')'; });
+        if (subjMS) {
+          subjMS.setItems(d.subjects.map(function (x) {
+            return { value: x.code, label: x.name + ' (' + x.code + ')' };
+          }), selSubject ? [selSubject] : (d.subjects.length === 1 ? [d.subjects[0].code] : null));
+          subjMS.setEmptyText('No subjects found for these filters.');
+          selSubject = '';
+        } else {
+          var html = '<option value="">— Select subject —</option>';
+          d.subjects.forEach(function (x) {
+            html += '<option value="' + esc(x.code) + '">' + esc(x.name + ' (' + x.code + ')') + '</option>';
+          });
+          subjSel.innerHTML = html;
+          if (selSubject) { subjSel.value = selSubject; }
+          else if (d.subjects.length === 1) { subjSel.value = d.subjects[0].code; }
+        }
         loadSubjectPreview();
       });
   }
 
   function loadSubjectPreview() {
     if (!previewPanel || scope !== 'subject') return;
-    if (!subjSel.value) { previewPanel.style.display = 'none'; return; }
+    var codes = subjValues();
+    if (!codes.length) { previewPanel.style.display = 'none'; return; }
     previewPanel.style.display = '';
     previewPanel.innerHTML = '<p class="sub">Checking eligible students…</p>';
-    fetch(previewUrl + '?' + qs(currentFilters()),
-          { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
+    Promise.all(codes.map(function (code) {
+      var f = currentFilters(); f.subject_code = code;
+      return fetch(previewUrl + '?' + qs(f), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(function (r) { return r.json(); });
+    })).then(function (list) {
+        if (list.length > 1) { renderMultiPreview(codes, list); return; }
+        var d = list[0];
         var html = '<div class="btn-row" style="justify-content:space-between">' +
           '<strong>Preview · ' + esc(d.subject_name || d.subject_code || 'Subject') + '</strong></div>' +
           '<div class="tiles" style="margin-top:10px">' +
@@ -454,6 +479,24 @@
       .catch(function () { previewPanel.innerHTML = '<p class="sub">Could not load the preview.</p>'; });
   }
 
+  function renderMultiPreview(codes, list) {
+    var rows = '', problems = 0;
+    list.forEach(function (d, i) {
+      var note = '';
+      if (!d.eligible) { note = 'No eligible students'; problems++; }
+      else if (d.existing_form_id) { note = 'Form already exists (#' + d.existing_form_id + ')'; problems++; }
+      rows += '<tr><td>' + esc(subjectName(codes[i])) + '</td><td>' + d.eligible + '</td><td>' +
+        d.sessions + '</td><td>' + d.timetables + '</td><td>' + (note || 'OK') + '</td></tr>';
+    });
+    previewPanel.innerHTML = '<strong>Preview · ' + codes.length + ' subjects</strong>' +
+      '<p class="sub" style="margin:.25rem 0 .5rem">One separate form is created for each ticked subject, ' +
+      'with the same title and questions.</p>' +
+      '<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Eligible students</th>' +
+      '<th>Sessions</th><th>Timetables</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      (problems ? '<div class="flash flash-warning" style="margin-top:10px">Marked subjects cannot be ' +
+        'published until the issue is fixed.</div>' : '');
+  }
+
   function afterTimetableChange() {
     if (scope === 'subject') { loadSubjects(); }
     else { loadSessions(); }
@@ -466,6 +509,7 @@
   if (ttSel) ttSel.addEventListener('change', afterTimetableChange);
   if (ttMS) ttMS.onChange(afterTimetableChange);
   if (subjSel) subjSel.addEventListener('change', loadSubjectPreview);
+  if (subjMS) subjMS.onChange(loadSubjectPreview);
   ['session', 'subject'].forEach(function (m) {
     var b = modeBtn(m);
     if (b) b.addEventListener('click', function () {
@@ -477,11 +521,11 @@
     });
   });
 
-  function collect() {
+  function collect(code, fid) {
     var catEl = document.getElementById('category');
     var tts = ttEffective();
     var body = {
-      form_id: formId || null,
+      form_id: fid !== undefined ? fid : (formId || null),
       scope: scope,
       category: catEl ? catEl.value : 'main',
       title: document.getElementById('title').value,
@@ -490,7 +534,7 @@
       semester_id: val('semester_id'),
       branch_id: val('branch_id'),
       timetable_id: tts.length === 1 ? tts[0] : '',
-      subject_code: subjSel ? subjSel.value : '',
+      subject_code: code !== undefined ? code : (subjValues()[0] || ''),
       session_id: scope === 'session' ? sSel.value : '',
       questions: model
     };
@@ -519,8 +563,74 @@
       .catch(function () { showErrors(['Network error while saving.']); return null; });
   }
 
+  /* Several subjects ticked: one form per subject, saved one after another. */
+  function saveMany(codes) {
+    showErrors([]);
+    var ids = [];
+    var chain = Promise.resolve(true);
+    codes.forEach(function (code) {
+      chain = chain.then(function (ok) {
+        if (!ok) return false;
+        return fetch(saveUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf,
+                     'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify(collect(code, null))
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (!res.ok || !res.data.ok) {
+              var msgs = (res.data.errors || ['Could not save the form.']).map(function (e) {
+                return subjectName(code) + ': ' + e;
+              });
+              if (ids.length) msgs.push(ids.length + ' form(s) were already saved as drafts (#' + ids.join(', #') + ').');
+              showErrors(msgs);
+              return false;
+            }
+            ids.push(res.data.form_id);
+            return true;
+          });
+      });
+    });
+    return chain.then(function (ok) { return ok ? ids : null; })
+      .catch(function () { showErrors(['Network error while saving.']); return null; });
+  }
+
+  function publishMany(ids, codes) {
+    var failures = [];
+    var chain = Promise.resolve();
+    ids.forEach(function (id, i) {
+      chain = chain.then(function () {
+        return fetch(statusUrlTpl.replace('/0/status', '/' + id + '/status'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf,
+                     'X-Requested-With': 'XMLHttpRequest' },
+          body: JSON.stringify({ status: 'open' })
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+          .then(function (res) {
+            if (!res.ok || !res.data.ok) {
+              (res.data.errors || ['Could not publish.']).forEach(function (e) {
+                failures.push(subjectName(codes[i]) + ' (draft #' + id + '): ' + e);
+              });
+            }
+          });
+      });
+    });
+    return chain.then(function () { return failures; });
+  }
+
+  function isMulti() { return scope === 'subject' && subjValues().length > 1; }
+
   var saveBtn = document.getElementById('save-draft');
   if (saveBtn) saveBtn.addEventListener('click', function () {
+    if (isMulti()) {
+      saveMany(subjValues()).then(function (ids) {
+        if (!ids) return;
+        var t = document.getElementById('save-toast');
+        if (t) { t.style.display = ''; t.textContent = ids.length + ' draft forms saved.'; }
+        setTimeout(function () { window.location.href = formsListUrl; }, 1200);
+      });
+      return;
+    }
     save().then(function (id) {
       if (id) {
         showErrors([]);
@@ -538,7 +648,7 @@
     if (!val('semester_id')) errors.push('Select a semester.');
     if (!val('branch_id')) errors.push('Select a branch.');
     if (scope === 'subject') {
-      if (!subjSel || !subjSel.value) errors.push('Select a subject.');
+      if (!subjValues().length) errors.push('Select at least one subject.');
     } else if (!sSel.value) {
       errors.push('Select a subject, teacher and period.');
     }
@@ -550,6 +660,20 @@
   if (publishBtn) publishBtn.addEventListener('click', function () {
     var errors = validateSelection();
     if (errors.length) { showErrors(errors); return; }
+    if (isMulti()) {
+      var codes = subjValues();
+      saveMany(codes).then(function (ids) {
+        if (!ids) return;
+        publishMany(ids, codes).then(function (failures) {
+          if (failures.length) {
+            showErrors(failures.concat(['The other forms were published. Failed ones stay as drafts on the Forms page.']));
+            return;
+          }
+          window.location.href = formsListUrl;
+        });
+      });
+      return;
+    }
     save().then(function (id) {
       if (!id) return;
       var f = document.createElement('form');
