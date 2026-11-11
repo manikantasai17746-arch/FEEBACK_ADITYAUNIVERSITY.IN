@@ -419,7 +419,8 @@ def form_new():
     return render_template('hod_form_new.html', branches=branches,
                            years=years, semesters=semesters,
                            default_instructions=services.DEFAULT_INSTRUCTIONS,
-                           question_sets_json=json.dumps(services.question_sets_for(user['id'])))
+                           question_sets_json=json.dumps(
+                               services.question_sets_for(user['id']) + services.shared_question_sets()))
 
 
 @bp.route('/forms/save', methods=['POST'])
@@ -491,6 +492,7 @@ def question_sets():
     return render_template(
         'hod_question_sets.html',
         sets_json=json.dumps(services.question_sets_for(user['id'])),
+        shared_json=json.dumps(services.shared_question_sets()),
         presets_json=json.dumps(services.SCALE_PRESETS))
 
 
@@ -509,6 +511,19 @@ def api_question_set_create():
     if err:
         return _qs_json_error(err)
     audit('hod.qset.create', 'question_sets', sid, 'HOD created a question set')
+    return jsonify(ok=True, id=sid)
+
+
+@bp.route('/api/question-sets/copy-shared', methods=['POST'])
+@role_required('hod')
+def api_question_set_copy_shared():
+    from flask import jsonify
+    user = current_user()
+    sid, err = services.copy_shared_set(
+        user['id'], (request.get_json(silent=True) or {}).get('key'))
+    if err:
+        return _qs_json_error(err)
+    audit('hod.qset.copy', 'question_sets', sid, 'HOD copied a shared question set')
     return jsonify(ok=True, id=sid)
 
 
