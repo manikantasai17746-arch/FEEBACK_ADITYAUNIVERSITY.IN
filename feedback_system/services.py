@@ -324,6 +324,13 @@ def form_questions(form_id):
     return out
 
 
+DEFAULT_INSTRUCTIONS = (
+    "Please answer every question honestly and thoughtfully. Your responses are "
+    "anonymous and will not be shared with the faculty member in a way that "
+    "identifies you. The feedback is used only to improve teaching and learning. "
+    "You can submit this form only once.")
+
+
 def save_form(payload, questions, admin_id, form_id=None, session_ids=None):
     """Create or update a form and replace its questions.
 
@@ -340,7 +347,7 @@ def save_form(payload, questions, admin_id, form_id=None, session_ids=None):
     session_ids = list(dict.fromkeys(sid for sid in session_ids if sid))
     fields = dict(
         title=(payload.get('title') or 'Untitled feedback form').strip()[:200],
-        instructions=(payload.get('instructions') or '').strip()[:2000],
+        instructions=((payload.get('instructions') or '').strip() or DEFAULT_INSTRUCTIONS)[:2000],
         academic_year_id=payload.get('academic_year_id'),
         semester_id=payload.get('semester_id'),
         branch_id=payload.get('branch_id'),
