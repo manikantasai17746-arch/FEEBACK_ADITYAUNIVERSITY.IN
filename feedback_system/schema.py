@@ -488,4 +488,13 @@ MIGRATIONS = [
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
         "CREATE INDEX IF NOT EXISTS ix_ial_action ON improvement_action_log(action_id)",
     ]),
+    (11, "Feedback phase (Phase 1 / Phase 2) on forms", [
+        "ALTER TABLE feedback_forms ADD COLUMN phase TEXT",
+        # Back-fill: forms already named exactly "Phase 1" / "Phase 2".
+        """UPDATE feedback_forms SET phase='phase1'
+            WHERE phase IS NULL AND REPLACE(LOWER(TRIM(title)),' ','') = 'phase1'""",
+        """UPDATE feedback_forms SET phase='phase2'
+            WHERE phase IS NULL AND REPLACE(LOWER(TRIM(title)),' ','') = 'phase2'""",
+        "CREATE INDEX IF NOT EXISTS ix_forms_phase ON feedback_forms(phase)",
+    ]),
 ]
