@@ -140,3 +140,19 @@ def test_copy_shared_set_into_own_sets(app, client):
     assert 'CRT Questions (Phase 1 & 2) (my copy)' in names
     assert 'CRT Questions (Phase 1 & 2) (my copy) 2' in names
     assert len([s for s in mine if 'my copy' in s['name']][0]['questions']) == 7
+
+
+def test_extra_and_comment_questions_allowed_but_must_be_valid(app):
+    uid = _seed_hod(app, 'HODQS11')
+    five = services.SCALE_PRESETS['five_point']['options']
+    with app.app_context():
+        extra = {'text': 'Lab equipment adequate?', 'qtype': 'rating', 'is_required': True,
+                 'options': five, 'custom': True}
+        comment = {'text': 'Please share your comments or suggestions (optional)',
+                   'qtype': 'text', 'is_required': False, 'options': [], 'custom': True}
+        assert not services.questions_not_from_sets(uid, [extra, comment])
+        # an invented question that is NOT flagged as an extra is still refused
+        assert services.questions_not_from_sets(uid, [{**extra, 'custom': False}])
+        # an extra needs text, and a rating extra needs at least two options
+        assert services.questions_not_from_sets(uid, [{**extra, 'text': '  '}])
+        assert services.questions_not_from_sets(uid, [{**extra, 'options': five[:1]}])
