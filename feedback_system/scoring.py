@@ -220,6 +220,7 @@ def faculty_scores_for_branches(
     subject_code: Optional[str] = None,
     form_id: Optional[int] = None,
     teacher_user_id: Optional[int] = None,
+    timetable_ids: Optional[List[int]] = None,
     min_responses: int = MIN_RESPONSE_THRESHOLD,
 ) -> List[dict]:
     """Marks-sheet rows for faculty in the given branches.
@@ -263,6 +264,9 @@ def faculty_scores_for_branches(
     if teacher_user_id:
         sql += ' AND cs.teacher_user_id = ?'
         params.append(teacher_user_id)
+    if timetable_ids:
+        sql += ' AND ff.timetable_id IN (' + ','.join('?' * len(timetable_ids)) + ')'
+        params.extend(timetable_ids)
     sql += ' ORDER BY u.name, ff.id'
 
     forms = db.query(sql, tuple(params))
