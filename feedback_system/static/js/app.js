@@ -109,11 +109,26 @@
     if (seed && seed.textContent.trim()) model = JSON.parse(seed.textContent);
   } catch (err) { model = []; }
 
+  var setsOnly = builder.getAttribute('data-sets-only') === '1';
+
   function render() {
     questionsEl.innerHTML = '';
     model.forEach(function (q, qi) {
       var wrap = document.createElement('div');
       wrap.className = 'q-item';
+      if (setsOnly) {   // HOD form: questions come from the HOD's sets, shown read-only
+        wrap.innerHTML = '<div class="q-head"><span class="q-num">' + (qi + 1) + '</span>' +
+          '<strong style="margin-left:8px">' + esc(q.text) + '</strong>' +
+          '<div class="btn-row" style="margin-left:auto"><span class="badge">' +
+          (q.qtype === 'text' ? 'Written' : 'Rating') + '</span>' +
+          '<button type="button" class="icon-btn" data-del title="Remove from this form">✕</button></div></div>' +
+          (q.qtype === 'rating' ? '<div class="hint">' + (q.options || []).map(function (o) {
+            return esc(o.label); }).join(' · ') + '</div>' : '');
+        wrap.querySelector('[data-del]').addEventListener('click', function () {
+          model.splice(qi, 1); render(); });
+        questionsEl.appendChild(wrap);
+        return;
+      }
       var needsOptions = q.qtype === 'rating' || q.qtype === 'single_choice' ||
                          q.qtype === 'multiple_choice';
       var optsHtml = '';
@@ -184,7 +199,9 @@
       questionsEl.appendChild(wrap);
     });
     if (!model.length) {
-      questionsEl.innerHTML = '<div class="empty"><p>No questions yet. Use the + button below to add one.</p></div>';
+      questionsEl.innerHTML = setsOnly
+        ? '<div class="empty"><p>No questions yet. Pick a set above and choose the questions to use.</p></div>'
+        : '<div class="empty"><p>No questions yet. Use the + button below to add one.</p></div>';
     }
   }
   function addQuestion(type) {
@@ -197,6 +214,58 @@
   var addTextBtn = document.getElementById('add-text');
   if (addTextBtn) addTextBtn.addEventListener('click', function () { addQuestion('text'); });
   render();
+
+  /* ---- HOD form: pick questions from the HOD's own sets ---- */
+  if (setsOnly) (function () {
+    var data = [];
+    try { data = JSON.parse(document.getElementById('hod-sets-data').textContent); } catch (e) { data = []; }
+    var commonSet = data.filter(function (s) { return s.is_common; })[0];
+    var named = data.filter(function (s) { return !s.is_common; });
+    var btnBox = document.getElementById('set-buttons');
+    var listBox = document.getElementById('set-checklist');
+    var itemsBox = document.getElementById('set-items');
+    var current = [];
+    function copyQ(q) {
+      return { text: q.text, qtype: q.qtype, is_required: !!q.is_required,
+               options: (q.options || []).map(function (o) { return { label: o.label, value: o.value }; }) };
+    }
+    function show(set) {
+      var qs = ((commonSet && commonSet.questions) || []).map(function (q) { return { q: q, common: true }; })
+        .concat(set.questions.map(function (q) { return { q: q, common: false }; }))
+        .filter(function (x) { return x.q.text && x.q.text.trim(); });
+      current = qs;
+      itemsBox.innerHTML = '';
+      qs.forEach(function (x, i) {
+        var row = document.createElement('label');
+        row.className = 'q-item';
+        row.style.cssText = 'display:flex;gap:10px;align-items:center;cursor:pointer';
+        row.innerHTML = '<input type="checkbox" checked data-i="' + i + '">' +
+          '<span style="flex:1">' + esc(x.q.text) + '</span>' +
+          (x.common ? '<span class="badge">Common</span>' : '') +
+          '<span class="badge">' + (x.q.qtype === 'text' ? 'Written' : 'Rating') + '</span>';
+        itemsBox.appendChild(row);
+      });
+      if (!qs.length) itemsBox.innerHTML = '<div class="empty"><p>This set has no questions yet.</p></div>';
+      listBox.style.display = '';
+      Array.prototype.forEach.call(btnBox.children, function (b) {
+        b.classList.toggle('btn-ghost', b.getAttribute('data-id') !== String(set.id)); });
+    }
+    if (!named.length) { document.getElementById('set-empty').style.display = ''; return; }
+    named.forEach(function (s) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn btn-sm btn-ghost'; b.textContent = s.name;
+      b.setAttribute('data-id', s.id);
+      b.addEventListener('click', function () { show(s); });
+      btnBox.appendChild(b);
+    });
+    document.getElementById('use-selected').addEventListener('click', function () {
+      var picked = [];
+      itemsBox.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+        if (cb.checked) picked.push(copyQ(current[parseInt(cb.getAttribute('data-i'), 10)].q)); });
+      model = picked;
+      render();
+    });
+  })();
 
   /* ==================== BULK MODE ==================== */
   if (mode === 'bulk') {
