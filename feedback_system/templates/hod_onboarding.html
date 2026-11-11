@@ -47,37 +47,82 @@
   <div class="card">
     <h2>Claim exclusive allocations</h2>
     <p class="muted">Each combination of academic year + department + semester + timetable can be owned by only one HOD.</p>
-    <form method="post" class="grid-form">
+    <form method="post" id="multiScopeForm">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="add_scope">
-      <label>Academic year
-        <select name="academic_year_id" required>
-          <option value="">—</option>
-          {% for y in years %}<option value="{{ y.id }}">{{ y.name }}</option>{% endfor %}
-        </select>
-      </label>
-      <label>Department
-        <select name="branch_id" required>
-          <option value="">—</option>
-          {% for b in branches %}<option value="{{ b.id }}">{{ b.code }} — {{ b.name }}</option>{% endfor %}
-        </select>
-      </label>
-      <label>Semester
-        <select name="semester_id" required>
-          <option value="">—</option>
-          {% for s in semesters %}<option value="{{ s.id }}">{{ s.label or s.number }}</option>{% endfor %}
-        </select>
-      </label>
-      <label>Timetable
-        <select name="timetable_id" required>
-          <option value="">—</option>
-          {% for t in timetables %}
-          <option value="{{ t.id }}">{{ t.branch_code }} / {{ t.code }} — {{ t.name }}</option>
+      <input type="hidden" name="action" value="add_scopes">
+
+      {% set avail = options | selectattr('status', 'equalto', 'available') | list %}
+      {% if options %}
+      <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin:.75rem 0">
+        <label style="display:flex;gap:.4rem;align-items:center;margin:0;font-weight:600">
+          <input type="checkbox" id="selAll" {{ 'disabled' if not avail }}> Select all available
+        </label>
+        <span class="muted" id="selCount">0 selected</span>
+      </div>
+
+      <div style="max-height:380px;overflow:auto;border:1px solid #d9e0ea;border-radius:10px">
+        <table class="data-table" style="width:100%;border-collapse:collapse">
+          <thead>
+            <tr style="text-align:left;position:sticky;top:0;background:#f1f5fb">
+              <th style="padding:.5rem .6rem;width:2rem"></th>
+              <th style="padding:.5rem .6rem">Year</th>
+              <th style="padding:.5rem .6rem">Dept</th>
+              <th style="padding:.5rem .6rem">Sem</th>
+              <th style="padding:.5rem .6rem">Timetable</th>
+              <th style="padding:.5rem .6rem">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for o in options %}
+            <tr style="border-top:1px solid #e6ebf3{{ ';opacity:.6' if o.status != 'available' }}">
+              <td style="padding:.5rem .6rem">
+                <input type="checkbox" class="scope-cb" name="timetable_ids" value="{{ o.id }}"
+                       id="tt{{ o.id }}" {{ 'disabled' if o.status != 'available' }}>
+              </td>
+              <td style="padding:.5rem .6rem"><label for="tt{{ o.id }}" style="margin:0">{{ o.year }}</label></td>
+              <td style="padding:.5rem .6rem">{{ o.branch }}</td>
+              <td style="padding:.5rem .6rem">{{ o.semester }}</td>
+              <td style="padding:.5rem .6rem">{{ o.code }} — {{ o.name }}</td>
+              <td style="padding:.5rem .6rem">
+                {% if o.status == 'available' %}<span class="muted">Available</span>
+                {% elif o.status == 'added' %}<span class="success">Added</span>
+                {% elif o.status == 'taken' %}<span style="color:#b42318">Owned by another HOD</span>
+                {% else %}<span class="muted">No academic year set</span>{% endif %}
+              </td>
+            </tr>
           {% endfor %}
-        </select>
-      </label>
-      <button type="submit" class="btn primary">Add combination</button>
+          </tbody>
+        </table>
+      </div>
+
+      <button type="submit" class="btn primary" id="addSelectedBtn" style="margin-top:.9rem" disabled>
+        Add selected
+      </button>
+      {% else %}
+      <p class="muted">No timetables are available for your departments yet.</p>
+      {% endif %}
     </form>
+
+    <script>
+    (function(){
+      var cbs = Array.prototype.slice.call(document.querySelectorAll('.scope-cb:not([disabled])'));
+      var all = document.getElementById('selAll');
+      var count = document.getElementById('selCount');
+      var btn = document.getElementById('addSelectedBtn');
+      function refresh(){
+        var n = cbs.filter(function(c){return c.checked;}).length;
+        if (count) count.textContent = n + ' selected';
+        if (btn) { btn.disabled = n === 0; btn.textContent = n ? 'Add selected (' + n + ')' : 'Add selected'; }
+        if (all) all.checked = cbs.length > 0 && n === cbs.length;
+      }
+      cbs.forEach(function(c){ c.addEventListener('change', refresh); });
+      if (all) all.addEventListener('change', function(){
+        cbs.forEach(function(c){ c.checked = all.checked; });
+        refresh();
+      });
+      refresh();
+    })();
+    </script>
 
     <h3 style="margin-top:1.5rem">Selected allocations</h3>
     {% if display_scopes %}
