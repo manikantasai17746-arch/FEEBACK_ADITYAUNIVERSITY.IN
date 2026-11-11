@@ -97,9 +97,16 @@
 
       <div id="subject-preview" class="preview-panel" style="display:none" aria-live="polite"></div>
 
-      <div class="field"><label for="title">Feedback form title</label>
-        <input type="text" id="title" maxlength="200"
-               value="" placeholder="e.g. Mid-semester teaching feedback"></div>
+      <div class="field"><label for="phase">Form name</label>
+        <select id="phase">
+          <option value="phase1">Phase 1</option>
+          <option value="phase2">Phase 2</option>
+          <option value="custom">Custom name…</option>
+        </select>
+        <input type="text" id="title" maxlength="200" style="display:none;margin-top:8px"
+               value="" placeholder="Type a custom form name">
+        <div class="hint">Phase 1 and Phase 2 can each be created once per teacher, subject and
+          section. Phase 2 can only be created or published after Phase 1 is closed.</div></div>
       <div class="field"><label for="instructions">Instructions for students</label>
         <textarea id="instructions" rows="2" maxlength="2000"
           placeholder="Explain the purpose and that responses are anonymous."></textarea></div>
