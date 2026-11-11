@@ -1554,8 +1554,13 @@ def phase_rule_errors(phase, session_ids, exclude_form_id=None):
     if phase not in PHASE_LABELS or not session_ids:
         return []
     ph = ','.join('?' * len(session_ids))
+    # GROUP_CONCAT is SQLite-only; PostgreSQL (Supabase) needs STRING_AGG.
+    # Using GROUP_CONCAT there raised "function group_concat does not exist",
+    # which surfaced as a 500 on /hod/forms/save whenever Phase 1/2 was chosen.
+    sections_agg = ("STRING_AGG(DISTINCT t.code::text, ',')" if db.using_postgres()
+                    else "GROUP_CONCAT(DISTINCT t.code)")
     base = (f"SELECT DISTINCT f.id, f.title, f.status, f.subject_code, "
-            f"GROUP_CONCAT(DISTINCT t.code) AS sections "
+            f"{sections_agg} AS sections "
             f"FROM feedback_forms f "
             f"JOIN form_sessions fs ON fs.form_id=f.id "
             f"JOIN class_sessions cs ON cs.id=fs.session_id "
