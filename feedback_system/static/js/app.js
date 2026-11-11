@@ -116,16 +116,14 @@
     model.forEach(function (q, qi) {
       var wrap = document.createElement('div');
       wrap.className = 'q-item';
-      if (setsOnly) {   // HOD form: questions come from the HOD's sets, shown read-only
+      if (setsOnly) {   // HOD form preview: read-only, driven by the ticks / extras / comment box
         wrap.innerHTML = '<div class="q-head"><span class="q-num">' + (qi + 1) + '</span>' +
           '<strong style="margin-left:8px">' + esc(q.text) + '</strong>' +
-          '<div class="btn-row" style="margin-left:auto"><span class="badge">' +
-          (q.qtype === 'text' ? 'Written' : 'Rating') + '</span>' +
-          '<button type="button" class="icon-btn" data-del title="Remove from this form">✕</button></div></div>' +
+          '<div class="btn-row" style="margin-left:auto">' +
+          (q.custom ? '<span class="badge">Extra</span>' : '') + '<span class="badge">' +
+          (q.qtype === 'text' ? 'Written' : 'Rating') + '</span></div></div>' +
           (q.qtype === 'rating' ? '<div class="hint">' + (q.options || []).map(function (o) {
             return esc(o.label); }).join(' · ') + '</div>' : '');
-        wrap.querySelector('[data-del]').addEventListener('click', function () {
-          model.splice(qi, 1); render(); });
         questionsEl.appendChild(wrap);
         return;
       }
@@ -200,7 +198,7 @@
     });
     if (!model.length) {
       questionsEl.innerHTML = setsOnly
-        ? '<div class="empty"><p>No questions yet. Pick a set above and choose the questions to use.</p></div>'
+        ? '<div class="empty"><p>No questions yet. Open a set above and tick the questions to use.</p></div>'
         : '<div class="empty"><p>No questions yet. Use the + button below to add one.</p></div>';
     }
   }
@@ -215,7 +213,7 @@
   if (addTextBtn) addTextBtn.addEventListener('click', function () { addQuestion('text'); });
   render();
 
-  /* ---- HOD form: pick questions from the HOD's own sets ---- */
+  /* ---- HOD form: tick questions from ONE set, add extras, optional comment box ---- */
   if (setsOnly) (function () {
     var data = [];
     try { data = JSON.parse(document.getElementById('hod-sets-data').textContent); } catch (e) { data = []; }
@@ -224,47 +222,105 @@
     var btnBox = document.getElementById('set-buttons');
     var listBox = document.getElementById('set-checklist');
     var itemsBox = document.getElementById('set-items');
-    var current = [];
+    var extraBox = document.getElementById('extra-items');
+    var commentCb = document.getElementById('comment-on');
+    var COMMENT_TEXT = 'Please share your comments or suggestions (optional)';
+    var FIVE = [['Excellent', 5], ['Very Good', 4], ['Good', 3], ['Average', 2], ['Poor', 1]];
+    var FOUR = [['Excellent', 4], ['Good', 3], ['Bad', 2], ['Very poor', 1]];
+    var rows = [];        // questions of the open set, in order
+    var ticked = {};      // index -> true
+    var extras = [];      // custom questions for this form only
+
+    function opts(list) { return list.map(function (o) { return { label: o[0], value: o[1] }; }); }
     function copyQ(q) {
       return { text: q.text, qtype: q.qtype, is_required: !!q.is_required,
                options: (q.options || []).map(function (o) { return { label: o.label, value: o.value }; }) };
     }
-    function show(set) {
-      var qs = ((commonSet && commonSet.questions) || []).map(function (q) { return { q: q, common: true }; })
+    function rebuild() {   // preview = ticked set questions + extras + comment box
+      var out = [];
+      rows.forEach(function (x, i) { if (ticked[i]) out.push(copyQ(x.q)); });
+      extras.forEach(function (q) {
+        if (q.text && q.text.trim()) { var c = copyQ(q); c.custom = true; out.push(c); } });
+      if (commentCb && commentCb.checked) {
+        out.push({ text: COMMENT_TEXT, qtype: 'text', is_required: false, options: [], custom: true });
+      }
+      model = out;
+      render();
+    }
+    function showSet(set, btn) {
+      Array.prototype.forEach.call(btnBox.children, function (b) { b.classList.add('btn-ghost'); });
+      btn.classList.remove('btn-ghost');
+      document.getElementById('set-name').textContent = set.name;
+      rows = ((commonSet && commonSet.questions) || []).map(function (q) { return { q: q, common: true }; })
         .concat(set.questions.map(function (q) { return { q: q, common: false }; }))
         .filter(function (x) { return x.q.text && x.q.text.trim(); });
-      current = qs;
+      ticked = {};                      // nothing is pre-selected
       itemsBox.innerHTML = '';
-      qs.forEach(function (x, i) {
+      rows.forEach(function (x, i) {
         var row = document.createElement('label');
         row.className = 'q-item';
         row.style.cssText = 'display:flex;gap:10px;align-items:center;cursor:pointer';
-        row.innerHTML = '<input type="checkbox" checked data-i="' + i + '">' +
+        row.innerHTML = '<input type="checkbox" data-i="' + i + '">' +
           '<span style="flex:1">' + esc(x.q.text) + '</span>' +
           (x.common ? '<span class="badge">Common</span>' : '') +
           '<span class="badge">' + (x.q.qtype === 'text' ? 'Written' : 'Rating') + '</span>';
+        row.querySelector('input').addEventListener('change', function (e) {
+          ticked[i] = e.target.checked; rebuild(); });
         itemsBox.appendChild(row);
       });
-      if (!qs.length) itemsBox.innerHTML = '<div class="empty"><p>This set has no questions yet.</p></div>';
+      if (!rows.length) itemsBox.innerHTML = '<div class="empty"><p>This set has no questions yet.</p></div>';
       listBox.style.display = '';
-      Array.prototype.forEach.call(btnBox.children, function (b) {
-        b.classList.toggle('btn-ghost', b.getAttribute('data-id') !== String(set.id)); });
+      rebuild();
     }
-    if (!named.length) { document.getElementById('set-empty').style.display = ''; return; }
+    function setAll(on) {
+      itemsBox.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
+        cb.checked = on; ticked[parseInt(cb.getAttribute('data-i'), 10)] = on; });
+      rebuild();
+    }
+    document.getElementById('pick-all').addEventListener('click', function () { setAll(true); });
+    document.getElementById('pick-none').addEventListener('click', function () { setAll(false); });
+    if (commentCb) commentCb.addEventListener('change', rebuild);
+
+    function renderExtras() {
+      extraBox.innerHTML = '';
+      extras.forEach(function (q, i) {
+        var d = document.createElement('div');
+        d.className = 'q-item';
+        var isR = q.qtype === 'rating';
+        d.innerHTML = '<div class="q-head"><span class="q-num">+</span>' +
+          '<div class="btn-row" style="margin-left:auto"><button type="button" class="icon-btn" data-del title="Remove">🗑</button></div></div>' +
+          '<div class="field"><input type="text" maxlength="1000" data-text placeholder="Type your question" value="' + esc(q.text) + '"></div>' +
+          (isR ? '<div class="field"><select data-scale>' +
+            '<option value="5"' + (q.options.length === 5 ? ' selected' : '') + '>Excellent · Very Good · Good · Average · Poor</option>' +
+            '<option value="4"' + (q.options.length === 4 ? ' selected' : '') + '>Excellent · Good · Bad · Very poor</option></select></div>'
+            : '<div class="hint">Written answer (optional for students)</div>');
+        d.querySelector('[data-text]').addEventListener('input', function (e) { q.text = e.target.value; rebuild(); });
+        var sc = d.querySelector('[data-scale]');
+        if (sc) sc.addEventListener('change', function (e) {
+          q.options = opts(e.target.value === '4' ? FOUR : FIVE); rebuild(); });
+        d.querySelector('[data-del]').addEventListener('click', function () {
+          extras.splice(i, 1); renderExtras(); rebuild(); });
+        extraBox.appendChild(d);
+      });
+    }
+    document.getElementById('extra-rating').addEventListener('click', function () {
+      extras.push({ text: '', qtype: 'rating', is_required: true, options: opts(FIVE) });
+      renderExtras();
+    });
+    document.getElementById('extra-text').addEventListener('click', function () {
+      extras.push({ text: '', qtype: 'text', is_required: false, options: [] });
+      renderExtras();
+    });
+
+    if (!named.length) { document.getElementById('set-empty').style.display = ''; }
     named.forEach(function (s) {
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'btn btn-sm btn-ghost'; b.textContent = s.name + (s.shared ? ' · shared' : '');
       b.setAttribute('data-id', s.id);
-      b.addEventListener('click', function () { show(s); });
+      b.addEventListener('click', function () { showSet(s, b); });
       btnBox.appendChild(b);
     });
-    document.getElementById('use-selected').addEventListener('click', function () {
-      var picked = [];
-      itemsBox.querySelectorAll('input[type=checkbox]').forEach(function (cb) {
-        if (cb.checked) picked.push(copyQ(current[parseInt(cb.getAttribute('data-i'), 10)].q)); });
-      model = picked;
-      render();
-    });
+    rebuild();     // shows the comment box in the preview from the start
   })();
 
   /* ==================== BULK MODE ==================== */
