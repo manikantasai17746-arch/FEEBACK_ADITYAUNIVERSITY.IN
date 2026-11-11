@@ -350,6 +350,8 @@ def save_form(payload, questions, admin_id, form_id=None, session_ids=None):
         subject_code=payload.get('subject_code'),
         subject_name=payload.get('subject_name'),
     )
+    if 'phase' in payload:
+        fields['phase'] = payload.get('phase') if payload.get('phase') in PHASE_LABELS else None
     # Optional category / second-faculty linkage (HOD or admin). Defaults keep
     # existing behaviour: category='main', no second_faculty_assignment_id.
     category = (payload.get('category') or 'main').strip().lower()
@@ -413,6 +415,8 @@ def validate_form_for_publish(form_id):
                       'academic configuration, so the form cannot be published.')
     if not form['title'] or not form['title'].strip():
         errors.append('A form title is required.')
+    errors.extend(phase_rule_errors(
+        form['phase'], form_session_ids(form_id), exclude_form_id=form_id))
     questions = form_questions(form_id)
     if not questions:
         errors.append('Add at least one question.')
@@ -1284,6 +1288,60 @@ def round_info(form_ids):
                       'created_at': r['created_at'] if r else None,
                       'title': r['title'] if r else None}
     return out
+
+
+PHASE_LABELS = {'phase1': 'Phase 1', 'phase2': 'Phase 2'}
+
+
+def phase_from_title(title):
+    """'Phase 1' / 'phase2' (any case or spacing) -> 'phase1' / 'phase2'; else None."""
+    t = ''.join((title or '').lower().split())
+    return t if t in PHASE_LABELS else None
+
+
+def phase_rule_errors(phase, session_ids, exclude_form_id=None):
+    """Phase rules for a form that covers ``session_ids``.
+
+    * the same phase may not exist twice for the same teacher + subject + section
+      (a session is exactly that triple, so any shared session is a clash);
+    * Phase 2 needs every Phase 1 form for those sessions to be closed.
+    Custom-named forms (phase is None) are not restricted.
+    Returns a list of error strings.
+    """
+    session_ids = [s for s in dict.fromkeys(session_ids or []) if s]
+    if phase not in PHASE_LABELS or not session_ids:
+        return []
+    ph = ','.join('?' * len(session_ids))
+    base = (f"SELECT DISTINCT f.id, f.title, f.status, f.subject_code, "
+            f"GROUP_CONCAT(DISTINCT t.code) AS sections "
+            f"FROM feedback_forms f "
+            f"JOIN form_sessions fs ON fs.form_id=f.id "
+            f"JOIN class_sessions cs ON cs.id=fs.session_id "
+            f"JOIN timetables t ON t.id=cs.timetable_id "
+            f"WHERE f.is_deleted=0 AND f.phase=? AND fs.session_id IN ({ph})")
+    tail = " GROUP BY f.id ORDER BY f.id"
+    args = [phase, *session_ids]
+    if exclude_form_id:
+        base += " AND f.id<>?"
+        args.append(exclude_form_id)
+    errors = []
+    label = PHASE_LABELS[phase]
+    for r in db.query(base + tail, tuple(args)):
+        errors.append(
+            f'{label} already exists for this teacher, subject and section '
+            f'({r["subject_code"] or "subject"}, section {r["sections"]}) — form #{r["id"]}. '
+            f'A phase can only be created once.')
+    if phase == 'phase2':
+        args1 = ['phase1', *session_ids]
+        sql1 = base + " AND f.status IN ('draft','open')"
+        if exclude_form_id:
+            args1.append(exclude_form_id)
+        for r in db.query(sql1 + tail, tuple(args1)):
+            errors.append(
+                f'Phase 2 cannot be created or published until Phase 1 is closed '
+                f'(form #{r["id"]}, {r["subject_code"] or "subject"}, section '
+                f'{r["sections"]}, currently {r["status"]}).')
+    return errors
 
 
 def find_duplicate_subject_form(academic_year_id, semester_id, branch_id,
