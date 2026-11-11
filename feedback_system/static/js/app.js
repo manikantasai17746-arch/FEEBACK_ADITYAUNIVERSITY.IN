@@ -521,6 +521,16 @@
     });
   });
 
+  var phaseSel = document.getElementById('phase');
+  if (phaseSel) {
+    var titleInp = document.getElementById('title');
+    var syncPhase = function () {
+      titleInp.style.display = phaseSel.value === 'custom' ? '' : 'none';
+    };
+    phaseSel.addEventListener('change', syncPhase);
+    syncPhase();
+  }
+
   function collect(code, fid) {
     var catEl = document.getElementById('category');
     var tts = ttEffective();
@@ -528,6 +538,7 @@
       form_id: fid !== undefined ? fid : (formId || null),
       scope: scope,
       category: catEl ? catEl.value : 'main',
+      phase: phaseSel ? phaseSel.value : '',
       title: document.getElementById('title').value,
       instructions: document.getElementById('instructions').value,
       academic_year_id: val('academic_year_id'),
@@ -643,7 +654,9 @@
 
   function validateSelection() {
     var errors = [];
-    if (!document.getElementById('title').value.trim()) errors.push('A form title is required.');
+    var ps = document.getElementById('phase');
+    if ((!ps || ps.value === 'custom') && !document.getElementById('title').value.trim())
+      errors.push('Type a custom form name, or pick Phase 1 / Phase 2.');
     if (!val('academic_year_id')) errors.push('Select an academic year.');
     if (!val('semester_id')) errors.push('Select a semester.');
     if (!val('branch_id')) errors.push('Select a branch.');
