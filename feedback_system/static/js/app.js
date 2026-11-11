@@ -284,7 +284,12 @@
   var scope = builder.getAttribute('data-scope') || 'subject';
   if (scope !== 'session' && scope !== 'subject') scope = 'subject';
 
-  var ttSel = document.getElementById('timetable_id');
+  var ttSel = document.getElementById('timetable_id');   // admin builder (single select)
+  // HOD builder: multi-select with search + tick marks
+  var ttMS = (document.getElementById('timetable_ms') && window.MultiSelect)
+    ? MultiSelect.create(document.getElementById('timetable_ms'), {
+        allLabel: 'No Preference (All Timetables)', noun: 'timetables',
+        emptyText: 'Select year, semester & department first.' }) : null;
   var sSel = document.getElementById('session_id');
   var subjSel = document.getElementById('subject_code');
   var sessionField = document.getElementById('session-field');
@@ -296,13 +301,29 @@
   function modeBtn(m) { return builder.querySelector('.mode-btn[data-mode="' + m + '"]'); }
   function val(id) { var el = document.getElementById(id); return el ? el.value : ''; }
   function qs(obj) {
-    return Object.keys(obj).filter(function (k) { return obj[k]; })
-      .map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(obj[k]); }).join('&');
+    var parts = [];
+    Object.keys(obj).forEach(function (k) {
+      var v = obj[k];
+      if (Array.isArray(v)) { v.forEach(function (x) { parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(x)); }); }
+      else if (v) { parts.push(encodeURIComponent(k) + '=' + encodeURIComponent(v)); }
+    });
+    return parts.join('&');
+  }
+  /* ticked timetables (array of id strings) */
+  function ttValues() {
+    if (ttMS) return ttMS.values();
+    return ttSel && ttSel.value ? [ttSel.value] : [];
+  }
+  /* Subject-only mode: ticking every timetable is the same as "No Preference". */
+  function ttEffective() {
+    var v = ttValues();
+    if (ttMS && scope === 'subject' && ttMS.count() > 1 && v.length === ttMS.count()) return [];
+    return v;
   }
   function currentFilters() {
     return {
       academic_year_id: val('academic_year_id'), semester_id: val('semester_id'),
-      branch_id: val('branch_id'), timetable_id: ttSel ? ttSel.value : '',
+      branch_id: val('branch_id'), timetable_id: ttEffective(),
       subject_code: subjSel ? subjSel.value : ''
     };
   }
@@ -322,9 +343,18 @@
       ? 'Subject-only mode is recommended: it creates <strong>one</strong> form for every ' +
         'eligible student of the subject instead of one form per timetable.'
       : 'Normal mode targets a single subject / teacher / period (one teaching session).';
-    if (ttHint) ttHint.innerHTML = scope === 'subject'
-      ? 'Choose <strong>No Preference (All Timetables)</strong> to include every matching timetable.'
-      : 'Pick the timetable that contains the class period.';
+    if (ttHint) {
+      if (ttMS) {
+        ttHint.innerHTML = scope === 'subject'
+          ? 'Tick the timetables you need, or leave all unticked for <strong>No Preference (All Timetables)</strong>.'
+          : 'Tick the timetable(s) that contain the class period.';
+      } else {
+        ttHint.innerHTML = scope === 'subject'
+          ? 'Choose <strong>No Preference (All Timetables)</strong> to include every matching timetable.'
+          : 'Pick the timetable that contains the class period.';
+      }
+    }
+    if (ttMS) ttMS.setLabels(scope === 'subject' ? 'No Preference (All Timetables)' : 'Select timetable(s)', 'timetables');
     if (previewPanel && scope !== 'subject') previewPanel.style.display = 'none';
   }
 
@@ -332,28 +362,36 @@
     var params = new URLSearchParams({
       year_id: val('academic_year_id'), semester_id: val('semester_id'), branch_id: val('branch_id')
     });
-    ttSel.innerHTML = '<option value="">Loading…</option>';
+    if (ttSel) ttSel.innerHTML = '<option value="">Loading…</option>';
     fetch(apiTimetables + '?' + params.toString(),
           { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
-        var html = scope === 'subject'
-          ? '<option value="">No Preference (All Timetables)</option>'
-          : '<option value="">— Select timetable —</option>';
-        d.timetables.forEach(function (t) {
-          html += '<option value="' + t.id + '">' + esc(t.branch + ' · ' + t.code) + '</option>';
-        });
-        ttSel.innerHTML = html;
-        if (selTimetable) { ttSel.value = selTimetable; }
+        if (ttMS) {
+          ttMS.setItems(d.timetables.map(function (t) {
+            return { value: String(t.id), label: t.branch + ' · ' + t.code };
+          }), selTimetable ? [selTimetable] : null);
+          ttMS.setEmptyText('No timetables found for these filters.');
+          selTimetable = '';
+        } else {
+          var html = scope === 'subject'
+            ? '<option value="">No Preference (All Timetables)</option>'
+            : '<option value="">— Select timetable —</option>';
+          d.timetables.forEach(function (t) {
+            html += '<option value="' + t.id + '">' + esc(t.branch + ' · ' + t.code) + '</option>';
+          });
+          ttSel.innerHTML = html;
+          if (selTimetable) { ttSel.value = selTimetable; }
+        }
         afterTimetableChange();
       });
   }
 
   function loadSessions() {
-    var ttId = ttSel.value;
-    if (!ttId) { sSel.innerHTML = '<option value="">— Select a timetable first —</option>'; return; }
+    var ttIds = ttValues();
+    if (!ttIds.length) { sSel.innerHTML = '<option value="">— Select a timetable first —</option>'; return; }
     sSel.innerHTML = '<option value="">Loading…</option>';
-    fetch(apiSessions + '?timetable_id=' + encodeURIComponent(ttId),
+    fetch(apiSessions + '?' + qs({ timetable_id: ttIds }),
           { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -426,6 +464,7 @@
     if (el) el.addEventListener('change', loadTimetables);
   });
   if (ttSel) ttSel.addEventListener('change', afterTimetableChange);
+  if (ttMS) ttMS.onChange(afterTimetableChange);
   if (subjSel) subjSel.addEventListener('change', loadSubjectPreview);
   ['session', 'subject'].forEach(function (m) {
     var b = modeBtn(m);
@@ -434,13 +473,14 @@
       scope = m;
       applyScope();
       if (scope === 'subject') { loadSubjects(); }
-      else if (ttSel.value) { loadSessions(); }
+      else if (ttValues().length) { loadSessions(); }
     });
   });
 
   function collect() {
     var catEl = document.getElementById('category');
-    return {
+    var tts = ttEffective();
+    var body = {
       form_id: formId || null,
       scope: scope,
       category: catEl ? catEl.value : 'main',
@@ -449,11 +489,13 @@
       academic_year_id: val('academic_year_id'),
       semester_id: val('semester_id'),
       branch_id: val('branch_id'),
-      timetable_id: ttSel.value,
+      timetable_id: tts.length === 1 ? tts[0] : '',
       subject_code: subjSel ? subjSel.value : '',
       session_id: scope === 'session' ? sSel.value : '',
       questions: model
     };
+    if (ttMS) body.timetable_ids = tts;
+    return body;
   }
 
   function save() {
