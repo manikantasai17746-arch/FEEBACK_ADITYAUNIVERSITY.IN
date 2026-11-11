@@ -365,7 +365,7 @@ def _hod_validate_form_payload(user, data):
 
     not_from_sets = services.questions_not_from_sets(user['id'], questions)
     if not_from_sets:
-        errors.append('Questions must come from your question sets. Not found in your sets: '
+        errors.append('Questions must come from a question set, or be added as an extra question. Not valid: '
                       + '; '.join(not_from_sets[:3]) + ('…' if len(not_from_sets) > 3 else ''))
     errors.extend(services.phase_rule_errors(
         payload.get('phase'), session_ids, exclude_form_id=existing_id))
