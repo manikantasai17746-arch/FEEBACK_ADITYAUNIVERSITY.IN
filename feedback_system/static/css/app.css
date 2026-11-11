@@ -897,3 +897,20 @@ tr.overdue td { background: rgba(220, 80, 60, 0.08); }
   .form-actions .btn-accent { background: #ff6a00; border-color: #ff6a00; color: #fff; }
   .form-actions .btn-ghost  { background: #fff; border: 1.5px solid #2563eb; color: #1e4d8c; }
 }
+
+/* ---------- multi-select dropdown (search + tick marks) ---------- */
+.ms{position:relative}
+.ms-summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+  padding:.7rem .9rem;border:1px solid var(--line,#c3ccdb);border-radius:8px;background:#fff;color:var(--ink)}
+.ms-summary::-webkit-details-marker{display:none}
+.ms[open] .ms-summary{border-color:var(--au-blue,#1558c0);box-shadow:0 0 0 3px rgba(21,88,192,.15)}
+.ms-panel{position:absolute;z-index:30;left:0;right:0;margin-top:4px;max-height:300px;overflow:auto;
+  background:#fff;border:1px solid var(--line,#c3ccdb);border-radius:10px;box-shadow:0 8px 24px rgba(16,24,40,.14);padding:.3rem}
+.ms-row{display:flex;gap:.55rem;align-items:center;margin:0;padding:.5rem .6rem;border-radius:6px;font-weight:500;cursor:pointer}
+.ms-row:hover{background:#eef3fb}
+.ms-row input{width:auto;margin:0}
+.ms-search{position:sticky;top:0;width:100%;margin:0 0 .3rem;padding:.5rem .7rem;border:1px solid var(--line,#c3ccdb);border-radius:8px;background:#fff;color:var(--ink)}
+.ms-all{font-weight:700;border-bottom:1px solid #e6ebf3;border-radius:6px 6px 0 0;margin-bottom:.2rem}
+html.dark-mode .ms-search{background:#0f172a}
+html.dark-mode .ms-summary,html.dark-mode .ms-panel{background:#0f172a;color:var(--ink);border-color:var(--border)}
+html.dark-mode .ms-row:hover{background:#1e293b}
