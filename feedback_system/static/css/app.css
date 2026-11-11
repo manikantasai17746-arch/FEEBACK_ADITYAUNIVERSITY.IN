@@ -958,3 +958,14 @@ html.dark-mode .ms-row:hover{background:#1e293b}
 .band-pick{grid-column:1 / -1;font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:6px;word-break:break-all}
 .band-noemail{color:#c0392b}
 .band-compose{margin-top:1.2rem;padding-top:1rem;border-top:1px solid var(--line)}
+
+/* Neat preview table (form builder) */
+.pv-table{width:100%;border-collapse:collapse;font-size:.92rem}
+.pv-table th,.pv-table td{border:1px solid #dbe3ef;padding:9px 12px;text-align:left;vertical-align:middle}
+.pv-table thead th{background:#eef3fb;color:#0B2F6B;font-weight:700;white-space:nowrap}
+.pv-table tbody tr:nth-child(even){background:#f8fafd}
+.pv-table .pv-num{text-align:center;white-space:nowrap}
+.pv-table .pv-sno{text-align:center;width:52px}
+.pv-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-weight:600;font-size:.8rem}
+.pv-ok{background:#e3f7ea;color:#15803d}
+.pv-bad{background:#fdecec;color:#b42318}
