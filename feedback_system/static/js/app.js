@@ -344,7 +344,7 @@
     if (!named.length) { document.getElementById('set-empty').style.display = ''; }
     named.forEach(function (s) {
       var b = document.createElement('button');
-      b.type = 'button'; b.className = 'btn btn-sm btn-ghost'; b.textContent = s.name + (s.shared ? ' · shared' : '');
+      b.type = 'button'; b.className = 'btn btn-sm btn-ghost'; b.textContent = s.name + (s.shared ? ' · shared' : (s.customised ? ' · edited by you' : ''));
       b.setAttribute('data-id', s.id);
       b.addEventListener('click', function () { showSet(s, b); });
       btnBox.appendChild(b);
