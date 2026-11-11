@@ -5,6 +5,7 @@
   var csrf = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
   var baseUrl = app.getAttribute('data-base-url');          // …/api/question-sets
   var sets = JSON.parse(document.getElementById('qs-sets-data').textContent);
+  var shared = JSON.parse(document.getElementById('qs-shared-data').textContent);
   var presets = JSON.parse(document.getElementById('qs-presets-data').textContent);
   var activeId = null;
   var timers = {};
@@ -21,7 +22,7 @@
       body: JSON.stringify(body || {})
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok && d.ok, data: d }; }); });
   }
-  function byId(id) { return sets.filter(function (s) { return s.id === id; })[0]; }
+  function byId(id) { return sets.concat(shared).filter(function (s) { return s.id === id; })[0]; }
   function common() { return sets.filter(function (s) { return s.is_common; })[0]; }
   function named() { return sets.filter(function (s) { return !s.is_common; }); }
   function presetKey(q) {
@@ -123,7 +124,30 @@
   }
 
   /* ---- page ---- */
+  function renderReadOnly(set, host) {
+    host.innerHTML = '';
+    set.questions.forEach(function (q, qi) {
+      var row = document.createElement('div');
+      row.className = 'q-item';
+      row.innerHTML = '<div class="q-head"><span class="q-num">' + (qi + 1) + '</span>' +
+        '<strong style="margin-left:8px">' + esc(q.text) + '</strong>' +
+        '<div class="btn-row" style="margin-left:auto"><span class="badge">' +
+        (q.qtype === 'text' ? 'Written · optional' : 'Rating') + '</span></div></div>' +
+        (q.qtype === 'rating' ? '<div class="hint">' + q.options.map(function (o) { return esc(o.label); }).join(' · ') + '</div>' : '');
+      host.appendChild(row);
+    });
+  }
   function renderButtons() {
+    var sbox = document.getElementById('qs-shared-buttons');
+    sbox.innerHTML = '';
+    shared.forEach(function (s) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'btn btn-sm' + (s.id === activeId ? '' : ' btn-ghost');
+      b.textContent = s.name;
+      b.addEventListener('click', function () { activeId = s.id; renderAll(); });
+      sbox.appendChild(b);
+    });
     var box = document.getElementById('qs-buttons');
     box.innerHTML = '';
     named().forEach(function (s) {
@@ -159,6 +183,20 @@
     card.style.display = '';
     document.getElementById('qs-active-title').textContent = s.name;
     var actions = document.getElementById('qs-set-actions');
+    if (s.shared) {
+      document.getElementById('status-active').textContent = 'Shared · read-only';
+      document.getElementById('status-active').style.color = '#6b7590';
+      actions.innerHTML = '<button type="button" class="btn btn-sm" data-copy>Copy to my sets</button>';
+      actions.querySelector('[data-copy]').addEventListener('click', function () {
+        post(baseUrl + '/copy-shared', { key: s.id }).then(function (res) {
+          if (!res.ok) { window.alert((res.data.errors || ['Could not copy the set.'])[0]); return; }
+          window.location.reload();
+        });
+      });
+      renderReadOnly(s, document.getElementById('qs-active'));
+      return;
+    }
+    document.getElementById('status-active').textContent = '';
     actions.innerHTML = '<button type="button" class="btn btn-ghost btn-sm" data-rename>Rename set</button>' +
                         '<button type="button" class="btn btn-ghost btn-sm" data-delete>Delete set</button>';
     actions.querySelector('[data-rename]').addEventListener('click', function () {
@@ -179,6 +217,6 @@
     });
     renderQuestions(s, document.getElementById('qs-active'));
   }
-  activeId = named().length ? named()[0].id : null;
+  activeId = named().length ? named()[0].id : (shared.length ? shared[0].id : null);
   renderAll();
 })();
