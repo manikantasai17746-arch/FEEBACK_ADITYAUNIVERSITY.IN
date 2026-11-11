@@ -1290,6 +1290,15 @@ def questions_not_from_sets(owner_id, questions):
                          tuple(o['label'].strip() for o in q['options'])))
     bad = []
     for q in questions or []:
+        if q.get('custom'):          # extra question / comment box added for this form only
+            if not (q.get('text') or '').strip():
+                bad.append('(blank extra question)')
+            elif q.get('qtype', 'rating') not in QSET_QTYPES:
+                bad.append(q.get('text'))
+            elif q.get('qtype', 'rating') == 'rating' and len(
+                    [o for o in (q.get('options') or []) if (o.get('label') or '').strip()]) < 2:
+                bad.append(q.get('text'))
+            continue
         key = ((q.get('text') or '').strip(), q.get('qtype', 'rating'),
                tuple((o.get('label') or '').strip() for o in (q.get('options') or [])))
         if key not in allowed:
