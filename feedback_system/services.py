@@ -1212,11 +1212,57 @@ def ensure_common_set(owner_id):
 def question_sets_for(owner_id):
     """The HOD's own common set plus their named sets, each with its questions."""
     ensure_common_set(owner_id)
-    rows = db.query('SELECT id, name, is_common FROM question_sets '
+    rows = db.query('SELECT id, name, is_common, base_key FROM question_sets '
                     'WHERE owner_user_id=? AND is_deleted=0 '
                     'ORDER BY is_common DESC, LOWER(name), id', (owner_id,))
     return [{'id': r['id'], 'name': r['name'], 'is_common': bool(r['is_common']),
-             'questions': _set_items(r['id'])} for r in rows]
+             'base_key': r['base_key'], 'questions': _set_items(r['id'])} for r in rows]
+
+
+def _override_row(owner_id, key):
+    return db.query('SELECT * FROM question_sets WHERE owner_user_id=? AND base_key=? '
+                    'AND is_deleted=0', (owner_id, key), one=True)
+
+
+def customise_shared_set(owner_id, key):
+    """Give this HOD their own editable version of a shared (default) set.  The default
+    questions stay untouched for everyone else.  Returns (set_id, error)."""
+    src = [s for s in shared_question_sets() if s['id'] == key]
+    if not src:
+        return None, 'Shared set not found.'
+    row = _override_row(owner_id, key)
+    if row:
+        return row['id'], None
+    sid = db.insert_id('INSERT INTO question_sets(owner_user_id, name, base_key) VALUES(?,?,?)',
+                       (owner_id, src[0]['name'], key))
+    db.get_db().commit()
+    save_set_questions(owner_id, sid, src[0]['questions'])
+    return sid, None
+
+
+def reset_shared_set(owner_id, key):
+    """Throw away this HOD's edits and go back to the default questions."""
+    row = _override_row(owner_id, key)
+    if not row:
+        return False
+    db.execute('UPDATE question_sets SET is_deleted=1, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+               (row['id'],))
+    return True
+
+
+def effective_shared_sets(owner_id):
+    """The phase sets as this HOD sees them: their edited version where they have one,
+    otherwise the default."""
+    out = []
+    for s in shared_question_sets():
+        row = _override_row(owner_id, s['id'])
+        if row:
+            out.append({'id': row['id'], 'name': row['name'], 'is_common': False,
+                        'shared': False, 'customised': True, 'base_key': s['id'],
+                        'questions': _set_items(row['id'])})
+        else:
+            out.append(s)
+    return out
 
 
 def get_owned_set(owner_id, set_id):
@@ -1241,7 +1287,7 @@ def create_question_set(owner_id, name):
 def rename_question_set(owner_id, set_id, name):
     name = ' '.join((name or '').split())[:80]
     row = get_owned_set(owner_id, set_id)
-    if not row or row['is_common']:
+    if not row or row['is_common'] or row['base_key']:
         return 'Set not found.'
     if not name:
         return 'Give the set a name.'
@@ -1255,8 +1301,8 @@ def rename_question_set(owner_id, set_id, name):
 
 def delete_question_set(owner_id, set_id):
     row = get_owned_set(owner_id, set_id)
-    if not row or row['is_common']:
-        return False
+    if not row or row['is_common'] or row['base_key']:
+        return False          # phase sets are reset to default instead of deleted
     db.execute('UPDATE question_sets SET is_deleted=1, updated_at=CURRENT_TIMESTAMP '
                'WHERE id=?', (set_id,))
     return True
