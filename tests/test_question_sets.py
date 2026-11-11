@@ -156,3 +156,54 @@ def test_extra_and_comment_questions_allowed_but_must_be_valid(app):
         # an extra needs text, and a rating extra needs at least two options
         assert services.questions_not_from_sets(uid, [{**extra, 'text': '  '}])
         assert services.questions_not_from_sets(uid, [{**extra, 'options': five[:1]}])
+
+
+def test_hod_can_edit_phase_set_and_reset_it(app, client):
+    _login(app, client, 'HODQS12')
+    uid = _seed_hod(app, 'HODQS12')
+    r = _api(client, '/hod/api/question-sets/customise-shared', {'key': 'shared-phase1'})
+    sid = r.get_json()['id']
+    # asking again returns the same editable copy, not a second one
+    assert _api(client, '/hod/api/question-sets/customise-shared',
+                {'key': 'shared-phase1'}).get_json()['id'] == sid
+    assert _api(client, '/hod/api/question-sets/customise-shared', {'key': 'nope'}).status_code == 400
+    mine = [s for s in _sets_on_page(client) if s['id'] == sid][0]
+    assert mine['base_key'] == 'shared-phase1' and len(mine['questions']) == 6
+    # modify + add a question
+    new_q = {**Q, 'text': 'How useful were the lecture notes?'}
+    qs = [{**mine['questions'][0], 'text': 'Reworded first question'}] + mine['questions'][1:] + [new_q]
+    assert _api(client, f'/hod/api/question-sets/{sid}/questions', {'questions': qs}).get_json()['ok']
+    # the form page now offers the edited Phase 1 instead of the default, and accepts its questions
+    html = client.get('/hod/forms/new').get_data(as_text=True)
+    data = json.loads(re.search(r'id="hod-sets-data">(.*?)</script>', html, re.S).group(1))
+    p1 = [s for s in data if s['name'] == 'Phase 1 Questions']
+    assert len(p1) == 1 and len(p1[0]['questions']) == 7 and p1[0]['customised']
+    with app.app_context():
+        assert not services.questions_not_from_sets(uid, [new_q])
+    # defaults for everyone else are unchanged
+    assert len([s for s in services.shared_question_sets() if s['id'] == 'shared-phase1'][0]['questions']) == 6
+    # phase sets cannot be renamed or deleted, only reset
+    assert _api(client, f'/hod/api/question-sets/{sid}/rename', {'name': 'x'}).status_code == 400
+    assert _api(client, f'/hod/api/question-sets/{sid}/delete').status_code == 404
+    assert _api(client, '/hod/api/question-sets/reset-shared', {'key': 'shared-phase1'}).get_json()['ok']
+    html = client.get('/hod/forms/new').get_data(as_text=True)
+    data = json.loads(re.search(r'id="hod-sets-data">(.*?)</script>', html, re.S).group(1))
+    assert [s for s in data if s['id'] == 'shared-phase1'][0]['shared'] is True
+
+
+def test_phase_edits_are_private_to_that_hod(app, client):
+    _login(app, client, 'HODQS13')
+    sid = _api(client, '/hod/api/question-sets/customise-shared', {'key': 'shared-lab'}).get_json()['id']
+    _api(client, f'/hod/api/question-sets/{sid}/questions', {'questions': [Q]})
+    other = app.test_client()
+    _login(app, other, 'HODQS14')
+    html = other.get('/hod/forms/new').get_data(as_text=True)
+    data = json.loads(re.search(r'id="hod-sets-data">(.*?)</script>', html, re.S).group(1))
+    lab = [s for s in data if s['name'] == 'Lab Questions (Phase 1 & 2)'][0]
+    assert lab['shared'] is True and len(lab['questions']) == 3
+    assert _api(other, f'/hod/api/question-sets/{sid}/questions', {'questions': [Q]}).status_code == 404
+
+
+def _sets_on_page(client):
+    page = client.get('/hod/question-sets').get_data(as_text=True)
+    return json.loads(re.search(r'id="qs-sets-data">(.*?)</script>', page, re.S).group(1))
