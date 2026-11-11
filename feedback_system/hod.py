@@ -174,6 +174,10 @@ def _hod_session_in_scope(user, session_id):
     return session
 
 
+def category_is_not_second(data):
+    return (data.get('category') or 'main').strip().lower() != 'second'
+
+
 def _hod_validate_form_payload(user, data):
     """Server-side permission checks for HOD form creation.
 
@@ -199,8 +203,23 @@ def _hod_validate_form_payload(user, data):
     if category not in ('main', 'second'):
         category = 'main'
 
+    # Form name: pick list (Phase 1 / Phase 2) or a custom name typed by the HOD.
+    phase_choice = (data.get('phase') or '').strip().lower()
+    title_in = (data.get('title') or '').strip()
+    if phase_choice in services.PHASE_LABELS:
+        phase = phase_choice
+        title_in = services.PHASE_LABELS[phase]
+    else:
+        # Custom name. Typing "Phase 1" by hand still counts as that phase.
+        phase = services.phase_from_title(title_in)
+        if phase:
+            title_in = services.PHASE_LABELS[phase]
+    if not title_in and category_is_not_second(data):
+        errors.append('Choose Phase 1, Phase 2, or type a custom form name.')
+
     payload = {
-        'title': data.get('title'),
+        'title': title_in,
+        'phase': phase,
         'instructions': data.get('instructions'),
         'academic_year_id': _int(data.get('academic_year_id')),
         'semester_id': _int(data.get('semester_id')),
@@ -343,9 +362,10 @@ def _hod_validate_form_payload(user, data):
                 second_name = sfa.get('second_teacher_name') or sfa.get('second_emp_code') or 'Second faculty'
                 payload['title'] = f'Second faculty feedback — {second_name}'
 
-    if not questions:
-        # Allow empty questions for draft; publish will still validate.
-        pass
+    errors.extend(services.phase_rule_errors(
+        payload.get('phase'), session_ids, exclude_form_id=existing_id))
+    if errors:
+        return None, None, None, errors
 
     return payload, questions, session_ids, errors
 
