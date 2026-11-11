@@ -517,4 +517,9 @@ MIGRATIONS = [
             options_json TEXT NOT NULL DEFAULT '[]')""",
         "CREATE INDEX IF NOT EXISTS ix_qset_items_set ON question_set_items(set_id)",
     ]),
+    (13, "HOD-editable copies of the shared phase question sets", [
+        # base_key = the shared set this row customises (e.g. 'shared-phase1'); NULL for ordinary sets.
+        "ALTER TABLE question_sets ADD COLUMN base_key TEXT",
+        "CREATE INDEX IF NOT EXISTS ix_qsets_base ON question_sets(owner_user_id, base_key)",
+    ]),
 ]
