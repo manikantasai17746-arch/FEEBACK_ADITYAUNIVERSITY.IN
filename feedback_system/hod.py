@@ -1045,7 +1045,10 @@ def performance():
     # Several timetables can be ticked at once (?timetable_id=1&timetable_id=2).
     timetable_ids = list(dict.fromkeys(request.args.getlist('timetable_id', type=int)))
     timetable_id = timetable_ids[0] if len(timetable_ids) == 1 else None
-    subject_code = (request.args.get('subject_code') or '').strip() or None
+    # Several subjects can be ticked at once (?subject_code=A&subject_code=B).
+    subject_codes = list(dict.fromkeys(
+        c.strip() for c in request.args.getlist('subject_code') if c and c.strip()))
+    subject_code = subject_codes[0] if len(subject_codes) == 1 else None
     teacher_user_id = request.args.get('teacher_user_id', type=int)
     form_id = request.args.get('form_id', type=int)
     mode = (request.args.get('mode') or 'timetable').strip().lower()
@@ -1062,7 +1065,7 @@ def performance():
             scope_ids,
             academic_year_id=academic_year_id,
             semester_id=semester_id,
-            subject_code=subject_code,
+            subject_codes=subject_codes or None,
             teacher_user_id=teacher_user_id,
             form_id=form_id,
             timetable_ids=timetable_ids or None,
@@ -1181,13 +1184,25 @@ def performance():
                 JOIN timetables t ON t.id=cs.timetable_id
                 WHERE t.branch_id IN ({ph}) AND cs.is_deleted=0
                 ORDER BY u.name""", tuple(branch_ids))
-        subjects_list = db.query(
-            f"""SELECT DISTINCT COALESCE(ff.subject_code, ff.snapshot_subject_code) AS code,
-                       COALESCE(ff.subject_name, ff.snapshot_subject_name) AS name
-                FROM feedback_forms ff
-                WHERE ff.branch_id IN ({ph}) AND ff.is_deleted=0
-                  AND COALESCE(ff.subject_code, ff.snapshot_subject_code) IS NOT NULL
-                ORDER BY code""", tuple(branch_ids))
+        # Subjects come from the class timetable, so they are available before any
+        # feedback form exists. They follow the year / semester / branch / timetable
+        # filters above.
+        sub_sql = f"""SELECT cs.subject_code AS code, MIN(cs.subject_name) AS name
+            FROM class_sessions cs JOIN timetables t ON t.id=cs.timetable_id
+            WHERE t.branch_id IN ({ph}) AND t.is_deleted=0 AND cs.is_deleted=0
+              AND cs.subject_code IS NOT NULL AND cs.subject_code <> ''"""
+        sub_args = list(branch_ids)
+        if academic_year_id:
+            sub_sql += ' AND t.academic_year_id=?'; sub_args.append(academic_year_id)
+        if semester_id:
+            sub_sql += ' AND t.semester_id=?'; sub_args.append(semester_id)
+        if branch_id:
+            sub_sql += ' AND t.branch_id=?'; sub_args.append(branch_id)
+        if timetable_ids:
+            sub_sql += (' AND t.id IN (' + ','.join('?' * len(timetable_ids)) + ')')
+            sub_args.extend(timetable_ids)
+        sub_sql += ' GROUP BY cs.subject_code ORDER BY cs.subject_code'
+        subjects_list = db.query(sub_sql, tuple(sub_args))
         forms_list = db.query(
             f"""SELECT id, title, status FROM feedback_forms
                 WHERE branch_id IN ({ph}) AND is_deleted=0
@@ -1219,6 +1234,7 @@ def performance():
             'timetable_id': timetable_id,
             'timetable_ids': timetable_ids,
             'subject_code': subject_code or '',
+            'subject_codes': subject_codes,
             'teacher_user_id': teacher_user_id,
             'form_id': form_id,
             'q': q,
