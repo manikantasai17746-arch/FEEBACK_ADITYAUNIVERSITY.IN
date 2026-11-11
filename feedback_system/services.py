@@ -1122,6 +1122,81 @@ def _set_items(set_id):
                 'WHERE set_id=? ORDER BY position, id', (set_id,))]
 
 
+# Shared sets (from FEEDBACK_QUESTIONS.docx), common to all HODs.  Wording as supplied.
+_STARTER_RATING = {
+    'Phase 1 Questions': [
+        'How well did the teacher prepare for the classes?',
+        'How well is the teacher able to communicate?',
+        'How is the teachers approach to teaching(way of teaching)?',
+        'How is the teachers regularity and promptness to class',
+        'How is the syllabus coverage as per the lesson plan',
+        'How is the overall teaching-learning process?',
+    ],
+    'Phase 2 Questions': [
+        'How well did the teacher prepare for the classes?',
+        'How well is the teacher able to communicate?',
+        'How is the teachers approach to teaching(way of teaching)?',
+        'The teacher illustrated the concepts through examples and applications.',
+        'How was the discussion of student\u2019s performance in assignments or examinations?',
+        'Fairness of internal evaluation process by teacher.',
+        'How is the overall teaching-learning process?',
+    ],
+    'Lab Questions (Phase 1 & 2)': [
+        "How is the teacher's approach in demonstrating the experiments?",
+        "How is the teacher's regularity and promptness to lab sessions",
+        'How is the overall teaching-learning process in lab?',
+    ],
+    'CRT Questions (Phase 1 & 2)': [
+        'Clarity and effectiveness of the trainer\u2019s classroom teaching of aptitude concepts.',
+        'Trainer\u2019s interaction and engagement with students during the sessions',
+        'Explanation of logical approaches, formulas, and shortcuts for solving aptitude problems.',
+        'Practice exercises and problem-solving activities conducted during the class',
+        'Usefulness of the aptitude study material provided in the CRT program for improving problem-solving skills',
+        'Support provided by the CRT aptitude training in improving placement readiness for aptitude tests',
+    ],
+}
+_STARTER_WRITTEN = {
+    'CRT Questions (Phase 1 & 2)': [
+        'Please provide your comments about the trainer and suggestions to improvise'],
+}
+
+
+SHARED_KEYS = {'Phase 1 Questions': 'shared-phase1', 'Phase 2 Questions': 'shared-phase2',
+               'Lab Questions (Phase 1 & 2)': 'shared-lab',
+               'CRT Questions (Phase 1 & 2)': 'shared-crt'}
+
+
+def shared_question_sets():
+    """Sets that are common to ALL HODs (read-only for them).  A HOD can copy one
+    into their own sets to customise it."""
+    out = []
+    for name, texts in _STARTER_RATING.items():
+        qs = [{'text': t, 'qtype': 'rating', 'is_required': True,
+               'options': [dict(o) for o in SCALE_PRESETS['five_point']['options']]}
+              for t in texts]
+        qs += [{'text': t, 'qtype': 'text', 'is_required': False, 'options': []}
+               for t in _STARTER_WRITTEN.get(name, [])]
+        out.append({'id': SHARED_KEYS[name], 'name': name, 'is_common': False,
+                    'shared': True, 'questions': qs})
+    return out
+
+
+def copy_shared_set(owner_id, key):
+    """Copy a shared set into the HOD's own sets.  Returns (set_id, error)."""
+    src = [s for s in shared_question_sets() if s['id'] == key]
+    if not src:
+        return None, 'Shared set not found.'
+    base = src[0]['name'] + ' (my copy)'
+    name, n = base, 2
+    while db.query('SELECT 1 FROM question_sets WHERE owner_user_id=? AND is_deleted=0 '
+                   'AND LOWER(name)=?', (owner_id, name.lower()), one=True):
+        name, n = f'{base} {n}', n + 1
+    sid, err = create_question_set(owner_id, name)
+    if sid:
+        save_set_questions(owner_id, sid, src[0]['questions'])
+    return sid, err
+
+
 def ensure_common_set(owner_id):
     row = db.query('SELECT id FROM question_sets WHERE owner_user_id=? AND is_common=1 '
                    'AND is_deleted=0', (owner_id,), one=True)
@@ -1209,7 +1284,7 @@ def questions_not_from_sets(owner_id, questions):
     """Questions that do not match any question in the HOD's own sets (by text,
     type and option labels).  Used to enforce 'form questions come from sets'."""
     allowed = set()
-    for st in question_sets_for(owner_id):
+    for st in question_sets_for(owner_id) + shared_question_sets():
         for q in st['questions']:
             allowed.add((q['text'].strip(), q['qtype'],
                          tuple(o['label'].strip() for o in q['options'])))
