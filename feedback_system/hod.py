@@ -815,6 +815,42 @@ def onboarding():
                         _session['hod_onboard_staging'] = staging
                         flash('Allocation added to selection.', 'success')
             step = 'scopes'
+        elif action == 'add_scopes':
+            # Add several timetable allocations in one go. Year / department /
+            # semester come from each timetable itself, so every ticked row is
+            # already a valid combination.
+            ids = list(dict.fromkeys(request.form.getlist('timetable_ids', type=int)))
+            if not ids:
+                flash('Tick at least one timetable to add.', 'error')
+            else:
+                tt_by_id = {t['id']: t for t in timetables}
+                staged_ids = {x['timetable_id'] for x in staging}
+                added = taken = invalid = 0
+                for tid in ids:
+                    t = tt_by_id.get(tid)
+                    if not t or not t['academic_year_id']:
+                        invalid += 1
+                        continue
+                    key = {'academic_year_id': t['academic_year_id'],
+                           'branch_id': t['branch_id'],
+                           'semester_id': t['semester_id'],
+                           'timetable_id': t['id']}
+                    owner = allocation_owner(key['academic_year_id'], key['branch_id'],
+                                             key['semester_id'], key['timetable_id'])
+                    if owner and owner != user['id']:
+                        taken += 1
+                    elif tid not in staged_ids:
+                        staging.append(key)
+                        staged_ids.add(tid)
+                        added += 1
+                _session['hod_onboard_staging'] = staging
+                if added:
+                    flash(f'{added} allocation(s) added to your selection.', 'success')
+                if taken:
+                    flash(f'{taken} allocation(s) skipped: already owned by another HOD.', 'error')
+                if invalid:
+                    flash(f'{invalid} timetable(s) skipped: not valid for onboarding.', 'error')
+            step = 'scopes'
         elif action == 'remove_scope':
             idx = request.form.get('index', type=int)
             if staging and idx is not None and 0 <= idx < len(staging):
@@ -845,6 +881,37 @@ def onboarding():
                     flash(err or 'Could not claim allocations (conflict or error).', 'error')
                     step = 'scopes'
 
+    # Rows for the multi-select list (one per timetable, with a status).
+    claimed = {}
+    if timetables:
+        _ids = [t['id'] for t in timetables]
+        _ph = ','.join('?' * len(_ids))
+        for r in db.query(
+                f'SELECT timetable_id, hod_user_id FROM hod_allocations '
+                f'WHERE timetable_id IN ({_ph})', tuple(_ids)):
+            claimed[r['timetable_id']] = r['hod_user_id']
+    year_name = {y['id']: y['name'] for y in years}
+    sem_label = {m['id']: (m['label'] or m['number']) for m in semesters}
+    staged_ids = {x['timetable_id'] for x in staging}
+    options = []
+    for t in timetables:
+        owner = claimed.get(t['id'])
+        if not t['academic_year_id']:
+            status = 'noyear'
+        elif owner and owner != user['id']:
+            status = 'taken'
+        elif t['id'] in staged_ids:
+            status = 'added'
+        else:
+            status = 'available'
+        options.append({
+            'id': t['id'], 'status': status,
+            'year': year_name.get(t['academic_year_id'], '—'),
+            'branch': t['branch_code'],
+            'semester': sem_label.get(t['semester_id'], '?'),
+            'code': t['code'], 'name': t['name'],
+        })
+
     # Enrich staging for display
     display_scopes = []
     for s in staging:
@@ -867,7 +934,7 @@ def onboarding():
         'hod_onboarding.html',
         step=step, email_verified=email_verified, user=user,
         years=years, branches=branches, semesters=semesters,
-        timetables=timetables, display_scopes=display_scopes,
+        timetables=timetables, options=options, display_scopes=display_scopes,
         preview=preview, conflicts=conflicts)
 
 
