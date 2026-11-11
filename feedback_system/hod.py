@@ -412,7 +412,8 @@ def form_new():
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
     semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
     return render_template('hod_form_new.html', branches=branches,
-                           years=years, semesters=semesters)
+                           years=years, semesters=semesters,
+                           default_instructions=services.DEFAULT_INSTRUCTIONS)
 
 
 @bp.route('/forms/save', methods=['POST'])
