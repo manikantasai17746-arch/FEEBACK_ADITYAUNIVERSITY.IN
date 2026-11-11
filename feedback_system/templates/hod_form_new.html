@@ -114,18 +114,36 @@
     </div>
 
     <div class="card">
-      <div class="step">Step 2 · Questions — pick one of your sets</div>
-      <div class="btn-row" id="set-buttons"></div>
-      <div id="set-empty" class="hint" style="display:none;margin-top:8px">
+      <div class="step">Step 2 · Questions</div>
+      <div class="field"><label>1. Open a question set</label>
+        <div class="btn-row" id="set-buttons"></div></div>
+      <div id="set-empty" class="hint" style="display:none">
         You have no question sets yet.
         <a href="{{ url_for('hod.question_sets') }}">Create a set</a> first, then come back here.</div>
-      <div id="set-checklist" style="display:none;margin-top:12px">
-        <div class="hint" style="margin-bottom:8px">Tick the questions to use in this form.
-          <a href="{{ url_for('hod.question_sets') }}">Edit sets</a></div>
-        <div id="set-items"></div>
-        <div class="btn-row mt"><button type="button" class="btn btn-sm" id="use-selected">Use selected questions</button></div>
+      <div id="set-checklist" style="display:none">
+        <div class="field"><label>2. Tick the questions to use from
+            <strong id="set-name"></strong></label>
+          <div class="btn-row" style="margin-bottom:8px">
+            <button type="button" class="btn btn-ghost btn-sm" id="pick-all">Select all</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="pick-none">Clear</button>
+            <a href="{{ url_for('hod.question_sets') }}" class="hint" style="align-self:center">Edit sets</a>
+          </div>
+          <div id="set-items"></div></div>
       </div>
-      <div class="step" style="margin-top:18px">Questions in this form</div>
+
+      <div class="field"><label>3. Extra questions for this form only (optional)</label>
+        <div id="extra-items"></div>
+        <div class="btn-row">
+          <button type="button" class="btn btn-ghost btn-sm" id="extra-rating">＋ Add a question</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="extra-text">＋ Add written question</button>
+        </div>
+        <div class="hint">These are used in this form only and are not saved to any set.</div></div>
+
+      <div class="field"><label style="display:flex;gap:8px;align-items:center;cursor:pointer">
+          <input type="checkbox" id="comment-on" checked>
+          Ask students for comments (optional written comment box)</label></div>
+
+      <div class="step" style="margin-top:18px">Preview · questions in this form</div>
       <div id="questions"></div>
     </div>
 
