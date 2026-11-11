@@ -1433,6 +1433,198 @@ def performance():
         })
 
 
+# Score bands used by the "Performance by score band" page.
+# (key, label, lower bound exclusive, upper bound inclusive)
+SCORE_BANDS = [
+    ('le75',   '75% or less',   None, 75),
+    ('75-80',  'Above 75 – 80%', 75,  80),
+    ('80-85',  'Above 80 – 85%', 80,  85),
+    ('85-90',  'Above 85 – 90%', 85,  90),
+    ('90-95',  'Above 90 – 95%', 90,  95),
+    ('95-100', 'Above 95 – 100%', 95, None),
+]
+
+
+DEFAULT_BAND_SUBJECT = 'Your student feedback result - {score}%'
+DEFAULT_BAND_MESSAGES = {
+    'low': ("Dear {name},\n\nYour student feedback score for {subject} is {score}%. "
+            "This is below the expected level of 75%. Please review the feedback and "
+            "plan improvements for the coming classes. I am happy to meet and discuss "
+            "how I can support you.\n\nRegards,\n{hod}\nHead of Department"),
+    'mid': ("Dear {name},\n\nYour student feedback score for {subject} is {score}%. "
+            "This is a good result. Please look at the comments and keep improving "
+            "further.\n\nRegards,\n{hod}\nHead of Department"),
+    'high': ("Dear {name},\n\nCongratulations. Your student feedback score for {subject} "
+             "is {score}%. Excellent work. Please keep it up.\n\n"
+             "Regards,\n{hod}\nHead of Department"),
+}
+
+
+def _default_message_for(band_key):
+    if band_key == 'le75':
+        return DEFAULT_BAND_MESSAGES['low']
+    if band_key in ('75-80', '80-85'):
+        return DEFAULT_BAND_MESSAGES['mid']
+    return DEFAULT_BAND_MESSAGES['high']
+
+
+def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id):
+    """All score bands with their rows (each row carries the teacher's email)."""
+    from . import scoring
+    scope_ids = [branch_id] if branch_id else branch_ids
+    rows = []
+    if scope_ids:
+        rows = scoring.faculty_scores_for_branches(
+            scope_ids, academic_year_id=academic_year_id,
+            semester_id=semester_id, form_id=form_id, min_responses=1)
+    rows = [dict(r) for r in rows if r.get('overall_score') is not None]
+    ids = sorted({r['teacher_user_id'] for r in rows if r.get('teacher_user_id')})
+    emails = {}
+    if ids:
+        ph = ','.join('?' * len(ids))
+        for u in db.query(f'SELECT id, email FROM users WHERE id IN ({ph})', tuple(ids)):
+            emails[u['id']] = (u['email'] or '').strip()
+    for r in rows:
+        r['teacher_email'] = emails.get(r.get('teacher_user_id'), '')
+    bands = []
+    for key, label, lo, hi in SCORE_BANDS:
+        members = [r for r in rows
+                   if (lo is None or r['overall_score'] > lo)
+                   and (hi is None or r['overall_score'] <= hi)]
+        members.sort(key=lambda r: r['overall_score'], reverse=True)
+        bands.append({'key': key, 'label': label, 'rows': members,
+                      'count': len(members)})
+    return bands
+
+
+@bp.route('/performance/bands')
+@role_required('hod')
+def performance_bands():
+    """Teachers grouped by feedback-score band (<=75, 75-80, ... 95-100)."""
+    from . import mailer
+    user = current_user()
+    branches = _hod_branches(user)
+    branch_ids = [b['id'] for b in branches]
+
+    academic_year_id = request.args.get('academic_year_id', type=int)
+    semester_id = request.args.get('semester_id', type=int)
+    branch_id = request.args.get('branch_id', type=int)
+    form_id = request.args.get('form_id', type=int)
+    band_key = (request.args.get('band') or '').strip()
+    if branch_id and branch_id not in branch_ids:
+        branch_id = None
+
+    bands = _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id)
+    valid_keys = {b['key'] for b in bands}
+    if band_key not in valid_keys:
+        band_key = next((b['key'] for b in bands if b['count']), bands[0]['key'])
+    active = next(b for b in bands if b['key'] == band_key)
+
+    return render_template(
+        'hod_performance_bands.html', user=user, branches=branches,
+        bands=bands, active=active, band_key=band_key,
+        default_subject=DEFAULT_BAND_SUBJECT,
+        default_message=_default_message_for(band_key),
+        mail_ready=mailer.is_configured(),
+        filters={'academic_year_id': academic_year_id,
+                 'semester_id': semester_id, 'branch_id': branch_id,
+                 'form_id': form_id})
+
+
+@bp.route('/performance/bands/send', methods=['POST'])
+@role_required('hod')
+def performance_bands_send():
+    """E-mail the selected teachers of one score band (HOD's own text or default)."""
+    from . import mailer
+    from html import escape
+    user = current_user()
+    branches = _hod_branches(user)
+    branch_ids = [b['id'] for b in branches]
+    f = request.form
+
+    def _int(k):
+        try:
+            return int(f.get(k)) if f.get(k) else None
+        except ValueError:
+            return None
+    academic_year_id, semester_id = _int('academic_year_id'), _int('semester_id')
+    branch_id, form_id = _int('branch_id'), _int('form_id')
+    if branch_id and branch_id not in branch_ids:
+        branch_id = None
+    band_key = (f.get('band') or '').strip()
+    back = url_for('hod.performance_bands', band=band_key,
+                   academic_year_id=academic_year_id, semester_id=semester_id,
+                   branch_id=branch_id, form_id=form_id)
+
+    subject_tpl = ' '.join((f.get('subject') or '').split())[:150] or DEFAULT_BAND_SUBJECT
+    message_tpl = (f.get('message') or '').strip()[:5000] or _default_message_for(band_key)
+    try:
+        selected = {int(x) for x in f.getlist('teacher_user_id')}
+    except ValueError:
+        selected = set()
+    if not selected:
+        flash('Tick at least one teacher to send the email.', 'error')
+        return redirect(back)
+
+    bands = _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id)
+    band = next((b for b in bands if b['key'] == band_key), None)
+    if not band:
+        flash('Unknown score band.', 'error')
+        return redirect(back)
+
+    # Only teachers inside this band and the HOD's own department can be
+    # mailed, whatever the form posted.
+    per_teacher = {}
+    for r in band['rows']:
+        tid = r.get('teacher_user_id')
+        if tid in selected:
+            per_teacher.setdefault(tid, []).append(r)
+    if len(per_teacher) > 100:
+        flash('Please send to at most 100 teachers at a time.', 'error')
+        return redirect(back)
+
+    hod_name = dict(user).get('name') or 'HOD'
+    sent = failed = no_email = 0
+    for trows in per_teacher.values():
+        to = (trows[0].get('teacher_email') or '').strip()
+        if not to or '@' not in to:
+            no_email += 1
+            continue
+        score = round(sum(x['overall_score'] for x in trows) / len(trows), 2)
+        subs = []
+        for x in trows:
+            label = (x.get('subject_name') or x.get('subject_code') or '').strip()
+            if label and label not in subs:
+                subs.append(label)
+        values = {'{name}': trows[0].get('teacher_name') or 'Faculty',
+                  '{score}': f'{score:.2f}',
+                  '{subject}': ', '.join(subs) or 'your subject',
+                  '{hod}': hod_name}
+
+        def _fill(t):
+            for k, v in values.items():
+                t = t.replace(k, str(v))
+            return t
+        subj = _fill(subject_tpl)
+        body = _fill(message_tpl)
+        html = ('<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto">'
+                '<h3 style="color:#0B2F6B">Aditya University - Faculty Feedback</h3>'
+                '<div style="white-space:pre-wrap">' + escape(body) + '</div></div>')
+        if mailer.send_email(to, subj, body, html):
+            sent += 1
+        else:
+            failed += 1
+    audit('hod.band.email', 'users', 0,
+          f'Band {band_key}: sent {sent}, failed {failed}, no email {no_email}')
+    if sent:
+        flash(f'Email sent to {sent} teacher(s).', 'success')
+    if no_email:
+        flash(f'{no_email} teacher(s) have no email address on file and were skipped.', 'warning')
+    if failed:
+        flash(f'{failed} email(s) could not be sent. Check the mail settings.', 'error')
+    return redirect(back)
+
+
 @bp.route('/performance/faculty/<int:teacher_id>')
 @role_required('hod')
 def performance_detail(teacher_id):
