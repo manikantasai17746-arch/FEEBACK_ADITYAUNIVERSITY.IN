@@ -1,6 +1,20 @@
 {% extends 'base.html' %}
 {% block title %}Teacher Performance — HOD{% endblock %}
 {% block body %}
+{% macro multiselect(name, items, selected, all_label, noun) %}
+<details class="ms" data-all-label="{{ all_label }}" data-noun="{{ noun }}">
+  <summary class="ms-summary"><span class="ms-label">{{ all_label }}</span><span aria-hidden="true">▾</span></summary>
+  <div class="ms-panel">
+    <label class="ms-row ms-all"><input type="checkbox" class="ms-all-cb"> Select all</label>
+    {% for it in items %}
+    <label class="ms-row"><input type="checkbox" class="ms-cb" name="{{ name }}" value="{{ it.value }}"
+      data-label="{{ it.label }}" {{ 'checked' if it.value in selected }}> {{ it.label }}</label>
+    {% else %}
+    <div class="ms-row sub">Nothing to select for these filters.</div>
+    {% endfor %}
+  </div>
+</details>
+{% endmacro %}
 <div class="perf-welcome">
   <div>
     <h1 style="margin:0;display:flex;align-items:center;gap:.5rem">
@@ -55,18 +69,9 @@
       </select>
     </div>
     <div class="field"><label>Section / Timetable</label>
-      <details class="ms" id="ttMulti">
-        <summary class="ms-summary"><span id="ttLabel">All timetables</span><span aria-hidden="true">▾</span></summary>
-        <div class="ms-panel">
-          <label class="ms-row ms-all"><input type="checkbox" id="ttAll"> Select all</label>
-          {% for t in timetables %}
-          <label class="ms-row"><input type="checkbox" class="tt-cb" name="timetable_id" value="{{ t.id }}"
-            data-label="{{ t.branch }} · {{ t.code }}" {{ 'checked' if t.id in filters.timetable_ids }}> {{ t.branch }} · {{ t.code }}</label>
-          {% else %}
-          <div class="ms-row sub">No timetables for these filters.</div>
-          {% endfor %}
-        </div>
-      </details>
+      {% set tt_items = [] %}
+      {% for t in timetables %}{% set _ = tt_items.append({'value': t.id, 'label': t.branch ~ ' · ' ~ t.code}) %}{% endfor %}
+      {{ multiselect('timetable_id', tt_items, filters.timetable_ids, 'All timetables', 'timetables') }}
     </div>
     <div class="field"><label>Teacher</label>
       <select name="teacher_user_id">
@@ -77,14 +82,9 @@
       </select>
     </div>
     <div class="field"><label>Subject</label>
-      <select name="subject_code">
-        <option value="">All subjects</option>
-        {% for s in subjects_list %}
-        <option value="{{ s.code }}" {{ 'selected' if filters.subject_code == s.code }}>
-          {{ s.code }}{% if s.name %} — {{ s.name }}{% endif %}
-        </option>
-        {% endfor %}
-      </select>
+      {% set sub_items = [] %}
+      {% for s in subjects_list %}{% set _ = sub_items.append({'value': s.code, 'label': s.code ~ (' — ' ~ s.name if s.name else '')}) %}{% endfor %}
+      {{ multiselect('subject_code', sub_items, filters.subject_codes, 'All subjects', 'subjects') }}
     </div>
     <div class="field"><label>Feedback Form</label>
       <select name="form_id">
@@ -118,34 +118,41 @@
 </style>
 <script>
 (function(){
-  var box = document.getElementById('ttMulti');
-  if (!box) return;
-  var cbs = Array.prototype.slice.call(box.querySelectorAll('.tt-cb'));
-  var all = document.getElementById('ttAll');
-  var label = document.getElementById('ttLabel');
-  function refresh(){
-    var on = cbs.filter(function(c){return c.checked;});
-    var n = on.length;
-    if (n === 0) label.textContent = 'All timetables';
-    else if (n === cbs.length) label.textContent = 'All timetables (' + n + ')';
-    else if (n === 1) label.textContent = on[0].getAttribute('data-label');
-    else label.textContent = n + ' timetables selected';
-    all.checked = cbs.length > 0 && n === cbs.length;
-  }
-  cbs.forEach(function(c){ c.addEventListener('change', refresh); });
-  all.addEventListener('change', function(){
-    cbs.forEach(function(c){ c.checked = all.checked; });
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('details.ms'));
+  boxes.forEach(function(box){
+    var cbs = Array.prototype.slice.call(box.querySelectorAll('.ms-cb'));
+    var all = box.querySelector('.ms-all-cb');
+    var label = box.querySelector('.ms-label');
+    var allLabel = box.getAttribute('data-all-label');
+    var noun = box.getAttribute('data-noun');
+    function refresh(){
+      var on = cbs.filter(function(c){return c.checked;});
+      var n = on.length;
+      if (n === 0) label.textContent = allLabel;
+      else if (n === cbs.length) label.textContent = allLabel + ' (' + n + ')';
+      else if (n === 1) label.textContent = on[0].getAttribute('data-label');
+      else label.textContent = n + ' ' + noun + ' selected';
+      all.checked = cbs.length > 0 && n === cbs.length;
+    }
+    cbs.forEach(function(c){ c.addEventListener('change', refresh); });
+    all.addEventListener('change', function(){
+      cbs.forEach(function(c){ c.checked = all.checked; });
+      refresh();
+    });
+    // Ticking everything is the same as "All": send no filter for this field.
+    box.closest('form').addEventListener('submit', function(){
+      if (cbs.length && cbs.every(function(c){return c.checked;})) {
+        cbs.forEach(function(c){ c.checked = false; });
+      }
+    });
     refresh();
   });
-  // Ticking every timetable is the same as "All": send no timetable filter.
-  box.closest('form').addEventListener('submit', function(){
-    if (cbs.length && cbs.every(function(c){return c.checked;})) {
-      cbs.forEach(function(c){ c.checked = false; });
-    }
+  document.addEventListener('click', function(e){
+    boxes.forEach(function(b){ if (!b.contains(e.target)) b.removeAttribute('open'); });
   });
-  document.addEventListener('click', function(e){ if (!box.contains(e.target)) box.removeAttribute('open'); });
-  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') box.removeAttribute('open'); });
-  refresh();
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') boxes.forEach(function(b){ b.removeAttribute('open'); });
+  });
 })();
 </script>
 
