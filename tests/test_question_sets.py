@@ -44,17 +44,17 @@ Q = {'text': 'How approachable is the teacher?', 'qtype': 'rating', 'is_required
 
 def test_create_set_autosave_and_reload(app, client):
     _login(app, client, 'HODQS1')
-    r = _api(client, '/hod/api/question-sets', {'name': 'Phase 1 Questions'})
+    r = _api(client, '/hod/api/question-sets', {'name': 'My Own Set'})
     assert r.status_code == 200
     sid = r.get_json()['id']
     # duplicate name refused
-    assert _api(client, '/hod/api/question-sets', {'name': ' phase 1 questions '}).status_code == 400
+    assert _api(client, '/hod/api/question-sets', {'name': ' my own SET '}).status_code == 400
     r = _api(client, f'/hod/api/question-sets/{sid}/questions', {'questions': [Q]})
     assert r.get_json()['ok']
     page = client.get('/hod/question-sets').get_data(as_text=True)
     data = json.loads(re.search(r'id="qs-sets-data">(.*?)</script>', page, re.S).group(1))
     names = [s['name'] for s in data]
-    assert names[0] == 'Common questions' and 'Phase 1 Questions' in names
+    assert names[0] == 'Common questions' and 'My Own Set' in names
     mine = [s for s in data if s['id'] == sid][0]
     assert mine['questions'][0]['text'] == Q['text'] and len(mine['questions'][0]['options']) == 5
 
@@ -104,3 +104,39 @@ def test_form_page_lists_only_own_sets(app, client):
     data = json.loads(re.search(r'id="hod-sets-data">(.*?)</script>', html, re.S).group(1))
     assert 'Phase 2 Questions' in [s['name'] for s in data]
     assert 'id="set-buttons"' in html and 'id="add-question"' not in html
+
+
+def test_word_file_questions_are_shared_with_every_hod(app, client):
+    shared = services.shared_question_sets()
+    by = {s['name']: s for s in shared}
+    assert len(by['Phase 1 Questions']['questions']) == 6
+    assert len(by['Phase 2 Questions']['questions']) == 7
+    assert len(by['Lab Questions (Phase 1 & 2)']['questions']) == 3
+    crt = by['CRT Questions (Phase 1 & 2)']['questions']
+    assert len(crt) == 7 and crt[-1]['qtype'] == 'text' and not crt[-1]['is_required']
+    assert all(len(q['options']) == 5 for q in by['Phase 1 Questions']['questions'])
+    # two different HODs both see them on the form page, and may use them in a form
+    for name in ('HODQS8', 'HODQS9'):
+        c = app.test_client()
+        _login(app, c, name)
+        html = c.get('/hod/forms/new').get_data(as_text=True)
+        data = json.loads(re.search(r'id="hod-sets-data">(.*?)</script>', html, re.S).group(1))
+        assert {'shared-phase1', 'shared-phase2', 'shared-lab', 'shared-crt'} <= {s['id'] for s in data}
+        uid = _seed_hod(app, name)
+        with app.app_context():
+            assert not services.questions_not_from_sets(uid, by['Phase 1 Questions']['questions'])
+
+
+def test_copy_shared_set_into_own_sets(app, client):
+    _login(app, client, 'HODQS10')
+    r = _api(client, '/hod/api/question-sets/copy-shared', {'key': 'shared-crt'})
+    assert r.get_json()['ok']
+    r2 = _api(client, '/hod/api/question-sets/copy-shared', {'key': 'shared-crt'})
+    assert r2.get_json()['ok']                       # second copy gets a new name
+    assert _api(client, '/hod/api/question-sets/copy-shared', {'key': 'nope'}).status_code == 400
+    page = client.get('/hod/question-sets').get_data(as_text=True)
+    mine = json.loads(re.search(r'id="qs-sets-data">(.*?)</script>', page, re.S).group(1))
+    names = [s['name'] for s in mine]
+    assert 'CRT Questions (Phase 1 & 2) (my copy)' in names
+    assert 'CRT Questions (Phase 1 & 2) (my copy) 2' in names
+    assert len([s for s in mine if 'my copy' in s['name']][0]['questions']) == 7
