@@ -5,7 +5,51 @@
   <div class="page-header">
     <h1>My question sets</h1>
     <nav class="subnav">
+      <a href="{{ url_for('hod.dashboard') }}">Dashboard</a>{% extends 'base.html' %}
+{% block title %}Question sets — HOD{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>My question sets</h1>
+    <nav class="subnav">
       <a href="{{ url_for('hod.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('hod.forms') }}">Forms</a>
+      <a href="{{ url_for('hod.form_new') }}">New form</a>
+      <a href="{{ url_for('hod.question_sets') }}" class="active">Question sets</a>
+      <a href="{{ url_for('hod.results') }}">Results</a>
+    </nav>
+  </div>
+  <p class="sub">Build reusable sets such as Phase 1, Phase 2 or CRT questions. The phase sets below start with the
+    standard (basic) questions. Click a phase set, then <strong>Edit this set</strong> to change it for your
+    department: modify, add, reorder or remove questions. Your changes are private to you, never change other HODs' sets,
+    and you can <strong>Reset to default</strong> at any time. Forms already created keep their questions. Every change saves automatically.</p>
+
+  <div id="qs-app"
+       data-create-url="{{ url_for('hod.api_question_set_create') }}"
+       data-base-url="{{ url_for('hod.api_question_set_create') }}">
+    <div class="card"><div class="step">Phase question sets <span class="badge">standard questions · editable</span></div>
+      <div class="btn-row" id="qs-shared-buttons"></div></div>
+    <div class="card"><div class="step">Your own question sets</div>
+      <div class="btn-row" id="qs-buttons"></div></div>
+
+    <div class="card"><div class="step">Common questions
+        <span class="badge">included in every set</span>
+        <span class="qs-status" id="status-common" style="float:right"></span></div>
+      <div id="qs-common"></div></div>
+
+    <div class="card" id="qs-active-card"><div class="step"><span id="qs-active-title"></span>
+        <span class="qs-status" id="status-active" style="float:right"></span></div>
+      <div class="btn-row" id="qs-set-actions" style="margin-bottom:10px"></div>
+      <div id="qs-active"></div></div>
+  </div>
+
+  <script type="application/json" id="qs-sets-data">{{ sets_json|safe }}</script>
+  <script type="application/json" id="qs-shared-data">{{ shared_json|safe }}</script>
+  <script type="application/json" id="qs-presets-data">{{ presets_json|safe }}</script>
+  <script src="{{ url_for('static', filename='js/question_sets.js') }}"></script>
+</div>
+{% endblock %}
+{% block scripts %}{% endblock %}
       <a href="{{ url_for('hod.forms') }}">Forms</a>
       <a href="{{ url_for('hod.form_new') }}">New form</a>
       <a href="{{ url_for('hod.question_sets') }}" class="active">Question sets</a>
