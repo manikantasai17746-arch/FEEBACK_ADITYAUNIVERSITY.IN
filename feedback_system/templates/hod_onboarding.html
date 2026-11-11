@@ -126,25 +126,37 @@
 
     <h3 style="margin-top:1.5rem">Selected allocations</h3>
     {% if display_scopes %}
-    <table class="data-table">
-      <thead><tr><th>Year</th><th>Dept</th><th>Sem</th><th>Timetable</th><th></th></tr></thead>
-      <tbody>
-      {% for s in display_scopes %}
-        <tr>
-          <td>{{ s.academic_year }}</td><td>{{ s.branch_code }}</td>
-          <td>{{ s.semester_label }}</td><td>{{ s.timetable_code }}</td>
-          <td>
-            <form method="post" style="display:inline">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <input type="hidden" name="action" value="remove_scope">
-              <input type="hidden" name="index" value="{{ loop.index0 }}">
-              <button type="submit" class="btn small">Remove</button>
-            </form>
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+    <div style="border:1px solid #d9e0ea;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(16,24,40,.06)">
+      <table class="data-table" style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:#f1f5fb;text-align:left">
+            <th style="padding:.7rem .9rem;border-right:1px solid #e1e7f0">Year</th>
+            <th style="padding:.7rem .9rem;border-right:1px solid #e1e7f0">Dept</th>
+            <th style="padding:.7rem .9rem;border-right:1px solid #e1e7f0">Sem</th>
+            <th style="padding:.7rem .9rem;border-right:1px solid #e1e7f0">Timetable</th>
+            <th style="padding:.7rem .9rem;text-align:center">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for s in display_scopes %}
+          <tr style="border-top:1px solid #e1e7f0">
+            <td style="padding:.65rem .9rem;border-right:1px solid #e1e7f0">{{ s.academic_year }}</td>
+            <td style="padding:.65rem .9rem;border-right:1px solid #e1e7f0">{{ s.branch_code }}</td>
+            <td style="padding:.65rem .9rem;border-right:1px solid #e1e7f0">{{ s.semester_label }}</td>
+            <td style="padding:.65rem .9rem;border-right:1px solid #e1e7f0">{{ s.timetable_code }}</td>
+            <td style="padding:.65rem .9rem;text-align:center">
+              <form method="post" style="display:inline">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="remove_scope">
+                <input type="hidden" name="index" value="{{ loop.index0 }}">
+                <button type="submit" class="btn small" style="border-radius:8px">Remove</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
     <form method="post" style="margin-top:1rem">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="preview">
@@ -160,18 +172,36 @@
   <div class="card">
     <h2>Data preview (read-only)</h2>
     {% if preview %}
-    <ul>
-      <li>Class sessions: <strong>{{ preview.sessions }}</strong></li>
-      <li>Eligible students: <strong>{{ preview.students }}</strong></li>
-      <li>Teachers: <strong>{{ preview.teachers }}</strong></li>
-      <li>Feedback forms: <strong>{{ preview.forms }}</strong></li>
-    </ul>
-    <form method="post" style="margin-top:1rem">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <input type="hidden" name="action" value="confirm">
-      <button type="submit" class="btn primary">Confirm and complete onboarding</button>
-    </form>
-    <a class="btn" href="{{ url_for('hod.onboarding', step='scopes') }}">Back to scopes</a>
+    <p class="muted" style="margin-bottom:1rem">
+      Totals for the {{ display_scopes | length }} allocation(s) you selected. Check them, then confirm.
+    </p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1rem">
+      <div style="border:1px solid #d9e0ea;border-radius:14px;padding:1.1rem 1.2rem;background:#f5f8ff;box-shadow:0 1px 3px rgba(16,24,40,.06)">
+        <div class="muted" style="font-size:.85rem;font-weight:600;letter-spacing:.02em">CLASS SESSIONS</div>
+        <div style="font-size:2rem;font-weight:700;color:#0b3a8f;margin-top:.2rem">{{ preview.sessions }}</div>
+      </div>
+      <div style="border:1px solid #d9e0ea;border-radius:14px;padding:1.1rem 1.2rem;background:#f1fbf5;box-shadow:0 1px 3px rgba(16,24,40,.06)">
+        <div class="muted" style="font-size:.85rem;font-weight:600;letter-spacing:.02em">ELIGIBLE STUDENTS</div>
+        <div style="font-size:2rem;font-weight:700;color:#12713a;margin-top:.2rem">{{ preview.students }}</div>
+      </div>
+      <div style="border:1px solid #d9e0ea;border-radius:14px;padding:1.1rem 1.2rem;background:#fff7ed;box-shadow:0 1px 3px rgba(16,24,40,.06)">
+        <div class="muted" style="font-size:.85rem;font-weight:600;letter-spacing:.02em">TEACHERS</div>
+        <div style="font-size:2rem;font-weight:700;color:#b45309;margin-top:.2rem">{{ preview.teachers }}</div>
+      </div>
+      <div style="border:1px solid #d9e0ea;border-radius:14px;padding:1.1rem 1.2rem;background:#f6f4ff;box-shadow:0 1px 3px rgba(16,24,40,.06)">
+        <div class="muted" style="font-size:.85rem;font-weight:600;letter-spacing:.02em">FEEDBACK FORMS</div>
+        <div style="font-size:2rem;font-weight:700;color:#5b34c9;margin-top:.2rem">{{ preview.forms }}</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;margin-top:1.5rem">
+      <form method="post" style="margin:0">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="confirm">
+        <button type="submit" class="btn primary" style="border-radius:10px">Confirm and complete onboarding</button>
+      </form>
+      <a class="btn" href="{{ url_for('hod.onboarding', step='scopes') }}" style="border-radius:10px">Back to scopes</a>
+    </div>
     {% else %}
     <p class="muted">Nothing to preview.</p>
     {% endif %}
