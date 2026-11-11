@@ -1,13 +1,14 @@
 {% extends 'base.html' %}
 {% block title %}Teacher Performance — HOD{% endblock %}
 {% block body %}
-{% macro multiselect(name, items, selected, all_label, noun) %}
+{% macro multiselect(name, items, selected, all_label, noun, searchable=False) %}
 <details class="ms" data-all-label="{{ all_label }}" data-noun="{{ noun }}">
   <summary class="ms-summary"><span class="ms-label">{{ all_label }}</span><span aria-hidden="true">▾</span></summary>
   <div class="ms-panel">
+    {% if searchable %}<input type="search" class="ms-search" placeholder="Search…" autocomplete="off">{% endif %}
     <label class="ms-row ms-all"><input type="checkbox" class="ms-all-cb"> Select all</label>
     {% for it in items %}
-    <label class="ms-row"><input type="checkbox" class="ms-cb" name="{{ name }}" value="{{ it.value }}"
+    <label class="ms-row" data-text="{{ it.label|lower }}"><input type="checkbox" class="ms-cb" name="{{ name }}" value="{{ it.value }}"
       data-label="{{ it.label }}" {{ 'checked' if it.value in selected }}> {{ it.label }}</label>
     {% else %}
     <div class="ms-row sub">Nothing to select for these filters.</div>
@@ -74,12 +75,9 @@
       {{ multiselect('timetable_id', tt_items, filters.timetable_ids, 'All timetables', 'timetables') }}
     </div>
     <div class="field"><label>Teacher</label>
-      <select name="teacher_user_id">
-        <option value="">All teachers</option>
-        {% for t in teachers_list %}
-        <option value="{{ t.id }}" {{ 'selected' if filters.teacher_user_id == t.id }}>{{ t.name }}{% if t.emp_code %} ({{ t.emp_code }}){% endif %}</option>
-        {% endfor %}
-      </select>
+      {% set teacher_items = [] %}
+      {% for t in teachers_list %}{% set _ = teacher_items.append({'value': t.id, 'label': t.name ~ (' (' ~ t.emp_code ~ ')' if t.emp_code else '')}) %}{% endfor %}
+      {{ multiselect('teacher_user_id', teacher_items, filters.teacher_user_ids, 'All teachers', 'teachers', true) }}
     </div>
     <div class="field"><label>Subject</label>
       {% set sub_items = [] %}
@@ -112,6 +110,8 @@
   .ms-row{display:flex;gap:.55rem;align-items:center;margin:0;padding:.5rem .6rem;border-radius:6px;font-weight:500;cursor:pointer}
   .ms-row:hover{background:#eef3fb}
   .ms-row input{width:auto;margin:0}
+  .ms-search{position:sticky;top:0;width:100%;margin:0 0 .3rem;padding:.5rem .7rem;border:1px solid var(--line,#c3ccdb);border-radius:8px;background:#fff;color:var(--ink)}
+  html.dark-mode .ms-search{background:#0f172a}
   .ms-all{font-weight:700;border-bottom:1px solid #e6ebf3;border-radius:6px 6px 0 0;margin-bottom:.2rem}
   html.dark-mode .ms-summary,html.dark-mode .ms-panel{background:#0f172a;color:var(--ink);border-color:var(--border)}
   html.dark-mode .ms-row:hover{background:#1e293b}
@@ -123,8 +123,12 @@
     var cbs = Array.prototype.slice.call(box.querySelectorAll('.ms-cb'));
     var all = box.querySelector('.ms-all-cb');
     var label = box.querySelector('.ms-label');
+    var search = box.querySelector('.ms-search');
     var allLabel = box.getAttribute('data-all-label');
     var noun = box.getAttribute('data-noun');
+    function visible(){
+      return cbs.filter(function(c){ return c.closest('.ms-row').style.display !== 'none'; });
+    }
     function refresh(){
       var on = cbs.filter(function(c){return c.checked;});
       var n = on.length;
@@ -132,13 +136,26 @@
       else if (n === cbs.length) label.textContent = allLabel + ' (' + n + ')';
       else if (n === 1) label.textContent = on[0].getAttribute('data-label');
       else label.textContent = n + ' ' + noun + ' selected';
-      all.checked = cbs.length > 0 && n === cbs.length;
+      var vis = visible();
+      all.checked = vis.length > 0 && vis.every(function(c){return c.checked;});
     }
     cbs.forEach(function(c){ c.addEventListener('change', refresh); });
+    // "Select all" ticks every row that is currently shown (so it respects the search box).
     all.addEventListener('change', function(){
-      cbs.forEach(function(c){ c.checked = all.checked; });
+      visible().forEach(function(c){ c.checked = all.checked; });
       refresh();
     });
+    if (search) {
+      search.addEventListener('input', function(){
+        var q = search.value.trim().toLowerCase();
+        cbs.forEach(function(c){
+          var row = c.closest('.ms-row');
+          row.style.display = (!q || (row.getAttribute('data-text') || '').indexOf(q) !== -1) ? '' : 'none';
+        });
+        refresh();
+      });
+      search.addEventListener('keydown', function(e){ if (e.key === 'Enter') e.preventDefault(); });
+    }
     // Ticking everything is the same as "All": send no filter for this field.
     box.closest('form').addEventListener('submit', function(){
       if (cbs.length && cbs.every(function(c){return c.checked;})) {
