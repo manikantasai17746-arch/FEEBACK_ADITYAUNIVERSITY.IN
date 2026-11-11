@@ -420,7 +420,9 @@ def form_new():
                            years=years, semesters=semesters,
                            default_instructions=services.DEFAULT_INSTRUCTIONS,
                            question_sets_json=json.dumps(
-                               services.question_sets_for(user['id']) + services.shared_question_sets()))
+                               [x for x in services.question_sets_for(user['id'])
+                                if not x.get('base_key')]
+                               + services.effective_shared_sets(user['id'])))
 
 
 @bp.route('/forms/save', methods=['POST'])
@@ -525,6 +527,33 @@ def api_question_set_copy_shared():
         return _qs_json_error(err)
     audit('hod.qset.copy', 'question_sets', sid, 'HOD copied a shared question set')
     return jsonify(ok=True, id=sid)
+
+
+@bp.route('/api/question-sets/customise-shared', methods=['POST'])
+@role_required('hod')
+def api_question_set_customise_shared():
+    """HOD starts editing one of the phase sets (Phase 1, Phase 2, Lab, CRT)."""
+    from flask import jsonify
+    user = current_user()
+    sid, err = services.customise_shared_set(
+        user['id'], (request.get_json(silent=True) or {}).get('key'))
+    if err:
+        return _qs_json_error(err)
+    audit('hod.qset.customise', 'question_sets', sid, 'HOD started editing a phase question set')
+    return jsonify(ok=True, id=sid)
+
+
+@bp.route('/api/question-sets/reset-shared', methods=['POST'])
+@role_required('hod')
+def api_question_set_reset_shared():
+    """HOD discards their edits and returns to the default questions."""
+    from flask import jsonify
+    user = current_user()
+    if not services.reset_shared_set(
+            user['id'], (request.get_json(silent=True) or {}).get('key')):
+        return _qs_json_error('Nothing to reset.', 404)
+    audit('hod.qset.reset', 'question_sets', 0, 'HOD reset a phase question set to default')
+    return jsonify(ok=True)
 
 
 @bp.route('/api/question-sets/<int:sid>/rename', methods=['POST'])
