@@ -222,6 +222,7 @@ def faculty_scores_for_branches(
     teacher_user_id: Optional[int] = None,
     timetable_ids: Optional[List[int]] = None,
     subject_codes: Optional[List[str]] = None,
+    teacher_user_ids: Optional[List[int]] = None,
     min_responses: int = MIN_RESPONSE_THRESHOLD,
 ) -> List[dict]:
     """Marks-sheet rows for faculty in the given branches.
@@ -265,6 +266,9 @@ def faculty_scores_for_branches(
     if teacher_user_id:
         sql += ' AND cs.teacher_user_id = ?'
         params.append(teacher_user_id)
+    if teacher_user_ids:
+        sql += ' AND cs.teacher_user_id IN (' + ','.join('?' * len(teacher_user_ids)) + ')'
+        params.extend(teacher_user_ids)
     if subject_codes:
         _sph = ','.join('?' * len(subject_codes))
         sql += (f' AND (ff.subject_code IN ({_sph})'
