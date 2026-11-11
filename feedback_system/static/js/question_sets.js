@@ -24,7 +24,8 @@
   }
   function byId(id) { return sets.concat(shared).filter(function (s) { return s.id === id; })[0]; }
   function common() { return sets.filter(function (s) { return s.is_common; })[0]; }
-  function named() { return sets.filter(function (s) { return !s.is_common; }); }
+  function named() { return sets.filter(function (s) { return !s.is_common && !s.base_key; }); }
+  function overrideFor(key) { return sets.filter(function (s) { return s.base_key === key; })[0]; }
   function presetKey(q) {
     var labels = (q.options || []).map(function (o) { return o.label; }).join('|');
     for (var k in presets) {
@@ -141,11 +142,13 @@
     var sbox = document.getElementById('qs-shared-buttons');
     sbox.innerHTML = '';
     shared.forEach(function (s) {
+      var ov = overrideFor(s.id);
+      var target = ov ? ov.id : s.id;
       var b = document.createElement('button');
       b.type = 'button';
-      b.className = 'btn btn-sm' + (s.id === activeId ? '' : ' btn-ghost');
-      b.textContent = s.name;
-      b.addEventListener('click', function () { activeId = s.id; renderAll(); });
+      b.className = 'btn btn-sm' + (target === activeId ? '' : ' btn-ghost');
+      b.textContent = s.name + (ov ? ' · edited' : '');
+      b.addEventListener('click', function () { activeId = target; renderAll(); });
       sbox.appendChild(b);
     });
     var box = document.getElementById('qs-buttons');
@@ -184,16 +187,33 @@
     document.getElementById('qs-active-title').textContent = s.name;
     var actions = document.getElementById('qs-set-actions');
     if (s.shared) {
-      document.getElementById('status-active').textContent = 'Shared · read-only';
+      document.getElementById('status-active').textContent = 'Standard questions';
       document.getElementById('status-active').style.color = '#6b7590';
-      actions.innerHTML = '<button type="button" class="btn btn-sm" data-copy>Copy to my sets</button>';
-      actions.querySelector('[data-copy]').addEventListener('click', function () {
-        post(baseUrl + '/copy-shared', { key: s.id }).then(function (res) {
-          if (!res.ok) { window.alert((res.data.errors || ['Could not copy the set.'])[0]); return; }
-          window.location.reload();
+      actions.innerHTML = '<button type="button" class="btn btn-sm" data-edit>Edit this set</button>' +
+        '<span class="hint" style="align-self:center">Changes apply to your department only.</span>';
+      actions.querySelector('[data-edit]').addEventListener('click', function () {
+        post(baseUrl + '/customise-shared', { key: s.id }).then(function (res) {
+          if (!res.ok) { window.alert((res.data.errors || ['Could not start editing.'])[0]); return; }
+          sets.push({ id: res.data.id, name: s.name, is_common: false, base_key: s.id,
+                      questions: JSON.parse(JSON.stringify(s.questions)) });
+          activeId = res.data.id; renderAll();
         });
       });
       renderReadOnly(s, document.getElementById('qs-active'));
+      return;
+    }
+    if (s.base_key) {
+      document.getElementById('status-active').textContent = '';
+      actions.innerHTML = '<button type="button" class="btn btn-ghost btn-sm" data-reset>Reset to default</button>';
+      actions.querySelector('[data-reset]').addEventListener('click', function () {
+        if (!window.confirm('Reset "' + s.name + '" to the standard questions? Your changes to this set will be lost. Forms already created keep their questions.')) return;
+        post(baseUrl + '/reset-shared', { key: s.base_key }).then(function (res) {
+          if (!res.ok) { window.alert('Could not reset the set.'); return; }
+          sets = sets.filter(function (x) { return x.id !== s.id; });
+          activeId = s.base_key; renderAll();
+        });
+      });
+      renderQuestions(s, document.getElementById('qs-active'));
       return;
     }
     document.getElementById('status-active').textContent = '';
