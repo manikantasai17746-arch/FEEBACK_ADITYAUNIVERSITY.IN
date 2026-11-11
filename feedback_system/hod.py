@@ -665,7 +665,7 @@ def api_subjects():
         request.args.get('subject_code') or None,
         timetable_ids=tt_ids if len(tt_ids) > 1 else None)
     # Extra guard: if no branch filter, limit to HOD branches via post-filter of subjects
-    subjects = services.subjects_for_scope(filters)
+    subjects = services.subjects_for_scope(filters, require_students=True)
     if branch_id is None and allowed:
         # subjects_for_scope may span all branches when branch unset; filter via sessions
         # Prefer requiring branch selection in UI; return empty if no branch.
@@ -1686,3 +1686,4 @@ def performance_compare():
         user=user, branches=branches, teachers=teachers,
         teacher_id=teacher_id, form_a=form_a, form_b=form_b,
         teacher_forms=teacher_forms, comparison=comparison, error=error)
+  
