@@ -497,4 +497,24 @@ MIGRATIONS = [
             WHERE phase IS NULL AND REPLACE(LOWER(TRIM(title)),' ','') = 'phase2'""",
         "CREATE INDEX IF NOT EXISTS ix_forms_phase ON feedback_forms(phase)",
     ]),
+    (12, "HOD question sets (private to each HOD)", [
+        """CREATE TABLE IF NOT EXISTS question_sets(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_user_id INTEGER NOT NULL REFERENCES users(id),
+            name TEXT NOT NULL,
+            is_common INTEGER NOT NULL DEFAULT 0,
+            is_deleted INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+        "CREATE INDEX IF NOT EXISTS ix_qsets_owner ON question_sets(owner_user_id)",
+        """CREATE TABLE IF NOT EXISTS question_set_items(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            set_id INTEGER NOT NULL REFERENCES question_sets(id) ON DELETE CASCADE,
+            position INTEGER NOT NULL DEFAULT 0,
+            text TEXT NOT NULL DEFAULT '',
+            qtype TEXT NOT NULL DEFAULT 'rating',
+            is_required INTEGER NOT NULL DEFAULT 1,
+            options_json TEXT NOT NULL DEFAULT '[]')""",
+        "CREATE INDEX IF NOT EXISTS ix_qset_items_set ON question_set_items(set_id)",
+    ]),
 ]
