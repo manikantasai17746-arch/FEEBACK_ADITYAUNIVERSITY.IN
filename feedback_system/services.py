@@ -1474,9 +1474,24 @@ def subject_scope_filters(academic_year_id=None, semester_id=None, branch_id=Non
     }
 
 
-def subjects_for_scope(filters):
-    """Distinct subjects taught in the selected academic configuration."""
+def subjects_for_scope(filters, require_students=False):
+    """Distinct subjects taught in the selected academic configuration.
+
+    With ``require_students=True`` only subjects that have at least one
+    session with enrolled (eligible) students are returned, so subjects that
+    are not linked to any students never appear in the form builder.
+    """
     rows = sessions_for_bulk(filters)
+    if require_students and rows:
+        ids = [s['id'] for s in rows]
+        with_students = set()
+        for i in range(0, len(ids), 500):
+            chunk = ids[i:i + 500]
+            ph = ','.join('?' * len(chunk))
+            with_students.update(r['session_id'] for r in db.query(
+                f'SELECT DISTINCT session_id FROM session_students '
+                f'WHERE session_id IN ({ph})', tuple(chunk)))
+        rows = [s for s in rows if s['id'] in with_students]
     seen = {}
     for s in rows:
         seen.setdefault(s['subject_code'], s['subject_name'])
