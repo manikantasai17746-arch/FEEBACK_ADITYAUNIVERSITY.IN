@@ -12,13 +12,15 @@
       <a href="{{ url_for('hod.results') }}">Results</a>
     </nav>
   </div>
-  <p class="sub">Build reusable sets such as Phase 1, Phase 2 or CRT questions. Sets are private to you.
-    The common questions appear in every set. Every change saves automatically.</p>
+  <p class="sub">Build reusable sets such as Phase 1, Phase 2 or CRT questions. The shared sets are
+    common to all HODs and cannot be edited; copy one to customise it. Your own sets are private to you. Every change saves automatically.</p>
 
   <div id="qs-app"
        data-create-url="{{ url_for('hod.api_question_set_create') }}"
        data-base-url="{{ url_for('hod.api_question_set_create') }}">
-    <div class="card"><div class="step">Your question sets</div>
+    <div class="card"><div class="step">Shared by all HODs <span class="badge">read-only</span></div>
+      <div class="btn-row" id="qs-shared-buttons"></div></div>
+    <div class="card"><div class="step">Your own question sets</div>
       <div class="btn-row" id="qs-buttons"></div></div>
 
     <div class="card"><div class="step">Common questions
@@ -33,6 +35,7 @@
   </div>
 
   <script type="application/json" id="qs-sets-data">{{ sets_json|safe }}</script>
+  <script type="application/json" id="qs-shared-data">{{ shared_json|safe }}</script>
   <script type="application/json" id="qs-presets-data">{{ presets_json|safe }}</script>
   <script src="{{ url_for('static', filename='js/question_sets.js') }}"></script>
 </div>
