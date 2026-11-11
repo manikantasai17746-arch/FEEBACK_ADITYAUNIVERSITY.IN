@@ -253,7 +253,7 @@
     if (!named.length) { document.getElementById('set-empty').style.display = ''; return; }
     named.forEach(function (s) {
       var b = document.createElement('button');
-      b.type = 'button'; b.className = 'btn btn-sm btn-ghost'; b.textContent = s.name;
+      b.type = 'button'; b.className = 'btn btn-sm btn-ghost'; b.textContent = s.name + (s.shared ? ' · shared' : '');
       b.setAttribute('data-id', s.id);
       b.addEventListener('click', function () { show(s); });
       btnBox.appendChild(b);
