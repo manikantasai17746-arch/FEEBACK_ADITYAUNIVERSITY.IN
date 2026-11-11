@@ -1070,6 +1070,11 @@ def sessions_for_bulk(filters=None):
         if filters.get(key):
             where.append(f'{col}=?')
             args.append(filters[key])
+    # Several timetables may be ticked at once (multi-select on the HOD form page).
+    tt_ids = [int(x) for x in (filters.get('timetable_ids') or []) if x]
+    if tt_ids and not filters.get('timetable_id'):
+        where.append('cs.timetable_id IN (' + ','.join('?' * len(tt_ids)) + ')')
+        args.extend(tt_ids)
     return db.query(SESSION_SELECT + ' WHERE ' + ' AND '.join(where) +
                     ' ORDER BY b.code, t.code, cs.period_no, cs.subject_code', tuple(args))
 
@@ -1166,13 +1171,14 @@ def bulk_create_forms(filters, questions, title_pattern, status, admin_id):
 # Subject-scoped forms ("No Preference (All Timetables)")
 # --------------------------------------------------------------------------- #
 def subject_scope_filters(academic_year_id=None, semester_id=None, branch_id=None,
-                          timetable_id=None, subject_code=None):
+                          timetable_id=None, subject_code=None, timetable_ids=None):
     return {
         'academic_year_id': academic_year_id,
         'semester_id': semester_id,
         'branch_id': branch_id,
         'timetable_id': timetable_id,
         'subject_code': subject_code,
+        'timetable_ids': list(timetable_ids or []),
     }
 
 
@@ -1218,10 +1224,15 @@ def subject_scope_preview(filters):
             'label': f"P{s['period_no'] or '?'}: {s['subject_code']} — "
                      f"{s['teacher_name'] or 'Unassigned'}",
         } for s in sessions[:12]]
-        existing = find_duplicate_subject_form(
-            filters.get('academic_year_id'), filters.get('semester_id'),
-            filters.get('branch_id'), filters.get('timetable_id'),
-            filters.get('subject_code'))
+        if filters.get('timetable_ids'):
+            existing = find_duplicate_subject_form_for_sessions(
+                filters.get('academic_year_id'), filters.get('semester_id'),
+                filters.get('branch_id'), filters.get('subject_code'), ids)
+        else:
+            existing = find_duplicate_subject_form(
+                filters.get('academic_year_id'), filters.get('semester_id'),
+                filters.get('branch_id'), filters.get('timetable_id'),
+                filters.get('subject_code'))
         if existing:
             result['existing_form_id'] = existing['id']
             result['existing_form_title'] = existing['title']
@@ -1302,6 +1313,31 @@ def find_duplicate_subject_form(academic_year_id, semester_id, branch_id,
         sql += " AND LOWER(TRIM(title))=?"
         args.append((title or '').strip().lower()[:200])
     return db.query(sql + " ORDER BY id LIMIT 1", tuple(args), one=True)
+
+
+def find_duplicate_subject_form_for_sessions(academic_year_id, semester_id, branch_id,
+                                             subject_code, session_ids, title=None):
+    """Duplicate check for a subject form that covers SEVERAL (but not all) timetables.
+
+    Such a form stores no single timetable_id, so it is a duplicate only when an
+    existing form has the same subject/title and exactly the same set of sessions.
+    """
+    if not subject_code or not session_ids:
+        return None
+    sql = """SELECT * FROM feedback_forms
+        WHERE is_deleted=0 AND scope='subject' AND subject_code=?
+          AND COALESCE(academic_year_id,-1)=COALESCE(?,-1)
+          AND COALESCE(semester_id,-1)=COALESCE(?,-1)
+          AND COALESCE(branch_id,-1)=COALESCE(?,-1)"""
+    args = [subject_code, academic_year_id, semester_id, branch_id]
+    if title is not None:
+        sql += " AND LOWER(TRIM(title))=?"
+        args.append((title or '').strip().lower()[:200])
+    wanted = set(session_ids)
+    for row in db.query(sql + ' ORDER BY id', tuple(args)):
+        if set(form_session_ids(row['id'])) == wanted:
+            return row
+    return None
 
 
 # --------------------------------------------------------------------------- #
