@@ -1071,6 +1071,157 @@ def default_question_template():
     ]
 
 
+# --------------------------------------------------------------------------- #
+# HOD question sets: private to the HOD who created them
+# --------------------------------------------------------------------------- #
+SCALE_PRESETS = {
+    'five_point': {
+        'label': 'Excellent · Very Good · Good · Average · Poor',
+        'options': [{'label': 'Excellent', 'value': 5}, {'label': 'Very Good', 'value': 4},
+                    {'label': 'Good', 'value': 3}, {'label': 'Average', 'value': 2},
+                    {'label': 'Poor', 'value': 1}]},
+    'four_point': {
+        'label': 'Excellent · Good · Bad · Very poor',
+        'options': [{'label': 'Excellent', 'value': 4}, {'label': 'Good', 'value': 3},
+                    {'label': 'Bad', 'value': 2}, {'label': 'Very poor', 'value': 1}]},
+}
+QSET_QTYPES = ('rating', 'text')
+COMMON_SET_NAME = 'Common questions'
+
+
+def _clean_set_questions(questions):
+    out = []
+    for q in (questions or [])[:100]:
+        if not isinstance(q, dict):
+            continue
+        qtype = q.get('qtype') if q.get('qtype') in QSET_QTYPES else 'rating'
+        options = []
+        if qtype == 'rating':
+            for i, o in enumerate((q.get('options') or [])[:10]):
+                label = str((o or {}).get('label') or '').strip()[:200]
+                if not label:
+                    continue
+                try:
+                    value = int(o.get('value'))
+                except (TypeError, ValueError):
+                    value = None
+                options.append({'label': label, 'value': value})
+            if len(options) < 2:
+                options = [dict(o) for o in SCALE_PRESETS['five_point']['options']]
+        out.append({'text': str(q.get('text') or '').strip()[:1000], 'qtype': qtype,
+                    'is_required': bool(q.get('is_required')), 'options': options})
+    return out
+
+
+def _set_items(set_id):
+    import json
+    return [{'text': r['text'], 'qtype': r['qtype'], 'is_required': bool(r['is_required']),
+             'options': json.loads(r['options_json'] or '[]')}
+            for r in db.query(
+                'SELECT text, qtype, is_required, options_json FROM question_set_items '
+                'WHERE set_id=? ORDER BY position, id', (set_id,))]
+
+
+def ensure_common_set(owner_id):
+    row = db.query('SELECT id FROM question_sets WHERE owner_user_id=? AND is_common=1 '
+                   'AND is_deleted=0', (owner_id,), one=True)
+    if row:
+        return row['id']
+    new_id = db.insert_id(
+        'INSERT INTO question_sets(owner_user_id, name, is_common) VALUES(?,?,1)',
+        (owner_id, COMMON_SET_NAME))
+    db.get_db().commit()
+    return new_id
+
+
+def question_sets_for(owner_id):
+    """The HOD's own common set plus their named sets, each with its questions."""
+    ensure_common_set(owner_id)
+    rows = db.query('SELECT id, name, is_common FROM question_sets '
+                    'WHERE owner_user_id=? AND is_deleted=0 '
+                    'ORDER BY is_common DESC, LOWER(name), id', (owner_id,))
+    return [{'id': r['id'], 'name': r['name'], 'is_common': bool(r['is_common']),
+             'questions': _set_items(r['id'])} for r in rows]
+
+
+def get_owned_set(owner_id, set_id):
+    return db.query('SELECT * FROM question_sets WHERE id=? AND owner_user_id=? '
+                    'AND is_deleted=0', (set_id, owner_id), one=True)
+
+
+def create_question_set(owner_id, name):
+    """Returns (set_id, error)."""
+    name = ' '.join((name or '').split())[:80]
+    if not name:
+        return None, 'Give the set a name.'
+    if db.query('SELECT 1 FROM question_sets WHERE owner_user_id=? AND is_deleted=0 '
+                'AND LOWER(name)=?', (owner_id, name.lower()), one=True):
+        return None, 'You already have a set with that name.'
+    sid = db.insert_id('INSERT INTO question_sets(owner_user_id, name) VALUES(?,?)',
+                       (owner_id, name))
+    db.get_db().commit()
+    return sid, None
+
+
+def rename_question_set(owner_id, set_id, name):
+    name = ' '.join((name or '').split())[:80]
+    row = get_owned_set(owner_id, set_id)
+    if not row or row['is_common']:
+        return 'Set not found.'
+    if not name:
+        return 'Give the set a name.'
+    if db.query('SELECT 1 FROM question_sets WHERE owner_user_id=? AND is_deleted=0 '
+                'AND LOWER(name)=? AND id<>?', (owner_id, name.lower(), set_id), one=True):
+        return 'You already have a set with that name.'
+    db.execute('UPDATE question_sets SET name=?, updated_at=CURRENT_TIMESTAMP WHERE id=?',
+               (name, set_id))
+    return None
+
+
+def delete_question_set(owner_id, set_id):
+    row = get_owned_set(owner_id, set_id)
+    if not row or row['is_common']:
+        return False
+    db.execute('UPDATE question_sets SET is_deleted=1, updated_at=CURRENT_TIMESTAMP '
+               'WHERE id=?', (set_id,))
+    return True
+
+
+def save_set_questions(owner_id, set_id, questions):
+    """Replace a set's questions (called by the auto-save).  Returns False if not owned."""
+    import json
+    if not get_owned_set(owner_id, set_id):
+        return False
+    conn = db.get_db()
+    conn.execute('DELETE FROM question_set_items WHERE set_id=?', (set_id,))
+    for pos, q in enumerate(_clean_set_questions(questions)):
+        conn.execute(
+            'INSERT INTO question_set_items(set_id, position, text, qtype, is_required, '
+            'options_json) VALUES(?,?,?,?,?,?)',
+            (set_id, pos, q['text'], q['qtype'], 1 if q['is_required'] else 0,
+             json.dumps(q['options'])))
+    conn.execute('UPDATE question_sets SET updated_at=CURRENT_TIMESTAMP WHERE id=?', (set_id,))
+    conn.commit()
+    return True
+
+
+def questions_not_from_sets(owner_id, questions):
+    """Questions that do not match any question in the HOD's own sets (by text,
+    type and option labels).  Used to enforce 'form questions come from sets'."""
+    allowed = set()
+    for st in question_sets_for(owner_id):
+        for q in st['questions']:
+            allowed.add((q['text'].strip(), q['qtype'],
+                         tuple(o['label'].strip() for o in q['options'])))
+    bad = []
+    for q in questions or []:
+        key = ((q.get('text') or '').strip(), q.get('qtype', 'rating'),
+               tuple((o.get('label') or '').strip() for o in (q.get('options') or [])))
+        if key not in allowed:
+            bad.append(q.get('text') or '(blank question)')
+    return bad
+
+
 def sessions_for_bulk(filters=None):
     """Teaching sessions matching the given filters (all filters optional)."""
     filters = filters or {}
