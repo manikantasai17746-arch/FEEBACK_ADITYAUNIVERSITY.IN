@@ -1042,7 +1042,9 @@ def performance():
     academic_year_id = request.args.get('academic_year_id', type=int)
     semester_id = request.args.get('semester_id', type=int)
     branch_id = request.args.get('branch_id', type=int)
-    timetable_id = request.args.get('timetable_id', type=int)
+    # Several timetables can be ticked at once (?timetable_id=1&timetable_id=2).
+    timetable_ids = list(dict.fromkeys(request.args.getlist('timetable_id', type=int)))
+    timetable_id = timetable_ids[0] if len(timetable_ids) == 1 else None
     subject_code = (request.args.get('subject_code') or '').strip() or None
     teacher_user_id = request.args.get('teacher_user_id', type=int)
     form_id = request.args.get('form_id', type=int)
@@ -1063,6 +1065,7 @@ def performance():
             subject_code=subject_code,
             teacher_user_id=teacher_user_id,
             form_id=form_id,
+            timetable_ids=timetable_ids or None,
             min_responses=1,
         )
         if q:
@@ -1214,6 +1217,7 @@ def performance():
             'semester_id': semester_id,
             'branch_id': branch_id,
             'timetable_id': timetable_id,
+            'timetable_ids': timetable_ids,
             'subject_code': subject_code or '',
             'teacher_user_id': teacher_user_id,
             'form_id': form_id,
