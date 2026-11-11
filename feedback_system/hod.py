@@ -1,4 +1,5 @@
 """HOD portal — department-scoped form management and results."""
+import json
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    url_for)
 
@@ -362,6 +363,10 @@ def _hod_validate_form_payload(user, data):
                 second_name = sfa.get('second_teacher_name') or sfa.get('second_emp_code') or 'Second faculty'
                 payload['title'] = f'Second faculty feedback — {second_name}'
 
+    not_from_sets = services.questions_not_from_sets(user['id'], questions)
+    if not_from_sets:
+        errors.append('Questions must come from your question sets. Not found in your sets: '
+                      + '; '.join(not_from_sets[:3]) + ('…' if len(not_from_sets) > 3 else ''))
     errors.extend(services.phase_rule_errors(
         payload.get('phase'), session_ids, exclude_form_id=existing_id))
     if errors:
@@ -413,7 +418,8 @@ def form_new():
     semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
     return render_template('hod_form_new.html', branches=branches,
                            years=years, semesters=semesters,
-                           default_instructions=services.DEFAULT_INSTRUCTIONS)
+                           default_instructions=services.DEFAULT_INSTRUCTIONS,
+                           question_sets_json=json.dumps(services.question_sets_for(user['id'])))
 
 
 @bp.route('/forms/save', methods=['POST'])
@@ -473,6 +479,67 @@ def form_status(fid):
         return jsonify(ok=True, form_id=fid, status=status)
     flash(f'Form status updated to {status}.', 'success')
     return redirect(request.form.get('next') or url_for('hod.forms'))
+
+
+# --------------------------------------------------------------------------- #
+# Question sets (private to the logged-in HOD)
+# --------------------------------------------------------------------------- #
+@bp.route('/question-sets')
+@role_required('hod')
+def question_sets():
+    user = current_user()
+    return render_template(
+        'hod_question_sets.html',
+        sets_json=json.dumps(services.question_sets_for(user['id'])),
+        presets_json=json.dumps(services.SCALE_PRESETS))
+
+
+def _qs_json_error(msg, code=400):
+    from flask import jsonify
+    return jsonify(ok=False, errors=[msg]), code
+
+
+@bp.route('/api/question-sets', methods=['POST'])
+@role_required('hod')
+def api_question_set_create():
+    from flask import jsonify
+    user = current_user()
+    data = request.get_json(silent=True) or {}
+    sid, err = services.create_question_set(user['id'], data.get('name'))
+    if err:
+        return _qs_json_error(err)
+    audit('hod.qset.create', 'question_sets', sid, 'HOD created a question set')
+    return jsonify(ok=True, id=sid)
+
+
+@bp.route('/api/question-sets/<int:sid>/rename', methods=['POST'])
+@role_required('hod')
+def api_question_set_rename(sid):
+    from flask import jsonify
+    err = services.rename_question_set(
+        current_user()['id'], sid, (request.get_json(silent=True) or {}).get('name'))
+    return _qs_json_error(err) if err else jsonify(ok=True)
+
+
+@bp.route('/api/question-sets/<int:sid>/delete', methods=['POST'])
+@role_required('hod')
+def api_question_set_delete(sid):
+    from flask import jsonify
+    if not services.delete_question_set(current_user()['id'], sid):
+        return _qs_json_error('Set not found.', 404)
+    audit('hod.qset.delete', 'question_sets', sid, 'HOD deleted a question set')
+    return jsonify(ok=True)
+
+
+@bp.route('/api/question-sets/<int:sid>/questions', methods=['POST'])
+@role_required('hod')
+def api_question_set_save(sid):
+    """Auto-save: replaces the questions of one of the HOD's own sets."""
+    from flask import jsonify
+    data = request.get_json(silent=True) or {}
+    if not services.save_set_questions(current_user()['id'], sid, data.get('questions')):
+        return _qs_json_error('Set not found.', 404)
+    return jsonify(ok=True)
 
 
 @bp.route('/api/timetables')
