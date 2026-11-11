@@ -1049,7 +1049,9 @@ def performance():
     subject_codes = list(dict.fromkeys(
         c.strip() for c in request.args.getlist('subject_code') if c and c.strip()))
     subject_code = subject_codes[0] if len(subject_codes) == 1 else None
-    teacher_user_id = request.args.get('teacher_user_id', type=int)
+    # Several teachers can be ticked at once (?teacher_user_id=1&teacher_user_id=2).
+    teacher_user_ids = list(dict.fromkeys(request.args.getlist('teacher_user_id', type=int)))
+    teacher_user_id = teacher_user_ids[0] if len(teacher_user_ids) == 1 else None
     form_id = request.args.get('form_id', type=int)
     mode = (request.args.get('mode') or 'timetable').strip().lower()
     q = (request.args.get('q') or '').strip().lower()
@@ -1066,7 +1068,7 @@ def performance():
             academic_year_id=academic_year_id,
             semester_id=semester_id,
             subject_codes=subject_codes or None,
-            teacher_user_id=teacher_user_id,
+            teacher_user_ids=teacher_user_ids or None,
             form_id=form_id,
             timetable_ids=timetable_ids or None,
             min_responses=1,
@@ -1177,13 +1179,23 @@ def performance():
             tt_sql += ' AND t.branch_id=?'; tt_args.append(branch_id)
         tt_sql += ' ORDER BY b.code, t.code'
         timetables = db.query(tt_sql, tuple(tt_args))
-        teachers_list = db.query(
-            f"""SELECT DISTINCT u.id, u.name, u.emp_code
-                FROM users u
-                JOIN class_sessions cs ON cs.teacher_user_id=u.id
-                JOIN timetables t ON t.id=cs.timetable_id
-                WHERE t.branch_id IN ({ph}) AND cs.is_deleted=0
-                ORDER BY u.name""", tuple(branch_ids))
+        teach_sql = f"""SELECT DISTINCT u.id, u.name, u.emp_code
+            FROM users u
+            JOIN class_sessions cs ON cs.teacher_user_id=u.id
+            JOIN timetables t ON t.id=cs.timetable_id
+            WHERE t.branch_id IN ({ph}) AND cs.is_deleted=0 AND t.is_deleted=0"""
+        teach_args = list(branch_ids)
+        if academic_year_id:
+            teach_sql += ' AND t.academic_year_id=?'; teach_args.append(academic_year_id)
+        if semester_id:
+            teach_sql += ' AND t.semester_id=?'; teach_args.append(semester_id)
+        if branch_id:
+            teach_sql += ' AND t.branch_id=?'; teach_args.append(branch_id)
+        if timetable_ids:
+            teach_sql += (' AND t.id IN (' + ','.join('?' * len(timetable_ids)) + ')')
+            teach_args.extend(timetable_ids)
+        teach_sql += ' ORDER BY u.name'
+        teachers_list = db.query(teach_sql, tuple(teach_args))
         # Subjects come from the class timetable, so they are available before any
         # feedback form exists. They follow the year / semester / branch / timetable
         # filters above.
@@ -1236,6 +1248,7 @@ def performance():
             'subject_code': subject_code or '',
             'subject_codes': subject_codes,
             'teacher_user_id': teacher_user_id,
+            'teacher_user_ids': teacher_user_ids,
             'form_id': form_id,
             'q': q,
             'mode': mode,
