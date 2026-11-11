@@ -3,6 +3,35 @@
   'use strict';
   var csrf = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
 
+  /* ---------- "Please wait" busy overlay (blur + spinner) ---------- */
+  var busyEl = null;
+  window.FFBusy = {
+    show: function (msg) {
+      if (!busyEl) {
+        busyEl = document.createElement('div');
+        busyEl.className = 'busy-overlay';
+        busyEl.setAttribute('role', 'alert');
+        busyEl.setAttribute('aria-live', 'assertive');
+        busyEl.innerHTML = '<div class="busy-box"><div class="busy-spinner"></div>' +
+          '<div class="busy-msg"></div><div class="busy-sub">Please wait, do not close or refresh this page.</div></div>';
+        document.body.appendChild(busyEl);
+      }
+      busyEl.querySelector('.busy-msg').textContent = msg || 'Working…';
+      busyEl.classList.add('on');
+    },
+    hide: function () { if (busyEl) busyEl.classList.remove('on'); }
+  };
+  // Back/forward cache can restore a page with the overlay still showing.
+  window.addEventListener('pageshow', function (e) { if (e.persisted) window.FFBusy.hide(); });
+  // Any form that changes a form's status (Publish / Close / Archive) from the Forms list.
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f || !f.action || !/\/forms\/\d+\/status/.test(f.action)) return;
+    var st = f.querySelector('[name=status]');
+    var v = st ? st.value : '';
+    window.FFBusy.show(v === 'open' ? 'Publishing form…' : 'Updating form…');
+  });
+
   /* ---------- generic back button ---------- */
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-back]');
@@ -678,8 +707,10 @@
     return body;
   }
 
-  function save() {
+  // keep=true leaves the overlay up on success (the caller navigates away next).
+  function save(keep, msg) {
     showErrors([]);
+    window.FFBusy.show(msg || 'Saving form…');
     return fetch(saveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf,
@@ -688,20 +719,23 @@
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
       .then(function (res) {
         if (!res.ok || !res.data.ok) {
+          window.FFBusy.hide();
           showErrors(res.data.errors || ['Could not save the form. Please check the fields.']);
           return null;
         }
         formId = res.data.form_id;
         builder.setAttribute('data-form-id', formId);
         if (history.replaceState) { history.replaceState(null, '', editUrlTpl.replace('{id}', formId)); }
+        if (!keep) window.FFBusy.hide();
         return formId;
       })
-      .catch(function () { showErrors(['Network error while saving.']); return null; });
+      .catch(function () { window.FFBusy.hide(); showErrors(['Network error while saving.']); return null; });
   }
 
   /* Several subjects ticked: one form per subject, saved one after another. */
-  function saveMany(codes) {
+  function saveMany(codes, msg) {
     showErrors([]);
+    window.FFBusy.show(msg || 'Saving forms…');
     var ids = [];
     var chain = Promise.resolve(true);
     codes.forEach(function (code) {
@@ -727,8 +761,8 @@
           });
       });
     });
-    return chain.then(function (ok) { return ok ? ids : null; })
-      .catch(function () { showErrors(['Network error while saving.']); return null; });
+    return chain.then(function (ok) { if (!ok) window.FFBusy.hide(); return ok ? ids : null; })
+      .catch(function () { window.FFBusy.hide(); showErrors(['Network error while saving.']); return null; });
   }
 
   function publishMany(ids, codes) {
@@ -736,6 +770,7 @@
     var chain = Promise.resolve();
     ids.forEach(function (id, i) {
       chain = chain.then(function () {
+        window.FFBusy.show('Publishing form ' + (i + 1) + ' of ' + ids.length + '…');
         return fetch(statusUrlTpl.replace('/0/status', '/' + id + '/status'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf,
@@ -751,7 +786,11 @@
           });
       });
     });
-    return chain.then(function () { return failures; });
+    return chain.then(function () { return failures; })
+      .catch(function () {
+        failures.push('Network error while publishing. Check the Forms page for drafts.');
+        return failures;
+      });
   }
 
   function isMulti() { return scope === 'subject' && subjValues().length > 1; }
@@ -804,6 +843,7 @@
         if (!ids) return;
         publishMany(ids, codes).then(function (failures) {
           if (failures.length) {
+            window.FFBusy.hide();
             showErrors(failures.concat(['The other forms were published. Failed ones stay as drafts on the Forms page.']));
             return;
           }
@@ -812,8 +852,9 @@
       });
       return;
     }
-    save().then(function (id) {
+    save(true, 'Publishing form…').then(function (id) {
       if (!id) return;
+      window.FFBusy.show('Publishing form…');
       var f = document.createElement('form');
       f.method = 'POST';
       f.action = statusUrlTpl.replace('/0/status', '/' + id + '/status');
