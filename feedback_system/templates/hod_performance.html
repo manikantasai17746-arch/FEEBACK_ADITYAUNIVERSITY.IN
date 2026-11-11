@@ -55,12 +55,18 @@
       </select>
     </div>
     <div class="field"><label>Section / Timetable</label>
-      <select name="timetable_id">
-        <option value="">All</option>
-        {% for t in timetables %}
-        <option value="{{ t.id }}" {{ 'selected' if filters.timetable_id == t.id }}>{{ t.branch }} · {{ t.code }}</option>
-        {% endfor %}
-      </select>
+      <details class="ms" id="ttMulti">
+        <summary class="ms-summary"><span id="ttLabel">All timetables</span><span aria-hidden="true">▾</span></summary>
+        <div class="ms-panel">
+          <label class="ms-row ms-all"><input type="checkbox" id="ttAll"> Select all</label>
+          {% for t in timetables %}
+          <label class="ms-row"><input type="checkbox" class="tt-cb" name="timetable_id" value="{{ t.id }}"
+            data-label="{{ t.branch }} · {{ t.code }}" {{ 'checked' if t.id in filters.timetable_ids }}> {{ t.branch }} · {{ t.code }}</label>
+          {% else %}
+          <div class="ms-row sub">No timetables for these filters.</div>
+          {% endfor %}
+        </div>
+      </details>
     </div>
     <div class="field"><label>Teacher</label>
       <select name="teacher_user_id">
@@ -94,6 +100,54 @@
     <a class="btn btn-ghost" href="{{ url_for('hod.performance', mode=mode) }}">Reset</a>
   </div>
 </form>
+
+<style>
+  .ms{position:relative}
+  .ms-summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;
+    padding:.7rem .9rem;border:1px solid var(--line,#c3ccdb);border-radius:8px;background:#fff;color:var(--ink)}
+  .ms-summary::-webkit-details-marker{display:none}
+  .ms[open] .ms-summary{border-color:var(--au-blue,#1558c0);box-shadow:0 0 0 3px rgba(21,88,192,.15)}
+  .ms-panel{position:absolute;z-index:30;left:0;right:0;margin-top:4px;max-height:300px;overflow:auto;
+    background:#fff;border:1px solid var(--line,#c3ccdb);border-radius:10px;box-shadow:0 8px 24px rgba(16,24,40,.14);padding:.3rem}
+  .ms-row{display:flex;gap:.55rem;align-items:center;margin:0;padding:.5rem .6rem;border-radius:6px;font-weight:500;cursor:pointer}
+  .ms-row:hover{background:#eef3fb}
+  .ms-row input{width:auto;margin:0}
+  .ms-all{font-weight:700;border-bottom:1px solid #e6ebf3;border-radius:6px 6px 0 0;margin-bottom:.2rem}
+  html.dark-mode .ms-summary,html.dark-mode .ms-panel{background:#0f172a;color:var(--ink);border-color:var(--border)}
+  html.dark-mode .ms-row:hover{background:#1e293b}
+</style>
+<script>
+(function(){
+  var box = document.getElementById('ttMulti');
+  if (!box) return;
+  var cbs = Array.prototype.slice.call(box.querySelectorAll('.tt-cb'));
+  var all = document.getElementById('ttAll');
+  var label = document.getElementById('ttLabel');
+  function refresh(){
+    var on = cbs.filter(function(c){return c.checked;});
+    var n = on.length;
+    if (n === 0) label.textContent = 'All timetables';
+    else if (n === cbs.length) label.textContent = 'All timetables (' + n + ')';
+    else if (n === 1) label.textContent = on[0].getAttribute('data-label');
+    else label.textContent = n + ' timetables selected';
+    all.checked = cbs.length > 0 && n === cbs.length;
+  }
+  cbs.forEach(function(c){ c.addEventListener('change', refresh); });
+  all.addEventListener('change', function(){
+    cbs.forEach(function(c){ c.checked = all.checked; });
+    refresh();
+  });
+  // Ticking every timetable is the same as "All": send no timetable filter.
+  box.closest('form').addEventListener('submit', function(){
+    if (cbs.length && cbs.every(function(c){return c.checked;})) {
+      cbs.forEach(function(c){ c.checked = false; });
+    }
+  });
+  document.addEventListener('click', function(e){ if (!box.contains(e.target)) box.removeAttribute('open'); });
+  document.addEventListener('keydown', function(e){ if (e.key === 'Escape') box.removeAttribute('open'); });
+  refresh();
+})();
+</script>
 
 <div class="perf-tiles">
   <div class="perf-tile t-subjects">
