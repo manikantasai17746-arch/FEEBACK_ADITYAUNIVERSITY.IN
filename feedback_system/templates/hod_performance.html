@@ -39,6 +39,10 @@
        href="{{ url_for('hod.performance', mode='teacher',
          academic_year_id=filters.academic_year_id, semester_id=filters.semester_id,
          branch_id=filters.branch_id) }}">👤 Select by Teacher</a>
+    <a class="btn btn-edit-sets btn-sm"
+       href="{{ url_for('hod.performance_bands',
+         academic_year_id=filters.academic_year_id, semester_id=filters.semester_id,
+         branch_id=filters.branch_id, form_id=filters.form_id) }}">🎯 Score Bands</a>
   </div>
 </div>
 
