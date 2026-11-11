@@ -212,6 +212,18 @@ def _hod_validate_form_payload(user, data):
         'second_faculty_assignment_id': _int(data.get('second_faculty_assignment_id')),
     }
 
+    # Timetables ticked in the multi-select (none = "No Preference / all timetables").
+    raw_tt = data.get('timetable_ids')
+    if isinstance(raw_tt, str):
+        raw_tt = [x for x in raw_tt.split(',') if x.strip()]
+    tt_ids = []
+    for x in (raw_tt or []):
+        v = _int(x)
+        if v and v not in tt_ids:
+            tt_ids.append(v)
+    if not tt_ids and payload['timetable_id']:
+        tt_ids = [payload['timetable_id']]
+
     allowed_branches = scoped_branch_ids_or_none(user) or []
     if not allowed_branches:
         return None, None, None, ['No department scope assigned. Contact Admin.']
@@ -244,10 +256,28 @@ def _hod_validate_form_payload(user, data):
             errors.append('You are not authorised for that department.')
         if errors:
             return None, None, None, errors
+        if tt_ids:
+            # every ticked timetable must exist and belong to the chosen department,
+            # year and semester (and therefore to this HOD's scope)
+            ph = ','.join('?' * len(tt_ids))
+            ok_rows = db.query(
+                f'SELECT id FROM timetables WHERE is_deleted=0 AND branch_id=? '
+                f'AND academic_year_id=? AND semester_id=? AND id IN ({ph})',
+                (payload['branch_id'], payload['academic_year_id'],
+                 payload['semester_id'], *tt_ids))
+            if len(ok_rows) != len(tt_ids):
+                return None, None, None, [
+                    'One or more selected timetables do not belong to that department, '
+                    'academic year and semester.']
+        # One ticked timetable keeps the old single-timetable behaviour; several
+        # (or none) are stored without a single timetable_id.  The form_sessions
+        # rows are the source of truth for who receives the form.
+        payload['timetable_id'] = tt_ids[0] if len(tt_ids) == 1 else None
         filters = services.subject_scope_filters(
             payload['academic_year_id'], payload['semester_id'], payload['branch_id'],
-            payload['timetable_id'], subject_code)
-        sessions = services.sessions_for_bulk(filters)
+            payload['timetable_id'], subject_code,
+            timetable_ids=tt_ids if len(tt_ids) > 1 else None)
+        sessions = [dict(r) for r in services.sessions_for_bulk(filters)]
         if not sessions:
             return None, None, None, [
                 'No teaching sessions match that year, semester, branch, timetable and '
@@ -257,10 +287,15 @@ def _hod_validate_form_payload(user, data):
         for s in sessions:
             if s.get('branch_id') not in allowed_branches:
                 return None, None, None, ['Session outside your department scope.']
-        dup = services.find_duplicate_subject_form(
-            payload['academic_year_id'], payload['semester_id'], payload['branch_id'],
-            payload['timetable_id'], subject_code,
-            title=(payload.get('title') or '').strip() or 'Untitled feedback form')
+        _dup_title = (payload.get('title') or '').strip() or 'Untitled feedback form'
+        if len(tt_ids) > 1:
+            dup = services.find_duplicate_subject_form_for_sessions(
+                payload['academic_year_id'], payload['semester_id'], payload['branch_id'],
+                subject_code, [s['id'] for s in sessions], title=_dup_title)
+        else:
+            dup = services.find_duplicate_subject_form(
+                payload['academic_year_id'], payload['semester_id'], payload['branch_id'],
+                payload['timetable_id'], subject_code, title=_dup_title)
         if dup and dup['id'] != existing_id:
             return None, None, None, [
                 f'A feedback form for this exact configuration already exists '
@@ -457,20 +492,27 @@ def api_sessions():
     from flask import jsonify
     user = current_user()
     allowed = scoped_branch_ids_or_none(user) or []
-    timetable_id = request.args.get('timetable_id', type=int)
-    if not timetable_id:
+    # One or several timetables (?timetable_id=1&timetable_id=2).
+    tt_ids = list(dict.fromkeys(request.args.getlist('timetable_id', type=int)))
+    if not tt_ids:
         return jsonify(sessions=[])
-    tt = db.query(
-        'SELECT id, branch_id FROM timetables WHERE id=? AND is_deleted=0',
-        (timetable_id,), one=True)
-    if not tt or tt['branch_id'] not in allowed:
-        return jsonify(sessions=[])
-    rows = services.sessions_for_timetable(timetable_id)
-    return jsonify(sessions=[{
-        'id': r['id'], 'subject_code': r['subject_code'], 'subject_name': r['subject_name'],
-        'teacher_name': r['teacher_name'] or 'Unassigned', 'period_no': r['period_no'],
-        'label': f"Period {r['period_no']}: {r['subject_name']} ({r['subject_code']}) - "
-                 f"{r['teacher_name'] or 'Unassigned'}"} for r in rows])
+    out = []
+    for timetable_id in tt_ids:
+        tt = db.query(
+            'SELECT id, code, branch_id FROM timetables WHERE id=? AND is_deleted=0',
+            (timetable_id,), one=True)
+        if not tt or tt['branch_id'] not in allowed:
+            continue
+        prefix = f"{tt['code']} · " if len(tt_ids) > 1 else ''
+        for r in services.sessions_for_timetable(timetable_id):
+            out.append({
+                'id': r['id'], 'subject_code': r['subject_code'],
+                'subject_name': r['subject_name'],
+                'teacher_name': r['teacher_name'] or 'Unassigned',
+                'period_no': r['period_no'], 'timetable_id': timetable_id,
+                'label': f"{prefix}Period {r['period_no']}: {r['subject_name']} "
+                         f"({r['subject_code']}) - {r['teacher_name'] or 'Unassigned'}"})
+    return jsonify(sessions=out)
 
 
 @bp.route('/api/subjects')
@@ -482,12 +524,14 @@ def api_subjects():
     branch_id = request.args.get('branch_id', type=int)
     if branch_id and branch_id not in allowed:
         return jsonify(subjects=[])
+    tt_ids = list(dict.fromkeys(request.args.getlist('timetable_id', type=int)))
     filters = services.subject_scope_filters(
         request.args.get('academic_year_id', type=int),
         request.args.get('semester_id', type=int),
         branch_id,
-        request.args.get('timetable_id', type=int),
-        request.args.get('subject_code') or None)
+        tt_ids[0] if len(tt_ids) == 1 else None,
+        request.args.get('subject_code') or None,
+        timetable_ids=tt_ids if len(tt_ids) > 1 else None)
     # Extra guard: if no branch filter, limit to HOD branches via post-filter of subjects
     subjects = services.subjects_for_scope(filters)
     if branch_id is None and allowed:
@@ -507,12 +551,14 @@ def api_subject_preview():
     if not branch_id or branch_id not in allowed:
         return jsonify(eligible=0, sessions=0, timetables=0, teachers=0,
                        subject_code=None, subject_name=None)
+    tt_ids = list(dict.fromkeys(request.args.getlist('timetable_id', type=int)))
     filters = services.subject_scope_filters(
         request.args.get('academic_year_id', type=int),
         request.args.get('semester_id', type=int),
         branch_id,
-        request.args.get('timetable_id', type=int),
-        request.args.get('subject_code') or None)
+        tt_ids[0] if len(tt_ids) == 1 else None,
+        request.args.get('subject_code') or None,
+        timetable_ids=tt_ids if len(tt_ids) > 1 else None)
     return jsonify(services.subject_scope_preview(filters))
 
 def _hod_form_or_403(fid):
