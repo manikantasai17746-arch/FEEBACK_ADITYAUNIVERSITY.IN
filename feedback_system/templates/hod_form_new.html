@@ -81,9 +81,9 @@
             <option value="">— Select —</option>
             {% for b in branches %}<option value="{{ b.id }}">{{ b.code }} — {{ b.name }}</option>{% endfor %}
           </select></div>
-        <div class="field"><label for="timetable_id">Timetable / section</label>
-          <select id="timetable_id"><option value="">— Select year, semester &amp; department first —</option></select>
-          <div class="hint" id="timetable-hint">Pick the timetable that contains the class period.</div></div>
+        <div class="field"><label id="timetable_ms_label">Timetable / section</label>
+          <details id="timetable_ms" aria-labelledby="timetable_ms_label"></details>
+          <div class="hint" id="timetable-hint">Tick the timetable(s) that contain the class period.</div></div>
         <div class="field" id="subject-field" style="grid-column:span 2;display:none"><label for="subject_code">Subject</label>
           <select id="subject_code"><option value="">— Select year, semester &amp; department first —</option></select>
         </div>
@@ -125,6 +125,7 @@
   </div>
 
   <script type="application/json" id="initial-questions">[]</script>
+  <script src="{{ url_for('static', filename='js/multiselect.js') }}"></script>
   {% endif %}
 </div>
 {% endblock %}
