@@ -568,14 +568,17 @@
       });
   }
 
+  var subjectsSeq = 0, previewSeq = 0;   // only the newest request may update the page
   function loadSubjects() {
     if (!subjSel && !subjMS) return;
+    var seq = ++subjectsSeq;
     var f = currentFilters();
     if (subjMS) { delete f.subject_code; } else { subjSel.innerHTML = '<option value="">Loading…</option>'; }
     fetch(apiSubjects + '?' + qs(f),
           { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
+        if (seq !== subjectsSeq) return;   // a newer request is already running
         d.subjects.forEach(function (x) { subjectLabels[x.code] = x.name + ' (' + x.code + ')'; });
         if (subjMS) {
           subjMS.setItems(d.subjects.map(function (x) {
@@ -602,11 +605,13 @@
     if (!codes.length) { previewPanel.style.display = 'none'; return; }
     previewPanel.style.display = '';
     previewPanel.innerHTML = '<p class="sub">Checking eligible students…</p>';
+    var seq = ++previewSeq;
     Promise.all(codes.map(function (code) {
       var f = currentFilters(); f.subject_code = code;
       return fetch(previewUrl + '?' + qs(f), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
         .then(function (r) { return r.json(); });
     })).then(function (list) {
+        if (seq !== previewSeq) return;   // selection changed while loading
         if (list.length > 1) { renderMultiPreview(codes, list); return; }
         var d = list[0];
         var html = '<div class="btn-row" style="justify-content:space-between">' +
@@ -630,7 +635,7 @@
         }
         previewPanel.innerHTML = html;
       })
-      .catch(function () { previewPanel.innerHTML = '<p class="sub">Could not load the preview.</p>'; });
+      .catch(function () { if (seq === previewSeq) previewPanel.innerHTML = '<p class="sub">Could not load the preview.</p>'; });
   }
 
   function renderMultiPreview(codes, list) {
@@ -639,14 +644,17 @@
       var note = '';
       if (!d.eligible) { note = 'No eligible students'; problems++; }
       else if (d.existing_form_id) { note = 'Form already exists (#' + d.existing_form_id + ')'; problems++; }
-      rows += '<tr><td>' + esc(subjectName(codes[i])) + '</td><td>' + d.eligible + '</td><td>' +
-        d.sessions + '</td><td>' + d.timetables + '</td><td>' + (note || 'OK') + '</td></tr>';
+      rows += '<tr><td class="pv-sno">' + (i + 1) + '</td><td class="pv-subj">' + esc(subjectName(codes[i])) +
+        '</td><td class="pv-num">' + d.eligible + '</td><td class="pv-num">' +
+        d.sessions + '</td><td class="pv-num">' + d.timetables + '</td><td class="pv-num"><span class="pv-badge ' +
+        (note ? 'pv-bad' : 'pv-ok') + '">' + (note || 'OK') + '</span></td></tr>';
     });
     previewPanel.innerHTML = '<strong>Preview · ' + codes.length + ' subjects</strong>' +
       '<p class="sub" style="margin:.25rem 0 .5rem">One separate form is created for each ticked subject, ' +
       'with the same title and questions.</p>' +
-      '<div class="table-wrap"><table><thead><tr><th>Subject</th><th>Eligible students</th>' +
-      '<th>Sessions</th><th>Timetables</th><th>Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
+      '<div class="table-wrap"><table class="pv-table"><thead><tr><th class="pv-sno">S.No</th><th>Subject</th>' +
+      '<th class="pv-num">Eligible students</th><th class="pv-num">Sessions</th><th class="pv-num">Timetables</th>' +
+      '<th class="pv-num">Status</th></tr></thead><tbody>' + rows + '</tbody></table></div>' +
       (problems ? '<div class="flash flash-warning" style="margin-top:10px">Marked subjects cannot be ' +
         'published until the issue is fixed.</div>' : '');
   }
