@@ -711,6 +711,78 @@ def _action_owner(user, branch_ids, branch_id, form):
     return owner_id, chosen['name'], None
 
 
+def _notify_hod_assigned(owner_id, title, description, priority, due_date, dean_name):
+    """E-mail a HOD that the Dean assigned them an improvement action (best effort)."""
+    from . import mailer
+    from html import escape
+    try:
+        hod = db.query('SELECT name, email FROM users WHERE id=?', (owner_id,), one=True)
+        to = ((hod['email'] if hod else '') or '').strip()
+        if not mailer.is_valid_email(to):
+            return False
+        link = url_for('hod.my_actions', _external=True)
+        text = (f"Dear {hod['name'] or 'HOD'},\n\n{dean_name} has assigned you a new "
+                f"improvement action.\n\nTitle: {title}\nPriority: {priority}\n"
+                f"Due date: {due_date or 'not set'}\n\n{description or ''}\n\n"
+                f"Open your actions and update the progress here:\n{link}\n\n"
+                "Aditya University - Faculty Feedback")
+        html = ('<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto">'
+                '<h3 style="color:#0B2F6B">New improvement action assigned</h3>'
+                f'<p><b>{escape(title)}</b><br>Priority: {escape(priority)} &middot; '
+                f'Due: {escape(due_date or "not set")}</p>'
+                f'<div style="white-space:pre-wrap">{escape(description or "")}</div>'
+                f'<p><a href="{escape(link)}">Open my actions</a></p></div>')
+        return mailer.send_email(to, f'Action assigned: {title}', text, html)
+    except Exception:
+        return False
+
+
+def _action_prefill(user, branch_ids, teacher_id, form_id):
+    """Pre-fill a new action from a teacher's result (title, notes, dept, priority, HOD, due)."""
+    from datetime import date, timedelta
+    from . import scoring
+    if not teacher_id or not branch_ids:
+        return None
+    rows = scoring.faculty_scores_for_branches(branch_ids, teacher_user_id=teacher_id)
+    row = next((r for r in rows if r.get('form_id') == form_id), None) or (rows[0] if rows else None)
+    if not row:
+        return None
+    score = None if (row.get('hidden') or row.get('overall_score') is None) else row['overall_score']
+    name = row.get('teacher_name') or 'Faculty'
+    subject = ' '.join(x for x in (row.get('subject_code'), row.get('subject_name')) if x)
+    low = [c for c in (row.get('criteria') or []) if c.get('score') is not None]
+    low.sort(key=lambda c: c['score'])
+    lines = [f'Teacher: {name} ({row.get("teacher_emp_code") or "-"})',
+             f'Subject: {subject or "-"}',
+             f'Department: {row.get("branch_code") or "-"}',
+             f'Feedback score: {score:.1f} / 100' if score is not None else 'Feedback score: N/A',
+             f'Responses: {row.get("valid_responses") or row.get("response_count") or 0}']
+    if low:
+        lines.append('Lowest-rated areas:')
+        lines += [f'  - {c["text"]} ({c["score"]:.1f})' for c in low[:3]]
+    lines.append('\nRequested action: review the feedback with the teacher and agree an improvement plan.')
+    if score is None:
+        priority = 'medium'
+    elif score <= 60:
+        priority = 'critical'
+    elif score <= 75:
+        priority = 'high'
+    elif score <= 85:
+        priority = 'medium'
+    else:
+        priority = 'low'
+    bid = row.get('branch_id')
+    owner = None
+    if bid:
+        cands = [h for h in _hod_choices(user, branch_ids) if bid in h['branches']]
+        if len(cands) == 1:
+            owner = cands[0]['id']
+    return {'title': f'Improve feedback: {name}' + (f' - {subject}' if subject else ''),
+            'description': '\n'.join(lines), 'branch_id': bid, 'priority': priority,
+            'owner_user_id': owner,
+            'due_date': (date.today() + timedelta(days=14)).isoformat()}
+
+
 @bp.route('/actions/new', methods=['GET', 'POST'])
 @role_required('dean')
 def action_new():
@@ -755,10 +827,25 @@ def action_new():
                        VALUES(?,?,?,?,?)""",
                     (aid, user['id'], note, None, request.form.get('status') or 'planned'))
                 db.get_db().commit()
-                flash('Action created.', 'success')
+                msg = 'Action created.'
+                if owner_id:
+                    if _notify_hod_assigned(
+                            owner_id, title,
+                            (request.form.get('description') or '').strip()[:2000],
+                            request.form.get('priority') or 'medium',
+                            (request.form.get('due_date') or '').strip() or None,
+                            dict(user).get('name') or 'The Dean'):
+                        msg += f' {owner_name} was notified by email.'
+                flash(msg, 'success')
                 return redirect(url_for('dean.actions'))
+    prefill = None
+    if request.method == 'GET':
+        prefill = _action_prefill(user, branch_ids_list,
+                                  request.args.get('teacher_id', type=int),
+                                  request.args.get('form_id', type=int))
     return render_template('dean_action_form.html', user=user, branches=branches,
-                           action=None, hods=_hod_choices(user, branch_ids_list))
+                           action=None, prefill=prefill,
+                           hods=_hod_choices(user, branch_ids_list))
 
 
 @bp.route('/actions/<int:aid>/edit', methods=['GET', 'POST'])
@@ -814,6 +901,13 @@ def action_edit(aid):
                    VALUES(?,?,?,?,?)""",
                 (aid, user['id'], (request.form.get('note') or 'Status changed')[:500],
                  old_status, new_status))
+        if owner_id and owner_id != action['owner_user_id']:
+            _notify_hod_assigned(
+                owner_id, (request.form.get('title') or action['title']).strip()[:200],
+                (request.form.get('description') or '').strip()[:2000],
+                request.form.get('priority') or action['priority'],
+                (request.form.get('due_date') or '').strip() or None,
+                dict(user).get('name') or 'The Dean')
         if owner_id != action['owner_user_id']:
             conn.execute(
                 """INSERT INTO improvement_action_log

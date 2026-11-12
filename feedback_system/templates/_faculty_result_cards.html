@@ -8,6 +8,10 @@
   <div class="photo-fallback" aria-hidden="true" {% if teacher.emp_code %}style="display:none"{% endif %}>{{ initials }}</div>
   <div class="meta">
     <h2 style="font-size:1.2rem">{{ tname }}</h2>
+    {% if user and user.role == 'dean' %}
+    <a class="btn btn-sm btn-accent" style="margin:0 0 .5rem"
+       href="{{ url_for('dean.action_new', teacher_id=teacher.id, form_id=r.form_id) }}">＋ Create improvement action</a>
+    {% endif %}
     <p class="desig">{{ (profile.designation if profile and profile.designation else 'Faculty') }}</p>
     <div class="line"><span class="ic">🏛</span><span>Department: {{ mt.branch_name or r.branch_code or '—' }}</span></div>
     <div class="line"><span class="ic">📘</span><span>Subject: {{ r.subject_name or r.subject_code or '—' }}{% if r.subject_code and r.subject_name %} ({{ r.subject_code }}){% endif %}</span></div>
