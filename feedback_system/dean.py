@@ -843,10 +843,15 @@ def performance():
     branch_ids = [b['id'] for b in branches]
     academic_year_id = request.args.get('academic_year_id', type=int)
     semester_id = request.args.get('semester_id', type=int)
+    # Optional department filter (the Publication page's "View" button).
+    branch_id = request.args.get('branch_id', type=int)
+    if branch_id not in branch_ids:
+        branch_id = None
+    scope_ids = [branch_id] if branch_id else branch_ids
     rows = []
     if branch_ids:
         rows = scoring.faculty_scores_for_branches(
-            branch_ids,
+            scope_ids,
             academic_year_id=academic_year_id,
             semester_id=semester_id)
         # Eligible counts and marks for ALL forms in a handful of queries
@@ -870,10 +875,20 @@ def performance():
             r['round_label'] = (_ri.get(r['form_id']) or {}).get('label')
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
     semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
+    scored = [r['overall_score'] for r in rows
+              if not r.get('hidden') and r.get('overall_score') is not None]
+    summary = {
+        'forms': len(rows),
+        'faculty': len({r.get('teacher_user_id') for r in rows if r.get('teacher_user_id')}),
+        'avg': round(sum(scored) / len(scored), 1) if scored else None,
+        'responded': sum((r.get('students') or 0) for r in rows),
+    }
+    dept = next((b for b in branches if b['id'] == branch_id), None)
     return render_template(
         'dean_performance.html', user=user, branches=branches, rows=rows,
-        years=years, semesters=semesters,
-        filters={'academic_year_id': academic_year_id, 'semester_id': semester_id})
+        years=years, semesters=semesters, summary=summary, dept=dept,
+        filters={'academic_year_id': academic_year_id, 'semester_id': semester_id,
+                 'branch_id': branch_id})
 
 
 # --------------------------------------------------------------------------- #
@@ -1077,5 +1092,66 @@ def performance_detail(teacher_id):
         (teacher_id,), one=True)
     if not teacher:
         abort(404)
+    cards = _detail_cards(rows)
+    profile = db.query(
+        'SELECT id, name, emp_code, designation, email FROM users WHERE id=?',
+        (teacher_id,), one=True)
+    back_branch = next((r.get('branch_id') for r in rows if r.get('branch_id')), None)
     return render_template('dean_performance_detail.html', user=user, teacher=teacher,
-                           rows=rows, branches=branches)
+                           profile=profile, rows=rows, cards=cards,
+                           back_branch=back_branch, branches=branches)
+
+
+def _detail_cards(rows):
+    """Per-form view model for the Dean's faculty page (same facts as the teacher's
+    results page): eligible / responded / not submitted, marks, rating counts and
+    per-question distributions.  Reads aggregate counts only - never individual
+    answers or comments - so anonymity is untouched."""
+    from . import scoring, services
+    fids = [r['form_id'] for r in rows]
+    if not fids:
+        return []
+    elig_map = services.eligible_counts_for_forms(fids)
+    fm_map = scoring.form_marks_bulk(fids, elig_map)
+    ph = _in_clause(fids)
+    meta = {m['id']: m for m in db.query(
+        f"""SELECT ff.id, b.name AS branch_name, b.code AS branch_code,
+                   t.code AS timetable, s.number AS semester, ay.name AS academic_year
+            FROM feedback_forms ff
+            LEFT JOIN branches b ON b.id=ff.branch_id
+            LEFT JOIN timetables t ON t.id=ff.timetable_id
+            LEFT JOIN semesters s ON s.id=ff.semester_id
+            LEFT JOIN academic_years ay ON ay.id=ff.academic_year_id
+            WHERE ff.id IN ({ph})""", tuple(fids))}
+    cards = []
+    for r in rows:
+        fid = r['form_id']
+        eligible = elig_map.get(fid, 0)
+        fm = fm_map.get(fid) or {}
+        responded = fm.get('students') or r.get('response_count') or 0
+        # Rating-wise answer counts across all rating questions.
+        totals, order = {}, []
+        for c in r.get('criteria') or []:
+            for lbl, d in (c.get('distribution') or {}).items():
+                if lbl not in totals:
+                    totals[lbl] = 0
+                    order.append(lbl)
+                totals[lbl] += d.get('count') or 0
+        grand = sum(totals.values())
+        n = len(order)
+        distribution = [{
+            'label': lbl, 'count': totals[lbl],
+            'pct': round(100.0 * totals[lbl] / grand, 1) if grand else 0.0,
+            'rank': max(1, min(5, n - i)),
+        } for i, lbl in enumerate(order)]
+        score = None if (r.get('hidden') or r.get('overall_score') is None) else r['overall_score']
+        cards.append({
+            'row': r, 'meta': meta.get(fid) or {}, 'eligible': eligible,
+            'responded': responded, 'not_submitted': max(eligible - responded, 0),
+            'score': score, 'distribution': distribution, 'answer_total': grand,
+            'max_count': max([d['count'] for d in distribution] + [1]),
+            'obtained': fm.get('obtained'), 'maximum': fm.get('maximum'),
+            'marks_per_question': fm.get('marks_per_question'),
+            'question_count': fm.get('question_count') or len(r.get('criteria') or []),
+        })
+    return cards
