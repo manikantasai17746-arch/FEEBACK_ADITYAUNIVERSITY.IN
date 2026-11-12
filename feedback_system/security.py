@@ -233,6 +233,10 @@ def scoped_branch_ids_or_none(user):
         return []
     if user['role'] == 'admin':
         return None
+    if user['role'] in ('hod', 'dean'):
+        # Same answer as the legacy multi-query logic below, but served from the
+        # single cached per-request lookup (no extra database trips).
+        return [b['id'] for b in scoped_branches(user)]
     if user['role'] == 'hod':
         rows = db.query(
             'SELECT DISTINCT branch_id FROM hod_allocations WHERE hod_user_id=?',
@@ -251,6 +255,47 @@ def scoped_branch_ids_or_none(user):
             return [r['branch_id'] for r in rows]
         return user_branch_ids(user['id'])
     return user_branch_ids(user['id'])
+
+
+def scoped_branches(user):
+    """Branch rows (id, code, name) the HOD/Dean may see, in ONE query.
+
+    Same rules as :func:`scoped_branch_ids_or_none` (allocations first, then the
+    explicit department scopes) but it returns the branch rows directly, so a
+    portal page no longer needs a separate "which ids" query followed by a
+    "load those branches" query.  Admins get every branch.
+    """
+    if not user:
+        return []
+    uid = user['id']
+    role = user['role']
+    cache = g.setdefault('_scoped_branches', {})
+    if uid in cache:
+        return cache[uid]
+    rows = _load_scoped_branches(uid, role)
+    cache[uid] = rows
+    return rows
+
+
+def _load_scoped_branches(uid, role):
+    if role == 'admin':
+        return db.query('SELECT id, code, name FROM branches ORDER BY code')
+    if role == 'dean':
+        primary = ("SELECT ha.branch_id FROM dean_hod_assignments dha "
+                   "JOIN hod_allocations ha ON ha.hod_user_id = dha.hod_user_id "
+                   "WHERE dha.dean_user_id=?")
+    else:
+        primary = "SELECT branch_id FROM hod_allocations WHERE hod_user_id=?"
+    # One round trip: use the primary source when it has rows, else the
+    # department-scope table.
+    return db.query(
+        f"""SELECT id, code, name FROM branches
+            WHERE id IN ({primary})
+               OR (NOT EXISTS ({primary})
+                   AND id IN (SELECT branch_id FROM user_department_scopes
+                              WHERE user_id=?))
+            ORDER BY code""",
+        (uid, uid, uid))
 
 
 def hod_allocation_keys(hod_user_id):
