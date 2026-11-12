@@ -1869,9 +1869,14 @@ def performance_detail(teacher_id):
         (teacher_id,), one=True)
     if not teacher:
         abort(404)
+    from .dean import _detail_cards
+    profile = db.query(
+        'SELECT id, name, emp_code, designation, email FROM users WHERE id=?',
+        (teacher_id,), one=True)
     return render_template(
         'hod_performance_detail.html',
-        user=user, teacher=teacher, rows=rows, branches=branches)
+        user=user, teacher=teacher, profile=profile, rows=rows,
+        cards=_detail_cards(rows, teacher_id), branches=branches)
 
 
 @bp.route('/performance/compare')
