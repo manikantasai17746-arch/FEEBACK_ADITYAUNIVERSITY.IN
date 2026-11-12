@@ -798,31 +798,41 @@
   }
 
   function publishMany(ids, codes) {
-    var failures = [];
-    var chain = Promise.resolve();
-    ids.forEach(function (id, i) {
-      chain = chain.then(function () {
-        window.FFBusy.show('Publishing form ' + (i + 1) + ' of ' + ids.length + '…');
-        return fetch(statusUrlTpl.replace('/0/status', '/' + id + '/status'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf,
-                     'X-Requested-With': 'XMLHttpRequest' },
-          body: JSON.stringify({ status: 'open' })
-        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-          .then(function (res) {
-            if (!res.ok || !res.data.ok) {
-              (res.data.errors || ['Could not publish.']).forEach(function (e) {
-                failures.push(((lastLabels && lastLabels[i]) || subjectName(codes[i])) + ' (draft #' + id + '): ' + e);
-              });
-            }
-          });
-      });
-    });
-    return chain.then(function () { return failures; })
-      .catch(function () {
-        failures.push('Network error while publishing. Check the Forms page for drafts.');
-        return failures;
-      });
+    // Publish several forms at once (3 at a time) instead of strictly one after
+    // another: each request is a round trip to the server and database.
+    var failures = [], done = 0, next = 0, LIMIT = 3;
+    function one(i) {
+      var id = ids[i];
+      return fetch(statusUrlTpl.replace('/0/status', '/' + id + '/status'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf,
+                   'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ status: 'open' })
+      }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+        .then(function (res) {
+          if (!res.ok || !res.data.ok) {
+            (res.data.errors || ['Could not publish.']).forEach(function (e) {
+              failures.push(((lastLabels && lastLabels[i]) || subjectName(codes[i])) + ' (draft #' + id + '): ' + e);
+            });
+          }
+        })
+        .catch(function () {
+          failures.push('Network error while publishing draft #' + id + '. Check the Forms page for drafts.');
+        })
+        .then(function () {
+          done++;
+          window.FFBusy.show('Publishing forms… ' + done + ' of ' + ids.length);
+        });
+    }
+    function worker() {
+      if (next >= ids.length) return Promise.resolve();
+      var i = next++;
+      return one(i).then(worker);
+    }
+    window.FFBusy.show('Publishing forms… 0 of ' + ids.length);
+    var workers = [];
+    for (var k = 0; k < Math.min(LIMIT, ids.length); k++) workers.push(worker());
+    return Promise.all(workers).then(function () { return failures; });
   }
 
   function isMulti() { return scope === 'subject' && subjValues().length > 1; }
