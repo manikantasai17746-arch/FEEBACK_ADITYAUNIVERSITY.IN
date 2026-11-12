@@ -185,17 +185,14 @@ def test_forgot_password_does_not_reveal_accounts(app, client, sent):
     assert len(sent) == n_sent          # nothing e-mailed for unknown / email-less accounts
 
 
-def test_admin_can_reset_by_email(app, client, sent):
-    with app.app_context():
-        db.execute("UPDATE users SET password_hash=? WHERE role='admin'", (hash_password('admin123'),))
-    _post(client, '/forgot-password', role='admin', ident='Admin@College.edu')
-    assert sent[-1]['to'] == 'admin@college.edu'
-    ok = _post(client, '/forgot-password/reset', code=sent[-1]['code'], new_password='AdminNew#123',
-               confirm_password='AdminNew#123')
-    assert ok.status_code == 302
-    assert login(client, '/admin/login', {'email': 'admin@college.edu', 'password': 'AdminNew#123'}).status_code == 302
-    with app.app_context():
-        db.execute("UPDATE users SET password_hash=? WHERE role='admin'", (hash_password('admin123'),))
+def test_admin_reset_uses_the_two_email_flow(app, client, sent):
+    """Admin recovery moved to /admin/forgot-password (two verified emails);
+    the generic route must not mail the admin's primary address any more.
+    Full flow: tests/test_admin_recovery.py."""
+    r = client.post('/forgot-password', data={'role': 'admin', 'ident': 'admin@college.edu',
+                    '_csrf': get_csrf(client.get('/forgot-password').get_data(as_text=True))})
+    assert r.status_code == 302 and '/admin/forgot-password' in r.headers['Location']
+    assert not sent
 
 
 def test_login_pages_link_to_forgot_password(client):
