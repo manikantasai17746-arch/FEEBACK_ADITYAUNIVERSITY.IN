@@ -20,7 +20,7 @@
       <a href="#how">How It Works</a>
       <a href="#portals">Contact</a>
     </nav>
-    <a class="lp-btn lp-btn-primary lp-login-desktop" href="#portals">🔒 Login to Portal</a>
+    <a class="lp-btn lp-btn-primary lp-login-desktop js-open-login" href="#portals" data-role="student">🔒 Login to Portal</a>
     <button type="button" class="lp-menu-btn" id="lpMenuBtn" aria-label="Open menu" aria-expanded="false">☰</button>
   </div>
 </header>
@@ -41,11 +41,11 @@
     <a href="#how" data-close-drawer><span class="di">⚙</span> How It Works</a>
     <a href="#portals" data-close-drawer><span class="di">📞</span> Contact</a>
     <hr>
-    <a href="{{ url_for('auth.student_login') }}"><span class="di">👤</span> Student Login <span class="chev">›</span></a>
-    <a href="{{ url_for('auth.teacher_login') }}"><span class="di">📋</span> Faculty Login <span class="chev">›</span></a>
-    <a href="{{ url_for('auth.hod_login') }}"><span class="di">🏛</span> HOD Login <span class="chev">›</span></a>
-    <a href="{{ url_for('auth.dean_login') }}"><span class="di">🧑‍💼</span> Dean Login <span class="chev">›</span></a>
-    <a href="{{ url_for('auth.admin_login') }}"><span class="di">⚙</span> Admin Login <span class="chev">›</span></a>
+    <a href="#" class="js-open-login" data-role="student" data-close-drawer><span class="di">👤</span> Student Login <span class="chev">›</span></a>
+    <a href="#" class="js-open-login" data-role="teacher" data-close-drawer><span class="di">📋</span> Faculty Login <span class="chev">›</span></a>
+    <a href="#" class="js-open-login" data-role="hod" data-close-drawer><span class="di">🏛</span> HOD Login <span class="chev">›</span></a>
+    <a href="#" class="js-open-login" data-role="dean" data-close-drawer><span class="di">🧑‍💼</span> Dean Login <span class="chev">›</span></a>
+    <a href="#" class="js-open-login" data-role="admin" data-close-drawer><span class="di">⚙</span> Admin Login <span class="chev">›</span></a>
   </nav>
 </aside>
 
@@ -159,7 +159,7 @@
           <li>View status</li>
           <li>Track submissions</li>
         </ul>
-        <a class="lp-btn lp-btn-primary" href="{{ url_for('auth.student_login') }}">Login as Student →</a>
+        <a class="lp-btn lp-btn-primary js-open-login" href="#" data-role="student">Login as Student →</a>
       </article>
       <article class="lp-portal">
         <div class="ic ic-orange">📋</div>
@@ -169,7 +169,7 @@
           <li>Track performance</li>
           <li>Download reports</li>
         </ul>
-        <a class="lp-btn lp-btn-faculty" href="{{ url_for('auth.teacher_login') }}">Login as Faculty →</a>
+        <a class="lp-btn lp-btn-faculty js-open-login" href="#" data-role="teacher">Login as Faculty →</a>
       </article>
       <article class="lp-portal">
         <div class="ic ic-green">🏛</div>
@@ -179,7 +179,7 @@
           <li>View consolidated results</li>
           <li>Generate reports</li>
         </ul>
-        <a class="lp-btn lp-btn-hod" href="{{ url_for('auth.hod_login') }}">Login as HOD →</a>
+        <a class="lp-btn lp-btn-hod js-open-login" href="#" data-role="hod">Login as HOD →</a>
       </article>
       <article class="lp-portal">
         <div class="ic ic-yellow">🧑‍💼</div>
@@ -189,7 +189,7 @@
           <li>Monitor departments</li>
           <li>Generate insights</li>
         </ul>
-        <a class="lp-btn lp-btn-dean" href="{{ url_for('auth.dean_login') }}">Login as Dean →</a>
+        <a class="lp-btn lp-btn-dean js-open-login" href="#" data-role="dean">Login as Dean →</a>
       </article>
       <article class="lp-portal lp-portal-admin">
         <div class="ic ic-red">⚙</div>
@@ -199,7 +199,7 @@
           <li>Configure academic settings</li>
           <li>Monitor system activity</li>
         </ul>
-        <a class="lp-btn lp-btn-admin" href="{{ url_for('auth.admin_login') }}">Login as Admin →</a>
+        <a class="lp-btn lp-btn-admin js-open-login" href="#" data-role="admin">Login as Admin →</a>
       </article>
     </div>
   </div>
@@ -279,5 +279,199 @@
   });
 })();
 </script>
+
+<!-- Login modal (same page, blurred backdrop) -->
+<div class="lp-login-overlay" id="lpLoginOverlay" hidden>
+  <div class="lp-login-backdrop" id="lpLoginBackdrop"></div>
+  <div class="lp-login-modal" role="dialog" aria-modal="true" aria-labelledby="lpLoginTitle">
+    <button type="button" class="lp-login-close" id="lpLoginClose" aria-label="Close">×</button>
+
+    <div class="lp-login-tabs" role="tablist">
+      <button type="button" class="lp-login-tab active" data-role="student">Student</button>
+      <button type="button" class="lp-login-tab" data-role="teacher">Faculty</button>
+      <button type="button" class="lp-login-tab" data-role="hod">HOD</button>
+      <button type="button" class="lp-login-tab" data-role="dean">Dean</button>
+      <button type="button" class="lp-login-tab" data-role="admin">Admin</button>
+    </div>
+
+    <!-- Student -->
+    <div class="lp-login-panel active" data-role="student">
+      <p class="lp-login-eyebrow">STUDENT LOGIN</p>
+      <h2 id="lpLoginTitle">Welcome back</h2>
+      <p class="lp-login-sub">Scan your ID card or type your roll number to give feedback. Your responses are <strong>anonymous</strong> — teachers never see your name or roll number.</p>
+      <button type="button" class="lp-btn lp-btn-scan" id="lpScanStudent">Scan ID Card</button>
+      <div class="lp-login-or">or enter it manually</div>
+      <form method="post" action="{{ url_for('auth.student_login') }}" autocomplete="off" class="lp-login-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <div class="field">
+          <label for="lp_roll">Roll Number</label>
+          <input type="text" id="lp_roll" name="roll" placeholder="e.g. 25B11CS015" required>
+          <div class="scan-ok" id="lpScanOkStudent" style="display:none">✓ ID card scanned — now enter your password.</div>
+        </div>
+        <div class="field">
+          <label for="lp_stu_pw">Password</label>
+          <input type="password" id="lp_stu_pw" name="password" required>
+          <div class="hint">Default password is set by your administrator. Change it after first login.</div>
+        </div>
+        <button class="lp-btn lp-btn-primary lp-btn-block" type="submit">Log In</button>
+        <p class="lp-login-forgot"><a href="{{ url_for('auth.forgot_password', role='student') }}">Forgot password?</a></p>
+      </form>
+    </div>
+
+    <!-- Faculty / Teacher -->
+    <div class="lp-login-panel" data-role="teacher">
+      <p class="lp-login-eyebrow">FACULTY LOGIN</p>
+      <h2>Welcome back</h2>
+      <p class="lp-login-sub">Scan your staff ID card or type your employee code to view your published feedback results.</p>
+      <button type="button" class="lp-btn lp-btn-scan" id="lpScanTeacher">Scan ID Card</button>
+      <div class="lp-login-or">or enter it manually</div>
+      <form method="post" action="{{ url_for('auth.teacher_login') }}" autocomplete="off" class="lp-login-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <div class="field">
+          <label for="lp_emp_t">Employee Code</label>
+          <input type="text" id="lp_emp_t" name="emp_code" placeholder="e.g. 6817" required>
+          <div class="scan-ok" id="lpScanOkTeacher" style="display:none">✓ ID card scanned — now enter your password.</div>
+        </div>
+        <div class="field">
+          <label for="lp_t_pw">Password</label>
+          <input type="password" id="lp_t_pw" name="password" required>
+        </div>
+        <button class="lp-btn lp-btn-primary lp-btn-block" type="submit">Log In</button>
+        <p class="lp-login-forgot"><a href="{{ url_for('auth.forgot_password', role='teacher') }}">Forgot password?</a></p>
+      </form>
+    </div>
+
+    <!-- HOD -->
+    <div class="lp-login-panel" data-role="hod">
+      <p class="lp-login-eyebrow">HOD LOGIN</p>
+      <h2>Head of Department</h2>
+      <p class="lp-login-sub">Sign in with your employee code to manage department feedback forms and results.</p>
+      <form method="post" action="{{ url_for('auth.hod_login') }}" autocomplete="off" class="lp-login-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <div class="field">
+          <label for="lp_emp_h">Employee Code</label>
+          <input type="text" id="lp_emp_h" name="emp_code" placeholder="e.g. 6817" required>
+        </div>
+        <div class="field">
+          <label for="lp_h_pw">Password</label>
+          <input type="password" id="lp_h_pw" name="password" required>
+        </div>
+        <button class="lp-btn lp-btn-primary lp-btn-block" type="submit">Log In</button>
+      </form>
+    </div>
+
+    <!-- Dean -->
+    <div class="lp-login-panel" data-role="dean">
+      <p class="lp-login-eyebrow">DEAN LOGIN</p>
+      <h2>Dean sign in</h2>
+      <p class="lp-login-sub">Sign in with your employee code to view college-wide feedback and performance.</p>
+      <form method="post" action="{{ url_for('auth.dean_login') }}" autocomplete="off" class="lp-login-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <div class="field">
+          <label for="lp_emp_d">Employee Code</label>
+          <input type="text" id="lp_emp_d" name="emp_code" placeholder="e.g. 6817" required>
+        </div>
+        <div class="field">
+          <label for="lp_d_pw">Password</label>
+          <input type="password" id="lp_d_pw" name="password" required>
+        </div>
+        <button class="lp-btn lp-btn-primary lp-btn-block" type="submit">Log In</button>
+      </form>
+    </div>
+
+    <!-- Admin -->
+    <div class="lp-login-panel" data-role="admin">
+      <p class="lp-login-eyebrow">ADMINISTRATOR LOGIN</p>
+      <h2>Admin sign in</h2>
+      <p class="lp-login-sub">Authorised administrators only.</p>
+      <form method="post" action="{{ url_for('auth.admin_login') }}" autocomplete="off" class="lp-login-form">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <div class="field">
+          <label for="lp_admin_email">Email Address</label>
+          <input type="email" id="lp_admin_email" name="email" placeholder="admin@college.edu" required>
+        </div>
+        <div class="field">
+          <label for="lp_a_pw">Password</label>
+          <input type="password" id="lp_a_pw" name="password" required>
+        </div>
+        <button class="lp-btn lp-btn-primary lp-btn-block" type="submit">Log In</button>
+        <p class="lp-login-forgot"><a href="{{ url_for('auth.admin_forgot_password') }}">Forgot password?</a></p>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/@zxing/library@0.20.0/umd/index.min.js"></script>
+<script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
+<script>
+(function () {
+  var overlay = document.getElementById('lpLoginOverlay');
+  var backdrop = document.getElementById('lpLoginBackdrop');
+  var closeBtn = document.getElementById('lpLoginClose');
+  if (!overlay) return;
+
+  function showRole(role) {
+    role = role || 'student';
+    overlay.querySelectorAll('.lp-login-tab').forEach(function (t) {
+      t.classList.toggle('active', t.getAttribute('data-role') === role);
+    });
+    overlay.querySelectorAll('.lp-login-panel').forEach(function (p) {
+      p.classList.toggle('active', p.getAttribute('data-role') === role);
+    });
+  }
+
+  function openLogin(role) {
+    showRole(role || 'student');
+    overlay.hidden = false;
+    document.body.classList.add('lp-login-open');
+    var panel = overlay.querySelector('.lp-login-panel.active');
+    if (panel) {
+      var input = panel.querySelector('input:not([type=hidden])');
+      if (input) setTimeout(function () { input.focus(); }, 50);
+    }
+  }
+
+  function closeLogin() {
+    overlay.hidden = true;
+    document.body.classList.remove('lp-login-open');
+  }
+
+  document.querySelectorAll('.js-open-login').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      e.preventDefault();
+      openLogin(el.getAttribute('data-role') || 'student');
+    });
+  });
+  if (closeBtn) closeBtn.addEventListener('click', closeLogin);
+  if (backdrop) backdrop.addEventListener('click', closeLogin);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !overlay.hidden) closeLogin();
+  });
+  overlay.querySelectorAll('.lp-login-tab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      showRole(tab.getAttribute('data-role'));
+    });
+  });
+
+  // Optional ID scan for student / teacher in modal
+  async function scanInto(fieldId, okId) {
+    if (typeof openIdCardScanner !== 'function') return;
+    var code;
+    try { code = await openIdCardScanner(); } catch (e) { return; }
+    if (!code) return;
+    var f = document.getElementById(fieldId);
+    var ok = document.getElementById(okId);
+    if (f) f.value = String(code).trim().toUpperCase();
+    if (ok) { ok.style.display = 'block'; ok.textContent = '✓ ID card scanned — now enter your password.'; }
+    var pw = f && f.form && f.form.querySelector('input[type=password]');
+    if (pw) pw.focus();
+  }
+  var sBtn = document.getElementById('lpScanStudent');
+  if (sBtn) sBtn.addEventListener('click', function () { scanInto('lp_roll', 'lpScanOkStudent'); });
+  var tBtn = document.getElementById('lpScanTeacher');
+  if (tBtn) tBtn.addEventListener('click', function () { scanInto('lp_emp_t', 'lpScanOkTeacher'); });
+})();
+</script>
+
 </body>
 </html>
