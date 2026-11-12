@@ -345,7 +345,23 @@ def publication():
                     WHERE fr.branch_id IN ({ph})
                     ORDER BY b.code, fr.deadline""",
                 tuple(branch_ids))
-    return render_template('dean_publication.html', rows=rows,
+    # Live publication data from the real forms, so the page is useful even
+    # before Admin defines any requirement.  Same student-level counting as
+    # the dashboard (each student counted once per department).
+    summary = []
+    if branch_ids:
+        dash = _dashboard_data(user, branches, None, None, None)
+        by_status = {b['id']: {'open': 0, 'closed': 0, 'archived': 0} for b in branches}
+        for r in db.query(
+                f"""SELECT branch_id, status, COUNT(*) AS c FROM feedback_forms
+                    WHERE branch_id IN ({ph}) AND is_deleted=0
+                      AND status IN ('open','closed','archived')
+                    GROUP BY branch_id, status""", tuple(branch_ids)):
+            by_status[r['branch_id']][r['status']] = r['c']
+        for r in dash['rows']:
+            summary.append(dict(r, forms=by_status[r['id']],
+                                form_total=sum(by_status[r['id']].values())))
+    return render_template('dean_publication.html', rows=rows, summary=summary,
                            requirements_configured=requirements_configured,
                            branches=branches)
 
