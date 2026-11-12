@@ -81,6 +81,11 @@
     <div class="field"><label for="title">Feedback form title</label>
       <input type="text" id="title" maxlength="200"
              value="{{ form.title if form else '' }}" placeholder="e.g. Mid-semester teaching feedback"></div>
+    <div class="field"><label for="deadline_at">Feedback deadline <span class="req">*</span></label>
+      <input type="datetime-local" id="deadline_at" required
+             value="{{ form.deadline_at|deadline_input if form else '' }}">
+      <div class="hint">Required. The form closes automatically at this date and time
+        (India time); students cannot submit after it.</div></div>
     <div class="field"><label for="instructions">Instructions for students</label>
       <textarea id="instructions" rows="2" maxlength="2000"
         placeholder="Explain the purpose and that responses are anonymous.">{{ form.instructions if form else '' }}</textarea></div>
