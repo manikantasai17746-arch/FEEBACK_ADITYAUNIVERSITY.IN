@@ -456,11 +456,20 @@ def get_form(form_id, include_deleted=False):
 def form_questions(form_id):
     questions = db.query('SELECT * FROM form_questions WHERE form_id=? ORDER BY position, id',
                          (form_id,))
+    if not questions:
+        return []
+    # One query for every option of the form (was: one query per question).
+    by_q = {}
+    for o in db.query(
+            'SELECT * FROM question_options WHERE question_id IN '
+            '(SELECT id FROM form_questions WHERE form_id=?) ORDER BY position, id',
+            (form_id,)):
+        o = dict(o)
+        by_q.setdefault(o['question_id'], []).append(o)
     out = []
     for q in questions:
         q = dict(q)
-        q['options'] = [dict(o) for o in db.query(
-            'SELECT * FROM question_options WHERE question_id=? ORDER BY position, id', (q['id'],))]
+        q['options'] = by_q.get(q['id'], [])
         out.append(q)
     return out
 
@@ -529,22 +538,34 @@ def save_form(payload, questions, admin_id, form_id=None, session_ids=None):
     # Record exactly which teaching sessions this form is distributed to.  This
     # is the single source of truth for eligibility and for the student list.
     conn.execute('DELETE FROM form_sessions WHERE form_id=?', (form_id,))
-    for sid in session_ids:
-        conn.execute('INSERT OR IGNORE INTO form_sessions(form_id, session_id) VALUES(?,?)',
-                     (form_id, sid))
+    if session_ids:
+        # one multi-row INSERT instead of one statement per session
+        conn.execute(
+            'INSERT OR IGNORE INTO form_sessions(form_id, session_id) VALUES '
+            + ','.join('(?,?)' for _ in session_ids),
+            [v for sid in session_ids for v in (form_id, sid)])
 
-    # replace questions (answers reference questions; only safe before publish)
+    # replace questions (answers reference questions; only safe before publish).
+    # Batched: each statement is a network round trip on the hosted database,
+    # so questions and their options go in as two multi-row INSERTs.
     conn.execute('DELETE FROM form_questions WHERE form_id=?', (form_id,))
-    for pos, q in enumerate(questions):
-        qid = db.insert_id(
-            'INSERT INTO form_questions(form_id, position, text, qtype, is_required) '
-            'VALUES(?,?,?,?,?)',
-            (form_id, pos, (q['text'] or '').strip()[:1000], q.get('qtype', 'rating'),
-             1 if q.get('is_required') else 0))
-        for opos, opt in enumerate(q.get('options') or []):
+    if questions:
+        q_args = []
+        for pos, q in enumerate(questions):
+            q_args += [form_id, pos, (q['text'] or '').strip()[:1000],
+                       q.get('qtype', 'rating'), 1 if q.get('is_required') else 0]
+        conn.execute(
+            'INSERT INTO form_questions(form_id, position, text, qtype, is_required) VALUES '
+            + ','.join('(?,?,?,?,?)' for _ in questions), q_args)
+        o_rows, o_args = [], []
+        for pos, q in enumerate(questions):
+            for opos, opt in enumerate(q.get('options') or []):
+                o_rows.append('((SELECT id FROM form_questions WHERE form_id=? AND position=?),?,?,?)')
+                o_args += [form_id, pos, opos, (opt.get('label') or '').strip()[:200], opt.get('value')]
+        if o_rows:
             conn.execute(
-                'INSERT INTO question_options(question_id, position, label, value) VALUES(?,?,?,?)',
-                (qid, opos, (opt.get('label') or '').strip()[:200], opt.get('value')))
+                'INSERT INTO question_options(question_id, position, label, value) VALUES '
+                + ','.join(o_rows), o_args)
     conn.commit()
     return form_id
 
@@ -557,7 +578,8 @@ def validate_form_for_publish(form_id):
     if not form['session_id']:
         errors.append('Select a subject / teacher / period (a teaching session), '
                       'or choose a subject to reach every matching timetable.')
-    if not form_session_ids(form_id):
+    sess_ids = form_session_ids(form_id)
+    if not sess_ids:
         errors.append('This form is not linked to any eligible students '
                       '(no matching teaching sessions were found).')
     if form_is_subject_scoped(form) and eligible_count_for_form(form_id) == 0:
@@ -569,7 +591,7 @@ def validate_form_for_publish(form_id):
     if err:
         errors.append(err + ' (Use "Change deadline" on the forms list.)')
     errors.extend(phase_rule_errors(
-        form['phase'], form_session_ids(form_id), exclude_form_id=form_id))
+        form['phase'], sess_ids, exclude_form_id=form_id))
     questions = form_questions(form_id)
     if not questions:
         errors.append('Add at least one question.')
