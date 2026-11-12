@@ -123,6 +123,14 @@ def create_app(config=None):
     app.register_blueprint(hod_bp)
     app.register_blueprint(dean_bp)
 
+    @app.route('/favicon.ico')
+    def favicon():
+        # Browsers always request /favicon.ico; serve the logo (cached) instead
+        # of waking the function just to return a 404.
+        resp = app.send_static_file('img/aditya-logo.png')
+        resp.headers['Cache-Control'] = 'public, max-age=604800'
+        return resp
+
     _register_jinja(app)
     _register_error_handlers(app)
     _register_security_headers(app)
