@@ -1028,11 +1028,14 @@ def my_actions():
     rows = db.query(
         """SELECT ia.id, ia.title, ia.description, ia.status, ia.priority,
                   ia.due_date, ia.updated_at, ia.completed_at,
+                  ia.hod_reply, ia.hod_replied_at, ia.teacher_user_id,
                   b.code AS branch_code, b.name AS branch_name,
-                  cu.name AS assigned_by
+                  cu.name AS assigned_by, tu.name AS teacher_name,
+                  tu.emp_code AS teacher_emp_code
            FROM improvement_actions ia
            LEFT JOIN branches b ON b.id = ia.branch_id
            LEFT JOIN users cu ON cu.id = ia.created_by
+           LEFT JOIN users tu ON tu.id = ia.teacher_user_id
            WHERE ia.owner_user_id=?
            ORDER BY
              CASE ia.status WHEN 'in_progress' THEN 0 WHEN 'planned' THEN 1
@@ -1043,6 +1046,71 @@ def my_actions():
     return render_template('hod_actions.html', user=user, rows=rows,
                            open_count=open_count, now_iso=date.today().isoformat(),
                            statuses=_HOD_ACTION_STATUSES)
+
+
+@bp.route('/actions/reply', methods=['POST'])
+@role_required('hod')
+def my_actions_reply():
+    """Reply to the Dean on one or several actions at once (improvement taken / planned)."""
+    from datetime import datetime
+    from . import mailer
+    from html import escape
+    user = current_user()
+    reply = (request.form.get('reply') or '').strip()[:3000]
+    new_status = request.form.get('status') or ''
+    ids = []
+    for v in request.form.getlist('action_id'):
+        try:
+            ids.append(int(v))
+        except ValueError:
+            pass
+    if not ids:
+        flash('Tick at least one action to reply to.', 'error')
+        return redirect(url_for('hod.my_actions'))
+    if not reply:
+        flash('Write your reply (what improvement you will make) before sending.', 'error')
+        return redirect(url_for('hod.my_actions'))
+    now = datetime.utcnow().isoformat(timespec='seconds')
+    conn = db.get_db()
+    done, by_dean = 0, {}
+    for aid in ids:
+        a = db.query('SELECT * FROM improvement_actions WHERE id=?', (aid,), one=True)
+        if not a or a['owner_user_id'] != user['id'] or a['status'] == 'cancelled':
+            continue
+        old = a['status']
+        st = new_status if new_status in _HOD_ACTION_STATUSES else (
+            'in_progress' if old == 'planned' else old)
+        completed_at = now if (st == 'completed' and old != 'completed') else (
+            a['completed_at'] if st == 'completed' else None)
+        conn.execute(
+            """UPDATE improvement_actions SET hod_reply=?, hod_replied_at=?, status=?,
+               updated_at=?, completed_at=? WHERE id=?""",
+            (reply, now, st, now, completed_at, aid))
+        conn.execute(
+            """INSERT INTO improvement_action_log
+               (action_id, actor_user_id, note, old_status, new_status) VALUES(?,?,?,?,?)""",
+            (aid, user['id'], ('HOD reply: ' + reply)[:500], old, st))
+        by_dean.setdefault(a['created_by'], []).append(a['title'])
+        done += 1
+    conn.commit()
+    audit('hod.action_reply', 'improvement_actions', 0, f'{done} action(s)')
+    for dean_id, titles in by_dean.items():
+        d = db.query('SELECT name, email FROM users WHERE id=?', (dean_id,), one=True) if dean_id else None
+        to = ((d['email'] if d else '') or '').strip()
+        if not mailer.is_valid_email(to):
+            continue
+        body = (f"Dear {d['name'] or 'Dean'},\n\n{dict(user).get('name') or 'The HOD'} replied on "
+                f"{len(titles)} action(s):\n" + '\n'.join(f'  - {t}' for t in titles) +
+                f"\n\nReply:\n{reply}\n\nOpen: {url_for('dean.actions', _external=True)}")
+        try:
+            mailer.send_email(to, 'HOD reply on feedback review', body,
+                              '<div style="font-family:Arial,sans-serif;white-space:pre-wrap">'
+                              + escape(body) + '</div>')
+        except Exception:
+            pass
+    flash(f'Reply sent to the Dean on {done} action(s).' if done else
+          'No matching actions were updated.', 'success' if done else 'error')
+    return redirect(url_for('hod.my_actions'))
 
 
 @bp.route('/actions/<int:aid>/status', methods=['POST'])

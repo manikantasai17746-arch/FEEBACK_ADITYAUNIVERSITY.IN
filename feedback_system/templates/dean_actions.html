@@ -15,17 +15,21 @@
     </nav>
   </div>
   <div class="btn-row" style="margin-bottom:1rem">
-    <a class="btn btn-ok" href="{{ url_for('dean.action_new') }}">+ New action</a>
+    <a class="btn btn-ok" href="{{ url_for('dean.actions_bulk') }}">✉ Send review requests by score</a>
+    <a class="btn btn-ghost" href="{{ url_for('dean.action_new') }}">+ New action</a>
   </div>
   <div class="card">
     <table class="data data-table">
       <thead>
-        <tr><th>Title</th><th>Dept</th><th>Status</th><th>Priority</th><th>Owner</th><th>Due</th><th></th></tr>
+        <tr><th>Title</th><th>Teacher</th><th>Dept</th><th>Status</th><th>Priority</th><th>Owner</th><th>Due</th><th></th></tr>
       </thead>
       <tbody>
         {% for a in rows %}
         <tr class="{% if a.due_date and a.status not in ('completed','cancelled') and a.due_date < now_iso %}overdue{% endif %}">
-          <td class="wrap">{{ a.title }}</td>
+          <td class="wrap">{{ a.title }}
+            {% if a.hod_reply %}<div class="sub" style="margin-top:.3rem"><span class="badge badge-open">HOD replied</span> {{ a.hod_reply[:140] }}{{ '…' if a.hod_reply|length > 140 }}</div>
+            {% elif a.owner_user_id and a.teacher_user_id and a.status in ('planned','in_progress') %}<div class="sub"><span class="badge">Waiting for HOD reply</span></div>{% endif %}</td>
+          <td class="wrap">{{ a.teacher_name or '—' }}</td>
           <td>{{ a.branch_code or '—' }}</td>
           <td><span class="badge">{{ a.status }}</span></td>
           <td>{{ a.priority }}</td>
@@ -34,7 +38,7 @@
           <td><a class="btn btn-ghost btn-sm" href="{{ url_for('dean.action_edit', aid=a.id) }}">Edit</a></td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="muted">No improvement actions yet.</td></tr>
+        <tr><td colspan="8" class="muted">No improvement actions yet.</td></tr>
         {% endfor %}
       </tbody>
     </table>
