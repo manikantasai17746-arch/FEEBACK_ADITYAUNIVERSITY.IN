@@ -126,11 +126,9 @@ def _enforce_account_setup():
 
     # HOD / Dean first-login onboarding (email verify + scope claim).
     if role in ('hod', 'dean'):
-        # Refresh flags from DB (current_user may not include new columns yet)
-        row = db.query(
-            'SELECT email_verified, onboarding_complete FROM users WHERE id=?',
-            (user['id'],), one=True)
-        if row and not row['onboarding_complete']:
+        # current_user() already loaded these columns this request: reuse them
+        # instead of a second identical users lookup on every HOD/Dean page.
+        if not user.get('onboarding_complete'):
             ep = 'hod.onboarding' if role == 'hod' else 'dean.onboarding'
             return redirect(url_for(ep))
     return None
