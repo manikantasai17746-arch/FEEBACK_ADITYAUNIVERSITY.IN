@@ -39,6 +39,12 @@ def eligible_rolls(app, session_id):
         return [r['roll'] for r in services.eligible_students(session_id)]
 
 
+def future_deadline(days=7):
+    """A local ``datetime-local`` string ``days`` ahead (what the form field posts)."""
+    from datetime import datetime, timedelta
+    return (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%dT%H:%M')
+
+
 DEFAULT_QUESTIONS = [
     {'text': 'How well does the teacher explain?', 'qtype': 'rating', 'is_required': True,
      'options': [{'label': 'Excellent', 'value': 1}, {'label': 'Good', 'value': 2},
@@ -52,7 +58,8 @@ def make_form(admin_client, session_id, title='Test form', questions=None):
     tok = get_csrf(admin_client.get('/admin/forms/new').get_data(as_text=True))
     r = admin_client.post('/admin/forms/save',
                           json={'form_id': None, 'title': title, 'instructions': 'Anon',
-                                'session_id': session_id, 'questions': questions},
+                                'session_id': session_id, 'questions': questions,
+                                'deadline_at': future_deadline()},
                           headers={'X-CSRF-Token': tok, 'X-Requested-With': 'XMLHttpRequest'})
     assert r.status_code == 200 and r.get_json()['ok'], r.get_data(as_text=True)
     return r.get_json()['form_id']
@@ -96,4 +103,4 @@ def question_ids(html):
 
 
 def login_student(client, roll):
-    return login(client, '/', {'roll': roll, 'password': 'student@123'})
+    return login(client, '/student/login', {'roll': roll, 'password': 'student@123'})
