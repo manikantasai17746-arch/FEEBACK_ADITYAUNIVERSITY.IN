@@ -1,5 +1,7 @@
 """Authentication routes for all three roles."""
+import os
 import re
+import secrets
 
 from flask import (Blueprint, current_app, flash, jsonify, redirect,
                    render_template, request, url_for, session)
@@ -82,7 +84,8 @@ _SETUP_ENDPOINTS = {'auth.logout', 'auth.setup_email', 'auth.verify_email',
                     'auth.change_password', 'static',
                     'hod.onboarding', 'hod.onboarding_verify',
                     'hod.onboarding_save', 'dean.onboarding',
-                    'dean.onboarding_verify', 'dean.onboarding_save'}
+                    'dean.onboarding_verify', 'dean.onboarding_save',
+                    'auth.admin_setup_emails', 'auth.admin_setup_emails_verify'}
 
 
 def _home_for(role):
@@ -100,6 +103,11 @@ def _enforce_account_setup():
     if request.endpoint in _SETUP_ENDPOINTS or request.endpoint is None:
         return None
     role = session.get('role')
+    # Admin must register + OTP-verify two recovery e-mails (once).
+    if (session.get('uid') and role == 'admin'
+            and current_app.config.get('REQUIRE_ACCOUNT_SETUP', True)
+            and _admin_setup_required(session['uid'])):
+        return redirect(url_for('auth.admin_setup_emails'))
     if not session.get('uid') or role not in ('student', 'teacher', 'hod', 'dean'):
         return None
     user = current_user()
@@ -187,9 +195,136 @@ def verify_email():
 
 
 # --------------------------------------------------------------------------- #
+# Admin: two OTP-verified recovery e-mails + two-e-mail forgot-password
+# --------------------------------------------------------------------------- #
+def _mail_can_work():
+    """Do not lock the admin out when the server has no mail account at all."""
+    return mailer.is_configured() or not os.environ.get('VERCEL')
+
+
+def _admin_setup_required(uid):
+    if not _mail_can_work():
+        return False
+    row = db.query('SELECT recovery_email1, recovery_email2 FROM users WHERE id=?',
+                   (uid,), one=True)
+    return not (row and (row['recovery_email1'] or '').strip()
+                and (row['recovery_email2'] or '').strip())
+
+
+def _admin_pairs(user):
+    u = dict(user)
+    return [e for e in ((u.get('recovery_email1') or '').strip().lower(),
+                        (u.get('recovery_email2') or '').strip().lower()) if e]
+
+
+@bp.route('/admin/setup-emails', methods=['GET', 'POST'])
+@role_required('admin')
+def admin_setup_emails():
+    """Step 1: the admin enters two different e-mails; a code goes to each."""
+    user = current_user()
+    if request.method == 'POST':
+        e1 = (request.form.get('email1') or '').strip().lower()
+        e2 = (request.form.get('email2') or '').strip().lower()
+        confirm1 = (request.form.get('confirm1') or '').strip().lower()
+        confirm2 = (request.form.get('confirm2') or '').strip().lower()
+        if not all(_EMAIL_RE.match(e) and len(e) <= 254 for e in (e1, e2)):
+            flash('Please enter two valid email addresses.', 'error')
+        elif e1 == e2:
+            flash('The two email addresses must be different.', 'error')
+        elif e1 != confirm1 or e2 != confirm2:
+            flash('Each email must match its confirmation box.', 'error')
+        else:
+            ok1, p1 = _send_code(user['id'], 'admin_email_1', e1)
+            ok2, p2 = _send_code(user['id'], 'admin_email_2', e2)
+            if ok1 and ok2:
+                session['adm_setup'] = {'e1': e1, 'e2': e2, 'ok1': False, 'ok2': False}
+                flash('We sent a 6-digit code to each email address.', 'success')
+                return redirect(url_for('auth.admin_setup_emails_verify'))
+            flash(p1 or p2, 'error')
+    current = _admin_pairs(user)
+    return render_template('admin_setup_emails.html', current=current)
+
+
+@bp.route('/admin/setup-emails/verify', methods=['GET', 'POST'])
+@role_required('admin')
+def admin_setup_emails_verify():
+    """Step 2: enter the code received on EACH address."""
+    user = current_user()
+    st = session.get('adm_setup')
+    if not st:
+        return redirect(url_for('auth.admin_setup_emails'))
+    if request.method == 'POST':
+        action = request.form.get('action') or ''
+        if action in ('resend1', 'resend2'):
+            i = action[-1]
+            ok, problem = _send_code(user['id'], f'admin_email_{i}', st['e' + i])
+            flash('A new code has been sent.' if ok else problem, 'success' if ok else 'error')
+        else:
+            for i in ('1', '2'):
+                if st['ok' + i]:
+                    continue
+                code = (request.form.get('code' + i) or '').strip()
+                if not code:
+                    continue
+                if verification.check(user['id'], f'admin_email_{i}', code):
+                    st['ok' + i] = True
+                else:
+                    flash(f'The code for email {i} is not correct or has expired.', 'error')
+            session['adm_setup'] = st
+            if st['ok1'] and st['ok2']:
+                db.execute('UPDATE users SET recovery_email1=?, recovery_email2=? WHERE id=?',
+                           (st['e1'], st['e2'], user['id']))
+                audit('admin.recovery_emails', 'users', user['id'],
+                      'Admin verified two recovery emails')
+                session.pop('adm_setup', None)
+                flash('Both email addresses are verified. Password recovery is now enabled.',
+                      'success')
+                return redirect(url_for('admin.dashboard'))
+    return render_template('admin_setup_emails_verify.html', st=st)
+
+
+@bp.route('/admin/forgot-password', methods=['GET', 'POST'])
+def admin_forgot_password():
+    """Admin gives BOTH registered e-mails; a code goes to one of them (random)."""
+    if request.method == 'POST':
+        key = f'adminreset:{request.remote_addr}'
+        remaining = login_locked(key)
+        if remaining:
+            flash(f'Too many attempts. Please try again in {remaining} seconds.', 'error')
+            return render_template('admin_forgot_password.html')
+        e1 = (request.form.get('email1') or '').strip().lower()
+        e2 = (request.form.get('email2') or '').strip().lower()
+        if not (_EMAIL_RE.match(e1) and _EMAIL_RE.match(e2)) or e1 == e2:
+            flash('Enter your two different registered email addresses.', 'error')
+            return render_template('admin_forgot_password.html')
+        target_user = None
+        for u in db.query("SELECT * FROM users WHERE role='admin' AND is_active=1"):
+            if set(_admin_pairs(u)) == {e1, e2} and len(_admin_pairs(u)) == 2:
+                target_user = u
+                break
+        if target_user:
+            send_to = secrets.choice(_admin_pairs(target_user))   # either one, at random
+            ok, problem = _send_code(target_user['id'], 'reset_password', send_to)
+            if not ok and 'wait' in problem:
+                flash(problem, 'error')
+                return render_template('admin_forgot_password.html')
+            clear_login_failures(key)
+            session['reset_who'] = ['admin', target_user['username']]
+        else:
+            register_login_failure(key, current_app.config['LOGIN_MAX_ATTEMPTS'],
+                                   current_app.config['LOGIN_LOCKOUT_SECONDS'])
+            session['reset_who'] = ['admin', e1]
+        # Same answer whether or not the two emails matched (no probing).
+        flash('If both emails match the registered ones, a 6-digit code has been sent to '
+              'one of them. Check both inboxes.', 'info')
+        return redirect(url_for('auth.reset_password'))
+    return render_template('admin_forgot_password.html')
+
+
+# --------------------------------------------------------------------------- #
 # Forgot password (code sent to the verified e-mail on file)
 # --------------------------------------------------------------------------- #
-_RESET_ROLES = {'student': 'Roll number', 'teacher': 'Employee code', 'admin': 'Email address'}
+_RESET_ROLES = {'student': 'Roll number', 'teacher': 'Employee code'}
 
 
 def _normalise_ident(role, ident):
@@ -201,6 +336,8 @@ def _normalise_ident(role, ident):
 def forgot_password():
     if request.method == 'POST':
         role = request.form.get('role') or 'student'
+        if role == 'admin':
+            return redirect(url_for('auth.admin_forgot_password'))
         ident = _normalise_ident(role, request.form.get('ident'))
         if role not in _RESET_ROLES or not ident:
             flash('Please enter your ID.', 'error')
@@ -217,6 +354,8 @@ def forgot_password():
             # Same answer whether or not the account exists (no user enumeration).
             flash('If that account has a confirmed email, a 6-digit code has been sent to it.', 'info')
             return redirect(url_for('auth.reset_password'))
+    if request.args.get('role') == 'admin':
+        return redirect(url_for('auth.admin_forgot_password'))
     return render_template('forgot_password.html', roles=_RESET_ROLES,
                            role=request.args.get('role', 'student'), ident='')
 
@@ -230,7 +369,11 @@ def reset_password():
     user = _existing_user(ident, role)
     if request.method == 'POST':
         if request.form.get('action') == 'resend':
-            email = ((user['email'] if user else '') or '').strip()
+            if role == 'admin':
+                pair = _admin_pairs(user) if user else []
+                email = secrets.choice(pair) if len(pair) == 2 else ''
+            else:
+                email = ((user['email'] if user else '') or '').strip()
             if user and email:
                 ok, problem = _send_code(user['id'], 'reset_password', email)
                 flash('A new code has been sent.' if ok else problem, 'success' if ok else 'error')
@@ -256,7 +399,8 @@ def reset_password():
                 flash('Your password has been reset. Please log in.', 'success')
                 return redirect(url_for({'admin': 'auth.admin_login',
                                          'teacher': 'auth.teacher_login'}.get(role, 'auth.student_login')))
-    return render_template('reset_password.html', role=role, ident=ident)
+    return render_template('reset_password.html', role=role,
+                           ident='the administrator account' if role == 'admin' else ident)
 
 
 # --------------------------------------------------------------------------- #
