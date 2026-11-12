@@ -728,15 +728,16 @@ def performance():
             branch_ids,
             academic_year_id=academic_year_id,
             semester_id=semester_id)
+        # Eligible counts and marks for ALL forms in a handful of queries
+        # (was ~30 queries per row, one row after another).
+        fids = [r['form_id'] for r in rows]
+        elig_map = services.eligible_counts_for_forms(fids)
+        fm_map = scoring.form_marks_bulk(fids, elig_map)
         enriched = []
         for r in rows:
             r = dict(r)
-            eligible = 0
-            try:
-                eligible = services.eligible_count_for_form(r['form_id'])
-            except Exception:
-                eligible = 0
-            fm = scoring.form_marks(r['form_id'], eligible)
+            eligible = elig_map.get(r['form_id'], 0)
+            fm = fm_map[r['form_id']]
             r['eligible'] = eligible
             r['students'] = fm['students']
             r['obtained_marks'] = fm['obtained']
