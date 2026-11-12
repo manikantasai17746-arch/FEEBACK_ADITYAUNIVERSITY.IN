@@ -63,7 +63,7 @@ def submit(form_id):
         # Change 2: auto-open the next pending form after submit
         forms = services.student_forms(user['id'])
         pending = [f for f in forms
-                   if f['status'] == 'open' and not f.get('submission_id')
+                   if f['status'] == 'open' and not f['submission_id']
                    and f['id'] != form_id]
         if pending:
             flash('Opening your next pending form…', 'info')
