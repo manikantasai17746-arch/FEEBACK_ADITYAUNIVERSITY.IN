@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% import '_macros.html' as m %}
 {% block title %}Department Forms — HOD{% endblock %}
 {% block body %}
 <div class="perf-welcome">
@@ -91,6 +92,7 @@
           <th>Subject Code</th>
           <th>Category</th>
           <th>Status</th>
+          <th>Deadline</th>
           <th>Created On</th>
           <th>Actions</th>
         </tr>
@@ -117,6 +119,7 @@
               <span class="badge">{{ f.status }}</span>
             {% endif %}
           </td>
+          <td>{{ m.deadline_cell(f, url_for('hod.form_deadline', fid=f.id), url_for('hod.forms'), csrf_token()) }}</td>
           <td class="sub">{{ f.created_at or '—' }}</td>
           <td>
             <div class="btn-row" style="gap:.35rem;flex-wrap:wrap">
