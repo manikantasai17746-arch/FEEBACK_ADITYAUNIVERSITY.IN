@@ -1451,3 +1451,85 @@ def _detail_cards(rows, teacher_id=None):
             'question_count': fm.get('question_count') or len(r.get('criteria') or []),
         })
     return cards
+
+
+# --------------------------------------------------------------------------- #
+# Subject-wise multi-round teacher feedback comparison
+# --------------------------------------------------------------------------- #
+def _comparison_args():
+    return (request.args.get('academic_year_id', type=int),
+            request.args.get('semester_id', type=int),
+            (request.args.get('q') or '').strip())
+
+
+@bp.route('/comparison')
+@role_required('dean')
+def comparison():
+    """Every teacher with closed rounds, with subject-wise round-to-round change."""
+    from . import analytics
+    user = current_user()
+    branches = _dean_branches(user)
+    branch_ids = [b['id'] for b in branches]
+    ay, sem, q = _comparison_args()
+    profiles = analytics.build_teacher_profiles(
+        branch_ids, academic_year_id=ay, semester_id=sem, q=q)
+    years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
+    semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
+    return render_template(
+        'dean_comparison.html', user=user, branches=branches, profiles=profiles,
+        years=years, semesters=semesters,
+        filters={'academic_year_id': ay, 'semester_id': sem, 'q': q})
+
+
+@bp.route('/comparison/teacher/<int:teacher_id>')
+@role_required('dean')
+def comparison_teacher(teacher_id):
+    from . import analytics
+    user = current_user()
+    branch_ids = [b['id'] for b in _dean_branches(user)]
+    if not branch_ids:
+        abort(403)
+    ay, sem, _q = _comparison_args()
+    profile = analytics.profile_for_teacher(
+        branch_ids, teacher_id, academic_year_id=ay, semester_id=sem)
+    if not profile:
+        abort(404)
+    return render_template('dean_comparison_teacher.html', user=user, profile=profile)
+
+
+@bp.route('/comparison/pdf/<kind>')
+@role_required('dean')
+def comparison_pdf(kind):
+    """PDF of one teacher (?teacher_id=) or of everyone in scope (kind='all')."""
+    from datetime import datetime
+    from flask import Response
+    from . import analytics, reports
+    user = current_user()
+    branch_ids = [b['id'] for b in _dean_branches(user)]
+    if not branch_ids:
+        abort(403)
+    ay, sem, q = _comparison_args()
+    if kind == 'teacher':
+        teacher_id = request.args.get('teacher_id', type=int)
+        if not teacher_id:
+            abort(400)
+        profile = analytics.profile_for_teacher(
+            branch_ids, teacher_id, academic_year_id=ay, semester_id=sem)
+        if not profile:
+            abort(404)
+        profiles = [profile]
+        title = 'Subject-wise feedback comparison - ' + (profile['teacher_name'] or 'Teacher')
+        fname = f'comparison_teacher_{teacher_id}.pdf'
+    elif kind == 'all':
+        profiles = analytics.build_teacher_profiles(
+            branch_ids, academic_year_id=ay, semester_id=sem, q=q)
+        title = 'Subject-wise feedback comparison - all teachers'
+        fname = 'comparison_all_teachers.pdf'
+    else:
+        abort(404)
+    pdf = reports.build_comparison_pdf(
+        profiles, title,
+        subtitle='Closed feedback rounds only. Each subject is shown separately.',
+        generated_at=datetime.now().strftime('%d %b %Y %H:%M'))
+    return Response(pdf, mimetype='application/pdf', headers={
+        'Content-Disposition': f'inline; filename={fname}'})

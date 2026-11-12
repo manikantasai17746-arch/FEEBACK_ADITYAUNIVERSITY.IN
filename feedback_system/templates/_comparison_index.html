@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Subject-wise comparison{% endblock %}
+{% block body %}
+{% set bpn = request.blueprint %}
+{% set fargs = {'academic_year_id': filters.academic_year_id, 'semester_id': filters.semester_id, 'q': filters.q} %}
+<div class="container page">
+  <div class="page-header">
+    <h1>📈 Multi-round Comparison</h1>
+    <nav class="subnav">
+      <a href="{{ url_for(bpn ~ '.performance') }}">← Performance</a>
+      <a href="{{ url_for(bpn ~ '.comparison_pdf', kind='all', **fargs) }}">Download PDF (all)</a>
+    </nav>
+  </div>
+  <p class="sub">Each teacher's closed feedback rounds, grouped by subject. Subject averages are listed
+    separately; unrelated subjects are never combined into one percentage.</p>
+
+  <form method="get" class="card" style="margin-bottom:1rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:end">
+    <label>Academic year<br>
+      <select name="academic_year_id">
+        <option value="">All</option>
+        {% for y in years %}<option value="{{ y.id }}" {{ 'selected' if filters.academic_year_id == y.id }}>{{ y.name }}</option>{% endfor %}
+      </select></label>
+    <label>Semester<br>
+      <select name="semester_id">
+        <option value="">All</option>
+        {% for s in semesters %}<option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>Sem {{ s.number }}</option>{% endfor %}
+      </select></label>
+    <label>Search teacher / subject<br>
+      <input type="search" name="q" value="{{ filters.q }}" placeholder="Name, emp code or subject"></label>
+    <button class="btn" type="submit">Apply</button>
+    <a class="btn" href="{{ url_for(bpn ~ '.comparison') }}">Reset</a>
+  </form>
+
+  {% if profiles %}
+  <div class="card">
+    <table class="data data-table">
+      <thead><tr><th>Teacher</th><th>Subject</th><th>Rounds</th><th>Average</th>
+        <th>Net change</th><th>Trend</th><th>Band</th></tr></thead>
+      <tbody>
+      {% for p in profiles %}{% for s in p.subjects %}
+        <tr>
+          <td class="wrap">{% if loop.first %}
+            <a href="{{ url_for(bpn ~ '.comparison_teacher', teacher_id=p.teacher_user_id, **fargs) }}"><strong>{{ p.teacher_name or 'Teacher' }}</strong></a>
+            <span class="muted">({{ p.teacher_emp_code }})</span>{% endif %}</td>
+          <td class="wrap">{{ s.subject_code }} — {{ s.subject_name }}</td>
+          <td>{{ s.round_count }}</td>
+          <td><strong>{{ '%.1f'|format(s.average_score) }}%</strong></td>
+          <td>{{ '%+.1f'|format(s.net_change) if s.net_change is not none else '—' }}</td>
+          <td>{{ s.net_trend }}</td>
+          <td>{{ s.band.label if s.band else '—' }}</td>
+        </tr>
+      {% endfor %}{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="sub">No teacher has closed, scored feedback rounds for the selected filters yet.
+    A round appears here once its feedback form is closed.</p>
+  {% endif %}
+</div>
+{% endblock %}
