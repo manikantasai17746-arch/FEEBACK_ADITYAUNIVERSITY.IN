@@ -68,19 +68,7 @@ def _question_max_points(options: List[dict]) -> Optional[int]:
 
 def form_rating_questions(form_id: int) -> List[dict]:
     """Return scoreable (rating / single_choice with numeric options) questions."""
-    questions = db.query(
-        'SELECT * FROM form_questions WHERE form_id=? ORDER BY position, id',
-        (form_id,))
-    out = []
-    for q in questions:
-        q = dict(q)
-        opts = [dict(o) for o in db.query(
-            'SELECT * FROM question_options WHERE question_id=? ORDER BY position, id',
-            (q['id'],))]
-        q['options'] = opts
-        if q['qtype'] in ('rating', 'single_choice') and _question_max_points(opts) is not None:
-            out.append(q)
-    return out
+    return _load_form_data([form_id], with_answers=False)['questions'].get(form_id, [])
 
 
 def _session_filter(session_ids, alias='s'):
@@ -91,16 +79,82 @@ def _session_filter(session_ids, alias='s'):
     return f' AND {alias}.session_id IN ({",".join("?" * len(ids))})', tuple(ids)
 
 
-def compute_form_scores(form_id: int, min_responses: int = MIN_RESPONSE_THRESHOLD,
-                        session_ids=None) -> Dict[str, Any]:
-    """Aggregate scores for one feedback form.
+_CHUNK = 400   # max form ids per SQL statement (keeps parameter lists small)
 
-    Returns dict with:
-      overall_score (float|None), valid_responses (int),
-      criteria (list of criterion dicts), distribution (per-question),
-      hidden (bool) — True when below min_responses threshold.
+
+def _chunks(ids):
+    for i in range(0, len(ids), _CHUNK):
+        yield ids[i:i + _CHUNK]
+
+
+def _load_form_data(form_ids, session_ids=None, with_answers=True) -> Dict[str, Any]:
+    """Fetch everything the scoring maths needs for MANY forms in a few queries.
+
+    Before, every form cost one query for its questions, one more per question
+    for the options, one for the submission count and one for the answers
+    (~13 round trips per form, run twice per row on the performance pages).
+    Now the whole set costs 4 queries regardless of how many forms there are:
+    questions, options, submission counts, and answers pre-counted by the
+    database (GROUP BY) so no per-answer row ever crosses the network.
+
+    Returns {'questions': {fid: [scoreable question dicts with options]},
+             'sub_count': {fid: int},
+             'answers':   {fid: [ {question_id,label,value,position,n} ... ]}}
     """
-    questions = form_rating_questions(form_id)
+    ids = list(dict.fromkeys(int(i) for i in form_ids if i))
+    out: Dict[str, Any] = {'questions': {i: [] for i in ids},
+                           'sub_count': {i: 0 for i in ids},
+                           'answers': {i: [] for i in ids}}
+    if not ids:
+        return out
+
+    for chunk in _chunks(ids):
+        ph = ','.join('?' * len(chunk))
+        qrows = db.query(
+            f'SELECT * FROM form_questions WHERE form_id IN ({ph}) '
+            f'ORDER BY form_id, position, id', tuple(chunk))
+        opts_by_q: Dict[int, List[dict]] = defaultdict(list)
+        for o in db.query(
+                f"""SELECT qo.* FROM question_options qo
+                    JOIN form_questions fq ON fq.id = qo.question_id
+                    WHERE fq.form_id IN ({ph})
+                    ORDER BY qo.question_id, qo.position, qo.id""", tuple(chunk)):
+            opts_by_q[o['question_id']].append(dict(o))
+        for q in qrows:
+            q = dict(q)
+            opts = opts_by_q.get(q['id'], [])
+            q['options'] = opts
+            if q['qtype'] in ('rating', 'single_choice') and _question_max_points(opts) is not None:
+                out['questions'][q['form_id']].append(q)
+        if not with_answers:
+            continue
+
+        sf, sargs = _session_filter(session_ids, 'submissions')
+        for r in db.query(
+                f'SELECT form_id, COUNT(*) AS c FROM submissions '
+                f'WHERE form_id IN ({ph}){sf} GROUP BY form_id',
+                tuple(chunk) + sargs):
+            out['sub_count'][r['form_id']] = r['c']
+
+        sf2, sargs2 = _session_filter(session_ids, 's')
+        for r in db.query(
+                f"""SELECT s.form_id, a.question_id, qo.label, qo.value, qo.position,
+                           COUNT(*) AS n
+                    FROM answers a
+                    JOIN submissions s ON s.id = a.submission_id
+                    LEFT JOIN question_options qo ON qo.id = a.option_id
+                    WHERE s.form_id IN ({ph}) AND a.option_id IS NOT NULL{sf2}
+                    GROUP BY s.form_id, a.question_id, a.option_id,
+                             qo.label, qo.value, qo.position
+                    ORDER BY MIN(a.id)""",
+                tuple(chunk) + sargs2):
+            out['answers'][r['form_id']].append(dict(r))
+    return out
+
+
+def _scores_from_data(form_id: int, min_responses: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    """Overall / per-criterion scores for one form from pre-loaded data."""
+    questions = data['questions'].get(form_id, [])
     if not questions:
         return {
             'form_id': form_id,
@@ -112,12 +166,7 @@ def compute_form_scores(form_id: int, min_responses: int = MIN_RESPONSE_THRESHOL
             'reason': 'No scoreable questions',
         }
 
-    # Valid submissions for this form
-    sf, sargs = _session_filter(session_ids, 'submissions')
-    sub_count = db.query(
-        'SELECT COUNT(*) c FROM submissions WHERE form_id=?' + sf,
-        (form_id,) + sargs, one=True)['c']
-
+    sub_count = data['sub_count'].get(form_id, 0)
     if sub_count < min_responses:
         return {
             'form_id': form_id,
@@ -129,24 +178,11 @@ def compute_form_scores(form_id: int, min_responses: int = MIN_RESPONSE_THRESHOL
             'reason': f'Fewer than {min_responses} responses',
         }
 
-    qids = [q['id'] for q in questions]
-    ph = ','.join('?' * len(qids))
-
-    # All answers for scoreable questions (anonymous view — no student link)
-    sf2, sargs2 = _session_filter(session_ids, 's')
-    rows = db.query(
-        f"""SELECT a.question_id, a.option_id, qo.label, qo.value, qo.position
-            FROM answers a
-            JOIN submissions s ON s.id = a.submission_id
-            LEFT JOIN question_options qo ON qo.id = a.option_id
-            WHERE s.form_id = ? AND a.question_id IN ({ph})
-              AND a.option_id IS NOT NULL{sf2}""",
-        (form_id, *qids, *sargs2))
-
-    # Group by question
+    qids = {q['id'] for q in questions}
     by_q: Dict[int, List[dict]] = defaultdict(list)
-    for r in rows:
-        by_q[r['question_id']].append(dict(r))
+    for r in data['answers'].get(form_id, []):
+        if r['question_id'] in qids:
+            by_q[r['question_id']].append(r)
 
     criteria = []
     total_earned = 0.0
@@ -167,10 +203,11 @@ def compute_form_scores(form_id: int, min_responses: int = MIN_RESPONSE_THRESHOL
             pts = _option_points(a)
             if pts is None:
                 continue
-            earned += pts
-            scored_n += 1
+            n = a['n']
+            earned += pts * n
+            scored_n += n
             lbl = a.get('label') or str(a.get('value'))
-            dist_counts[lbl] = dist_counts.get(lbl, 0) + 1
+            dist_counts[lbl] = dist_counts.get(lbl, 0) + n
 
         if scored_n == 0:
             crit_score = None
@@ -210,6 +247,27 @@ def compute_form_scores(form_id: int, min_responses: int = MIN_RESPONSE_THRESHOL
         'hidden': False,
         'reason': None,
     }
+
+
+def compute_form_scores(form_id: int, min_responses: int = MIN_RESPONSE_THRESHOLD,
+                        session_ids=None) -> Dict[str, Any]:
+    """Aggregate scores for one feedback form.
+
+    Returns dict with:
+      overall_score (float|None), valid_responses (int),
+      criteria (list of criterion dicts), distribution (per-question),
+      hidden (bool) — True when below min_responses threshold.
+    """
+    data = _load_form_data([form_id], session_ids)
+    return _scores_from_data(form_id, min_responses, data)
+
+
+def compute_form_scores_bulk(form_ids, min_responses: int = MIN_RESPONSE_THRESHOLD,
+                             data=None) -> Dict[int, Dict[str, Any]]:
+    """:func:`compute_form_scores` for many forms in 4 queries total."""
+    ids = list(dict.fromkeys(int(i) for i in form_ids if i))
+    data = data or _load_form_data(ids)
+    return {fid: _scores_from_data(fid, min_responses, data) for fid in ids}
 
 
 def faculty_scores_for_branches(
@@ -281,10 +339,12 @@ def faculty_scores_for_branches(
     sql += ' ORDER BY u.name, ff.id'
 
     forms = db.query(sql, tuple(params))
+    all_scores = compute_form_scores_bulk([f['form_id'] for f in forms],
+                                          min_responses=min_responses)
     rows = []
     for f in forms:
         f = dict(f)
-        scores = compute_form_scores(f['form_id'], min_responses=min_responses)
+        scores = all_scores[f['form_id']]
         f['overall_score'] = scores['overall_score']
         f['valid_responses'] = scores['valid_responses']
         f['hidden'] = scores['hidden']
@@ -445,14 +505,16 @@ def form_marks(form_id: int, eligible: int, session_ids=None) -> Dict[str, Any]:
       rating_breakdown   – list of {label, count, marks_each, total_marks}
       answer_count       – total rating answers across all questions
     """
-    questions = form_rating_questions(form_id)
+    data = _load_form_data([form_id], session_ids)
+    return _marks_from_data(form_id, eligible, data)
+
+
+def _marks_from_data(form_id: int, eligible: int, data: Dict[str, Any]) -> Dict[str, Any]:
+    questions = data['questions'].get(form_id, [])
     n = len(questions)
     mpq = marks_per_question(n)
 
-    sf, sargs = _session_filter(session_ids, 'submissions')
-    sub_count = db.query(
-        'SELECT COUNT(*) c FROM submissions WHERE form_id=?' + sf,
-        (form_id,) + sargs, one=True)['c']
+    sub_count = data['sub_count'].get(form_id, 0)
 
     eligible = int(eligible or 0)
     maximum = round(10.0 * eligible, 2)
@@ -470,17 +532,8 @@ def form_marks(form_id: int, eligible: int, session_ids=None) -> Dict[str, Any]:
             'answer_count': 0,
         }
 
-    qids = [q['id'] for q in questions]
-    ph = ','.join('?' * len(qids))
-    sf2, sargs2 = _session_filter(session_ids, 's')
-    rows = db.query(
-        f"""SELECT a.question_id, a.option_id, qo.label, qo.value
-            FROM answers a
-            JOIN submissions s ON s.id = a.submission_id
-            LEFT JOIN question_options qo ON qo.id = a.option_id
-            WHERE s.form_id = ? AND a.question_id IN ({ph})
-              AND a.option_id IS NOT NULL{sf2}""",
-        (form_id, *qids, *sargs2))
+    qids = {q['id'] for q in questions}
+    rows = [r for r in data['answers'].get(form_id, []) if r['question_id'] in qids]
 
     # Aggregate by rating label
     buckets: Dict[str, dict] = {}
@@ -496,9 +549,10 @@ def form_marks(form_id: int, eligible: int, session_ids=None) -> Dict[str, Any]:
             if pts is None:
                 continue
             share = pts / 5.0
+        cnt = r['n']
         marks_each = round(mpq * share, 2)
-        obtained += marks_each
-        answer_count += 1
+        obtained += marks_each * cnt
+        answer_count += cnt
         key = label or 'Option'
         if key not in buckets:
             buckets[key] = {
@@ -507,9 +561,9 @@ def form_marks(form_id: int, eligible: int, session_ids=None) -> Dict[str, Any]:
                 'marks_each': marks_each,
                 'total_marks': 0.0,
             }
-        buckets[key]['count'] += 1
+        buckets[key]['count'] += cnt
         buckets[key]['total_marks'] = round(
-            buckets[key]['total_marks'] + marks_each, 2)
+            buckets[key]['total_marks'] + marks_each * cnt, 2)
 
     order = ['excellent', 'very good', 'good', 'average', 'poor', 'bad', 'very poor']
     breakdown = list(buckets.values())
@@ -538,3 +592,14 @@ def form_marks(form_id: int, eligible: int, session_ids=None) -> Dict[str, Any]:
         'rating_breakdown': breakdown,
         'answer_count': answer_count,
     }
+
+
+def form_marks_bulk(form_ids, eligible_map, data=None) -> Dict[int, Dict[str, Any]]:
+    """:func:`form_marks` for many forms in 4 queries total.
+
+    ``eligible_map`` is {form_id: eligible_count} (missing → 0).
+    """
+    ids = list(dict.fromkeys(int(i) for i in form_ids if i))
+    data = data or _load_form_data(ids)
+    return {fid: _marks_from_data(fid, (eligible_map or {}).get(fid, 0), data)
+            for fid in ids}
