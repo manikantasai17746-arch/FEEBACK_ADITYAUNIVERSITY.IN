@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}My HODs — Dean{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>My HODs</h1>
+  </div>
+
+  <div class="card" style="margin-bottom:1.25rem">
+    <h2 style="margin-top:0">➕ Add new HODs <span class="muted">· {{ available|length }}</span></h2>
+    <p class="sub">HODs created after your first setup (including other departments) appear here.
+      Tick the ones you oversee and add them to your scope.</p>
+    {% if available %}
+    <form method="post" id="add-hods">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field"><input type="search" id="hod-search" placeholder="Search by EMP ID, name, email or department…" style="width:100%;max-width:420px"></div>
+      <label style="display:flex;align-items:center;gap:8px;font-weight:600;margin:8px 0">
+        <input type="checkbox" id="hod-all"> Select all
+      </label>
+      <table class="data data-table">
+        <thead><tr><th></th><th>EMP ID</th><th>Name</th><th>Email</th><th>Department</th><th>Onboarded</th></tr></thead>
+        <tbody>
+        {% for h in available %}
+        <tr class="hod-row" data-q="{{ ((h.emp_code or '') ~ ' ' ~ (h.name or '') ~ ' ' ~ (h.email or '') ~ ' ' ~ (h.departments or ''))|lower }}">
+          <td><input type="checkbox" class="hod-cb" name="hod_id" value="{{ h.id }}" aria-label="Select {{ h.name }}"></td>
+          <td>{{ h.emp_code }}</td>
+          <td>{{ h.name }}</td>
+          <td>{{ h.email or '—' }}</td>
+          <td>{{ h.departments or '—' }}</td>
+          <td>{{ 'Yes' if h.onboarding_complete else 'No' }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      <div class="btn-row" style="margin-top:12px">
+        <button type="submit" class="btn btn-accent">Add selected HODs</button>
+      </div>
+    </form>
+    {% else %}
+    <p class="muted">No new HODs to add right now. When Admin creates a new HOD, they will show up here.</p>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">HODs in your scope <span class="muted">· {{ assigned|length }}</span></h2>
+    <table class="data data-table">
+      <thead><tr><th>EMP ID</th><th>Name</th><th>Email</th><th>Department</th><th>Onboarded</th></tr></thead>
+      <tbody>
+      {% for h in assigned %}
+      <tr>
+        <td>{{ h.emp_code }}</td><td>{{ h.name }}</td><td>{{ h.email or '—' }}</td>
+        <td>{{ h.departments or '—' }}</td><td>{{ 'Yes' if h.onboarding_complete else 'No' }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="muted">No HODs assigned yet.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+  var all=document.getElementById('hod-all'), search=document.getElementById('hod-search');
+  if(!all) return;
+  var rows=[].slice.call(document.querySelectorAll('.hod-row'));
+  function vis(){return rows.filter(function(r){return !r.hidden;});}
+  all.addEventListener('change',function(){vis().forEach(function(r){r.querySelector('.hod-cb').checked=all.checked;});});
+  search.addEventListener('input',function(){
+    var q=search.value.trim().toLowerCase();
+    rows.forEach(function(r){r.hidden = q && r.dataset.q.indexOf(q)===-1;});
+  });
+})();
+</script>
+{% endblock %}
