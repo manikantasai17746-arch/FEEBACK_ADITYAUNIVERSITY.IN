@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Recovery emails — Admin{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="eyebrow">Admin · Step 1 of 2</div>
+    <h2>Register two recovery emails</h2>
+    <p class="sub" style="margin-bottom:1.2rem">Enter two different email addresses and type each one
+      again to confirm. We send a 6-digit code to both. If you forget your password you will need to
+      give both emails, and the reset code is sent to one of them.</p>
+    {% if current %}
+    <div class="flash flash-info">Currently registered: {{ current|join(' and ') }}. Saving new ones
+      replaces them after both are verified.</div>
+    {% endif %}
+    <form method="post" autocomplete="off" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field"><label for="email1">Email 1</label>
+        <input type="email" id="email1" name="email1" required autofocus placeholder="first@gmail.com"></div>
+      <div class="field"><label for="confirm1">Confirm email 1</label>
+        <input type="email" id="confirm1" name="confirm1" required placeholder="type it again"></div>
+      <div class="field"><label for="email2">Email 2</label>
+        <input type="email" id="email2" name="email2" required placeholder="second@gmail.com"></div>
+      <div class="field"><label for="confirm2">Confirm email 2</label>
+        <input type="email" id="confirm2" name="confirm2" required placeholder="type it again"></div>
+      <button class="btn btn-block" type="submit">Send codes to both emails</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
