@@ -36,7 +36,8 @@ def _paginate(total, page, per_page):
 @admin_only
 def dashboard():
     stats = services.dashboard_stats()
-    recent = services.list_forms(limit=8)
+    report_forms = services.list_forms(limit=500)
+    recent = report_forms[:8]            # same ordering: avoids a second identical query
     to_publish = db.query("""SELECT f.*, cs.subject_name FROM feedback_forms f
         LEFT JOIN class_sessions cs ON cs.id=f.session_id
         LEFT JOIN result_publications rp ON rp.form_id=f.id AND rp.session_id=f.session_id
@@ -47,7 +48,7 @@ def dashboard():
                            years=services.academic_years(), semesters=services.semesters(),
                            branches=services.branches(),
                            timetables=services.timetables(),
-                           report_forms=services.list_forms(limit=500))
+                           report_forms=report_forms)
 
 
 # --------------------------------------------------------------------------- #
