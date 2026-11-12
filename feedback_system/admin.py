@@ -263,6 +263,12 @@ def form_save():
     # Never rewrite the questions/configuration of a form that already has
     # responses: the historical answers must stay intact.
     existing_id = _int(form_id)
+    deadline_at, deadline_err = services.resolve_deadline_for_save(
+        data.get('deadline_at'),
+        services.get_form(existing_id, include_deleted=True) if existing_id else None)
+    if deadline_err:
+        return jsonify(ok=False, errors=[deadline_err]), 400
+    payload['deadline_at'] = deadline_at
     if existing_id and services.form_has_submissions(existing_id):
         return jsonify(ok=False, errors=[
             'This form already has student responses, so its questions and target cannot be '
@@ -351,6 +357,33 @@ def form_status(fid):
     return redirect(request.form.get('next') or url_for('admin.forms'))
 
 
+@bp.route('/forms/<int:fid>/deadline', methods=['POST'])
+@admin_only
+def form_deadline(fid):
+    """Extend / change a form's deadline. A closed form moved into the future reopens."""
+    form = services.get_form(fid)
+    if not form or form['status'] == 'archived':
+        abort(400)
+    iso = services.parse_deadline_input(request.form.get('deadline_at'))
+    err = services.deadline_error(iso)
+    if err:
+        flash(err, 'error')
+        return redirect(request.form.get('next') or url_for('admin.forms'))
+    services.set_form_deadline(fid, iso)
+    if form['status'] == 'closed':
+        errors = services.validate_form_for_publish(fid)
+        if errors:
+            for e in errors:
+                flash(e, 'error')
+            flash('Deadline saved, but the form stays closed.', 'warning')
+        else:
+            services.set_form_status(fid, 'open')
+            flash('Deadline extended and the form is open again.', 'success')
+    else:
+        flash('Deadline updated.', 'success')
+    return redirect(request.form.get('next') or url_for('admin.forms'))
+
+
 @bp.route('/forms/<int:fid>/delete', methods=['POST'])
 @admin_only
 def form_delete(fid):
@@ -411,8 +444,12 @@ def bulk_create():
         status = 'draft'
     if not questions:
         return jsonify(ok=False, errors=['Add at least one question to the template.']), 400
+    deadline_at = services.parse_deadline_input(data.get('deadline_at'))
+    err = services.deadline_error(deadline_at)
+    if err:
+        return jsonify(ok=False, errors=[err]), 400
     result = services.bulk_create_forms(filters, questions, data.get('title_pattern'),
-                                        status, current_user()['id'])
+                                        status, current_user()['id'], deadline_at=deadline_at)
     return jsonify(ok=True, **result)
 
 
