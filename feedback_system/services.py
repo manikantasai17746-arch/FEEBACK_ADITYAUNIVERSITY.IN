@@ -203,6 +203,59 @@ def eligible_count_for_form(form_id):
         (form_id,), one=True)['c']
 
 
+def eligible_counts_for_forms(form_ids):
+    """{form_id: eligible student count} for many forms in one query.
+
+    Same numbers as calling :func:`eligible_count_for_form` per form (distinct
+    students across every session the form covers); forms with none map to 0.
+    """
+    ids = list(dict.fromkeys(int(i) for i in form_ids if i))
+    out = {i: 0 for i in ids}
+    for start in range(0, len(ids), 400):
+        chunk = ids[start:start + 400]
+        ph = ','.join('?' * len(chunk))
+        for r in db.query(
+                f"""SELECT fs.form_id, COUNT(DISTINCT ss.student_user_id) AS c
+                    FROM form_sessions fs
+                    JOIN session_students ss ON ss.session_id = fs.session_id
+                    WHERE fs.form_id IN ({ph}) GROUP BY fs.form_id""", tuple(chunk)):
+            out[r['form_id']] = r['c']
+    return out
+
+
+def response_counts_for_forms(form_ids):
+    """{form_id: submission count} for many forms in one query (missing -> 0)."""
+    ids = list(dict.fromkeys(int(i) for i in form_ids if i))
+    out = {i: 0 for i in ids}
+    for start in range(0, len(ids), 400):
+        chunk = ids[start:start + 400]
+        ph = ','.join('?' * len(chunk))
+        for r in db.query(
+                f'SELECT form_id, COUNT(*) AS c FROM submissions '
+                f'WHERE form_id IN ({ph}) GROUP BY form_id', tuple(chunk)):
+            out[r['form_id']] = r['c']
+    return out
+
+
+def publication_infos(pairs):
+    """{(form_id, session_id): publication row} for many forms in one query."""
+    pairs = [(int(f), int(s)) for f, s in pairs if f and s]
+    out = {}
+    fids = list(dict.fromkeys(f for f, _ in pairs))
+    wanted = set(pairs)
+    for start in range(0, len(fids), 400):
+        chunk = fids[start:start + 400]
+        ph = ','.join('?' * len(chunk))
+        for r in db.query(
+                f"""SELECT rp.*, u.name AS published_by_name
+                    FROM result_publications rp LEFT JOIN users u ON u.id=rp.published_by
+                    WHERE rp.form_id IN ({ph})""", tuple(chunk)):
+            key = (r['form_id'], r['session_id'])
+            if key in wanted:
+                out[key] = r
+    return out
+
+
 def eligible_count_for_sessions(session_ids):
     """Distinct ACTIVE students enrolled in any of the given sessions.
 
@@ -978,10 +1031,13 @@ def tracking_rows(filters=None):
     """
     filters = filters or {}
     rows = list_forms(filters)
+    fids = [f['id'] for f in rows]
+    elig_map = eligible_counts_for_forms(fids)      # 1 query for all forms
+    resp_map = response_counts_for_forms(fids)      # 1 query for all forms
     out = []
     for f in rows:
-        eligible = eligible_count_for_form(f['id'])
-        submitted = response_count(f['id'])
+        eligible = elig_map.get(f['id'], 0)
+        submitted = resp_map.get(f['id'], 0)
         out.append({
             'form': f,
             'eligible': eligible,
