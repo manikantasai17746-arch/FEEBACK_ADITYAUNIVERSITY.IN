@@ -1,66 +1,68 @@
 {% extends 'base.html' %}
 {% block title %}Faculty Performance — Dean{% endblock %}
 {% block body %}
-<div class="container page">
-  <div class="page-header">
-    <h1>Faculty Performance</h1>
-    <nav class="subnav">
-      <a href="{{ url_for('dean.dashboard') }}">Dashboard</a>
-      <a href="{{ url_for('dean.performance') }}" class="active">Performance</a>
-      <a href="{{ url_for('dean.performance_bands') }}">🎯 Teachers by score band</a>
-      <a href="{{ url_for('dean.actions') }}">Actions</a>
-      <a href="{{ url_for('auth.logout') }}">Logout</a>
-    </nav>
+<div class="dz">
+  <h1 class="dz-title">Faculty Performance{% if dept %} — {{ dept.code }}{% endif %}</h1>
+  <p class="dz-sub">{% if dept %}{{ dept.name }}. {% endif %}Scores come from the central scoring service (same as HOD). Each student gives 10 marks in total; groups below the response threshold show N/A.</p>
+
+  <div class="dz-card">
+    <form method="get" class="dz-filters">
+      <label>Department
+        <select name="branch_id" onchange="this.form.submit()">
+          <option value="">All departments</option>
+          {% for b in branches %}<option value="{{ b.id }}" {{ 'selected' if filters.branch_id == b.id }}>{{ b.code }} — {{ b.name }}</option>{% endfor %}
+        </select></label>
+      <label>Academic year
+        <select name="academic_year_id" onchange="this.form.submit()">
+          <option value="">All years</option>
+          {% for y in years %}<option value="{{ y.id }}" {{ 'selected' if filters.academic_year_id == y.id }}>{{ y.name }}</option>{% endfor %}
+        </select></label>
+      <label>Semester
+        <select name="semester_id" onchange="this.form.submit()">
+          <option value="">All semesters</option>
+          {% for s in semesters %}<option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>Semester {{ s.number }}</option>{% endfor %}
+        </select></label>
+      <a class="dz-btn" href="{{ url_for('dean.publication') }}">← Publication</a>
+      <a class="dz-btn" href="{{ url_for('dean.performance_bands') }}">Teachers by score band</a>
+    </form>
   </div>
-  <form method="get" class="filter-bar card">
-    <div class="field"><label>Academic year</label>
-      <select name="academic_year_id"><option value="">All</option>
-        {% for y in years %}<option value="{{ y.id }}" {{ 'selected' if filters.academic_year_id == y.id }}>{{ y.name }}</option>{% endfor %}
-      </select></div>
-    <div class="field"><label>Semester</label>
-      <select name="semester_id"><option value="">All</option>
-        {% for s in semesters %}<option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>{{ s.number }}</option>{% endfor %}
-      </select></div>
-    <button class="btn" type="submit">Filter</button>
-  </form>
-  <div class="card">
-    <p class="sub">Scores from the central scoring service (same as HOD). Each student contributes 10 marks total. Below-threshold groups show N/A.</p>
-    <table class="data data-table">
-      <thead>
-        <tr>
-          <th>Form ID</th>
-          <th>Faculty</th>
-          <th>Dept</th>
-          <th>Subject</th>
-          <th>Eligible</th>
-          <th>Students Responded</th>
-          <th>Obtained / Max</th>
-          <th>Overall /100</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for r in rows %}
-        <tr>
-          <td>#{{ r.form_id }}</td>
-          <td class="wrap">{{ r.teacher_name or '—' }} ({{ r.teacher_emp_code or '—' }})</td>
-          <td>{{ r.branch_code or '—' }}</td>
-          <td class="wrap">{{ r.subject_code or '—' }}</td>
-          <td>{{ r.eligible if r.eligible is defined else '—' }}</td>
-          <td>{{ r.students if r.students is defined else r.valid_responses }}</td>
-          <td>
-            {% if r.obtained_marks is defined and r.max_marks is defined %}
-              {{ r.obtained_marks }} / {{ r.max_marks }}
-            {% else %}—{% endif %}
-          </td>
-          <td>{% if r.hidden or r.overall_score is none %}<span class="badge">N/A</span>{% else %}<strong>{{ '%.1f'|format(r.overall_score) }}</strong>{% endif %}</td>
-          <td><span class="badge">{{ r.status }}</span></td>
-        </tr>
-        {% else %}
-        <tr><td colspan="9" class="muted">No data for assigned departments.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+
+  <div class="dz-stats">
+    <div class="dz-stat"><small>Faculty</small><strong>{{ summary.faculty }}</strong></div>
+    <div class="dz-stat"><small>Feedback forms</small><strong>{{ summary.forms }}</strong></div>
+    <div class="dz-stat"><small>Students responded</small><strong>{{ '{:,}'.format(summary.responded) }}</strong></div>
+    <div class="dz-stat"><small>Average score / 100</small><strong>{{ summary.avg if summary.avg is not none else '—' }}</strong></div>
   </div>
+
+  {% if rows %}
+  <div class="dz-fac-grid">
+    {% for r in rows %}
+    {% set tname = r.teacher_name or 'Faculty' %}
+    {% set initials = (tname.split()|map('first')|join('')|upper)[:2] %}
+    <div class="dz-fac">
+      {% if r.teacher_emp_code %}
+      <img class="ph" src="{{ url_for('static', filename='img/teachers/' ~ r.teacher_emp_code ~ '.jpg') }}" alt="{{ tname }}"
+           onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+      {% endif %}
+      <div class="ph-fb" {% if r.teacher_emp_code %}style="display:none"{% endif %}>{{ initials }}</div>
+      <div class="mt">
+        <h3>{{ tname }}</h3>
+        <p class="s">{{ r.teacher_emp_code or '—' }} · {{ r.branch_code or '—' }}</p>
+        <p class="s" title="{{ r.subject_name or '' }}">{{ r.subject_code or '' }}{% if r.subject_name %} — {{ r.subject_name }}{% endif %}</p>
+        <div class="nums">
+          <div><b>{{ r.eligible if r.eligible is defined else '—' }}</b><span>Eligible</span></div>
+          <div><b>{{ r.students if r.students is defined else r.valid_responses }}</b><span>Responded</span></div>
+          <div><b>{% if r.hidden or r.overall_score is none %}N/A{% else %}{{ '%.1f'|format(r.overall_score) }}{% endif %}</b><span>Score /100</span></div>
+        </div>
+        {% if r.teacher_user_id %}
+        <a class="dz-view" href="{{ url_for('dean.performance_detail', teacher_id=r.teacher_user_id) }}">View</a>
+        {% else %}<span class="dz-view off">View</span>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="dz-card"><div class="dz-empty">No published feedback forms for the selected department and filters yet.</div></div>
+  {% endif %}
 </div>
 {% endblock %}
