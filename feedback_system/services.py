@@ -1900,9 +1900,15 @@ def phase_rule_errors(phase, session_ids, exclude_form_id=None):
     errors = []
     label = PHASE_LABELS[phase]
     for r in db.query(base + tail, tuple(args)):
+        tnames = [t['name'] for t in db.query(
+            "SELECT DISTINCT u.name FROM form_sessions fs "
+            "JOIN class_sessions cs ON cs.id=fs.session_id "
+            "JOIN users u ON u.id=cs.teacher_user_id WHERE fs.form_id=? ORDER BY u.name",
+            (r['id'],)) if t['name']]
+        who = f', teacher: {", ".join(tnames)}' if tnames else ''
         errors.append(
             f'{label} already exists for this teacher, subject and section '
-            f'({r["subject_code"] or "subject"}, section {r["sections"]}) — form #{r["id"]}. '
+            f'({r["subject_code"] or "subject"}, section {r["sections"]}{who}) — form #{r["id"]}. '
             f'A phase can only be created once.')
     if phase == 'phase2':
         args1 = ['phase1', *session_ids]
