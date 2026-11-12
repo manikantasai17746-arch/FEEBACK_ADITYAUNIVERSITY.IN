@@ -1,49 +1,66 @@
 {% extends 'base.html' %}
 {% block title %}Publication Monitoring — Dean{% endblock %}
 {% block body %}
-<div class="container page">
-  <div class="page-header"><h1>HOD publication monitoring</h1>
-    <nav class="subnav">
-      <a href="{{ url_for('dean.dashboard') }}">Dashboard</a>
-      <a href="{{ url_for('dean.publication') }}" class="active">Publication</a>
-      <a href="{{ url_for('dean.analytics') }}">Analytics</a>
-      <a href="{{ url_for('dean.historical') }}">Historical</a>
-    </nav>
-  </div>
-  <h2 style="margin:14px 0 8px">Department publication summary</h2>
-  {% if summary %}
-  <div style="overflow-x:auto">
-  <table class="data-table">
-    <thead><tr><th>Department</th><th>HOD</th><th>Forms published</th><th>Open</th><th>Closed</th><th>Archived</th>
-      <th>Eligible students</th><th>Submitted students</th><th>Submission rate</th><th>Last activity</th></tr></thead>
-    <tbody>{% for r in summary %}<tr>
-      <td>{{ r.code }}</td><td>{{ r.hod }}</td><td>{{ r.form_total }}</td>
-      <td>{{ r.forms.open }}</td><td>{{ r.forms.closed }}</td><td>{{ r.forms.archived }}</td>
-      <td>{{ '{:,}'.format(r.eligible) }}</td><td>{{ '{:,}'.format(r.submitted) }}</td>
-      <td>{% if r.has_rate %}{{ r.rate }}%{% else %}No data{% endif %}</td><td>{{ r.last }}</td>
-    </tr>{% endfor %}</tbody>
-  </table>
-  </div>
-  {% else %}
-  <p class="muted">No authorised departments yet.</p>
-  {% endif %}
+<div class="dz">
+  <h1 class="dz-title">HOD Publication Monitoring</h1>
+  <p class="dz-sub">Published feedback forms and student participation in your authorised departments. Use <b>View</b> to analyse a department's faculty performance.</p>
 
-  <h2 style="margin:22px 0 8px">Feedback requirements</h2>
-  {% if not requirements_configured %}
-  <div class="alert alert-info"><strong>Requirements not configured.</strong>
-    Admin has not defined feedback requirements yet, so required-vs-published progress and deadlines
-    cannot be calculated. The summary above is based on the forms that are actually published.</div>
-  {% elif rows %}
-  <table class="data-table">
-    <thead><tr><th>Branch</th><th>Title</th><th>Category</th><th>Deadline</th><th>Req status</th><th>Form status</th></tr></thead>
-    <tbody>{% for r in rows %}<tr>
-      <td>{{ r.branch_code }}</td><td>{{ r.title }}</td><td>{{ r.category }}</td>
-      <td>{{ r.deadline or '—' }}</td><td>{{ r.status }}</td>
-      <td>{{ r.form_status or 'not matched' }}</td>
-    </tr>{% endfor %}</tbody>
-  </table>
-  {% else %}
-  <p class="muted">No requirement rows for your authorised departments.</p>
-  {% endif %}
+  <div class="dz-card">
+    <div class="dz-card-h">
+      <h2>Department publication summary</h2>
+      <a class="dz-btn" href="{{ url_for('dean.dashboard') }}">← Dashboard</a>
+    </div>
+    {% if summary %}
+    <div class="dz-tw">
+      <table class="dz-t">
+        <thead><tr><th>#</th><th>Department</th><th>HOD Name</th><th>Forms Published</th><th>Open / Closed / Archived</th>
+          <th>Eligible Students</th><th>Submitted Students</th><th>Submission Rate</th><th>Last Activity</th><th>Action</th></tr></thead>
+        <tbody>
+        {% for r in summary %}
+          <tr>
+            <td>{{ r.n }}</td>
+            <td title="{{ r.name }}">{{ r.code }}</td>
+            <td>{{ r.hod }}</td>
+            <td><span class="dz-chip {{ 'dz-g' if r.form_total else 'dz-o' }}">{{ r.form_total }} {{ 'Published' if r.form_total else 'Not Published' }}</span></td>
+            <td>{{ r.forms.open }} / {{ r.forms.closed }} / {{ r.forms.archived }}</td>
+            <td>{{ '{:,}'.format(r.eligible) }}</td>
+            <td>{{ '{:,}'.format(r.submitted) }}</td>
+            <td>{% if r.has_rate %}
+              <div class="dz-rate"><b>{{ r.rate }}%</b><span><i class="{{ 'dz-rt-g' if r.rate >= 70 else ('dz-rt-o' if r.rate >= 60 else 'dz-rt-r') }}" style="width:{{ r.rate }}%"></i></span></div>
+              {% else %}<span class="muted">No data</span>{% endif %}</td>
+            <td>{{ r.last or '—' }}</td>
+            <td><a class="dz-view" href="{{ url_for('dean.performance', branch_id=r.id) }}">View</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="dz-empty">No authorised departments yet.</div>
+    {% endif %}
+  </div>
+
+  <div class="dz-card">
+    <div class="dz-card-h"><h2>Feedback requirements</h2></div>
+    {% if not requirements_configured %}
+    <div class="dz-note"><strong>Requirements not configured.</strong>
+      Admin has not defined feedback requirements yet, so required-vs-published progress and deadlines
+      cannot be calculated. The summary above is based on the forms that are actually published.</div>
+    {% elif rows %}
+    <div class="dz-tw">
+      <table class="dz-t" style="min-width:640px">
+        <thead><tr><th>Branch</th><th>Title</th><th>Category</th><th>Deadline</th><th>Requirement</th><th>Form status</th></tr></thead>
+        <tbody>{% for r in rows %}<tr>
+          <td>{{ r.branch_code }}</td><td>{{ r.title }}</td><td>{{ r.category }}</td>
+          <td>{{ r.deadline or '—' }}</td>
+          <td><span class="dz-chip {{ 'dz-r' if r.status == 'required' else 'dz-o' }}">{{ r.status|capitalize }}</span></td>
+          <td><span class="dz-chip {{ 'dz-g' if r.form_status in ('open','closed','archived') else 'dz-o' }}">{{ (r.form_status or 'not matched')|capitalize }}</span></td>
+        </tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="dz-empty">No requirement rows for your authorised departments.</div>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}
