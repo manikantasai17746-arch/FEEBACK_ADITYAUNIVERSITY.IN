@@ -111,17 +111,26 @@ _PG_MIGRATION_LOCK = 0x5F0BAC  # arbitrary, stable advisory-lock key
 
 
 def current_version(conn):
+    # Fast path: the table almost always exists, so ask for the version first
+    # (1 round trip).  Only create the table when that fails (fresh database).
+    try:
+        row = conn.execute(
+            "SELECT MAX(version) FROM feedback_system_schema_migrations"
+        ).fetchone()
+        return (row[0] or 0) if row else 0
+    except Exception:
+        conn.rollback()
     conn.execute("""
         CREATE TABLE IF NOT EXISTS feedback_system_schema_migrations (
             version INTEGER PRIMARY KEY,
             applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    conn.commit()
     row = conn.execute(
         "SELECT MAX(version) FROM feedback_system_schema_migrations"
     ).fetchone()
     return (row[0] or 0) if row else 0
-
 
 
 def _apply_statement(conn, stmt):
@@ -223,7 +232,9 @@ def run_migrations(target):
     """
     is_pg = pg.is_postgres_url(target)
     if is_pg:
-        conn = pg.Connection(target)
+        # Reuse the per-thread shared connection: the request that follows
+        # cold start then needs no second TCP+TLS+auth handshake to Supabase.
+        conn = pg.shared_connection(target)
     else:
         os.makedirs(os.path.dirname(os.path.abspath(target)) or '.', exist_ok=True)
         conn = sqlite3.connect(target)
@@ -266,4 +277,10 @@ def run_migrations(target):
                 except Exception:
                     conn.rollback()
         finally:
-            conn.close()
+            if is_pg:
+                try:
+                    conn.rollback()      # keep the shared link open, clean state
+                except Exception:
+                    pass
+            else:
+                conn.close()
