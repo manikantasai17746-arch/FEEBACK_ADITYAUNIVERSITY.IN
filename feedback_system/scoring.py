@@ -61,6 +61,25 @@ def _option_points(opt: dict) -> Optional[int]:
     return None
 
 
+def _answer_share(a: dict, max_pts: Optional[int]) -> Optional[float]:
+    """Fraction (0..1) of a question's marks earned by one answer.
+
+    This is the ONE scale used everywhere: the Score / 100 and the marks both
+    come from it, so they can never disagree.  Known rating labels use
+    ``RATING_SHARE`` (Excellent 100%, Very Good 75%, Good 50%, Average 37.5%,
+    Poor 25%); any other option falls back to its points out of the question's
+    best option.  Returns None when the answer cannot be scored.
+    """
+    label = (a.get('label') or str(a.get('value') or '')).strip()
+    share = rating_share(label)
+    if share is not None:
+        return share
+    pts = _option_points(a)
+    if pts is None or not max_pts:
+        return None
+    return min(1.0, pts / max_pts)
+
+
 def _question_max_points(options: List[dict]) -> Optional[int]:
     pts = [p for p in (_option_points(o) for o in options) if p is not None]
     return max(pts) if pts else None
@@ -200,11 +219,11 @@ def _scores_from_data(form_id: int, min_responses: int, data: Dict[str, Any]) ->
         # Rating distribution: label → count
         dist_counts: Dict[str, int] = {o['label']: 0 for o in opts}
         for a in answers:
-            pts = _option_points(a)
-            if pts is None:
+            share = _answer_share(a, max_pts)
+            if share is None:
                 continue
             n = a['n']
-            earned += pts * n
+            earned += share * n
             scored_n += n
             lbl = a.get('label') or str(a.get('value'))
             dist_counts[lbl] = dist_counts.get(lbl, 0) + n
@@ -212,9 +231,9 @@ def _scores_from_data(form_id: int, min_responses: int, data: Dict[str, Any]) ->
         if scored_n == 0:
             crit_score = None
         else:
-            crit_score = round((earned / (max_pts * scored_n)) * 100, 2)
+            crit_score = round((earned / scored_n) * 100, 2)
             total_earned += earned
-            total_max += max_pts * scored_n
+            total_max += scored_n
 
         pct_dist = {}
         for lbl, cnt in dist_counts.items():
@@ -512,7 +531,9 @@ def form_marks(form_id: int, eligible: int, session_ids=None) -> Dict[str, Any]:
 def _marks_from_data(form_id: int, eligible: int, data: Dict[str, Any]) -> Dict[str, Any]:
     questions = data['questions'].get(form_id, [])
     n = len(questions)
-    mpq = marks_per_question(n)
+    mpq = marks_per_question(n)              # rounded: for display only
+    exact_mpq = 10.0 / n if n else 0.0       # used for every calculation
+    qmax = {q['id']: _question_max_points(q['options']) for q in questions}
 
     sub_count = data['sub_count'].get(form_id, 0)
 
@@ -542,28 +563,23 @@ def _marks_from_data(form_id: int, eligible: int, data: Dict[str, Any]) -> Dict[
 
     for r in rows:
         label = (r['label'] or str(r.get('value') or '')).strip()
-        share = rating_share(label)
+        share = _answer_share(r, qmax.get(r['question_id']))
         if share is None:
-            # Fallback: try option points relative to max (5-scale)
-            pts = _option_points(dict(r))
-            if pts is None:
-                continue
-            share = pts / 5.0
+            continue
         cnt = r['n']
-        marks_each = round(mpq * share, 2)
-        obtained += marks_each * cnt
+        earned = exact_mpq * share * cnt          # exact; rounded only for display
+        obtained += earned
         answer_count += cnt
         key = label or 'Option'
         if key not in buckets:
             buckets[key] = {
                 'label': key,
                 'count': 0,
-                'marks_each': marks_each,
+                'marks_each': round(exact_mpq * share, 2),
                 'total_marks': 0.0,
             }
         buckets[key]['count'] += cnt
-        buckets[key]['total_marks'] = round(
-            buckets[key]['total_marks'] + marks_each * cnt, 2)
+        buckets[key]['total_marks'] += earned
 
     order = ['excellent', 'very good', 'good', 'average', 'poor', 'bad', 'very poor']
     breakdown = list(buckets.values())
