@@ -76,3 +76,7 @@ def test_students_not_multiplied_by_number_of_forms(app):
         assert data['pending'] == 1
         assert data['rows'][0]['eligible'] == 3
         assert data['rows'][0]['submitted'] == 2
+        # Dropdown labels are "<emp id> (<department>) <title>", not a bare title.
+        labels = [o['title'] for o in data['form_options']]
+        assert labels[0] == 'T1 (ZZ) Form 0'
+        assert len(set(labels)) == len(labels)
