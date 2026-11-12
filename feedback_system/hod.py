@@ -64,7 +64,7 @@ def dashboard():
                        snapshot_branch, published_at, created_at
                 FROM feedback_forms
                 WHERE branch_id IN ({ph}) AND is_deleted=0
-                ORDER BY created_at DESC LIMIT 15""",
+                ORDER BY created_at DESC, id DESC LIMIT 15""",
             tuple(branch_ids))
 
     return render_template('hod_dashboard.html', stats=stats, user=user)
@@ -113,7 +113,7 @@ def forms():
                          snapshot_subject_name, snapshot_branch, snapshot_timetable,
                          published_at, closed_at, created_at
                   FROM feedback_forms WHERE {' AND '.join(where)}
-                  ORDER BY created_at DESC"""
+                  ORDER BY created_at DESC, id DESC"""
         forms_list = db.query(sql, tuple(args))
         # Counts (unfiltered by status/search for tiles) - one query, not four.
         c = db.query(
@@ -1256,16 +1256,17 @@ def performance():
                     or q in (r.get('subject_name') or '').lower()]
 
     # Enrich rows with obtained / max marks from the 10-marks-per-student rule
+    # Eligible counts and marks for ALL forms in a handful of queries
+    # (was ~30 queries per row, one row after another).
+    _fids = [r['form_id'] for r in rows]
+    _elig_map = services.eligible_counts_for_forms(_fids)
+    _fm_map = scoring.form_marks_bulk(_fids, _elig_map)
     enriched = []
     for r in rows:
         r = dict(r)
         resp = r.get('valid_responses') or r.get('response_count') or 0
-        eligible = 0
-        try:
-            eligible = services.eligible_count_for_form(r['form_id'])
-        except Exception:
-            eligible = 0
-        fm = scoring.form_marks(r['form_id'], eligible)
+        eligible = _elig_map.get(r['form_id'], 0)
+        fm = _fm_map[r['form_id']]
         r['eligible'] = eligible
         r['max_marks'] = fm['maximum']
         r['obtained_marks'] = fm['obtained']
