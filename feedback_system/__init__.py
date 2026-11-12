@@ -103,6 +103,36 @@ def create_app(config=None):
     app.template_folder = os.path.join(os.path.dirname(__file__), 'templates')
     app.static_folder = os.path.join(os.path.dirname(__file__), 'static')
 
+    _static_versions = {}
+
+    @app.url_defaults
+    def _version_static_urls(endpoint, values):
+        """Append ?v=<content hash> to /static URLs.
+
+        Browsers cache CSS/JS for a day or more. Without a version in the URL a
+        phone can keep running an OLD app.js/app.css against a NEW page after a
+        deployment (e.g. the form builder not sending the deadline). A changed
+        file gets a new URL, so every device loads the fresh copy. The hash is
+        taken from the file contents (not its timestamp, which serverless hosts
+        may fix) and cached per process.
+        """
+        if endpoint != 'static' or 'v' in values:
+            return
+        filename = values.get('filename')
+        if not filename:
+            return
+        ver = _static_versions.get(filename)
+        if ver is None:
+            import hashlib
+            try:
+                with open(os.path.join(app.static_folder, filename), 'rb') as fh:
+                    ver = hashlib.md5(fh.read()).hexdigest()[:10]
+            except OSError:
+                ver = ''
+            _static_versions[filename] = ver
+        if ver:
+            values['v'] = ver
+
     db_module.init_app(app)
 
     from .security import init_csrf
