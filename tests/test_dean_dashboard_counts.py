@@ -80,3 +80,21 @@ def test_students_not_multiplied_by_number_of_forms(app):
         labels = [o['title'] for o in data['form_options']]
         assert labels[0] == 'T1 (ZZ) Form 0'
         assert len(set(labels)) == len(labels)
+
+
+def test_publication_page_shows_live_summary_without_requirements(app):
+    """/dean/publication lists real forms/students even with no requirements."""
+    from helpers import login
+    with app.app_context():
+        branch = db_module.query("SELECT id FROM branches WHERE code='ZZ'", one=True)
+        dean_id = _user('dean', 'PDEAN')
+        db_module.execute(
+            'INSERT INTO user_department_scopes(user_id, branch_id) VALUES(?,?)',
+            (dean_id, branch['id']))
+    c = app.test_client()
+    r = login(c, '/dean/login', {'emp_code': 'PDEAN', 'password': 'pass12345'})
+    assert r.status_code == 302
+    html = c.get('/dean/publication').get_data(as_text=True)
+    assert 'Department publication summary' in html
+    assert '<td>ZZ</td>' in html
+    assert 'Requirements not configured' in html
