@@ -31,6 +31,7 @@
           </div>
           <p class="sub">Period {{ f.period_no }} · {{ f.subject_code }} · {{ f.teacher_name }}<br>
             {{ f.timetable }} · Semester {{ f.semester }} · {{ f.title }}</p>
+          {% if f.deadline_at %}<p class="sub"><strong>Closes:</strong> {{ f.deadline_at|deadline }}</p>{% endif %}
           <a class="btn btn-accent btn-sm" href="{{ url_for('student.view_form', form_id=f.id) }}">Give feedback →</a>
         </div>
       {% endfor %}
