@@ -469,6 +469,16 @@ def bootstrap_if_empty(app):
     use ``scripts/sync_admin_credentials.py`` to reset them deliberately.
     """
     conn = db.get_db()
+    # Fast path for every cold start after the first: one round trip tells us
+    # an admin exists and data is already imported, so there is nothing to do.
+    try:
+        probe = conn.execute(
+            "SELECT (SELECT 1 FROM users WHERE role='admin' LIMIT 1), "
+            "(SELECT 1 FROM assignments LIMIT 1)").fetchone()
+        if probe is not None and probe[0] and probe[1]:
+            return
+    except Exception:
+        conn.rollback()
     admin_id = ensure_admin(conn, app.config.get('ADMIN_EMAIL'),
                             app.config.get('ADMIN_PASSWORD'))
     conn.commit()
