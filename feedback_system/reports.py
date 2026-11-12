@@ -226,3 +226,82 @@ def build_pending_rolls_pdf(teacher_name, emp_code, form_title, subjects, sectio
     doc.build(story, canvasmaker=_numbered_canvas(
         'Faculty Feedback System - roll numbers only; no answers or names are shown'))
     return buffer.getvalue()
+
+
+def build_comparison_pdf(profiles, title, subtitle=None, generated_at='', footer=''):
+    """Subject-wise multi-round comparison PDF (one table per teacher subject).
+
+    ``profiles`` is the list produced by ``analytics.build_teacher_profiles``.
+    Each subject keeps its own rounds and average; subjects are never combined.
+    """
+    from xml.sax.saxutils import escape
+
+    styles = _styles()
+    buffer = BytesIO()
+    doc = BaseDocTemplate(
+        buffer, pagesize=landscape(A4),
+        leftMargin=12 * mm, rightMargin=12 * mm, topMargin=12 * mm, bottomMargin=15 * mm,
+        title=title, author='Faculty Feedback System')
+    frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='main',
+                  leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+    doc.addPageTemplates([PageTemplate(id='page', frames=[frame])])
+
+    story = [Paragraph(escape(title), styles['title'])]
+    if subtitle:
+        story.append(Paragraph(escape(subtitle), styles['subtitle']))
+    if generated_at:
+        story.append(Paragraph(f'<b>Generated:</b> {escape(generated_at)}', styles['meta']))
+    story.append(Spacer(1, 6))
+
+    def _signed(v):
+        return '—' if v is None else f'{v:+.1f}'
+
+    if not profiles:
+        story.append(Paragraph('No closed feedback rounds with scores were found.',
+                               styles['empty']))
+    for p in profiles:
+        name = escape(p.get('teacher_name') or 'Teacher')
+        code = escape(p.get('teacher_emp_code') or '')
+        story.append(Paragraph(f'{name} ({code})' if code else name, styles['cellb']))
+        story.append(Spacer(1, 3))
+        for s in p['subjects']:
+            band = (s.get('band') or {}).get('label') or '—'
+            story.append(Paragraph(
+                f"<b>{escape(str(s['subject_code']))} — {escape(s['subject_name'] or '')}</b>"
+                f" &nbsp;|&nbsp; {s['round_count']} round(s)"
+                f" &nbsp;|&nbsp; average {s['average_score']:.1f}%"
+                f" &nbsp;|&nbsp; net {_signed(s['net_change'])} ({escape(s['net_trend'])})"
+                f" &nbsp;|&nbsp; band {escape(band)}", styles['meta']))
+            data = [[_cell(h, styles['head'])
+                     for h in ('#', 'Form', 'Date', 'Responses', 'Score', 'Step change',
+                               'Trend')]]
+            for i, r in enumerate(s['rounds'], 1):
+                data.append([
+                    _cell(i, styles['cell']),
+                    _cell(escape(r['title']), styles['cell']),
+                    _cell(r['round_date'] or '—', styles['cell']),
+                    _cell(r['responses'], styles['cell']),
+                    _cell(f"{r['score']:.1f}%", styles['cellb']),
+                    _cell(_signed(r['step_change']), styles['cell']),
+                    _cell(escape(r['step_trend']), styles['cell']),
+                ])
+            weights = [6, 70, 24, 18, 18, 22, 22]
+            total = sum(weights)
+            table = Table(data, colWidths=[doc.width * (w / total) for w in weights],
+                          repeatRows=1)
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('GRID', (0, 0), (-1, -1), 0.4, LINE),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, NAVY_SOFT]),
+                ('LEFTPADDING', (0, 0), (-1, -1), 4), ('RIGHTPADDING', (0, 0), (-1, -1), 4),
+                ('TOPPADDING', (0, 0), (-1, -1), 3.5), ('BOTTOMPADDING', (0, 0), (-1, -1), 3.5),
+            ]))
+            story.append(Spacer(1, 2))
+            story.append(table)
+            story.append(Spacer(1, 8))
+        story.append(Spacer(1, 6))
+
+    doc.build(story, canvasmaker=_numbered_canvas(
+        footer or 'Faculty Feedback System — subject-wise comparison'))
+    return buffer.getvalue()
