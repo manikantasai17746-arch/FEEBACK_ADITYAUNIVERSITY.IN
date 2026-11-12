@@ -507,11 +507,16 @@ def results():
     }
     candidates = [f for f in services.list_forms(filters) if f['status'] != 'draft']
     rows = []
+    fids = [f['id'] for f in candidates]
+    elig_map = services.eligible_counts_for_forms(fids)       # 1 query, not 1 per form
+    resp_map = services.response_counts_for_forms(fids)       # 1 query, not 1 per form
+    pub_map = services.publication_infos(
+        [(f['id'], f['session_id']) for f in candidates if f['session_id']])
     for f in candidates:
-        pub = services.publication_info(f['id'], f['session_id']) if f['session_id'] else None
+        pub = pub_map.get((f['id'], f['session_id'])) if f['session_id'] else None
         rows.append({'form': f, 'published': bool(pub and pub['is_published']),
-                     'responses': services.response_count(f['id']),
-                     'eligible': services.eligible_count_for_form(f['id']),
+                     'responses': resp_map.get(f['id'], 0),
+                     'eligible': elig_map.get(f['id'], 0),
                      'pub': pub})
     return render_template('admin_results.html', user=current_user(), rows=rows, filters=filters,
                            years=services.academic_years(), semesters=services.semesters(),
