@@ -131,6 +131,17 @@ def create_app(config=None):
         resp.headers['Cache-Control'] = 'public, max-age=604800'
         return resp
 
+    @app.before_request
+    def _close_expired_forms():
+        # Forms close themselves once their deadline passes (no cron needed).
+        if request.endpoint == 'static':
+            return
+        try:
+            from . import services
+            services.close_expired_forms()
+        except Exception:
+            app.logger.exception('Deadline sweep failed')
+
     _register_jinja(app)
     _register_error_handlers(app)
     _register_security_headers(app)
@@ -177,6 +188,16 @@ def _register_jinja(app):
                 'archived': 'Archived',
             },
         }
+
+    @app.template_filter('deadline')
+    def deadline_filter(value):
+        from . import services
+        return services.format_deadline(value)
+
+    @app.template_filter('deadline_input')
+    def deadline_input_filter(value):
+        from . import services
+        return services.deadline_input_value(value)
 
     @app.template_filter('pct')
     def pct(value, total):
