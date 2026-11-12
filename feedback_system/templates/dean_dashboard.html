@@ -132,6 +132,12 @@
 </style>
 
 <div class="dd">
+  {% if new_hod_count %}
+  <div class="alert alert-info" style="margin-bottom:14px">
+    <strong>{{ new_hod_count }} new HOD{{ '' if new_hod_count == 1 else 's' }} available.</strong>
+    They are not in your scope yet. <a href="{{ url_for('dean.my_hods') }}">Add them →</a>
+  </div>
+  {% endif %}
   <div class="dd-hero">
     <div>
       <h1>Dean Dashboard</h1>
