@@ -1,11 +1,14 @@
 """Teacher dashboard: subject-scoped, anonymous, published-only results."""
 from flask import Blueprint, abort, render_template, request
 
-from . import db, services
+from . import analytics, db, services
 from . import scoring
 from .security import current_user, role_required
 
 bp = Blueprint('teacher', __name__, url_prefix='/teacher')
+
+TREND_EPSILON = 0.05
+EXPECTED_LEVEL = 75.0
 
 
 def _marks_for_option(opt):
@@ -369,4 +372,349 @@ def results(form_id):
         question_count=fm['question_count'],
         answer_count=answer_count,
         students_count=fm['students'],
+    )
+
+
+# ---------------------------------------------------------------------------
+# My Improvement — round-by-round comparison (teacher's own published results)
+# ---------------------------------------------------------------------------
+
+def _trend_label(change):
+    if change is None:
+        return '—'
+    if change > TREND_EPSILON:
+        return 'Improved'
+    if change < -TREND_EPSILON:
+        return 'Declined'
+    return 'No change'
+
+
+def _band_label(score):
+    b = analytics.band_for(score)
+    return b['label'] if b else '—'
+
+
+def _date_short(value):
+    s = str(value or '')[:10]
+    if len(s) >= 10 and s[4] == '-' and s[7] == '-':
+        # YYYY-MM-DD → "12 Aug"
+        months = 'Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec'.split()
+        try:
+            y, m, d = int(s[:4]), int(s[5:7]), int(s[8:10])
+            return f'{d} {months[m - 1]}'
+        except (ValueError, IndexError):
+            pass
+    return s or '—'
+
+
+def _chart_coords(rounds, ymin=60.0, ymax=90.0, w=420, h=180,
+                  pad_l=36, pad_r=16, pad_t=16, pad_b=36):
+    """Pre-compute SVG point coordinates for the trend line."""
+    n = len(rounds)
+    if n == 0:
+        return []
+    plot_w = w - pad_l - pad_r
+    plot_h = h - pad_t - pad_b
+    span = max(ymax - ymin, 1.0)
+    points = []
+    for i, r in enumerate(rounds):
+        y_val = max(ymin, min(ymax, float(r['score'])))
+        px = pad_l + (plot_w * i / (n - 1) if n > 1 else plot_w / 2)
+        py = pad_t + plot_h * (1 - (y_val - ymin) / span)
+        points.append({
+            'x': i,
+            'y': r['score'],
+            'label': r.get('date_label') or '',
+            'form_id': r['form_id'],
+            'px': round(px, 1),
+            'py': round(py, 1),
+        })
+    return points
+
+
+def _build_teacher_comparison(user_id, academic_year_id=None, semester_id=None,
+                              subject_code=None):
+    """Group this teacher's published forms by subject+section and compute trends.
+
+    Only the teacher's own session responses are scored (never other sections).
+    """
+    forms = services.teacher_published_forms(user_id, subject_code=subject_code or None)
+    year_name = None
+    if academic_year_id:
+        yr = db.query('SELECT name FROM academic_years WHERE id=?',
+                      (academic_year_id,), one=True)
+        year_name = yr['name'] if yr else None
+        forms = [f for f in forms
+                 if f.get('academic_year_id') == academic_year_id
+                 or (year_name and f.get('academic_year') == year_name)]
+    if semester_id:
+        sem = db.query('SELECT number FROM semesters WHERE id=?',
+                       (semester_id,), one=True)
+        sem_num = sem['number'] if sem else None
+        forms = [f for f in forms
+                 if f.get('semester_id') == semester_id
+                 or (sem_num is not None and f.get('semester') == sem_num)]
+
+    # Enrich each form with teacher-scoped score + section info
+    enriched = []
+    for f in forms:
+        sid_list = services.teacher_form_session_ids(user_id, f['id'])
+        if not sid_list:
+            continue
+        sections = services.sessions_by_section(sid_list)
+        scores = scoring.compute_form_scores(f['id'], min_responses=1,
+                                             session_ids=sid_list)
+        ri = (services.round_info([f['id']]).get(f['id']) or {})
+        published = f.get('results_published_at') or f.get('published_at') or f.get('created_at')
+        for sec in (sections or [{'timetable_id': None, 'timetable': None,
+                                  'session_ids': sid_list}]):
+            sec_ids = sec.get('session_ids') or sid_list
+            if sec.get('timetable_id') and len(sections) > 1:
+                # Re-score when multiple sections share a form
+                sec_scores = scoring.compute_form_scores(
+                    f['id'], min_responses=1, session_ids=sec_ids)
+            else:
+                sec_scores = scores
+            if sec_scores.get('overall_score') is None:
+                continue
+            enriched.append({
+                'form': f,
+                'form_id': f['id'],
+                'title': f.get('title') or f'Form #{f["id"]}',
+                'subject_code': (f.get('subject_code') or f.get('snapshot_subject_code')
+                                 or '—').strip() or '—',
+                'subject_name': f.get('subject_name') or f.get('snapshot_subject_name') or '',
+                'section': sec.get('timetable') or f.get('timetable') or '',
+                'timetable_id': sec.get('timetable_id'),
+                'session_ids': sec_ids,
+                'score': round(float(sec_scores['overall_score']), 2),
+                'responses': sec_scores.get('valid_responses') or 0,
+                'criteria': sec_scores.get('criteria') or [],
+                'published_at': published,
+                'round_label': ri.get('label') or 'Round',
+                'round_no': ri.get('round_no') or 1,
+                'created_at': f.get('created_at'),
+            })
+
+    # Group by subject_code + section
+    groups = {}
+    for row in enriched:
+        key = (row['subject_code'], row['section'] or '', row.get('timetable_id'))
+        g = groups.setdefault(key, {
+            'subject_code': row['subject_code'],
+            'subject_name': row['subject_name'],
+            'section': row['section'],
+            'timetable_id': row.get('timetable_id'),
+            'rounds': [],
+        })
+        if not g['subject_name'] and row['subject_name']:
+            g['subject_name'] = row['subject_name']
+        g['rounds'].append(row)
+
+    subjects = []
+    for g in groups.values():
+        rounds = sorted(g['rounds'], key=lambda r: (
+            str(r.get('published_at') or r.get('created_at') or ''),
+            r['form_id']))
+        # Deduplicate by form_id (keep first chronological)
+        seen = set()
+        unique = []
+        for r in rounds:
+            if r['form_id'] in seen:
+                continue
+            seen.add(r['form_id'])
+            unique.append(r)
+        rounds = unique
+
+        prev = None
+        for i, r in enumerate(rounds):
+            r['index'] = i + 1
+            r['date_label'] = _date_short(r.get('published_at') or r.get('created_at'))
+            step = None if prev is None else round(r['score'] - prev, 2)
+            r['step_change'] = step
+            r['step_trend'] = _trend_label(step)
+            prev = r['score']
+
+        avg = round(sum(r['score'] for r in rounds) / len(rounds), 2) if rounds else None
+        net = None
+        if len(rounds) >= 2:
+            net = round(rounds[-1]['score'] - rounds[0]['score'], 2)
+        best = max(rounds, key=lambda r: r['score']) if rounds else None
+        latest = rounds[-1] if rounds else None
+
+        subjects.append({
+            'subject_code': g['subject_code'],
+            'subject_name': g['subject_name'],
+            'section': g['section'],
+            'timetable_id': g.get('timetable_id'),
+            'round_count': len(rounds),
+            'rounds': rounds,
+            'average_score': avg,
+            'net_change': net,
+            'net_trend': _trend_label(net),
+            'latest_score': latest['score'] if latest else None,
+            'latest_band': _band_label(latest['score']) if latest else None,
+            'best_round': best,
+            'latest_responses': latest['responses'] if latest else 0,
+            'chart_points': _chart_coords(rounds),
+        })
+
+    subjects.sort(key=lambda s: (
+        0 if s['round_count'] >= 2 else 1,
+        -(s['net_change'] or 0) if s['net_change'] is not None else 0,
+        s['subject_code']))
+    return subjects
+
+
+def _criteria_compare(form_a, form_b, session_ids_a, session_ids_b):
+    """Criteria-by-criteria comparison using teacher-scoped scores."""
+    sa = scoring.compute_form_scores(form_a, min_responses=1, session_ids=session_ids_a)
+    sb = scoring.compute_form_scores(form_b, min_responses=1, session_ids=session_ids_b)
+
+    def by_text(criteria):
+        m = {}
+        for c in criteria or []:
+            key = (c.get('text') or '').strip().lower()
+            if key:
+                m[key] = c
+        return m
+
+    ma, mb = by_text(sa.get('criteria')), by_text(sb.get('criteria'))
+    keys = sorted(set(ma) | set(mb), key=lambda k: (
+        (ma.get(k) or mb.get(k) or {}).get('position') or 999, k))
+
+    rows = []
+    for key in keys:
+        ca, cb = ma.get(key), mb.get(key)
+        score_a = ca['score'] if ca else None
+        score_b = cb['score'] if cb else None
+        change = None
+        status = 'ok'
+        if score_a is None or score_b is None:
+            status = 'n/a'
+        elif ca and cb and ca.get('max_points') != cb.get('max_points'):
+            status = 'n/a'
+        else:
+            change = round(score_b - score_a, 2)
+        rows.append({
+            'text': (ca or cb or {}).get('text') or key,
+            'score_a': score_a,
+            'score_b': score_b,
+            'change': change,
+            'status': status,
+            'trend': _trend_label(change) if status == 'ok' else '—',
+        })
+    # Highlight most improved / needs attention
+    ok_rows = [r for r in rows if r['status'] == 'ok' and r['change'] is not None]
+    if ok_rows:
+        best = max(ok_rows, key=lambda r: r['change'])
+        worst = min(ok_rows, key=lambda r: r['change'])
+        if best['change'] > TREND_EPSILON:
+            best['tag'] = 'Most improved'
+        if worst['change'] < -TREND_EPSILON:
+            worst['tag'] = 'Needs attention'
+    return rows
+
+
+@bp.route('/improvement')
+@role_required('teacher')
+def improvement():
+    """Round-by-round comparison of the teacher's own published feedback."""
+    user = current_user()
+    academic_year_id = request.args.get('academic_year_id', type=int)
+    semester_id = request.args.get('semester_id', type=int)
+    subject_code = (request.args.get('subject_code') or '').strip() or None
+
+    subjects = _build_teacher_comparison(
+        user['id'], academic_year_id=academic_year_id,
+        semester_id=semester_id, subject_code=subject_code)
+
+    # Summary tiles
+    multi = [s for s in subjects if s['round_count'] >= 2]
+    improved = [s for s in multi if (s['net_change'] or 0) > TREND_EPSILON]
+    biggest = max(multi, key=lambda s: s['net_change'] or 0) if multi else None
+    total_rounds = sum(s['round_count'] for s in subjects)
+
+    # Optional criteria compare for a specific subject (query params)
+    criteria_rows = None
+    compare_subject = None
+    form_a_id = request.args.get('form_a', type=int)
+    form_b_id = request.args.get('form_b', type=int)
+    focus_code = (request.args.get('focus') or '').strip()
+    if form_a_id and form_b_id and form_a_id != form_b_id:
+        for s in subjects:
+            if focus_code and s['subject_code'] != focus_code:
+                continue
+            ids = {r['form_id']: r for r in s['rounds']}
+            if form_a_id in ids and form_b_id in ids:
+                ra, rb = ids[form_a_id], ids[form_b_id]
+                criteria_rows = _criteria_compare(
+                    form_a_id, form_b_id, ra['session_ids'], rb['session_ids'])
+                compare_subject = s
+                break
+
+    # Default criteria view: first subject with ≥2 rounds, first vs last
+    if criteria_rows is None:
+        for s in subjects:
+            if s['round_count'] >= 2:
+                ra, rb = s['rounds'][0], s['rounds'][-1]
+                criteria_rows = _criteria_compare(
+                    ra['form_id'], rb['form_id'],
+                    ra['session_ids'], rb['session_ids'])
+                compare_subject = s
+                form_a_id, form_b_id = ra['form_id'], rb['form_id']
+                break
+
+    years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
+    semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
+    # Distinct subjects for filter
+    all_codes = sorted({s['subject_code'] for s in subjects if s['subject_code'] != '—'})
+    subject_options = [
+        {'subject_code': s['subject_code'],
+         'subject_name': s['subject_name'] or s['subject_code']}
+        for s in subjects
+    ]
+    # de-dupe options
+    seen = set()
+    uniq_opts = []
+    for o in subject_options:
+        if o['subject_code'] in seen:
+            continue
+        seen.add(o['subject_code'])
+        uniq_opts.append(o)
+
+    profile = db.query(
+        'SELECT id, name, emp_code, designation, email FROM users WHERE id=?',
+        (user['id'],), one=True)
+    dept = None
+    br = db.query(
+        """SELECT b.name FROM branches b
+           JOIN timetables t ON t.branch_id=b.id
+           JOIN class_sessions cs ON cs.timetable_id=t.id
+           WHERE cs.teacher_user_id=? AND cs.is_deleted=0 LIMIT 1""",
+        (user['id'],), one=True)
+    if br:
+        dept = br['name']
+
+    return render_template(
+        'teacher_comparison.html',
+        user=user, profile=profile, department=dept,
+        subjects=subjects,
+        years=years, semesters=semesters,
+        subject_options=uniq_opts,
+        academic_year_id=academic_year_id, semester_id=semester_id,
+        subject_code=subject_code,
+        stats={
+            'subjects_compared': len(subjects),
+            'rounds_published': total_rounds,
+            'subjects_improved': len(improved),
+            'biggest_gain': biggest['net_change'] if biggest else None,
+            'biggest_subject': (
+                f"{biggest['subject_code']}" if biggest else None),
+        },
+        criteria_rows=criteria_rows,
+        compare_subject=compare_subject,
+        form_a_id=form_a_id,
+        form_b_id=form_b_id,
+        expected_level=EXPECTED_LEVEL,
     )
