@@ -305,18 +305,32 @@ def _hod_validate_form_payload(user, data):
             if s.get('branch_id') not in allowed_branches:
                 return None, None, None, ['Session outside your department scope.']
         _dup_title = (payload.get('title') or '').strip() or 'Untitled feedback form'
-        if len(tt_ids) > 1:
+        # One form PER TEACHER: a subject taught by several teachers gets a
+        # separate form (and form ID) for each of them.  Editing an existing
+        # form keeps its own sessions untouched.
+        if existing_id:
+            groups = [{'teacher_user_id': None, 'teacher_name': None, 'teacher_emp': None,
+                       'session_ids': [x['id'] for x in sessions]}]
+        else:
+            by_teacher = {}
+            for x in sessions:
+                g = by_teacher.setdefault(x.get('teacher_user_id'), {
+                    'teacher_user_id': x.get('teacher_user_id'),
+                    'teacher_name': x.get('teacher_name') or 'Unassigned teacher',
+                    'teacher_emp': x.get('teacher_emp'),
+                    'session_ids': []})
+                g['session_ids'].append(x['id'])
+            groups = list(by_teacher.values())
+        for g in groups:
             dup = services.find_duplicate_subject_form_for_sessions(
                 payload['academic_year_id'], payload['semester_id'], payload['branch_id'],
-                subject_code, [s['id'] for s in sessions], title=_dup_title)
-        else:
-            dup = services.find_duplicate_subject_form(
-                payload['academic_year_id'], payload['semester_id'], payload['branch_id'],
-                payload['timetable_id'], subject_code, title=_dup_title)
-        if dup and dup['id'] != existing_id:
-            return None, None, None, [
-                f'A feedback form for this exact configuration already exists '
-                f'(#{dup["id"]}: {dup["title"]}).']
+                subject_code, g['session_ids'], title=_dup_title)
+            if dup and dup['id'] != existing_id:
+                who = f" for {g['teacher_name']}" if g['teacher_name'] else ''
+                return None, None, None, [
+                    f'A feedback form{who} for this exact configuration already exists '
+                    f'(#{dup["id"]}: {dup["title"]}).']
+        payload['_groups'] = groups
         payload.update(
             session_id=sessions[0]['id'],
             subject_code=subject_code,
@@ -371,12 +385,49 @@ def _hod_validate_form_payload(user, data):
     if not_from_sets:
         errors.append('Questions must come from a question set, or be added as an extra question. Not valid: '
                       + '; '.join(not_from_sets[:3]) + ('…' if len(not_from_sets) > 3 else ''))
-    errors.extend(services.phase_rule_errors(
-        payload.get('phase'), session_ids, exclude_form_id=existing_id))
+    if payload.get('_groups'):
+        for g in payload['_groups']:
+            for e in services.phase_rule_errors(
+                    payload.get('phase'), g['session_ids'], exclude_form_id=existing_id):
+                errors.append(f"{g['teacher_name']}: {e}" if g['teacher_name'] else e)
+    else:
+        errors.extend(services.phase_rule_errors(
+            payload.get('phase'), session_ids, exclude_form_id=existing_id))
     if errors:
         return None, None, None, errors
 
     return payload, questions, session_ids, errors
+
+
+def _save_hod_forms(user, payload, questions, session_ids, form_id):
+    """Save the form(s). A subject form is split into one form per teacher.
+
+    Returns a list of {form_id, teacher_name, teacher_emp, sessions}.
+    """
+    groups = payload.pop('_groups', None)
+    if form_id or not groups:
+        fid = services.save_form(payload, questions or [], user['id'],
+                                 form_id=form_id, session_ids=session_ids)
+        return [{'form_id': fid, 'teacher_name': None, 'teacher_emp': None,
+                 'sessions': len(session_ids)}]
+    out = []
+    for g in groups:
+        p = dict(payload)
+        p['session_id'] = g['session_ids'][0]
+        fid = services.save_form(p, questions or [], user['id'],
+                                 form_id=None, session_ids=g['session_ids'])
+        audit('hod.form.save', 'feedback_forms', fid,
+              f"HOD saved form for teacher {g['teacher_name']} "
+              f"({len(g['session_ids'])} session(s))")
+        out.append({'form_id': fid, 'teacher_name': g['teacher_name'],
+                    'teacher_emp': g['teacher_emp'], 'sessions': len(g['session_ids'])})
+    return out
+
+
+def _forms_message(forms):
+    parts = [f"Form #{f['form_id']}" + (f" for {f['teacher_name']}" if f['teacher_name'] else '')
+             for f in forms]
+    return ('Form created: ' if len(parts) == 1 else f'{len(parts)} forms created: ') + '; '.join(parts)
 
 
 @bp.route('/forms/new', methods=['GET', 'POST'])
@@ -403,19 +454,20 @@ def form_new():
             for e in errors:
                 flash(e, 'error')
             return redirect(url_for('hod.form_new'))
-        fid = services.save_form(
-            payload, questions or [], user['id'],
-            form_id=_int(data.get('form_id')), session_ids=session_ids)
-        audit('hod.form.save', 'feedback_forms', fid,
-              f'HOD saved form (category={payload.get("category")}, '
-              f'{len(session_ids)} session(s))')
+        forms = _save_hod_forms(user, payload, questions, session_ids, _int(data.get('form_id')))
+        if len(forms) == 1:
+            audit('hod.form.save', 'feedback_forms', forms[0]['form_id'],
+                  f'HOD saved form (category={payload.get("category")}, '
+                  f'{len(session_ids)} session(s))')
+        msg = _forms_message(forms)
         if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
             from flask import jsonify
-            return jsonify(ok=True, form_id=fid,
+            return jsonify(ok=True, form_id=forms[0]['form_id'],
+                           form_ids=[f['form_id'] for f in forms], forms=forms, message=msg,
                            scope=payload.get('scope'),
                            category=payload.get('category'),
                            sessions=len(session_ids))
-        flash(f'Form #{fid} saved as draft.', 'success')
+        flash(msg + ' (saved as draft).', 'success')
         return redirect(url_for('hod.forms'))
 
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
@@ -444,13 +496,14 @@ def form_save():
     payload, questions, session_ids, errors = _hod_validate_form_payload(user, data)
     if errors:
         return jsonify(ok=False, errors=errors), 400
-    fid = services.save_form(
-        payload, questions or [], user['id'],
-        form_id=_int(data.get('form_id')), session_ids=session_ids)
-    audit('hod.form.save', 'feedback_forms', fid,
-          f'HOD saved form (category={payload.get("category")}, '
-          f'{len(session_ids)} session(s))')
-    return jsonify(ok=True, form_id=fid,
+    forms = _save_hod_forms(user, payload, questions, session_ids, _int(data.get('form_id')))
+    if len(forms) == 1:
+        audit('hod.form.save', 'feedback_forms', forms[0]['form_id'],
+              f'HOD saved form (category={payload.get("category")}, '
+              f'{len(session_ids)} session(s))')
+    return jsonify(ok=True, form_id=forms[0]['form_id'],
+                   form_ids=[f['form_id'] for f in forms], forms=forms,
+                   message=_forms_message(forms),
                    scope=payload.get('scope'),
                    category=payload.get('category'),
                    sessions=len(session_ids))
