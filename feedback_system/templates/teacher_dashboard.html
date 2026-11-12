@@ -9,6 +9,9 @@
       Employee code: {{ current_user.emp_code or '—' }}
       {% if department %} | Department: {{ department }}{% endif %}
     </p>
+    <p style="margin:.45rem 0 0">
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('teacher.improvement') }}">📈 My Improvement — round-by-round comparison</a>
+    </p>
   </div>
   <form method="get" class="perf-filters">
     <div class="field" style="margin:0">
