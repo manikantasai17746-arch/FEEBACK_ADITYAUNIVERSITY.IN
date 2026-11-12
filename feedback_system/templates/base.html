@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token() }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/aditya-logo.png') }}">
   <title>{% block title %}Faculty Feedback System{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   {% if current_user and current_user.role == 'dean' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dean-theme.css') }}">{% endif %}
