@@ -54,6 +54,9 @@
         <div class="hint">Placeholders: <code>{subject}</code> <code>{subject_code}</code>
           <code>{teacher}</code> <code>{period}</code> <code>{timetable}</code>
           <code>{branch}</code> <code>{semester}</code></div></div>
+      <div class="field"><label for="deadline_at">Feedback deadline <span class="req">*</span></label>
+        <input type="datetime-local" id="deadline_at" required>
+        <div class="hint">Required. Every generated form closes automatically at this time (India time).</div></div>
       <div class="field"><label>Availability</label>
         <label class="opt" style="display:block"><input type="radio" name="bulk_status" value="draft" checked>
           Save as drafts (review &amp; open later)</label>
