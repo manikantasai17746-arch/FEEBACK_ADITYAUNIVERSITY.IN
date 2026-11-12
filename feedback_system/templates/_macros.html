@@ -33,3 +33,23 @@
 {% macro bar(pct, label=None) -%}
   <div class="bar" title="{{ pct }}%"><i style="width: {{ pct }}%"></i></div>
 {%- endmacro %}
+
+
+{% macro deadline_cell(f, action_url, next_url, token) %}
+  {% if f.deadline_at %}
+    <div>{{ f.deadline_at|deadline }}</div>
+  {% else %}
+    <div class="sub">No deadline</div>
+  {% endif %}
+  {% if f.status != 'archived' and not f.is_deleted %}
+  <details style="margin-top:4px"><summary class="sub" style="cursor:pointer">Change</summary>
+    <form method="post" action="{{ action_url }}" class="btn-row" style="margin-top:4px">
+      <input type="hidden" name="_csrf" value="{{ token }}">
+      <input type="hidden" name="next" value="{{ next_url }}">
+      <input type="datetime-local" name="deadline_at" required
+             value="{{ f.deadline_at|deadline_input if f.deadline_at else '' }}">
+      <button class="btn btn-sm" type="submit">Save</button>
+    </form>
+  </details>
+  {% endif %}
+{% endmacro %}
