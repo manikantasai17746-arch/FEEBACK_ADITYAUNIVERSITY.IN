@@ -1,0 +1,366 @@
+{% extends 'base.html' %}
+{% block title %}My Improvement — Round-by-round Comparison{% endblock %}
+{% block body %}
+<div class="imp-page">
+  <div class="imp-header">
+    <div>
+      <h1 class="imp-title">
+        <span class="imp-title-icon" aria-hidden="true">📈</span>
+        My Improvement — Round-by-round Comparison
+      </h1>
+      <p class="sub imp-meta">
+        Employee code: {{ profile.emp_code or '—' }}
+        {% if department %} | Department: {{ department }}{% endif %}
+        · See how your feedback score has moved from one round to the next, subject by subject.
+      </p>
+    </div>
+  </div>
+
+  <form method="get" class="imp-filters card">
+    <div class="field">
+      <label for="academic_year_id">Academic Year</label>
+      <select id="academic_year_id" name="academic_year_id" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for y in years %}
+        <option value="{{ y.id }}" {{ 'selected' if academic_year_id == y.id }}>{{ y.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="semester_id">Semester</label>
+      <select id="semester_id" name="semester_id" onchange="this.form.submit()">
+        <option value="">All</option>
+        {% for s in semesters %}
+        <option value="{{ s.id }}" {{ 'selected' if semester_id == s.id }}>
+          {{ s.label or ('Sem ' ~ s.number) }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="subject_code">Subject</label>
+      <select id="subject_code" name="subject_code" onchange="this.form.submit()">
+        <option value="">All my subjects</option>
+        {% for o in subject_options %}
+        <option value="{{ o.subject_code }}" {{ 'selected' if subject_code == o.subject_code }}>
+          {{ o.subject_name }} ({{ o.subject_code }})
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field field-btn">
+      <label>&nbsp;</label>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('teacher.dashboard') }}">← My Performance</a>
+    </div>
+  </form>
+
+  <div class="imp-info">
+    <span class="imp-info-icon">ℹ</span>
+    Only <strong>published</strong> results of <strong>your own classes</strong> are compared.
+    Each subject and section is compared on its own — different subjects are never merged into one percentage.
+    Scores are out of 100.
+  </div>
+
+  <div class="imp-tiles">
+    <div class="imp-tile">
+      <div class="imp-tile-ic ic-subj">■</div>
+      <div>
+        <div class="imp-tile-num">{{ stats.subjects_compared }}</div>
+        <div class="imp-tile-lbl">Subjects compared</div>
+      </div>
+    </div>
+    <div class="imp-tile">
+      <div class="imp-tile-ic ic-rounds">↻</div>
+      <div>
+        <div class="imp-tile-num">{{ stats.rounds_published }}</div>
+        <div class="imp-tile-lbl">Feedback rounds published</div>
+      </div>
+    </div>
+    <div class="imp-tile">
+      <div class="imp-tile-ic ic-up">↗</div>
+      <div>
+        <div class="imp-tile-num">{{ stats.subjects_improved }} of {{ stats.subjects_compared }}</div>
+        <div class="imp-tile-lbl">Subjects improved</div>
+      </div>
+    </div>
+    <div class="imp-tile">
+      <div class="imp-tile-ic ic-gain">★</div>
+      <div>
+        <div class="imp-tile-num">
+          {% if stats.biggest_gain is not none %}
+            {{ '%+.2f'|format(stats.biggest_gain) }} pts
+          {% else %}—{% endif %}
+        </div>
+        <div class="imp-tile-lbl">
+          Biggest gain{% if stats.biggest_subject %} · {{ stats.biggest_subject }}{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if not subjects %}
+  <div class="card">
+    <p class="sub" style="margin:0">No published feedback rounds yet for the selected filters.
+      Once results are published for your classes, the round-by-round comparison will appear here.</p>
+  </div>
+  {% endif %}
+
+  {% for s in subjects %}
+  <section class="imp-subject card" id="subj-{{ s.subject_code }}-{{ s.timetable_id or 'x' }}">
+    <div class="imp-subj-head">
+      <div class="imp-subj-title">
+        <span class="imp-code">{{ s.subject_code }}</span>
+        <span class="imp-name">{{ s.subject_name or s.subject_code }}</span>
+        {% if s.section %}<span class="imp-section">{{ s.section }}</span>{% endif %}
+        <span class="imp-badge rounds">{{ s.round_count }} round{% if s.round_count != 1 %}s{% endif %}</span>
+        {% if s.latest_band %}<span class="imp-badge band">Latest band: {{ s.latest_band }}</span>{% endif %}
+      </div>
+      <div class="imp-net {% if s.net_change is not none and s.net_change > 0 %}up{% elif s.net_change is not none and s.net_change < 0 %}down{% else %}flat{% endif %}">
+        {% if s.round_count < 2 %}
+          <span class="imp-net-label">Not enough rounds yet</span>
+        {% elif s.net_change is not none %}
+          <span class="imp-net-val">{{ '%+.2f'|format(s.net_change) }} pts</span>
+          <span class="imp-net-label">· {{ s.net_trend }}</span>
+        {% else %}
+          <span class="imp-net-label">—</span>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if s.round_count >= 2 %}
+    <div class="imp-body">
+      <div class="imp-chart-wrap">
+        {% set pts = s.chart_points %}
+        {% set n = pts|length %}
+        <svg class="imp-chart" viewBox="0 0 420 180" role="img" aria-label="Score trend">
+          <line x1="36" y1="80" x2="404" y2="80"
+                stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5 4"/>
+          <text x="404" y="76" text-anchor="end" class="imp-chart-label" fill="#b7791f">
+            {{ expected_level|int }}% expected level
+          </text>
+          <line x1="36" y1="144" x2="404" y2="144" stroke="#e5eaf2" stroke-width="1"/>
+          <text x="30" y="148" text-anchor="end" class="imp-chart-label">60</text>
+          <line x1="36" y1="101.3" x2="404" y2="101.3" stroke="#e5eaf2" stroke-width="1"/>
+          <text x="30" y="105.3" text-anchor="end" class="imp-chart-label">70</text>
+          <line x1="36" y1="58.7" x2="404" y2="58.7" stroke="#e5eaf2" stroke-width="1"/>
+          <text x="30" y="62.7" text-anchor="end" class="imp-chart-label">80</text>
+          <line x1="36" y1="16" x2="404" y2="16" stroke="#e5eaf2" stroke-width="1"/>
+          <text x="30" y="20" text-anchor="end" class="imp-chart-label">90</text>
+          {% if n >= 2 %}
+          <polyline fill="none" stroke="#2f6fed" stroke-width="2.5" stroke-linejoin="round"
+            points="{% for p in pts %}{{ p.px }},{{ p.py }} {% endfor %}"/>
+          {% endif %}
+          {% for p in pts %}
+            <circle cx="{{ p.px }}" cy="{{ p.py }}" r="5" fill="#2f6fed" stroke="#fff" stroke-width="2"/>
+            <text x="{{ p.px }}" y="{{ p.py - 10 }}" text-anchor="middle" class="imp-chart-score">{{ '%.2f'|format(p.y) }}</text>
+            <text x="{{ p.px }}" y="170" text-anchor="middle" class="imp-chart-label">
+              Round {{ loop.index }} · {{ p.label }}
+            </text>
+          {% endfor %}
+        </svg>
+      </div>
+
+      <div class="imp-side">
+        {% set first = s.rounds[0] %}
+        {% set last = s.rounds[-1] %}
+        <div class="imp-side-card">
+          <div class="imp-side-lbl">{{ first.round_label }} · {{ first.date_label }}</div>
+          <div class="imp-side-score">{{ '%.2f'|format(first.score) }}</div>
+        </div>
+        <div class="imp-side-delta {% if s.net_change and s.net_change > 0 %}up{% elif s.net_change and s.net_change < 0 %}down{% endif %}">
+          {% if s.net_change is not none %}{{ '%+.2f'|format(s.net_change) }}{% else %}—{% endif %}
+        </div>
+        <div class="imp-side-card highlight">
+          <div class="imp-side-lbl">{{ last.round_label }} · {{ last.date_label }}</div>
+          <div class="imp-side-score">{{ '%.2f'|format(last.score) }}</div>
+        </div>
+        <div class="imp-side-meta">
+          <div><span class="k">Subject average</span><span class="v">{{ '%.2f'|format(s.average_score) }}</span></div>
+          <div><span class="k">Best round</span><span class="v">{{ s.best_round.round_label if s.best_round else '—' }}</span></div>
+          <div><span class="k">Responses (latest)</span><span class="v">{{ s.latest_responses }}</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="imp-table-wrap">
+      <table class="data data-table imp-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Feedback form</th>
+            <th>Date</th>
+            <th>Responded</th>
+            <th>Score / 100</th>
+            <th>Change vs previous</th>
+            <th>Trend</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in s.rounds %}
+          <tr>
+            <td>{{ r.index }}</td>
+            <td class="wrap">
+              <a href="{{ url_for('teacher.results', form_id=r.form_id, section=s.timetable_id) }}">{{ r.title }}</a>
+            </td>
+            <td>{{ r.date_label }}</td>
+            <td>{{ r.responses }}</td>
+            <td><span class="score-pill">{{ '%.2f'|format(r.score) }}</span></td>
+            <td>
+              {% if r.step_change is not none %}
+                <span class="{% if r.step_change > 0 %}up{% elif r.step_change < 0 %}down{% endif %}">
+                  {{ '%+.2f'|format(r.step_change) }}
+                </span>
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              {% if r.step_trend == 'Improved' %}<span class="trend-up">Improved</span>
+              {% elif r.step_trend == 'Declined' %}<span class="trend-down">Declined</span>
+              {% else %}{{ r.step_trend }}{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {# Criteria comparison — only for the focused / first multi-round subject by default #}
+    {% if compare_subject and compare_subject.subject_code == s.subject_code and (compare_subject.timetable_id == s.timetable_id or (not compare_subject.timetable_id and not s.timetable_id)) and criteria_rows %}
+    <div class="imp-criteria">
+      <h3>What changed — criteria by criteria</h3>
+      <form method="get" class="imp-compare-form">
+        {% if academic_year_id %}<input type="hidden" name="academic_year_id" value="{{ academic_year_id }}">{% endif %}
+        {% if semester_id %}<input type="hidden" name="semester_id" value="{{ semester_id }}">{% endif %}
+        {% if subject_code %}<input type="hidden" name="subject_code" value="{{ subject_code }}">{% endif %}
+        <input type="hidden" name="focus" value="{{ s.subject_code }}">
+        <label>Compare
+          <select name="form_a">
+            {% for r in s.rounds %}
+            <option value="{{ r.form_id }}" {{ 'selected' if form_a_id == r.form_id }}>
+              {{ r.round_label }} · {{ r.date_label }}
+            </option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>with
+          <select name="form_b">
+            {% for r in s.rounds %}
+            <option value="{{ r.form_id }}" {{ 'selected' if form_b_id == r.form_id }}>
+              {{ r.round_label }} · {{ r.date_label }}
+            </option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit" class="btn btn-sm">Update</button>
+      </form>
+
+      <div class="imp-table-wrap">
+        <table class="data data-table imp-crit-table">
+          <thead>
+            <tr>
+              <th>Criterion</th>
+              <th>Round A</th>
+              <th>Round B</th>
+              <th class="imp-bar-col">
+                <span class="bar-legend"><i class="bar-a"></i> Round A <i class="bar-b"></i> Round B</span>
+              </th>
+              <th>Change</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in criteria_rows %}
+            <tr>
+              <td class="wrap">
+                {{ c.text }}
+                {% if c.tag == 'Most improved' %}<span class="crit-tag up">Most improved</span>{% endif %}
+                {% if c.tag == 'Needs attention' %}<span class="crit-tag down">Needs attention</span>{% endif %}
+              </td>
+              <td>{% if c.score_a is not none %}{{ '%.1f'|format(c.score_a) }}{% else %}N/A{% endif %}</td>
+              <td>{% if c.score_b is not none %}{{ '%.1f'|format(c.score_b) }}{% else %}N/A{% endif %}</td>
+              <td class="imp-bar-col">
+                {% if c.status == 'ok' and c.score_a is not none and c.score_b is not none %}
+                <div class="crit-bars">
+                  <div class="crit-bar a" style="width:{{ [c.score_a, 100]|min }}%"></div>
+                  <div class="crit-bar b" style="width:{{ [c.score_b, 100]|min }}%"></div>
+                </div>
+                {% else %}
+                <span class="sub">N/A</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if c.change is not none %}
+                  <span class="{% if c.change > 0 %}up{% elif c.change < 0 %}down{% endif %}">
+                    {% if c.change > 0 %}▲{% elif c.change < 0 %}▼{% endif %}
+                    {{ '%+.1f'|format(c.change) }}
+                  </span>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="sub imp-crit-note">
+        Criteria are matched by question text across rounds. A criterion that was not asked in both rounds, or uses a different scale, is shown as N/A.
+      </p>
+    </div>
+    {% elif s.round_count >= 2 %}
+    <details class="imp-criteria-toggle">
+      <summary>Show criteria-wise change between two rounds</summary>
+      <form method="get" class="imp-compare-form" style="margin-top:.75rem">
+        {% if academic_year_id %}<input type="hidden" name="academic_year_id" value="{{ academic_year_id }}">{% endif %}
+        {% if semester_id %}<input type="hidden" name="semester_id" value="{{ semester_id }}">{% endif %}
+        {% if subject_code %}<input type="hidden" name="subject_code" value="{{ subject_code }}">{% endif %}
+        <input type="hidden" name="focus" value="{{ s.subject_code }}">
+        <label>Compare
+          <select name="form_a">
+            {% for r in s.rounds %}
+            <option value="{{ r.form_id }}">{{ r.round_label }} · {{ r.date_label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>with
+          <select name="form_b">
+            {% for r in s.rounds %}
+            <option value="{{ r.form_id }}" {{ 'selected' if loop.last }}>{{ r.round_label }} · {{ r.date_label }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit" class="btn btn-sm">Update</button>
+      </form>
+    </details>
+    {% endif %}
+
+    {% else %}
+    {# Single round only #}
+    <div class="imp-single">
+      <div class="imp-single-msg">
+        <span class="imp-single-ic">▮</span>
+        <div>
+          <strong>Only one published round so far — {{ '%.2f'|format(s.rounds[0].score) if s.rounds else '—' }} / 100.</strong>
+          <p class="sub" style="margin:.25rem 0 0">Your comparison appears here as soon as a second feedback round for this subject and section is published.</p>
+        </div>
+      </div>
+      {% if s.rounds %}
+      <table class="data data-table imp-table" style="margin-top:1rem">
+        <thead>
+          <tr><th>#</th><th>Feedback form</th><th>Date</th><th>Responded</th><th>Score / 100</th></tr>
+        </thead>
+        <tbody>
+          {% for r in s.rounds %}
+          <tr>
+            <td>{{ r.index }}</td>
+            <td class="wrap"><a href="{{ url_for('teacher.results', form_id=r.form_id, section=s.timetable_id) }}">{{ r.title }}</a></td>
+            <td>{{ r.date_label }}</td>
+            <td>{{ r.responses }}</td>
+            <td><span class="score-pill">{{ '%.2f'|format(r.score) }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}
