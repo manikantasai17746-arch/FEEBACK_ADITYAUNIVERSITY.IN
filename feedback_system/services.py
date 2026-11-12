@@ -178,6 +178,25 @@ def form_session_ids(form_id):
         'SELECT session_id FROM form_sessions WHERE form_id=? ORDER BY session_id', (form_id,))]
 
 
+def form_teachers_map(form_ids):
+    """{form_id: ["NAME (emp_code)", ...]} - teachers assigned to each form's sessions."""
+    ids = [i for i in dict.fromkeys(form_ids or []) if i]
+    out = {i: [] for i in ids}
+    if not ids:
+        return out
+    ph = ','.join('?' * len(ids))
+    for r in db.query(
+            f"""SELECT DISTINCT fs.form_id, u.name, u.emp_code
+                FROM form_sessions fs
+                JOIN class_sessions cs ON cs.id=fs.session_id
+                JOIN users u ON u.id=cs.teacher_user_id
+                WHERE fs.form_id IN ({ph}) ORDER BY u.name""", tuple(ids)):
+        if r['name']:
+            out[r['form_id']].append(
+                f"{r['name']} ({r['emp_code']})" if r['emp_code'] else r['name'])
+    return out
+
+
 def form_sessions_rows(form_id):
     """Full teaching-session rows covered by a form."""
     sql = SESSION_SELECT + """ JOIN form_sessions fs ON fs.session_id=cs.id
