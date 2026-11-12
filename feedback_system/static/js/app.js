@@ -725,6 +725,8 @@
     return body;
   }
 
+  var lastForms = [], lastMessage = '';
+
   // keep=true leaves the overlay up on success (the caller navigates away next).
   function save(keep, msg) {
     showErrors([]);
@@ -741,20 +743,29 @@
           showErrors(res.data.errors || ['Could not save the form. Please check the fields.']);
           return null;
         }
+        lastForms = res.data.forms || [];
+        lastMessage = res.data.message || '';
         formId = res.data.form_id;
-        builder.setAttribute('data-form-id', formId);
-        if (history.replaceState) { history.replaceState(null, '', editUrlTpl.replace('{id}', formId)); }
+        // several forms (one per teacher): nothing single to keep editing
+        if (lastForms.length < 2) {
+          builder.setAttribute('data-form-id', formId);
+          if (history.replaceState) { history.replaceState(null, '', editUrlTpl.replace('{id}', formId)); }
+        } else { formId = null; }
         if (!keep) window.FFBusy.hide();
-        return formId;
+        return res.data.form_id;
       })
       .catch(function () { window.FFBusy.hide(); showErrors(['Network error while saving.']); return null; });
   }
+
+  var lastLabels = [];
 
   /* Several subjects ticked: one form per subject, saved one after another. */
   function saveMany(codes, msg) {
     showErrors([]);
     window.FFBusy.show(msg || 'Saving forms…');
     var ids = [];
+    var labels = [];
+    lastLabels = labels;
     var chain = Promise.resolve(true);
     codes.forEach(function (code) {
       chain = chain.then(function (ok) {
@@ -774,7 +785,10 @@
               showErrors(msgs);
               return false;
             }
-            ids.push(res.data.form_id);
+            (res.data.forms || [{ form_id: res.data.form_id }]).forEach(function (f) {
+              ids.push(f.form_id);
+              labels.push(subjectName(code) + (f.teacher_name ? ' — ' + f.teacher_name : ''));
+            });
             return true;
           });
       });
@@ -798,7 +812,7 @@
           .then(function (res) {
             if (!res.ok || !res.data.ok) {
               (res.data.errors || ['Could not publish.']).forEach(function (e) {
-                failures.push(subjectName(codes[i]) + ' (draft #' + id + '): ' + e);
+                failures.push(((lastLabels && lastLabels[i]) || subjectName(codes[i])) + ' (draft #' + id + '): ' + e);
               });
             }
           });
@@ -819,7 +833,7 @@
       saveMany(subjValues()).then(function (ids) {
         if (!ids) return;
         var t = document.getElementById('save-toast');
-        if (t) { t.style.display = ''; t.textContent = ids.length + ' draft forms saved.'; }
+        if (t) { t.style.display = ''; t.textContent = ids.length + ' draft forms saved (#' + ids.join(', #') + ').'; }
         setTimeout(function () { window.location.href = formsListUrl; }, 1200);
       });
       return;
@@ -828,7 +842,7 @@
       if (id) {
         showErrors([]);
         var t = document.getElementById('save-toast');
-        if (t) { t.style.display = ''; t.textContent = 'Draft saved (form #' + id + ').';
+        if (t) { t.style.display = ''; t.textContent = lastForms.length > 1 ? (lastMessage + ' (drafts).') : (lastForms.length === 1 && lastForms[0].teacher_name ? 'Draft saved: ' + lastMessage.replace('Form created: ', '') : 'Draft saved (form #' + id + ').');
           setTimeout(function () { t.style.display = 'none'; }, 3500); }
       }
     });
@@ -873,6 +887,18 @@
     }
     save(true, 'Publishing form…').then(function (id) {
       if (!id) return;
+      if (lastForms.length > 1) {
+        lastLabels = lastForms.map(function (f) { return f.teacher_name || ('form #' + f.form_id); });
+        publishMany(lastForms.map(function (f) { return f.form_id; }), []).then(function (failures) {
+          if (failures.length) {
+            window.FFBusy.hide();
+            showErrors(failures.concat([lastMessage + '. Failed ones stay as drafts on the Forms page.']));
+            return;
+          }
+          window.location.href = formsListUrl;
+        });
+        return;
+      }
       window.FFBusy.show('Publishing form…');
       var f = document.createElement('form');
       f.method = 'POST';
