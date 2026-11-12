@@ -1040,20 +1040,22 @@ def rolls_csv(form_id, which='submitted'):
 
 
 def dashboard_stats():
-    def scalar(sql, args=()):
-        return db.query(sql, args, one=True)['c']
-    return {
-        'students': scalar("SELECT COUNT(*) c FROM users WHERE role='student'"),
-        'teachers': scalar("SELECT COUNT(*) c FROM users WHERE role='teacher'"),
-        'branches': scalar('SELECT COUNT(*) c FROM branches'),
-        'timetables': scalar('SELECT COUNT(*) c FROM timetables WHERE is_deleted=0'),
-        'sessions': scalar('SELECT COUNT(*) c FROM class_sessions WHERE is_deleted=0'),
-        'forms': scalar('SELECT COUNT(*) c FROM feedback_forms WHERE is_deleted=0'),
-        'forms_open': scalar("SELECT COUNT(*) c FROM feedback_forms WHERE is_deleted=0 AND status='open'"),
-        'forms_draft': scalar("SELECT COUNT(*) c FROM feedback_forms WHERE is_deleted=0 AND status='draft'"),
-        'submissions': scalar('SELECT COUNT(*) c FROM submissions'),
-        'published': scalar('SELECT COUNT(*) c FROM result_publications WHERE is_published=1'),
-    }
+    # All ten counters in a single round trip (was ten separate queries).
+    r = db.query("""SELECT
+        (SELECT COUNT(*) FROM users WHERE role='student') AS students,
+        (SELECT COUNT(*) FROM users WHERE role='teacher') AS teachers,
+        (SELECT COUNT(*) FROM branches) AS branches,
+        (SELECT COUNT(*) FROM timetables WHERE is_deleted=0) AS timetables,
+        (SELECT COUNT(*) FROM class_sessions WHERE is_deleted=0) AS sessions,
+        (SELECT COUNT(*) FROM feedback_forms WHERE is_deleted=0) AS forms,
+        (SELECT COUNT(*) FROM feedback_forms WHERE is_deleted=0 AND status='open') AS forms_open,
+        (SELECT COUNT(*) FROM feedback_forms WHERE is_deleted=0 AND status='draft') AS forms_draft,
+        (SELECT COUNT(*) FROM submissions) AS submissions,
+        (SELECT COUNT(*) FROM result_publications WHERE is_published=1) AS published""",
+        one=True)
+    return {k: r[k] for k in ('students', 'teachers', 'branches', 'timetables',
+                              'sessions', 'forms', 'forms_open', 'forms_draft',
+                              'submissions', 'published')}
 
 
 # --------------------------------------------------------------------------- #
