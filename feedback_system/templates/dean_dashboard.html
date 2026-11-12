@@ -201,7 +201,7 @@
               {% for s in semesters %}<option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>{{ s.label }}</option>{% endfor %}
             </select></label>
           <label>Feedback Form
-            <select name="form_id" onchange="this.form.submit()">
+            <select name="form_id" data-searchable onchange="this.form.submit()">
               <option value="">All Forms</option>
               {% for f in dash.form_options %}<option value="{{ f.id }}" {{ 'selected' if filters.form_id == f.id }}>{{ f.title }}</option>{% endfor %}
             </select></label>
@@ -327,6 +327,56 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+/* Turns <select data-searchable> into a dropdown with a search box.
+   The real <select> stays in the form (and is the fallback without JS). */
+(function(){
+  document.querySelectorAll('select[data-searchable]').forEach(function(sel){
+    var wrap = document.createElement('div'); wrap.className = 'dd-ss';
+    var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'dd-ss-btn';
+    var lbl = document.createElement('span'); var car = document.createElement('span'); car.textContent = '\u25BE';
+    btn.appendChild(lbl); btn.appendChild(car);
+    var panel = document.createElement('div'); panel.className = 'dd-ss-panel';
+    var q = document.createElement('input'); q.type = 'search'; q.className = 'dd-ss-search';
+    q.placeholder = 'Search\u2026'; q.autocomplete = 'off';
+    var list = document.createElement('div'); list.className = 'dd-ss-list';
+    panel.appendChild(q); panel.appendChild(list);
+    sel.parentNode.insertBefore(wrap, sel); wrap.appendChild(btn); wrap.appendChild(panel);
+    sel.style.display = 'none';
+    var opts = Array.prototype.map.call(sel.options, function(o){ return {v:o.value, t:o.text.trim()}; });
+    var shown = [], act = -1;
+    function setLabel(){ lbl.textContent = sel.options[sel.selectedIndex].text.trim(); }
+    function render(){
+      var f = q.value.trim().toLowerCase();
+      shown = opts.filter(function(o){ return !f || o.t.toLowerCase().indexOf(f) > -1; });
+      list.innerHTML = ''; act = -1;
+      if (!shown.length){ var n = document.createElement('div'); n.className = 'dd-ss-none'; n.textContent = 'No matching forms'; list.appendChild(n); return; }
+      shown.forEach(function(o, i){
+        var d = document.createElement('div'); d.className = 'dd-ss-opt' + (o.v === sel.value ? ' sel' : '');
+        d.textContent = o.t; d.onclick = function(){ choose(o); }; list.appendChild(d);
+      });
+    }
+    function choose(o){ sel.value = o.v; setLabel(); close(); if (sel.onchange) sel.onchange(); }
+    function open(){ wrap.classList.add('open'); q.value = ''; render(); q.focus(); }
+    function close(){ wrap.classList.remove('open'); }
+    function move(n){
+      var els = list.querySelectorAll('.dd-ss-opt'); if (!els.length) return;
+      if (act > -1) els[act].classList.remove('active');
+      act = (act + n + els.length) % els.length; els[act].classList.add('active'); els[act].scrollIntoView({block:'nearest'});
+    }
+    btn.onclick = function(){ wrap.classList.contains('open') ? close() : open(); };
+    q.oninput = render;
+    q.onkeydown = function(e){
+      if (e.key === 'ArrowDown'){ e.preventDefault(); move(1); }
+      else if (e.key === 'ArrowUp'){ e.preventDefault(); move(-1); }
+      else if (e.key === 'Enter'){ e.preventDefault(); if (act < 0 && shown.length === 1) act = 0; if (act > -1) choose(shown[act]); }
+      else if (e.key === 'Escape'){ close(); btn.focus(); }
+    };
+    document.addEventListener('click', function(e){ if (!wrap.contains(e.target)) close(); });
+    setLabel();
+  });
+})();
+</script>
 <script>
 (function(){
   var d = document.getElementById('ddDate'), t = document.getElementById('ddTime');
