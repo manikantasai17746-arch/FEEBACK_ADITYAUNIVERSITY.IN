@@ -109,6 +109,11 @@
                value="" placeholder="Type a custom form name">
         <div class="hint">Phase 1 and Phase 2 can each be created once per teacher, subject and
           section. Phase 2 can only be created or published after Phase 1 is closed.</div></div>
+      <div class="field"><label for="deadline_at">Feedback deadline <span class="req">*</span></label>
+        <input type="datetime-local" id="deadline_at" required
+               value="">
+        <div class="hint">Required. The form closes automatically at this date and time
+          (India time); students cannot submit after it.</div></div>
       <div class="field"><label for="instructions">Instructions for students</label>
         <textarea id="instructions" rows="3" maxlength="2000">{{ default_instructions }}</textarea></div>
     </div>
