@@ -522,4 +522,8 @@ MIGRATIONS = [
         "ALTER TABLE question_sets ADD COLUMN base_key TEXT",
         "CREATE INDEX IF NOT EXISTS ix_qsets_base ON question_sets(owner_user_id, base_key)",
     ]),
+    (14, "Admin recovery e-mails (two OTP-verified addresses used for password reset)", [
+        "ALTER TABLE users ADD COLUMN recovery_email1 TEXT",
+        "ALTER TABLE users ADD COLUMN recovery_email2 TEXT",
+    ]),
 ]
