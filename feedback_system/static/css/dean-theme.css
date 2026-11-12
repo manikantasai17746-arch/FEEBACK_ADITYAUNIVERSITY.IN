@@ -49,3 +49,18 @@ html.dark-mode body.role-dean .a11y-bar .theme-toggle{background:#16213a}
   body.role-dean .topnav{background:#fff;border-radius:12px;padding:8px}
   html.dark-mode body.role-dean .topnav{background:#0b1220}
 }
+
+/* Searchable single-select (Dean dashboard "Feedback Form" filter) */
+.dd-ss{position:relative;display:block;margin-top:2px}
+.dd-ss-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:200px;max-width:280px;height:36px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:0 10px;font:inherit;font-size:.88rem;color:#1f2733;cursor:pointer;text-align:left}
+.dd-ss-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-ss-panel{display:none;position:absolute;right:0;top:40px;z-index:30;width:300px;max-width:86vw;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(20,35,70,.18);padding:8px}
+.dd-ss.open .dd-ss-panel{display:block}
+.dd-ss-search{width:100%;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:inherit;font-size:.88rem;box-sizing:border-box}
+.dd-ss-list{max-height:260px;overflow:auto;margin-top:6px}
+.dd-ss-opt{padding:7px 10px;border-radius:6px;font-size:.86rem;color:#1f2733;cursor:pointer}
+.dd-ss-opt:hover,.dd-ss-opt.active{background:#eaf1ff}
+.dd-ss-opt.sel{font-weight:700;color:var(--blue)}
+.dd-ss-none{padding:8px 10px;font-size:.84rem;color:#6b7893}
+html.dark-mode .dd-ss-btn,html.dark-mode .dd-ss-panel,html.dark-mode .dd-ss-search{background:#0b1220;color:#e6ecf7;border-color:#26324a}
+html.dark-mode .dd-ss-opt{color:#e6ecf7}html.dark-mode .dd-ss-opt:hover,html.dark-mode .dd-ss-opt.active{background:#16233d}
