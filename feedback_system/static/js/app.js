@@ -32,6 +32,14 @@
     window.FFBusy.show(v === 'open' ? 'Publishing form…' : 'Updating form…');
   });
 
+  // HOD "Email PDF" buttons: show the blur + spinner while the mail is being sent.
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f || !f.action || !/\/hod\/pending\/\d+\/email/.test(f.action)) return;
+    var all = f.querySelector('[name=all]');
+    window.FFBusy.show(all ? 'Sending emails to teachers…' : 'Sending email…');
+  });
+
   /* ---------- generic back button ---------- */
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-back]');
@@ -389,6 +397,7 @@
     var result = document.getElementById('bulk-result');
     if (genBtn) genBtn.addEventListener('click', function () {
       if (!model.length) { showErrors(['Add at least one question to the template.']); return; }
+      if (!val('deadline_at')) { showErrors(['Set a feedback deadline (date and time).']); return; }
       var status = (document.querySelector('input[name=bulk_status]:checked') || {}).value || 'draft';
       genBtn.disabled = true;
       fetch(bulkUrl, {
@@ -396,7 +405,7 @@
         headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf,
                    'X-Requested-With': 'XMLHttpRequest' },
         body: JSON.stringify({ filters: collectFilters(), title_pattern: val('title_pattern'),
-                               status: status, questions: model })
+                               status: status, questions: model, deadline_at: val('deadline_at') })
       }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
         .then(function (res) {
           genBtn.disabled = false;
@@ -703,6 +712,7 @@
       phase: phaseSel ? phaseSel.value : '',
       title: document.getElementById('title').value,
       instructions: document.getElementById('instructions').value,
+      deadline_at: val('deadline_at'),
       academic_year_id: val('academic_year_id'),
       semester_id: val('semester_id'),
       branch_id: val('branch_id'),
@@ -838,6 +848,7 @@
       errors.push('Select a subject, teacher and period.');
     }
     if (!model.length) errors.push('Add at least one question before publishing.');
+    if (!val('deadline_at')) errors.push('Set a feedback deadline (date and time).');
     return errors;
   }
 
