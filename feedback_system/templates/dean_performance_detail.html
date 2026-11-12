@@ -1,51 +1,117 @@
 {% extends 'base.html' %}
+{% import '_macros.html' as m %}
 {% block title %}{{ teacher.name }} — Performance (Dean){% endblock %}
 {% block body %}
-<div class="container page">
-  <div class="page-header">
-    <h1>{{ teacher.name }} <span class="muted">({{ teacher.emp_code }})</span></h1>
-    <nav class="subnav">
-      <a href="{{ url_for('dean.performance_bands') }}">← Performance</a>
-      <a href="{{ url_for('auth.logout') }}">Logout</a>
-    </nav>
+{{ m.back(url_for('dean.performance', branch_id=back_branch) if back_branch else url_for('dean.performance'), 'Back to faculty performance') }}
+
+{% set tname = teacher.name or 'Faculty' %}
+{% set initials = (tname.split()|map('first')|join('')|upper)[:2] %}
+
+<div class="subject-detail-head">
+  <div>
+    <h1 style="margin:0 0 .35rem;font-size:1.25rem">{{ tname }} <span class="muted">({{ teacher.emp_code }})</span></h1>
+    <p class="sub" style="margin:0">Anonymous aggregate results — no student identity is ever shown.</p>
+  </div>
+  <a class="btn btn-accent btn-sm" href="#" onclick="window.print();return false;">⬇ Download PDF Report</a>
+</div>
+
+{% for c in cards %}
+{% set r = c.row %}{% set mt = c.meta %}
+<div class="teacher-card">
+  {% if teacher.emp_code %}
+  <img class="photo" src="{{ url_for('static', filename='img/teachers/' ~ teacher.emp_code ~ '.jpg') }}" alt="{{ tname }}"
+       onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+  {% endif %}
+  <div class="photo-fallback" aria-hidden="true" {% if teacher.emp_code %}style="display:none"{% endif %}>{{ initials }}</div>
+  <div class="meta">
+    <h2 style="font-size:1.2rem">{{ tname }}</h2>
+    <p class="desig">{{ (profile.designation if profile and profile.designation else 'Faculty') }}</p>
+    <div class="line"><span class="ic">🏛</span><span>Department: {{ mt.branch_name or r.branch_code or '—' }}</span></div>
+    <div class="line"><span class="ic">📘</span><span>Subject: {{ r.subject_name or r.subject_code or '—' }}{% if r.subject_code and r.subject_name %} ({{ r.subject_code }}){% endif %}</span></div>
+    <div class="line"><span class="ic">👥</span><span>
+      {% if mt.timetable %}Section: {{ mt.timetable }}{% endif %}
+      {% if mt.semester %} | Semester: {{ mt.semester }}{% endif %}
+      {% if mt.academic_year %} | Academic Year: {{ mt.academic_year }}{% endif %}</span></div>
+  </div>
+  <div class="mini-stats">
+    <div class="mini-stat"><div class="n">{{ c.eligible }}</div><div class="l">Eligible Students</div></div>
+    <div class="mini-stat"><div class="n">{{ c.responded }}</div><div class="l">Students Responded</div></div>
+    <div class="mini-stat"><div class="n">{{ c.not_submitted }}</div><div class="l">Not Submitted</div></div>
+    <div class="mini-stat"><div class="n">{% if c.score is not none %}{{ '%.2f'|format(c.score) }}{% else %}N/A{% endif %}</div><div class="l">Performance Score / 100</div></div>
+  </div>
+</div>
+
+{% if c.maximum %}
+<p class="sub" style="margin:1rem 0;padding:.75rem 1rem;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd">
+  Each student gives 10 marks in total. This form has {{ c.question_count }} rated questions,
+  so each is worth {{ '%.2f'|format(c.marks_per_question or 0) }} marks.
+  Maximum = 10 × eligible students ({{ c.eligible }} → {{ c.maximum }}). Marks obtained: {{ c.obtained }} / {{ c.maximum }}.
+</p>
+{% endif %}
+
+{% if c.score is none %}
+<div class="chart-card"><p class="sub" style="margin:0">{{ r.reason or 'Not enough responses to show results for this form yet.' }}</p></div>
+{% else %}
+<div class="detail-grid">
+  <div class="chart-card">
+    <h3>Rating-wise Answer Count</h3>
+    <div class="bar-chart">
+      {% for d in c.distribution %}
+      <div class="col">
+        <span class="cnt">{{ d.count }}</span>
+        <div class="bar c{{ d.rank }}" style="height:{{ ((d.count / c.max_count) * 100)|int }}%"></div>
+        <span class="nm">{{ d.label }}</span>
+      </div>
+      {% else %}<p class="sub">No rating data yet.</p>{% endfor %}
+    </div>
   </div>
 
-  {% for r in rows %}
-  <div class="card" style="margin-bottom:1.25rem">
-    <h2>#{{ r.form_id }} · {{ r.title }}</h2>
-    <p class="sub">{{ r.subject_code or '' }} {{ r.subject_name or '' }} · {{ r.branch_code or '' }} · {{ r.valid_responses }} responses</p>
-    <div class="stat-grid" style="margin:1rem 0">
-      <div class="stat-card">
-        <div class="stat-label">Overall score</div>
-        <div class="stat-value">
-          {% if r.hidden or r.overall_score is none %}N/A{% else %}{{ '%.1f'|format(r.overall_score) }}{% endif %}
-        </div>
-      </div>
+  <div class="chart-card">
+    <h3>Feedback Rating Distribution</h3>
+    {% set colors = ['#3b82f6','#22c55e','#eab308','#f97316','#ef4444','#94a3b8'] %}
+    <ul class="pie-legend">
+      {% for d in c.distribution %}
+      <li><i style="background:{{ colors[loop.index0 % 6] }}"></i><span style="flex:1">{{ d.label }}</span>
+        <strong>{{ d.count }}</strong><span class="sub">({{ d.pct }}%)</span></li>
+      {% endfor %}
+    </ul>
+    <div class="rb-track" style="height:14px;margin-top:.85rem;display:flex;overflow:hidden;border-radius:999px">
+      {% for d in c.distribution %}<div style="width:{{ d.pct }}%;background:{{ colors[loop.index0 % 6] }};height:100%" title="{{ d.label }}: {{ d.pct }}%"></div>{% endfor %}
     </div>
-    {% if r.criteria %}
-    <table class="data data-table">
-      <thead><tr><th>Criterion</th><th>Score /100</th><th>Answers</th><th>Distribution</th></tr></thead>
-      <tbody>
-        {% for c in r.criteria %}
-        <tr>
-          <td class="wrap">{{ c.text }}</td>
-          <td>{% if c.score is none %}N/A{% else %}{{ '%.1f'|format(c.score) }}{% endif %}</td>
-          <td>{{ c.valid_answers }}</td>
-          <td class="wrap" style="font-size:.85rem">
-            {% for lbl, d in c.distribution.items() %}
-              {{ lbl }}: {{ d.count }} ({{ d.pct }}%){% if not loop.last %}; {% endif %}
-            {% endfor %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <p class="muted">{{ r.reason or 'No criterion scores available.' }}</p>
-    {% endif %}
   </div>
-  {% else %}
-  <div class="card"><p class="muted">No forms found for this faculty member in your department scope.</p></div>
+
+  <div class="chart-card" style="text-align:center">
+    <h3>Performance Score</h3>
+    <div class="score-ring" style="background: conic-gradient(#22c55e {{ c.score }}%, #e2e8f0 0);">
+      <div class="inner"><div class="big">{{ '%.2f'|format(c.score) }}</div><div class="sub">/ 100</div></div>
+    </div>
+    <div style="margin-top:.75rem">
+      {% if c.score >= 80 %}<span class="perf-label">Good Performance</span>
+      {% elif c.score >= 60 %}<span class="perf-label" style="background:#fef3c7;color:#92400e">Average Performance</span>
+      {% else %}<span class="perf-label" style="background:#fee2e2;color:#991b1b">Needs Improvement</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="detail-grid" style="margin-top:1rem">
+  {% for q in r.criteria %}
+  <div class="chart-card">
+    <h3>Q{{ loop.index }}. {{ q.text }}</h3>
+    <div class="rating-bars">
+      {% set colors = ['#3b82f6','#22c55e','#eab308','#f97316','#ef4444'] %}
+      {% for lbl, d in q.distribution.items() %}
+      <div class="rb-row"><span>{{ lbl }}</span>
+        <div class="rb-track"><div class="rb-fill" style="width:{{ d.pct }}%;background:{{ colors[loop.index0 % 5] }}"></div></div>
+        <span>{{ d.count }} ({{ d.pct }}%)</span></div>
+      {% endfor %}
+    </div>
+    <p class="sub" style="margin-top:.5rem">Score {% if q.score is none %}N/A{% else %}{{ '%.1f'|format(q.score) }}{% endif %} / 100 · {{ q.valid_answers }} answers</p>
+  </div>
   {% endfor %}
 </div>
+{% endif %}
+<div style="height:1.5rem"></div>
+{% else %}
+<div class="chart-card"><p class="muted" style="margin:0">No published forms found for this faculty member in your department scope.</p></div>
+{% endfor %}
 {% endblock %}
