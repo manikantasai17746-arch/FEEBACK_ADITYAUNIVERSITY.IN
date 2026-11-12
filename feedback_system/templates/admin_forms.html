@@ -40,7 +40,7 @@
 <div class="card">
   <div class="table-wrap">
     <table class="data">
-      <thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Subject</th><th>Teacher</th>
+      <thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Deadline</th><th>Subject</th><th>Teacher</th>
         <th>Timetable</th><th>Branch</th><th>Sem</th><th>Period</th><th>Actions</th></tr></thead>
       <tbody>
         {% for f in rows %}
@@ -48,6 +48,7 @@
           <td>{{ f.id }}</td>
           <td class="wrap">{{ f.title }}{% if f.is_deleted %} <span class="badge badge-draft">Deleted</span>{% endif %}</td>
           <td>{{ m.status_badge(f.status) }}</td>
+          <td>{{ m.deadline_cell(f, url_for('admin.form_deadline', fid=f.id), url_for('admin.forms'), csrf_token()) }}</td>
           <td>{{ f.subject_name or '—' }}{% if f.subject_code %} <span class="sub">({{ f.subject_code }})</span>{% endif %}</td>
           <td class="wrap">{% if f.scope == 'subject' %}<span class="sub">Multiple teachers</span>{% else %}{{ f.teacher_name or '—' }}{% endif %}</td>
           <td>{% if f.scope == 'subject' and not f.timetable_id %}<span class="badge badge-published">All timetables</span>{% else %}{{ f.timetable or '—' }}{% endif %}</td>
