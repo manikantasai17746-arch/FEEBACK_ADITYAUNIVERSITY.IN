@@ -101,6 +101,9 @@ vercel --prod
 | `MAIL_USER` | the Gmail address that sends the verification / reset codes |
 | `MAIL_APP_PASSWORD` | a Google **App Password** for that Gmail (Google Account → Security → 2-Step Verification → App passwords). Not the normal password. |
 | `MAIL_FROM_NAME` | optional sender name, e.g. `Aditya University Feedback` |
+| `MAIL_PROVIDER` | optional: `gmail` (default) or `outlook`. Picks the SMTP server for the **sending** account. Recipients can be on any domain (Gmail, Outlook, Yahoo, college...). |
+| `SMTP_HOST` / `SMTP_PORT` | optional override for any other mail server (port 465 = SSL, otherwise STARTTLS) |
+| `APP_UTC_OFFSET_MINUTES` | optional; time zone used for form deadlines, default `330` (India) |
 
 Admin credentials from `.env` are only used when a database has no admin
 account. To explicitly change an existing admin login, first verify that
@@ -209,3 +212,17 @@ run it from your computer with the direct (5432) `DATABASE_URL` in `.env`:
 python scripts/import_excel.py "Semester_IV.xlsx" --semester 4 --year 2025-26 --check
 python scripts/import_excel.py "Semester_IV.xlsx" --semester 4 --year 2025-26
 ```
+
+
+---
+
+## 9. Form deadlines and pending-submission reminders
+
+* **Deadline (required).** Every new form (admin builder, bulk generator, HOD builder) needs a
+  deadline. Open forms close themselves once it passes: the app checks on web requests (no cron
+  needed) and refuses late submissions even before the status flips. Admin/HOD can change the
+  deadline from the Forms list; extending a closed form's deadline reopens it. Forms that already
+  existed keep "No deadline" and never auto-close. Run the app once so migration v16 adds the column.
+* **HOD → Pending.** Per teacher, the eligible students who have not submitted (roll numbers only),
+  with a PDF preview and a one-click **Email PDF** button (or *Email all*). Read-only: submissions are
+  never modified. Emails are only sent while the form is open.
