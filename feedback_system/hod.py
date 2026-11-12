@@ -66,6 +66,9 @@ def dashboard():
                 WHERE branch_id IN ({ph}) AND is_deleted=0
                 ORDER BY created_at DESC, id DESC LIMIT 15""",
             tuple(branch_ids))
+        _tm = services.form_teachers_map([f['id'] for f in stats['recent_forms']])
+        stats['recent_forms'] = [dict(f, teachers=_tm.get(f['id'], []))
+                                 for f in stats['recent_forms']]
 
     return render_template('hod_dashboard.html', stats=stats, user=user)
 
@@ -115,6 +118,8 @@ def forms():
                   FROM feedback_forms WHERE {' AND '.join(where)}
                   ORDER BY created_at DESC, id DESC"""
         forms_list = db.query(sql, tuple(args))
+        _tm = services.form_teachers_map([f['id'] for f in forms_list])
+        forms_list = [dict(f, teachers=_tm.get(f['id'], [])) for f in forms_list]
         # Counts (unfiltered by status/search for tiles) - one query, not four.
         c = db.query(
             f"""SELECT COUNT(*) AS total,
