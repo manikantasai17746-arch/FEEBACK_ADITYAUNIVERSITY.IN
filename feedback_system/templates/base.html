@@ -36,6 +36,7 @@
       {% elif current_user and current_user.role == 'hod' %}
         <a href="{{ url_for('hod.dashboard') }}">Dashboard</a>
         <a href="{{ url_for('hod.forms') }}">Forms</a>
+        <a href="{{ url_for('hod.pending') }}">Pending</a>
         <a href="{{ url_for('hod.results') }}">Results</a>
         <a href="{{ url_for('hod.performance') }}">Performance</a>
         <a href="{{ url_for('hod.my_actions') }}">My Actions</a>
