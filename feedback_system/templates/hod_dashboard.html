@@ -58,10 +58,11 @@
     <table class="marks-table">
       <thead>
         <tr>
-          <th>#</th>
+          <th>Form ID</th>
           <th>Title</th>
           <th>Category</th>
           <th>Subject</th>
+          <th>Teacher(s)</th>
           <th>Branch</th>
           <th>Status</th>
         </tr>
@@ -69,10 +70,11 @@
       <tbody>
         {% for f in stats.recent_forms %}
         <tr>
-          <td>{{ loop.index }}</td>
+          <td>#{{ f.id }}</td>
           <td>{{ f.title }}</td>
           <td><span class="badge" style="background:#ede9fe;color:#5b21b6">{{ f.category or 'main' }}</span></td>
           <td>{{ f.snapshot_subject_code or '—' }}</td>
+          <td class="wrap">{{ f.teachers|join(', ') if f.teachers else '—' }}</td>
           <td>{{ f.snapshot_branch or '—' }}</td>
           <td>
             {% if f.status == 'open' %}
