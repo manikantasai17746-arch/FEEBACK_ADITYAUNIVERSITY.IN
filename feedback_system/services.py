@@ -1197,6 +1197,34 @@ def teacher_sessions(teacher_user_id, subject_code=None):
     return db.query(sql + ' ORDER BY cs.subject_code, b.code, cs.period_no', tuple(args))
 
 
+def sessions_by_section(session_ids):
+    """Split sessions into sections (one timetable = one section).
+
+    Several periods of the same section stay together; different sections are
+    never combined.  Returns [{'timetable_id', 'timetable', 'branch',
+    'session_ids'}] ordered by branch then section code.
+    """
+    ids = [int(i) for i in (session_ids or [])]
+    if not ids:
+        return []
+    ph = ','.join('?' * len(ids))
+    rows = db.query(
+        f"""SELECT cs.id AS session_id, t.id AS timetable_id, t.code AS timetable,
+                   b.code AS branch
+            FROM class_sessions cs
+            JOIN timetables t ON t.id=cs.timetable_id
+            JOIN branches b ON b.id=t.branch_id
+            WHERE cs.id IN ({ph})
+            ORDER BY b.code, t.code, cs.period_no""", tuple(ids))
+    groups = {}
+    for r in rows:
+        g = groups.setdefault(r['timetable_id'], {
+            'timetable_id': r['timetable_id'], 'timetable': r['timetable'],
+            'branch': r['branch'], 'session_ids': []})
+        g['session_ids'].append(r['session_id'])
+    return list(groups.values())
+
+
 def teacher_form_session_ids(teacher_user_id, form_id):
     """The covered sessions of a form that belong to this teacher."""
     rows = db.query("""SELECT cs.id FROM form_sessions fs

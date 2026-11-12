@@ -85,6 +85,7 @@
           <th>S.No</th>
           <th>Subject Code</th>
           <th>Subject Name</th>
+          <th>Section</th>
           <th>Feedback Form</th>
           <th>Eligible Students</th>
           <th>Students Responded</th>
@@ -102,6 +103,7 @@
           <td>{{ loop.index }}</td>
           <td>{{ f.subject_code or '—' }}</td>
           <td>{{ f.subject_name or f.title or '—' }}</td>
+          <td>{{ r.section or '—' }}</td>
           <td class="form-cell">
             {% if f.id %}
               <div class="form-title-line">{{ f.title or ('Feedback Form #' ~ f.id) }}</div>
@@ -138,7 +140,7 @@
           </td>
           <td>
             {% if f.id %}
-            <a class="btn btn-ghost btn-sm" href="{{ url_for('teacher.results', form_id=f.id) }}">👁 View Details</a>
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('teacher.results', form_id=f.id, section=r.section_id) }}">👁 View Details</a>
             {% else %}<span class="sub">—</span>{% endif %}
           </td>
           {% endif %}

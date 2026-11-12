@@ -7,7 +7,7 @@
 <div class="subject-detail-head">
   <div>
     <h1 style="margin:0 0 .35rem;font-size:1.25rem">
-      {{ form.subject_code or '' }}{% if form.subject_code and form.subject_name %} — {% endif %}{{ form.subject_name or form.title }}
+      {{ form.subject_code or '' }}{% if form.subject_code and form.subject_name %} — {% endif %}{{ form.subject_name or form.title }}{% if row.section %} · Section {{ row.section }}{% endif %}
     </h1>
     <p class="sub" style="margin:0">
       {% if form.subject_code %}{{ form.subject_code }}{% endif %}

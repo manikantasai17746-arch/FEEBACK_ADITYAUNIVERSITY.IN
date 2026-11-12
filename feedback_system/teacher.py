@@ -71,7 +71,7 @@ def _aggregate_rating_distribution(stats):
     return items, total
 
 
-def _subject_row(user_id, form, session_ids):
+def _subject_row(user_id, form, session_ids, section=None):
     responses = services.response_count(form['id'], session_ids=session_ids)
     # Everything here is scoped to THIS teacher's sessions of the form: the
     # eligible population (distinct active students), the responses, the score
@@ -85,6 +85,8 @@ def _subject_row(user_id, form, session_ids):
     fm = scoring.form_marks(form['id'], eligible, session_ids=session_ids)
     return {
         'form': form,
+        'section': (section or {}).get('timetable'),
+        'section_id': (section or {}).get('timetable_id'),
         'responses': responses,
         'eligible': eligible or 0,
         'not_submitted': max(0, (eligible or 0) - responses),
@@ -125,9 +127,12 @@ def dashboard():
         if semester_id and f.get('semester_id') and int(f['semester_id']) != semester_id:
             continue
         session_ids = services.teacher_form_session_ids(user['id'], f['id'])
-        row = _subject_row(user['id'], f, session_ids)
         code = f.get('subject_code') or f.get('snapshot_subject_code') or ''
-        form_rows_by_subject.setdefault(code, []).append(row)
+        # One row per section: sections are never combined into one row.
+        for sec in services.sessions_by_section(session_ids) or [None]:
+            row = _subject_row(user['id'], f,
+                               sec['session_ids'] if sec else session_ids, sec)
+            form_rows_by_subject.setdefault(code, []).append(row)
 
     # Forms whose results are not published yet: show the form name plus the
     # eligible / responded counts only. No score or marks are computed or shown.
@@ -138,23 +143,27 @@ def dashboard():
         if semester_id and f.get('semester_id') and int(f['semester_id']) != semester_id:
             continue
         session_ids = services.teacher_form_session_ids(user['id'], f['id'])
-        row = {
-            'form': f,
-            'responses': services.response_count(f['id'], session_ids=session_ids),
-            'eligible': services.eligible_count_for_sessions(session_ids) or 0,
-            'not_submitted': 0,
-            'score': None,
-            'obtained_marks': None,
-            'max_marks': None,
-            'marks_per_question': None,
-            'question_count': 0,
-            'session_ids': session_ids,
-            'scores': None,
-            'unpublished': True,
-        }
-        row['not_submitted'] = max(0, row['eligible'] - row['responses'])
         code = f.get('subject_code') or f.get('snapshot_subject_code') or ''
-        form_rows_by_subject.setdefault(code, []).append(row)
+        for sec in services.sessions_by_section(session_ids) or [None]:
+            sids = sec['session_ids'] if sec else session_ids
+            row = {
+                'form': f,
+                'section': (sec or {}).get('timetable'),
+                'section_id': (sec or {}).get('timetable_id'),
+                'responses': services.response_count(f['id'], session_ids=sids),
+                'eligible': services.eligible_count_for_sessions(sids) or 0,
+                'not_submitted': 0,
+                'score': None,
+                'obtained_marks': None,
+                'max_marks': None,
+                'marks_per_question': None,
+                'question_count': 0,
+                'session_ids': sids,
+                'scores': None,
+                'unpublished': True,
+            }
+            row['not_submitted'] = max(0, row['eligible'] - row['responses'])
+            form_rows_by_subject.setdefault(code, []).append(row)
 
     # Build one display row per subject the teacher handles.
     # Prefer published-form stats; if none published yet, still list the subject.
@@ -194,31 +203,35 @@ def dashboard():
             # of the subject (responses are necessarily 0 without a form).
             ph_session_ids = [r['id'] for r in services.teacher_sessions(
                 user['id'], subject_code=code)]
-            ph_eligible = services.eligible_count_for_sessions(ph_session_ids) or 0
-            total_eligible += ph_eligible
-            rows.append({
-                'form': {
-                    'id': None,
-                    'subject_code': code,
-                    'subject_name': s.get('subject_name') or code,
-                    'title': s.get('subject_name') or code,
-                    'branch': None,
-                    'timetable': None,
-                    'semester': None,
-                    'academic_year': None,
-                },
-                'responses': 0,
-                'eligible': ph_eligible,
-                'not_submitted': ph_eligible,
-                'score': None,
-                'obtained_marks': None,
-                'max_marks': None,
-                'marks_per_question': None,
-                'question_count': 0,
-                'session_ids': ph_session_ids,
-                'scores': None,
-                'unpublished': True,
-            })
+            total_eligible += services.eligible_count_for_sessions(ph_session_ids) or 0
+            for sec in services.sessions_by_section(ph_session_ids) or [None]:
+                sids = sec['session_ids'] if sec else ph_session_ids
+                ph_eligible = services.eligible_count_for_sessions(sids) or 0
+                rows.append({
+                    'form': {
+                        'id': None,
+                        'subject_code': code,
+                        'subject_name': s.get('subject_name') or code,
+                        'title': s.get('subject_name') or code,
+                        'branch': None,
+                        'timetable': None,
+                        'semester': None,
+                        'academic_year': None,
+                    },
+                    'section': (sec or {}).get('timetable'),
+                    'section_id': (sec or {}).get('timetable_id'),
+                    'responses': 0,
+                    'eligible': ph_eligible,
+                    'not_submitted': ph_eligible,
+                    'score': None,
+                    'obtained_marks': None,
+                    'max_marks': None,
+                    'marks_per_question': None,
+                    'question_count': 0,
+                    'session_ids': sids,
+                    'scores': None,
+                    'unpublished': True,
+                })
 
     # Published forms whose subject_code is missing from teacher_subjects (edge case)
     for code, pub_list in form_rows_by_subject.items():
@@ -248,7 +261,7 @@ def dashboard():
                              if r.get('eligible') else None)
     rows.sort(key=lambda r: ((r['form'].get('subject_name') or r['form'].get('title') or ''),
                              r['form'].get('subject_code') or '',
-                             r.get('round_no') or 0))
+                             r.get('round_no') or 0, r.get('section') or ''))
 
     # Header tiles: students are counted once (distinct) however many rounds
     # exist, otherwise four rounds would show 4x the students.
@@ -283,7 +296,7 @@ def dashboard():
         stats={
             'subjects': len(subjects),
             'eligible': distinct_eligible,
-            'rounds': sum(1 for r in rows if r['form'].get('id')),
+            'rounds': len({r['form']['id'] for r in rows if r['form'].get('id')}),
             'responses': total_responses,
             'avg_score': avg_score,
             'obtained': round(total_obtained, 2),
@@ -302,12 +315,20 @@ def results(form_id):
         abort(403)
 
     session_ids = services.teacher_form_session_ids(user['id'], form_id)
+    section = None
+    section_id = request.args.get('section', type=int)
+    if section_id:
+        section = next((g for g in services.sessions_by_section(session_ids)
+                        if g['timetable_id'] == section_id), None)
+        if not section:
+            abort(404)
+        session_ids = section['session_ids']
     stats = services.question_stats(form_id, session_ids=session_ids)
     page = request.args.get('page', 1, type=int)
     suggestions = services.suggestions_paged(form_id, page=page, per_page=20,
                                              session_ids=session_ids)
     responses = services.response_count(form_id, session_ids=session_ids)
-    row = _subject_row(user['id'], form, session_ids)
+    row = _subject_row(user['id'], form, session_ids, section)
     distribution, dist_total = _aggregate_rating_distribution(stats)
     scores = row.get('scores') or scoring.compute_form_scores(
         form_id, min_responses=1, session_ids=session_ids)
