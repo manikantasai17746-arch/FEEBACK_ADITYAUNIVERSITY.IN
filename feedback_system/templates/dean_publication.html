@@ -10,9 +10,29 @@
       <a href="{{ url_for('dean.historical') }}">Historical</a>
     </nav>
   </div>
+  <h2 style="margin:14px 0 8px">Department publication summary</h2>
+  {% if summary %}
+  <div style="overflow-x:auto">
+  <table class="data-table">
+    <thead><tr><th>Department</th><th>HOD</th><th>Forms published</th><th>Open</th><th>Closed</th><th>Archived</th>
+      <th>Eligible students</th><th>Submitted students</th><th>Submission rate</th><th>Last activity</th></tr></thead>
+    <tbody>{% for r in summary %}<tr>
+      <td>{{ r.code }}</td><td>{{ r.hod }}</td><td>{{ r.form_total }}</td>
+      <td>{{ r.forms.open }}</td><td>{{ r.forms.closed }}</td><td>{{ r.forms.archived }}</td>
+      <td>{{ '{:,}'.format(r.eligible) }}</td><td>{{ '{:,}'.format(r.submitted) }}</td>
+      <td>{% if r.has_rate %}{{ r.rate }}%{% else %}No data{% endif %}</td><td>{{ r.last }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">No authorised departments yet.</p>
+  {% endif %}
+
+  <h2 style="margin:22px 0 8px">Feedback requirements</h2>
   {% if not requirements_configured %}
   <div class="alert alert-info"><strong>Requirements not configured.</strong>
-    Pending cannot be calculated until Admin defines feedback requirements.</div>
+    Admin has not defined feedback requirements yet, so required-vs-published progress and deadlines
+    cannot be calculated. The summary above is based on the forms that are actually published.</div>
   {% elif rows %}
   <table class="data-table">
     <thead><tr><th>Branch</th><th>Title</th><th>Category</th><th>Deadline</th><th>Req status</th><th>Form status</th></tr></thead>
