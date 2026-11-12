@@ -978,3 +978,90 @@ html.dark-mode .ms-row:hover{background:#1e293b}
 .pv-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-weight:600;font-size:.8rem}
 .pv-ok{background:#e3f7ea;color:#15803d}
 .pv-bad{background:#fdecec;color:#b42318}
+
+/* ---------- Teacher improvement / round-by-round comparison ---------- */
+.imp-page{max-width:1100px;margin:0 auto}
+.imp-header{margin-bottom:1rem}
+.imp-title{font-size:1.35rem;display:flex;align-items:center;gap:.5rem;margin:0 0 .35rem}
+.imp-title-icon{font-size:1.1rem}
+.imp-meta{margin:0}
+.imp-filters{display:flex;flex-wrap:wrap;gap:.75rem 1rem;align-items:flex-end;padding:14px 16px;margin-bottom:1rem}
+.imp-filters .field{margin:0;min-width:140px}
+.imp-filters .field label{display:block;font-size:.78rem;color:var(--muted);margin-bottom:.2rem}
+.imp-filters select{min-width:150px}
+.imp-filters .field-btn{min-width:auto}
+.imp-info{background:#eef4ff;border:1px solid #c9d8f5;border-radius:10px;padding:12px 14px;font-size:.88rem;color:#1e3a5f;margin-bottom:1.1rem;display:flex;gap:.6rem;align-items:flex-start}
+.imp-info-icon{flex-shrink:0;width:22px;height:22px;border-radius:50%;background:#2f6fed;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700}
+.imp-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:.85rem;margin-bottom:1.25rem}
+@media (max-width:900px){.imp-tiles{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:520px){.imp-tiles{grid-template-columns:1fr}}
+.imp-tile{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;gap:12px;align-items:center;box-shadow:var(--shadow)}
+.imp-tile-ic{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1rem;font-weight:700;flex-shrink:0}
+.ic-subj{background:#fee2e2;color:#b91c1c}
+.ic-rounds{background:#dbeafe;color:#1d4ed8}
+.ic-up{background:#dcfce7;color:#15803d}
+.ic-gain{background:#fef3c7;color:#b45309}
+.imp-tile-num{font-size:1.25rem;font-weight:700;color:var(--navy-dark);line-height:1.15}
+.imp-tile-lbl{font-size:.78rem;color:var(--muted)}
+.imp-subject{padding:18px 20px;margin-bottom:1.25rem}
+.imp-subj-head{display:flex;flex-wrap:wrap;justify-content:space-between;gap:.75rem;align-items:flex-start;margin-bottom:1rem}
+.imp-subj-title{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem}
+.imp-code{background:var(--navy);color:#fff;font-weight:700;font-size:.82rem;padding:3px 9px;border-radius:6px}
+.imp-name{font-weight:700;font-size:1.05rem;color:var(--navy-dark)}
+.imp-section{font-size:.82rem;color:var(--muted);background:#f1f5f9;padding:2px 8px;border-radius:6px}
+.imp-badge{font-size:.75rem;padding:2px 8px;border-radius:999px;font-weight:600}
+.imp-badge.rounds{background:#e0e7ff;color:#3730a3}
+.imp-badge.band{background:#ecfdf5;color:#047857}
+.imp-net{font-weight:700;font-size:.95rem;white-space:nowrap}
+.imp-net.up{color:var(--ok)}.imp-net.down{color:var(--err)}.imp-net.flat{color:var(--muted)}
+.imp-net-val{font-size:1.05rem}
+.imp-body{display:grid;grid-template-columns:1fr 220px;gap:1.25rem;align-items:start;margin-bottom:1rem}
+@media (max-width:800px){.imp-body{grid-template-columns:1fr}}
+.imp-chart-wrap{background:#f8fafc;border:1px solid var(--line);border-radius:12px;padding:8px 4px 4px;overflow:hidden}
+.imp-chart{width:100%;height:auto;display:block}
+.imp-chart-label{font-size:10px;fill:#64748b}
+.imp-chart-score{font-size:11px;font-weight:700;fill:var(--navy-dark)}
+.imp-side{display:flex;flex-direction:column;gap:.5rem}
+.imp-side-card{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:10px 12px;text-align:center}
+.imp-side-card.highlight{background:#eef4ff;border-color:#b6c9f0}
+.imp-side-lbl{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+.imp-side-score{font-size:1.35rem;font-weight:800;color:var(--navy-dark)}
+.imp-side-delta{text-align:center;font-weight:700;font-size:.95rem;color:var(--muted)}
+.imp-side-delta.up{color:var(--ok)}.imp-side-delta.down{color:var(--err)}
+.imp-side-meta{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:.82rem}
+.imp-side-meta > div{display:flex;justify-content:space-between;gap:.5rem;padding:4px 0;border-bottom:1px solid #f1f5f9}
+.imp-side-meta > div:last-child{border-bottom:0}
+.imp-side-meta .k{color:var(--muted)}.imp-side-meta .v{font-weight:600;color:var(--navy-dark)}
+.imp-table-wrap{overflow-x:auto;margin-top:.5rem}
+.imp-table th,.imp-table td{font-size:.88rem}
+.imp-table .up{color:var(--ok);font-weight:600}
+.imp-table .down{color:var(--err);font-weight:600}
+.trend-up{color:var(--ok);font-weight:600}
+.trend-down{color:var(--err);font-weight:600}
+.imp-criteria{margin-top:1.25rem;padding-top:1rem;border-top:1px solid var(--line)}
+.imp-criteria h3{margin:0 0 .75rem;font-size:1.05rem}
+.imp-compare-form{display:flex;flex-wrap:wrap;gap:.6rem .9rem;align-items:flex-end;margin-bottom:.9rem}
+.imp-compare-form label{font-size:.85rem;color:var(--muted);display:flex;flex-direction:column;gap:.25rem}
+.imp-compare-form select{min-width:160px}
+.imp-crit-table .imp-bar-col{min-width:140px}
+.bar-legend{display:inline-flex;align-items:center;gap:.45rem;font-size:.75rem;font-weight:500;color:var(--muted)}
+.bar-legend i{display:inline-block;width:12px;height:8px;border-radius:2px}
+.bar-legend .bar-a{background:#93c5fd}
+.bar-legend .bar-b{background:#2f6fed}
+.crit-bars{display:flex;flex-direction:column;gap:3px;min-width:100px}
+.crit-bar{height:8px;border-radius:4px;max-width:100%}
+.crit-bar.a{background:#93c5fd}
+.crit-bar.b{background:#2f6fed}
+.crit-tag{display:inline-block;font-size:.7rem;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:.35rem;vertical-align:middle}
+.crit-tag.up{background:#dcfce7;color:#15803d}
+.crit-tag.down{background:#fee2e2;color:#b91c1c}
+.imp-crit-note{margin-top:.6rem}
+.imp-criteria-toggle{margin-top:1rem;font-size:.9rem}
+.imp-criteria-toggle summary{cursor:pointer;color:var(--accent);font-weight:600}
+.imp-single{padding:.5rem 0}
+.imp-single-msg{display:flex;gap:.75rem;align-items:flex-start;background:#f8fafc;border:1px dashed var(--line);border-radius:10px;padding:14px 16px}
+.imp-single-ic{font-size:1.2rem;color:var(--muted);line-height:1.4}
+html.dark-mode .imp-info{background:#1e293b;border-color:#334155;color:#e2e8f0}
+html.dark-mode .imp-tile,html.dark-mode .imp-side-card,html.dark-mode .imp-side-meta,html.dark-mode .imp-chart-wrap{background:#0f172a;border-color:#334155}
+html.dark-mode .imp-side-card.highlight{background:#1e3a5f;border-color:#3b82f6}
+html.dark-mode .imp-single-msg{background:#0f172a;border-color:#334155}
