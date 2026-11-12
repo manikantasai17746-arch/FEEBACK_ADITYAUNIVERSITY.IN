@@ -30,6 +30,7 @@
         <a href="{{ url_for('admin.import_excel') }}">Import</a>
       {% elif current_user and current_user.role == 'teacher' %}
         <a href="{{ url_for('teacher.dashboard') }}">My Performance</a>
+        <a href="{{ url_for('teacher.improvement') }}">My Improvement</a>
       {% elif current_user and current_user.role == 'student' %}
         <a href="{{ url_for('student.dashboard') }}">My Feedback</a>
         <a href="{{ url_for('student.notifications') }}">Notifications</a>
