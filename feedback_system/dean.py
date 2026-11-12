@@ -103,7 +103,29 @@ def _dashboard_data(user, branches, ay_id, sem_id, form_id):
         sql += ' AND ff.semester_id=?'
         args.append(sem_id)
     scope_forms = db.query(sql + ' ORDER BY ff.title', tuple(args))
-    data['form_options'] = [{'id': f['id'], 'title': f['title']} for f in scope_forms]
+    # Dropdown label "<emp id> (<department>) <title>" so forms that share the
+    # same title (e.g. many "Phase 1") can be told apart.
+    emp_by_form = {}
+    if scope_forms:
+        sph = _in_clause([f['id'] for f in scope_forms])
+        for r in db.query(
+                f"""SELECT DISTINCT fs.form_id, u.emp_code
+                    FROM form_sessions fs
+                    JOIN class_sessions cs ON cs.id=fs.session_id
+                    JOIN users u ON u.id=cs.teacher_user_id
+                    WHERE fs.form_id IN ({sph}) AND u.emp_code IS NOT NULL
+                      AND u.emp_code != '' ORDER BY u.emp_code""",
+                tuple(f['id'] for f in scope_forms)):
+            emp_by_form.setdefault(r['form_id'], []).append(r['emp_code'])
+    code_by_branch = {b['id']: b['code'] for b in branches}
+
+    def _form_label(f):
+        emp = ', '.join(emp_by_form.get(f['id'], []))
+        dept = code_by_branch.get(f['branch_id'], '')
+        head = ' '.join(x for x in (emp, f'({dept})' if dept else '') if x)
+        return f"{head} {f['title']}".strip()
+
+    data['form_options'] = [{'id': f['id'], 'title': _form_label(f)} for f in scope_forms]
     forms = [f for f in scope_forms if not form_id or f['id'] == form_id]
     fids = [f['id'] for f in forms]
     data['active_forms'] = sum(1 for f in forms if f['status'] == 'open')
