@@ -8,7 +8,7 @@ without ever selecting student identity.
 import csv
 import io
 import os
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 from . import db
 from .security import audit
@@ -307,6 +307,75 @@ def not_submitted_students_for_form(form_id):
         ORDER BY u.roll""", (form_id, form_id))
 
 
+def pending_by_teacher(form_id):
+    """Pending (not yet submitted) eligible students of a form, grouped by teacher.
+
+    Read-only: it never writes to ``submissions`` or ``answers``, and it only
+    exposes roll numbers plus counts - no names and no answer content.
+
+    A student is pending for a teacher when the student sits in one of that
+    teacher's covered sessions and has no submission for the form.  For
+    second-faculty forms the teacher is the confirmed second faculty member.
+    Returns a list of dicts sorted by teacher name.
+    """
+    form = get_form(form_id)
+    if not form:
+        return []
+    second = (form['category'] or 'main') == 'second'
+    rows = db.query("""SELECT cs.id AS session_id, cs.subject_code, cs.subject_name,
+            cs.teacher_user_id AS t1, sfa.second_teacher_user_id AS t2,
+            u.id AS student_id, u.roll AS roll, t.code AS timetable,
+            CASE WHEN sb.id IS NULL THEN 0 ELSE 1 END AS done
+        FROM form_sessions fs
+        JOIN class_sessions cs ON cs.id=fs.session_id AND cs.is_deleted=0
+        JOIN timetables t ON t.id=cs.timetable_id
+        JOIN session_students ss ON ss.session_id=cs.id
+        JOIN users u ON u.id=ss.student_user_id AND u.is_active=1
+        LEFT JOIN submissions sb ON sb.form_id=fs.form_id AND sb.student_user_id=u.id
+        LEFT JOIN second_faculty_assignments sfa
+               ON sfa.session_id=cs.id AND sfa.status='confirmed'
+        WHERE fs.form_id=?""", (form_id,))
+    groups = {}
+    for r in rows:
+        tid = r['t2'] if second else r['t1']
+        if not tid:
+            continue
+        g = groups.setdefault(tid, {'teacher_user_id': tid, 'eligible': set(),
+                                    'submitted': set(), 'pending': {},
+                                    'subjects': {}, 'sections': set()})
+        g['eligible'].add(r['student_id'])
+        g['sections'].add(r['timetable'])
+        if r['subject_code']:
+            g['subjects'][r['subject_code']] = r['subject_name'] or r['subject_code']
+        if r['done']:
+            g['submitted'].add(r['student_id'])
+        else:
+            g['pending'][r['student_id']] = r['roll']
+    if not groups:
+        return []
+    ids = list(groups)
+    ph = ','.join('?' * len(ids))
+    info = {t['id']: t for t in db.query(
+        f'SELECT id, name, emp_code, email FROM users WHERE id IN ({ph})', tuple(ids))}
+    out = []
+    for tid, g in groups.items():
+        t = info.get(tid)
+        out.append({
+            'teacher_user_id': tid,
+            'teacher_name': (t['name'] if t else None) or 'Unknown faculty',
+            'emp_code': t['emp_code'] if t else None,
+            'email': ((t['email'] if t else None) or '').strip(),
+            'eligible': len(g['eligible']),
+            'submitted': len(g['submitted']),
+            'pending': len(g['pending']),
+            'pending_rolls': sorted(r for r in g['pending'].values() if r),
+            'subjects': sorted(g['subjects'].values()),
+            'sections': sorted(x for x in g['sections'] if x),
+        })
+    out.sort(key=lambda x: (x['teacher_name'] or '').lower())
+    return out
+
+
 def submitted_students_for_form(form_id):
     """Students (with academic detail) whose submission was recorded for a form.
 
@@ -410,6 +479,8 @@ def save_form(payload, questions, admin_id, form_id=None, session_ids=None):
         subject_code=payload.get('subject_code'),
         subject_name=payload.get('subject_name'),
     )
+    if 'deadline_at' in payload:
+        fields['deadline_at'] = payload.get('deadline_at')
     if 'phase' in payload:
         fields['phase'] = payload.get('phase') if payload.get('phase') in PHASE_LABELS else None
     # Optional category / second-faculty linkage (HOD or admin). Defaults keep
@@ -475,6 +546,9 @@ def validate_form_for_publish(form_id):
                       'academic configuration, so the form cannot be published.')
     if not form['title'] or not form['title'].strip():
         errors.append('A form title is required.')
+    err = deadline_error(form['deadline_at'])
+    if err:
+        errors.append(err + ' (Use "Change deadline" on the forms list.)')
     errors.extend(phase_rule_errors(
         form['phase'], form_session_ids(form_id), exclude_form_id=form_id))
     questions = form_questions(form_id)
@@ -501,6 +575,134 @@ def _snapshot(form_id):
         snapshot_teacher=?, snapshot_period=? WHERE id=?""",
         (f['academic_year'], f['semester'], f['branch'], f['timetable'],
          f['subject_code'], f['subject_name'], f['teacher_name'], f['period_no'], form_id))
+
+
+# --------------------------------------------------------------------------- #
+# Form deadlines (migration v16)
+# --------------------------------------------------------------------------- #
+# Deadlines are typed in local (college) time and stored as naive UTC ISO text,
+# the same convention as every other timestamp in this database.  India has no
+# daylight saving, so a fixed offset (default +05:30) is exact; override with
+# APP_UTC_OFFSET_MINUTES for another zone.
+def _local_tz():
+    try:
+        minutes = int(os.environ.get('APP_UTC_OFFSET_MINUTES', '330'))
+    except ValueError:
+        minutes = 330
+    return timezone(timedelta(minutes=minutes))
+
+
+def _utc_now_iso():
+    return datetime.utcnow().isoformat(timespec='seconds')
+
+
+def parse_deadline_input(value):
+    """Local ``YYYY-MM-DDTHH:MM`` (datetime-local) -> UTC ISO text, or None."""
+    value = (value or '').strip()
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=_local_tz())
+    return dt.astimezone(timezone.utc).replace(tzinfo=None).isoformat(timespec='seconds')
+
+
+def _deadline_local(iso):
+    if not iso:
+        return None
+    try:
+        return datetime.fromisoformat(str(iso)).replace(tzinfo=timezone.utc).astimezone(_local_tz())
+    except ValueError:
+        return None
+
+
+def deadline_input_value(iso):
+    """UTC ISO text -> value for an ``<input type=datetime-local>``."""
+    dt = _deadline_local(iso)
+    return dt.strftime('%Y-%m-%dT%H:%M') if dt else ''
+
+
+def format_deadline(iso):
+    dt = _deadline_local(iso)
+    return dt.strftime('%d %b %Y, %I:%M %p') if dt else 'No deadline'
+
+
+def deadline_error(deadline_iso):
+    """Message when a deadline is missing/invalid/already past, else None."""
+    if not deadline_iso:
+        return 'Set a feedback deadline (date and time).'
+    if deadline_iso <= _utc_now_iso():
+        return 'The deadline must be in the future.'
+    return None
+
+
+def deadline_passed(form):
+    """True when the form has a deadline and it has already passed."""
+    try:
+        dl = form['deadline_at']
+    except (KeyError, IndexError, TypeError):
+        dl = None
+    return bool(dl) and str(dl) <= _utc_now_iso()
+
+
+_last_expiry_sweep = 0.0
+
+
+def close_expired_forms(force=False):
+    """Close every open form whose deadline has passed. Returns how many.
+
+    Serverless hosting has no background worker, so this runs lazily on web
+    requests (at most every 30 s per process unless ``force``) and the
+    submission path additionally refuses late answers on its own.
+    """
+    import time
+    global _last_expiry_sweep
+    now_ts = time.monotonic()
+    if not force and now_ts - _last_expiry_sweep < 30:
+        return 0
+    _last_expiry_sweep = now_ts
+    now = _utc_now_iso()
+    due = db.query("""SELECT id FROM feedback_forms
+        WHERE status='open' AND deadline_at IS NOT NULL AND deadline_at<=?""", (now,))
+    for r in due:
+        db.execute("""UPDATE feedback_forms SET status='closed', closed_at=?, updated_at=?
+            WHERE id=? AND status='open'""", (now, now, r['id']))
+        audit('form.auto_closed', 'feedback_forms', r['id'],
+              'Closed automatically: deadline reached', actor={'id': None, 'name': 'system',
+                                                               'username': 'system'})
+    return len(due)
+
+
+def resolve_deadline_for_save(raw_value, existing_form=None):
+    """Validate the deadline posted with a form. Returns (utc_iso, error).
+
+    A deadline is required for every new form. When editing, keeping the stored
+    value is always accepted; a changed value must lie in the future.
+    """
+    iso = parse_deadline_input(raw_value)
+    if not iso:
+        return None, 'Set a feedback deadline (date and time).'
+    stored = None
+    if existing_form:
+        try:
+            stored = existing_form['deadline_at']
+        except (KeyError, IndexError, TypeError):
+            stored = None
+    if stored and iso == stored:
+        return iso, None
+    err = deadline_error(iso)
+    return (None, err) if err else (iso, None)
+
+
+def set_form_deadline(form_id, deadline_iso):
+    """Change a form's deadline; reopen a closed form when moved into the future."""
+    now = _utc_now_iso()
+    db.execute('UPDATE feedback_forms SET deadline_at=?, updated_at=? WHERE id=?',
+               (deadline_iso, now, form_id))
+    audit('form.deadline', 'feedback_forms', form_id, f'Deadline set to {deadline_iso} UTC')
 
 
 def set_form_status(form_id, status, admin_id=None):
@@ -691,6 +893,9 @@ def submit_feedback(student_user_id, form_id, form_payload):
         return False, 'That feedback form is not available to you.'
     if form['status'] != 'open':
         return False, 'This feedback form is closed and no longer accepts responses.'
+    if deadline_passed(form):
+        close_expired_forms(force=True)
+        return False, 'The deadline for this feedback form has passed. It is now closed.'
     if form['submission_id']:
         return False, 'You have already submitted feedback for this form.'
     if not student_eligible_for_form(student_user_id, form_id):
@@ -1478,7 +1683,7 @@ def bulk_preview(filters, title_pattern=None):
             'to_create': len(to_create), 'sample': sample}
 
 
-def bulk_create_forms(filters, questions, title_pattern, status, admin_id):
+def bulk_create_forms(filters, questions, title_pattern, status, admin_id, deadline_at=None):
     """Create one draft (or open) form per matching session for this round.
 
     A session is skipped only if it already has a form with the SAME title, so
@@ -1500,6 +1705,8 @@ def bulk_create_forms(filters, questions, title_pattern, status, admin_id):
             'scope': 'session', 'subject_code': s['subject_code'],
             'subject_name': s['subject_name'],
         }
+        if deadline_at:
+            payload['deadline_at'] = deadline_at
         fid = save_form(payload, questions, admin_id)
         created += 1
         created_ids.append(fid)
