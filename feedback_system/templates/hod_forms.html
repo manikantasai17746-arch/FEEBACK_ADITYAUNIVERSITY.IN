@@ -87,9 +87,10 @@
     <table class="marks-table">
       <thead>
         <tr>
-          <th>#</th>
+          <th>Form ID</th>
           <th>Title</th>
           <th>Subject Code</th>
+          <th>Teacher(s)</th>
           <th>Category</th>
           <th>Status</th>
           <th>Deadline</th>
@@ -100,13 +101,14 @@
       <tbody>
         {% for f in forms %}
         <tr>
-          <td>{{ loop.index }}</td>
+          <td>#{{ f.id }}</td>
           <td>{{ f.title }}</td>
           <td>
             {% if f.snapshot_subject_code %}
             <span class="badge" style="background:#dbeafe;color:#1e40af">{{ f.snapshot_subject_code }}</span>
             {% else %}—{% endif %}
           </td>
+          <td class="wrap">{{ f.teachers|join(', ') if f.teachers else '—' }}</td>
           <td><span class="badge" style="background:#ede9fe;color:#5b21b6">{{ f.category or 'main' }}</span></td>
           <td>
             {% if f.status == 'open' %}
