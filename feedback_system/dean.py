@@ -277,7 +277,7 @@ def dashboard():
 
     return render_template(
         'dean_dashboard.html', user=user, branches=branches, dash=dash,
-        years=years, semesters=semesters,
+        years=years, semesters=semesters, new_hod_count=len(_available_hods(user)),
         filters={'academic_year_id': ay_id, 'semester_id': sem_id, 'form_id': form_id})
 
 
@@ -487,6 +487,73 @@ def onboarding():
         'dean_onboarding.html',
         step=step, email_verified=email_verified, user=user,
         eligible_hods=eligible_hods, staging=staging, preview=preview)
+
+
+# ---------------------------------------------------------------------------
+# My HODs: Dean can add HODs created AFTER onboarding (any department)
+# ---------------------------------------------------------------------------
+def _hod_departments(hod_id):
+    rows = db.query(
+        """SELECT DISTINCT b.code FROM branches b
+           WHERE b.id IN (SELECT branch_id FROM hod_allocations WHERE hod_user_id=?)
+              OR b.id IN (SELECT branch_id FROM user_department_scopes WHERE user_id=?)
+           ORDER BY b.code""", (hod_id, hod_id))
+    return ', '.join(r['code'] for r in rows)
+
+
+def _assigned_hods(user):
+    rows = db.query(
+        """SELECT u.id, u.name, u.emp_code, u.email, u.onboarding_complete
+           FROM dean_hod_assignments dha
+           JOIN users u ON u.id = dha.hod_user_id
+           WHERE dha.dean_user_id=? AND u.role='hod' AND u.is_active=1
+           ORDER BY u.name""", (user['id'],))
+    rows = [dict(r) for r in rows]
+    for r in rows:
+        r['departments'] = _hod_departments(r['id'])
+    return rows
+
+
+def _available_hods(user, with_departments=False):
+    """Active HODs that are not yet linked to this Dean (e.g. newly created)."""
+    rows = db.query(
+        """SELECT u.id, u.name, u.emp_code, u.email, u.onboarding_complete
+           FROM users u
+           WHERE u.role='hod' AND u.is_active=1
+             AND u.id NOT IN (SELECT hod_user_id FROM dean_hod_assignments
+                              WHERE dean_user_id=?)
+           ORDER BY u.name""", (user['id'],))
+    if with_departments:
+        rows = [dict(r) for r in rows]
+        for r in rows:
+            r['departments'] = _hod_departments(r['id'])
+    return rows
+
+
+@bp.route('/hods', methods=['GET', 'POST'])
+@role_required('dean')
+def my_hods():
+    user = current_user()
+    if request.method == 'POST':
+        allowed = {h['id'] for h in _available_hods(user)}
+        chosen = [i for i in request.form.getlist('hod_id', type=int) if i in allowed]
+        if not chosen:
+            flash('Select at least one HOD to add.', 'error')
+        else:
+            for hid in chosen:
+                db.execute(
+                    """INSERT INTO dean_hod_assignments
+                       (dean_user_id, hod_user_id, created_by)
+                       VALUES(?,?,?)
+                       ON CONFLICT(dean_user_id, hod_user_id) DO NOTHING""",
+                    (user['id'], hid, user['id']))
+            audit('dean.hods_added', 'users', user['id'], f'{len(chosen)} HODs')
+            flash(f'{len(chosen)} HOD(s) added to your scope.', 'success')
+        return redirect(url_for('dean.my_hods'))
+    return render_template('dean_hods.html', user=user,
+                           assigned=_assigned_hods(user),
+                           available=_available_hods(user, with_departments=True))
+
 
 
 def _dean_preview(hod_ids):
