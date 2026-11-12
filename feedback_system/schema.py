@@ -526,4 +526,10 @@ MIGRATIONS = [
         "ALTER TABLE users ADD COLUMN recovery_email1 TEXT",
         "ALTER TABLE users ADD COLUMN recovery_email2 TEXT",
     ]),
+    (15, "Speed: indexes for the HOD/Dean dashboards and form lists", [
+        "CREATE INDEX IF NOT EXISTS ix_forms_branch_status "
+        "ON feedback_forms(branch_id, is_deleted, status)",
+        "CREATE INDEX IF NOT EXISTS ix_forms_branch_created "
+        "ON feedback_forms(branch_id, created_at)",
+    ]),
 ]
