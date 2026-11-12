@@ -654,9 +654,11 @@ def actions():
     if branch_ids:
         ph = ','.join('?' * len(branch_ids))
         rows = db.query(
-            f"""SELECT ia.*, b.code AS branch_code, b.name AS branch_name
+            f"""SELECT ia.*, b.code AS branch_code, b.name AS branch_name,
+                       tu.name AS teacher_name, tu.emp_code AS teacher_emp_code
                 FROM improvement_actions ia
                 LEFT JOIN branches b ON b.id = ia.branch_id
+                LEFT JOIN users tu ON tu.id = ia.teacher_user_id
                 WHERE ia.branch_id IN ({ph}) OR ia.branch_id IS NULL
                 ORDER BY
                   CASE ia.status
@@ -669,6 +671,187 @@ def actions():
     from datetime import date
     return render_template('dean_actions.html', user=user, branches=branches, rows=rows,
                            now_iso=date.today().isoformat())
+
+
+# --------------------------------------------------------------------------- #
+# Bulk "feedback review" request: the Dean filters teachers by score band,
+# ticks the ones he is not happy with and writes ONE letter.  An action is
+# created per teacher and sent to that teacher's HOD, who checks it and replies
+# with the improvement taken / planned.
+# --------------------------------------------------------------------------- #
+DEFAULT_REVIEW_MESSAGE = (
+    "Dear {hod},\n\nI have reviewed the student feedback for {name} ({subject}). "
+    "The score is {score}%, which is below what I expect.\n\n"
+    "Please meet the teacher, check the feedback and the student comments, and reply "
+    "to me with the improvement you will make.\n\nRegards,\n{dean}\nDean")
+
+
+def _bulk_rows(user, band_key, filters):
+    """Teacher rows for the bulk page: the chosen band, or everyone (lowest score first)."""
+    bands, branches, hods = _dean_band_data(
+        user, filters['branch_id'], filters['hod_id'],
+        filters['academic_year_id'], filters['semester_id'])
+    if band_key and band_key in {b['key'] for b in bands}:
+        rows = next(b for b in bands if b['key'] == band_key)['rows']
+    else:
+        rows = sorted((r for b in bands for r in b['rows']), key=lambda r: r['overall_score'])
+    return bands, branches, hods, rows
+
+
+def _row_hod(row, hod_list, choices):
+    """The HOD that owns this teacher's department/semester row."""
+    key = (row.get('academic_year_id'), row.get('branch_id'), row.get('semester_id'))
+    for h in hod_list:
+        if key in h['triples']:
+            return h['id'], h['name']
+    cands = [h for h in choices if row.get('branch_id') in h['branches']]
+    if len(cands) == 1:
+        return cands[0]['id'], cands[0]['name']
+    return None, None
+
+
+@bp.route('/actions/bulk')
+@role_required('dean')
+def actions_bulk():
+    from . import mailer
+    user = current_user()
+    ay, sem, br, hod = _band_filters_from(request.args)
+    band_key = (request.args.get('band') or '').strip()
+    filters = {'academic_year_id': ay, 'semester_id': sem, 'branch_id': br, 'hod_id': hod}
+    bands, branches, hods, rows = _bulk_rows(user, band_key, filters)
+    if br not in [b['id'] for b in branches]:
+        filters['branch_id'] = None
+    if hod not in [h['id'] for h in hods]:
+        filters['hod_id'] = None
+    ids = sorted({r['teacher_user_id'] for r in rows if r.get('teacher_user_id')})
+    open_pairs = set()
+    if ids:
+        for a in db.query(
+                f"""SELECT teacher_user_id, form_id FROM improvement_actions
+                    WHERE teacher_user_id IN ({_in_clause(ids)})
+                      AND status IN ('planned','in_progress')""", tuple(ids)):
+            open_pairs.add((a['teacher_user_id'], a['form_id']))
+    for r in rows:
+        r['open_action'] = (r.get('teacher_user_id'), r.get('form_id')) in open_pairs
+    years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
+    semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
+    return render_template(
+        'dean_actions_bulk.html', user=user, branches=branches, hods=hods, years=years,
+        semesters=semesters, bands=bands, rows=rows, band_key=band_key, filters=filters,
+        default_message=DEFAULT_REVIEW_MESSAGE, mail_ready=mailer.is_configured())
+
+
+@bp.route('/actions/bulk/create', methods=['POST'])
+@role_required('dean')
+def actions_bulk_create():
+    from datetime import datetime
+    from . import mailer
+    from html import escape
+    user = current_user()
+    f = request.form
+    ay, sem, br, hod = _band_filters_from(f)
+    band_key = (f.get('band') or '').strip()
+    filters = {'academic_year_id': ay, 'semester_id': sem, 'branch_id': br, 'hod_id': hod}
+    back = url_for('dean.actions_bulk', band=band_key, **{k: v for k, v in filters.items() if v})
+    picked = set()
+    for v in f.getlist('pick'):
+        try:
+            t, fm = v.split(':')
+            picked.add((int(t), int(fm)))
+        except ValueError:
+            pass
+    if not picked:
+        flash('Tick at least one teacher.', 'error')
+        return redirect(back)
+    if len(picked) > 100:
+        flash('Please select at most 100 teachers at a time.', 'error')
+        return redirect(back)
+    template = (f.get('message') or '').strip()[:4000] or DEFAULT_REVIEW_MESSAGE
+    priority = f.get('priority') if f.get('priority') in ('low', 'medium', 'high', 'critical') else 'high'
+    due = (f.get('due_date') or '').strip() or None
+    _bands, branches, _hods, rows = _bulk_rows(user, band_key, filters)
+    branch_ids = [b['id'] for b in branches]
+    choices = _hod_choices(user, branch_ids)
+    dean_name = dict(user).get('name') or 'Dean'
+    existing = {(a['teacher_user_id'], a['form_id']) for a in db.query(
+        "SELECT teacher_user_id, form_id FROM improvement_actions "
+        "WHERE teacher_user_id IS NOT NULL AND status IN ('planned','in_progress')")}
+    now = datetime.utcnow().isoformat(timespec='seconds')
+    created, dup, no_hod = 0, 0, 0
+    per_hod = {}
+    for r in rows:
+        key = (r.get('teacher_user_id'), r.get('form_id'))
+        if key not in picked:
+            continue
+        if key in existing:
+            dup += 1
+            continue
+        owner_id, owner_name = _row_hod(r, _hods, choices)
+        if not owner_id:
+            no_hod += 1
+            continue
+        subject = ' '.join(x for x in (r.get('subject_code'), r.get('subject_name')) if x) or 'your subject'
+        name = r.get('teacher_name') or 'Faculty'
+        score = f"{r['overall_score']:.1f}"
+        letter = template
+        for k, v in {'{hod}': owner_name, '{name}': name, '{score}': score,
+                     '{subject}': subject, '{dean}': dean_name}.items():
+            letter = letter.replace(k, v)
+        low = sorted((c for c in (r.get('criteria') or []) if c.get('score') is not None),
+                     key=lambda c: c['score'])[:3]
+        details = [f'Teacher: {name} ({r.get("teacher_emp_code") or "-"})',
+                   f'Subject: {subject}', f'Score: {score} / 100',
+                   f'Responses: {r.get("valid_responses") or r.get("response_count") or 0}']
+        if low:
+            details.append('Lowest-rated areas: ' + '; '.join(f'{c["text"]} ({c["score"]:.1f})' for c in low))
+        aid = db.insert_id(
+            """INSERT INTO improvement_actions
+               (branch_id, title, description, status, priority, owner_user_id, owner_name,
+                due_date, created_by, created_at, updated_at, teacher_user_id, form_id)
+               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (r.get('branch_id'), f'Feedback review: {name} - {subject}'[:200],
+             (letter + '\n\n--- Details ---\n' + '\n'.join(details))[:4000],
+             'planned', priority, owner_id, owner_name, due, user['id'], now, now,
+             key[0], key[1]))
+        db.get_db().execute(
+            """INSERT INTO improvement_action_log
+               (action_id, actor_user_id, note, old_status, new_status) VALUES(?,?,?,?,?)""",
+            (aid, user['id'], f'Review request sent to {owner_name}', None, 'planned'))
+        existing.add(key)
+        created += 1
+        per_hod.setdefault(owner_id, []).append((name, subject, score))
+    db.get_db().commit()
+    mailed = 0
+    if per_hod:
+        link = url_for('hod.my_actions', _external=True)
+        for oid, items in per_hod.items():
+            u = db.query('SELECT name, email FROM users WHERE id=?', (oid,), one=True)
+            to = ((u['email'] if u else '') or '').strip()
+            if not mailer.is_valid_email(to):
+                continue
+            lines = '\n'.join(f'  - {n} ({s}): {sc}%' for n, s, sc in items)
+            text = (f"Dear {u['name'] or 'HOD'},\n\n{dean_name} has sent you {len(items)} "
+                    f"feedback review request(s):\n{lines}\n\nPlease check each one and reply "
+                    f"with the improvement:\n{link}\n\nAditya University - Faculty Feedback")
+            html = ('<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto">'
+                    '<h3 style="color:#0B2F6B">New feedback review requests</h3>'
+                    f'<div style="white-space:pre-wrap">{escape(text)}</div></div>')
+            try:
+                if mailer.send_email(to, f'{len(items)} feedback review request(s) from the Dean',
+                                     text, html):
+                    mailed += 1
+            except Exception:
+                pass
+    audit('dean.actions.bulk', 'improvement_actions', 0,
+          f'Created {created}, duplicates {dup}, no HOD {no_hod}, HODs emailed {mailed}')
+    if created:
+        flash(f'{created} request(s) sent to the HOD(s)' +
+              (f'; {mailed} HOD(s) emailed.' if mailed else '.'), 'success')
+    if dup:
+        flash(f'{dup} teacher(s) skipped: an open action already exists.', 'warning')
+    if no_hod:
+        flash(f'{no_hod} teacher(s) skipped: no HOD found for their department.', 'warning')
+    return redirect(url_for('dean.actions') if created else back)
 
 
 def _hod_branch_map(hod_ids, branch_ids):

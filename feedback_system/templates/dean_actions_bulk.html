@@ -1,0 +1,97 @@
+{% extends 'base.html' %}
+{% block title %}Feedback review requests — Dean{% endblock %}
+{% block body %}
+{% set fargs = {'academic_year_id': filters.academic_year_id, 'semester_id': filters.semester_id,
+                'branch_id': filters.branch_id, 'hod_id': filters.hod_id} %}
+<div class="container page">
+  <div class="page-header">
+    <h1>Send feedback review requests</h1>
+    <nav class="subnav"><a href="{{ url_for('dean.actions') }}">← Actions</a></nav>
+  </div>
+  <p class="sub">Filter teachers by score, tick the ones you are not happy with and write one letter.
+    Each teacher becomes an action sent to their HOD, who checks it and replies with the improvement.</p>
+
+  <form method="get" class="filter-bar card">
+    <input type="hidden" name="band" value="{{ band_key }}">
+    <div class="field"><label>Academic year</label>
+      <select name="academic_year_id"><option value="">All</option>
+        {% for y in years %}<option value="{{ y.id }}" {{ 'selected' if filters.academic_year_id == y.id }}>{{ y.name }}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label>Semester</label>
+      <select name="semester_id"><option value="">All</option>
+        {% for s in semesters %}<option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>{{ s.number }}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label>Department</label>
+      <select name="branch_id"><option value="">All departments</option>
+        {% for b in branches %}<option value="{{ b.id }}" {{ 'selected' if filters.branch_id == b.id }}>{{ b.code }} — {{ b.name }}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label>HOD name</label>
+      <select name="hod_id"><option value="">All HODs</option>
+        {% for h in hods %}<option value="{{ h.id }}" {{ 'selected' if filters.hod_id == h.id }}>{{ h.name }}</option>{% endfor %}
+      </select></div>
+    <button class="btn" type="submit">Filter</button>
+  </form>
+
+  <p class="sub" style="margin-top:.8rem">Score filter — click a band (click again for all teachers, lowest first):</p>
+  <div class="band-tabs">
+    {% for b in bands %}
+    <a class="band-tab band-{{ loop.index }} {{ 'active' if b.key == band_key }}"
+       href="{{ url_for('dean.actions_bulk', band=(none if b.key == band_key else b.key), **fargs) }}">
+      <span class="band-label">{{ b.label }}</span>
+      <span class="band-count">{{ b.count }} teacher{{ '' if b.count == 1 else 's' }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="card" style="margin-top:1rem">
+    {% if rows %}
+    <form method="post" action="{{ url_for('dean.actions_bulk_create') }}"
+          onsubmit="return confirm('Send a review request to the HODs of the ticked teachers?');">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="band" value="{{ band_key }}">
+      {% for k, v in fargs.items() if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+      <label class="band-selectall"><input type="checkbox" id="bk-all"> Select all ({{ rows|length }})</label>
+      <table class="data data-table">
+        <thead><tr><th></th><th>Teacher</th><th>Subject</th><th>Dept</th><th>HOD</th><th>Responses</th><th>Score</th><th></th></tr></thead>
+        <tbody>
+        {% for r in rows %}
+          <tr>
+            <td>{% if r.open_action %}<input type="checkbox" disabled>{% else %}
+              <input type="checkbox" class="bk-cb" name="pick" value="{{ r.teacher_user_id }}:{{ r.form_id }}">{% endif %}</td>
+            <td class="wrap"><strong>{{ r.teacher_name or 'Faculty' }}</strong><br><span class="muted">{{ r.teacher_emp_code or '' }}</span></td>
+            <td class="wrap">{{ r.subject_code or '' }} {{ r.subject_name or '' }}</td>
+            <td>{{ r.branch_code or '—' }}</td>
+            <td class="wrap">{{ r.hod_names }}</td>
+            <td>{{ r.valid_responses or r.response_count or 0 }}</td>
+            <td><strong>{{ '%.1f'|format(r.overall_score) }}%</strong></td>
+            <td>{% if r.open_action %}<span class="badge">Action open</span>{% endif %}
+              <a class="btn btn-ghost btn-sm" href="{{ url_for('dean.performance_detail', teacher_id=r.teacher_user_id) }}">View result</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+
+      <div class="band-compose">
+        <h3 style="margin:.2rem 0 .5rem">✉ Your letter to the HOD(s)</h3>
+        <div class="field"><label>Letter (placeholders are filled per teacher:
+          <code>{name}</code> <code>{score}</code> <code>{subject}</code> <code>{hod}</code> <code>{dean}</code>)</label>
+          <textarea name="message" rows="9" maxlength="4000" style="width:100%">{{ default_message }}</textarea></div>
+        <div class="filter-bar" style="padding:0">
+          <div class="field"><label>Priority</label>
+            <select name="priority">{% for p in ['low','medium','high','critical'] %}<option value="{{ p }}" {{ 'selected' if p == 'high' }}>{{ p }}</option>{% endfor %}</select></div>
+          <div class="field"><label>Reply needed by</label><input type="date" name="due_date"></div>
+        </div>
+        {% if not mail_ready %}<div class="flash flash-warning">Email is not set up on the server, so HODs will only see the request in their My Actions page.</div>{% endif %}
+        <div class="btn-row"><button type="submit" class="btn btn-accent">✉ Send request to HOD(s)</button></div>
+      </div>
+    </form>
+    <script>
+    (function(){var all=document.getElementById('bk-all'),cbs=document.querySelectorAll('.bk-cb');
+      all.addEventListener('change',function(){cbs.forEach(function(c){c.checked=all.checked;});});})();
+    </script>
+    {% else %}
+    <p class="sub">No teachers match these filters.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

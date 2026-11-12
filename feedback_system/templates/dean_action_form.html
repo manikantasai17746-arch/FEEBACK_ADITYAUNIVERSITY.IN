@@ -9,6 +9,12 @@
     </nav>
   </div>
   {% if prefill %}<p class="sub" style="margin:0 0 .75rem;padding:.6rem .9rem;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px">Pre-filled from the teacher's feedback result. Review and edit anything before saving.</p>{% endif %}
+  {% if action and action.hod_reply %}
+  <div class="card" style="margin-bottom:1rem;border-left:4px solid #16a34a">
+    <h2 style="margin-top:0">HOD reply <span class="muted" style="font-size:.8rem">{{ action.hod_replied_at }}</span></h2>
+    <div style="white-space:pre-wrap">{{ action.hod_reply }}</div>
+  </div>
+  {% endif %}
   <form method="post" class="card">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <div class="field"><label>Title *</label>

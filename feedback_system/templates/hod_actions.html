@@ -25,12 +25,32 @@
       {% if open_count %}<strong>{{ open_count }} open</strong>.{% else %}Nothing is waiting on you right now.{% endif %}</p>
   </div>
 
+  {% if rows %}
+  <form method="post" action="{{ url_for('hod.my_actions_reply') }}" id="bulk-reply" class="ha-card">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <strong>Reply to the Dean on several actions at once</strong>
+    <p class="muted" style="margin:.2rem 0 .6rem">Tick the actions below, write one reply (the improvement you will make) and send.</p>
+    <textarea name="reply" rows="3" maxlength="3000" style="width:100%" placeholder="Checked the feedback with the teacher. Improvement: ..."></textarea>
+    <div class="ha-form">
+      <div><label>Set status</label>
+        <select name="status"><option value="">Keep / mark in progress</option>
+          {% for s in statuses %}<option value="{{ s }}">{{ s|replace('_',' ')|title }}</option>{% endfor %}</select></div>
+      <button class="btn btn-ok" type="submit">Send reply to Dean</button>
+      <label style="margin-left:auto"><input type="checkbox" id="ha-all"> Select all</label>
+    </div>
+  </form>
+  <script>document.getElementById('ha-all').addEventListener('change',function(e){
+    document.querySelectorAll('.ha-pick').forEach(function(c){c.checked=e.target.checked;});});</script>
+  {% endif %}
+
   {% for a in rows %}
   {% set overdue = a.due_date and a.status in ('planned','in_progress') and a.due_date < now_iso %}
   <div class="ha-card">
     <div class="ha-top">
       <div>
-        <h3>{{ a.title }}</h3>
+        <h3>{% if a.status != 'cancelled' %}<input type="checkbox" class="ha-pick" name="action_id" value="{{ a.id }}" form="bulk-reply"> {% endif %}{{ a.title }}</h3>
+        {% if a.teacher_name %}<p class="muted" style="margin:0 0 4px">Teacher: <strong>{{ a.teacher_name }}</strong> ({{ a.teacher_emp_code }})
+          · <a href="{{ url_for('hod.performance_detail', teacher_id=a.teacher_user_id) }}">View result &amp; comments</a></p>{% endif %}
         <div class="ha-meta">
           <span class="ha-pill st-{{ a.status }}">{{ a.status|replace('_',' ')|title }}</span>
           <span class="ha-pill pr-{{ a.priority }}">{{ a.priority|title }} priority</span>
@@ -40,7 +60,9 @@
         </div>
       </div>
     </div>
-    {% if a.description %}<p>{{ a.description }}</p>{% endif %}
+    {% if a.description %}<p style="white-space:pre-wrap">{{ a.description }}</p>{% endif %}
+    {% if a.hod_reply %}<div style="border-left:4px solid #16a34a;background:#f0fdf4;padding:8px 12px;border-radius:8px;margin:8px 0">
+      <strong>Your reply</strong> <span class="muted">{{ a.hod_replied_at }}</span><div style="white-space:pre-wrap">{{ a.hod_reply }}</div></div>{% endif %}
 
     {% if a.status == 'cancelled' %}
     <p class="muted">This action was cancelled by the Dean.</p>
@@ -54,6 +76,13 @@
       <div><label>Note for the Dean (optional)</label>
         <input type="text" name="note" maxlength="500" placeholder="What was done, or what is blocking?"></div>
       <button class="btn btn-ok" type="submit">Update</button>
+    </form>
+    <form method="post" action="{{ url_for('hod.my_actions_reply') }}" class="ha-form">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action_id" value="{{ a.id }}">
+      <div style="flex:1;min-width:260px"><label>{{ 'Update your reply to the Dean' if a.hod_reply else 'Reply to the Dean (improvement)' }}</label>
+        <input type="text" name="reply" maxlength="3000" style="width:100%" placeholder="What improvement will be made?"></div>
+      <button class="btn btn-accent" type="submit">Send reply</button>
     </form>
     {% endif %}
   </div>

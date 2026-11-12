@@ -536,5 +536,11 @@ MIGRATIONS = [
         # NULL = legacy form created before deadlines existed (never auto-closes).
         "ALTER TABLE feedback_forms ADD COLUMN deadline_at TEXT",
         "CREATE INDEX IF NOT EXISTS ix_forms_deadline ON feedback_forms(status, deadline_at)",
+    ]),    (17, "Improvement actions: link to a teacher/form and store the HOD's reply", [
+        "ALTER TABLE improvement_actions ADD COLUMN teacher_user_id INTEGER",
+        "ALTER TABLE improvement_actions ADD COLUMN form_id INTEGER",
+        "ALTER TABLE improvement_actions ADD COLUMN hod_reply TEXT",
+        "ALTER TABLE improvement_actions ADD COLUMN hod_replied_at TEXT",
+        "CREATE INDEX IF NOT EXISTS ix_ia_teacher ON improvement_actions(teacher_user_id, form_id)",
     ]),
 ]
