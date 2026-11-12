@@ -96,5 +96,26 @@ def test_publication_page_shows_live_summary_without_requirements(app):
     assert r.status_code == 302
     html = c.get('/dean/publication').get_data(as_text=True)
     assert 'Department publication summary' in html
-    assert '<td>ZZ</td>' in html
+    assert '>ZZ</td>' in html
     assert 'Requirements not configured' in html
+
+
+def test_publication_view_button_opens_department_performance(app):
+    from helpers import login
+    with app.app_context():
+        branch = db_module.query("SELECT id FROM branches WHERE code='ZZ'", one=True)
+        teacher = db_module.query("SELECT id FROM users WHERE username='T1'", one=True)
+    c = app.test_client()
+    assert login(c, '/dean/login', {'emp_code': 'PDEAN', 'password': 'pass12345'}).status_code == 302
+    pub = c.get('/dean/publication').get_data(as_text=True)
+    assert f'/dean/performance?branch_id={branch["id"]}' in pub       # View button
+    perf = c.get(f'/dean/performance?branch_id={branch["id"]}')
+    assert perf.status_code == 200
+    html = perf.get_data(as_text=True)
+    assert 'Faculty Performance' in html and 'ZZ' in html
+    assert f'/dean/performance/faculty/{teacher["id"]}' in html      # card -> View
+    detail = c.get(f'/dean/performance/faculty/{teacher["id"]}')
+    assert detail.status_code == 200
+    assert 'Eligible Students' in detail.get_data(as_text=True)
+    # a department outside the Dean's scope is ignored, not an error
+    assert c.get('/dean/performance?branch_id=999999').status_code == 200
