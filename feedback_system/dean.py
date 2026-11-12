@@ -753,3 +753,208 @@ def performance():
         'dean_performance.html', user=user, branches=branches, rows=rows,
         years=years, semesters=semesters,
         filters={'academic_year_id': academic_year_id, 'semester_id': semester_id})
+
+
+# --------------------------------------------------------------------------- #
+# Teachers by score band (Dean) - same page as the HOD, plus Department and
+# HOD-name filters because a Dean oversees several HODs and departments.
+# --------------------------------------------------------------------------- #
+def _band_hods(user):
+    """HODs assigned to this Dean: [{id, name, triples:{(year, branch, semester)}}]."""
+    rows = db.query(
+        """SELECT u.id, u.name, ha.academic_year_id AS ay, ha.branch_id AS br,
+                  ha.semester_id AS sem
+           FROM dean_hod_assignments dha
+           JOIN users u ON u.id = dha.hod_user_id
+           LEFT JOIN hod_allocations ha ON ha.hod_user_id = u.id
+           WHERE dha.dean_user_id=? ORDER BY u.name""", (user['id'],))
+    hods = {}
+    for r in rows:
+        h = hods.setdefault(r['id'], {'id': r['id'], 'name': r['name'] or 'HOD',
+                                      'triples': set(), 'branch_ids': set()})
+        if r['br'] is not None:
+            h['triples'].add((r['ay'], r['br'], r['sem']))
+            h['branch_ids'].add(r['br'])
+    return list(hods.values())
+
+
+def _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id):
+    """Score bands for the Dean. Each row carries teacher email, department, HOD name(s)."""
+    from . import scoring
+    from .hod import SCORE_BANDS
+    branches = _dean_branches(user)
+    allowed = [b['id'] for b in branches]
+    hods = _band_hods(user)
+    scope_ids = [branch_id] if branch_id in allowed else allowed
+    hod_pick = next((h for h in hods if h['id'] == hod_id), None)
+    if hod_pick:
+        scope_ids = [b for b in scope_ids if b in hod_pick['branch_ids']]
+    rows = []
+    if scope_ids:
+        rows = scoring.faculty_scores_for_branches(
+            scope_ids, academic_year_id=academic_year_id,
+            semester_id=semester_id, min_responses=1)
+    rows = [dict(r) for r in rows if r.get('overall_score') is not None]
+    if hod_pick:
+        rows = [r for r in rows
+                if (r.get('academic_year_id'), r.get('branch_id'), r.get('semester_id'))
+                in hod_pick['triples']]
+    code_by_id = {b['id']: b['code'] for b in branches}
+    for r in rows:
+        r['branch_code'] = r.get('branch_code') or code_by_id.get(r.get('branch_id'))
+        key = (r.get('academic_year_id'), r.get('branch_id'), r.get('semester_id'))
+        r['hod_names'] = ', '.join(h['name'] for h in hods if key in h['triples']) or '—'
+    ids = sorted({r['teacher_user_id'] for r in rows if r.get('teacher_user_id')})
+    emails = {}
+    if ids:
+        ph = _in_clause(ids)
+        for u in db.query(f'SELECT id, email FROM users WHERE id IN ({ph})', tuple(ids)):
+            emails[u['id']] = (u['email'] or '').strip()
+    for r in rows:
+        r['teacher_email'] = emails.get(r.get('teacher_user_id'), '')
+    bands = []
+    for key, label, lo, hi in SCORE_BANDS:
+        members = [r for r in rows
+                   if (lo is None or r['overall_score'] > lo)
+                   and (hi is None or r['overall_score'] <= hi)]
+        members.sort(key=lambda r: r['overall_score'], reverse=True)
+        bands.append({'key': key, 'label': label, 'rows': members, 'count': len(members)})
+    return bands, branches, hods
+
+
+def _dean_default_message(band_key):
+    from .hod import _default_message_for
+    return (_default_message_for(band_key)
+            .replace('{hod}\nHead of Department', '{dean}\nDean'))
+
+
+def _band_filters_from(src):
+    def _i(k):
+        try:
+            return int(src.get(k)) if src.get(k) else None
+        except (TypeError, ValueError):
+            return None
+    return (_i('academic_year_id'), _i('semester_id'), _i('branch_id'), _i('hod_id'))
+
+
+@bp.route('/performance/bands')
+@role_required('dean')
+def performance_bands():
+    from . import mailer
+    from .hod import DEFAULT_BAND_SUBJECT
+    user = current_user()
+    academic_year_id, semester_id, branch_id, hod_id = _band_filters_from(request.args)
+    band_key = (request.args.get('band') or '').strip()
+    bands, branches, hods = _dean_band_data(user, branch_id, hod_id,
+                                            academic_year_id, semester_id)
+    if branch_id not in [b['id'] for b in branches]:
+        branch_id = None
+    if hod_id not in [h['id'] for h in hods]:
+        hod_id = None
+    if band_key not in {b['key'] for b in bands}:
+        band_key = next((b['key'] for b in bands if b['count']), bands[0]['key'])
+    active = next(b for b in bands if b['key'] == band_key)
+    years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
+    semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
+    return render_template(
+        'dean_performance_bands.html', user=user, branches=branches, hods=hods,
+        years=years, semesters=semesters, bands=bands, active=active, band_key=band_key,
+        default_subject=DEFAULT_BAND_SUBJECT,
+        default_message=_dean_default_message(band_key),
+        mail_ready=mailer.is_configured(),
+        filters={'academic_year_id': academic_year_id, 'semester_id': semester_id,
+                 'branch_id': branch_id, 'hod_id': hod_id})
+
+
+@bp.route('/performance/bands/send', methods=['POST'])
+@role_required('dean')
+def performance_bands_send():
+    """E-mail the ticked teachers of one score band (Dean's own text or the default)."""
+    from . import mailer
+    from html import escape
+    from .hod import DEFAULT_BAND_SUBJECT
+    user = current_user()
+    f = request.form
+    academic_year_id, semester_id, branch_id, hod_id = _band_filters_from(f)
+    band_key = (f.get('band') or '').strip()
+    back = url_for('dean.performance_bands', band=band_key, academic_year_id=academic_year_id,
+                   semester_id=semester_id, branch_id=branch_id, hod_id=hod_id)
+    subject_tpl = ' '.join((f.get('subject') or '').split())[:150] or DEFAULT_BAND_SUBJECT
+    message_tpl = (f.get('message') or '').strip()[:5000] or _dean_default_message(band_key)
+    try:
+        selected = {int(x) for x in f.getlist('teacher_user_id')}
+    except ValueError:
+        selected = set()
+    if not selected:
+        flash('Tick at least one teacher to send the email.', 'error')
+        return redirect(back)
+    bands, _b, _h = _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id)
+    band = next((b for b in bands if b['key'] == band_key), None)
+    if not band:
+        flash('Unknown score band.', 'error')
+        return redirect(back)
+    per_teacher = {}
+    for r in band['rows']:          # only teachers inside this band AND the Dean's scope
+        if r.get('teacher_user_id') in selected:
+            per_teacher.setdefault(r['teacher_user_id'], []).append(r)
+    if len(per_teacher) > 100:
+        flash('Please send to at most 100 teachers at a time.', 'error')
+        return redirect(back)
+    dean_name = dict(user).get('name') or 'Dean'
+    sent = failed = no_email = 0
+    for trows in per_teacher.values():
+        to = (trows[0].get('teacher_email') or '').strip()
+        if not mailer.is_valid_email(to):
+            no_email += 1
+            continue
+        score = round(sum(x['overall_score'] for x in trows) / len(trows), 2)
+        subs = []
+        for x in trows:
+            label = (x.get('subject_name') or x.get('subject_code') or '').strip()
+            if label and label not in subs:
+                subs.append(label)
+        values = {'{name}': trows[0].get('teacher_name') or 'Faculty',
+                  '{score}': f'{score:.2f}',
+                  '{subject}': ', '.join(subs) or 'your subject',
+                  '{dean}': dean_name, '{hod}': trows[0].get('hod_names') or ''}
+
+        def _fill(t):
+            for k, v in values.items():
+                t = t.replace(k, str(v))
+            return t
+        body = _fill(message_tpl)
+        html = ('<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto">'
+                '<h3 style="color:#0B2F6B">Aditya University - Faculty Feedback</h3>'
+                '<div style="white-space:pre-wrap">' + escape(body) + '</div></div>')
+        if mailer.send_email(to, _fill(subject_tpl), body, html):
+            sent += 1
+        else:
+            failed += 1
+    audit('dean.band.email', 'users', 0,
+          f'Band {band_key}: sent {sent}, failed {failed}, no email {no_email}')
+    if sent:
+        flash(f'Email sent to {sent} teacher(s).', 'success')
+    if no_email:
+        flash(f'{no_email} teacher(s) have no email address on file and were skipped.', 'warning')
+    if failed:
+        flash(f'{failed} email(s) could not be sent. Check the mail settings.', 'error')
+    return redirect(back)
+
+
+@bp.route('/performance/faculty/<int:teacher_id>')
+@role_required('dean')
+def performance_detail(teacher_id):
+    from . import scoring
+    user = current_user()
+    branches = _dean_branches(user)
+    branch_ids = [b['id'] for b in branches]
+    if not branch_ids:
+        abort(403)
+    rows = scoring.faculty_scores_for_branches(branch_ids, teacher_user_id=teacher_id)
+    teacher = db.query(
+        "SELECT id, name, emp_code FROM users WHERE id=? AND role IN ('teacher','hod')",
+        (teacher_id,), one=True)
+    if not teacher:
+        abort(404)
+    return render_template('dean_performance_detail.html', user=user, teacher=teacher,
+                           rows=rows, branches=branches)
