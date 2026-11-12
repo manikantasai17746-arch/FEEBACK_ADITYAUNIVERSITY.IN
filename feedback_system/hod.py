@@ -5,19 +5,14 @@ from flask import (Blueprint, abort, flash, redirect, render_template, request,
 
 from . import db, services
 from .security import (audit, current_user, role_required, require_branch_access,
-                       scoped_branch_ids_or_none, csrf_token)
+                       scoped_branch_ids_or_none, scoped_branches, csrf_token)
 
 bp = Blueprint('hod', __name__, url_prefix='/hod')
 
 
 def _hod_branches(user):
-    ids = scoped_branch_ids_or_none(user)
-    if not ids:
-        return []
-    placeholders = ','.join('?' * len(ids))
-    return db.query(
-        f'SELECT id, code, name FROM branches WHERE id IN ({placeholders}) ORDER BY code',
-        tuple(ids))
+    # One query (was: scope-ids query + branches query).
+    return scoped_branches(user)
 
 
 @bp.route('/')
@@ -40,31 +35,30 @@ def dashboard():
     }
     if branch_ids:
         ph = ','.join('?' * len(branch_ids))
-        stats['student_count'] = db.query(
-            f"""SELECT COUNT(DISTINCT e.student_user_id) c FROM enrollments e
-                JOIN timetables t ON t.id=e.timetable_id
-                WHERE t.branch_id IN ({ph}) AND e.is_deleted=0""",
-            tuple(branch_ids), one=True)['c']
-        stats['faculty_count'] = db.query(
-            f"""SELECT COUNT(DISTINCT cs.teacher_user_id) c FROM class_sessions cs
-                JOIN timetables t ON t.id=cs.timetable_id
-                WHERE t.branch_id IN ({ph}) AND cs.is_deleted=0
-                  AND cs.teacher_user_id IS NOT NULL""",
-            tuple(branch_ids), one=True)['c']
-        for status, key in [('draft', 'forms_draft'), ('open', 'forms_open'),
-                            ('closed', 'forms_closed')]:
-            stats[key] = db.query(
-                f"""SELECT COUNT(*) c FROM feedback_forms
-                    WHERE branch_id IN ({ph}) AND status=? AND is_deleted=0""",
-                tuple(branch_ids) + (status,), one=True)['c']
-        stats['sfa_confirmed'] = db.query(
-            f"""SELECT COUNT(*) c FROM second_faculty_assignments
-                WHERE branch_id IN ({ph}) AND status='confirmed'""",
-            tuple(branch_ids), one=True)['c']
-        stats['sfa_unresolved'] = db.query(
-            f"""SELECT COUNT(*) c FROM second_faculty_assignments
-                WHERE branch_id IN ({ph}) AND status='unresolved'""",
-            tuple(branch_ids), one=True)['c']
+        # All seven counters in ONE round trip (was seven separate queries).
+        r = db.query(
+            f"""SELECT
+                  (SELECT COUNT(DISTINCT e.student_user_id) FROM enrollments e
+                     JOIN timetables t ON t.id=e.timetable_id
+                    WHERE t.branch_id IN ({ph}) AND e.is_deleted=0) AS student_count,
+                  (SELECT COUNT(DISTINCT cs.teacher_user_id) FROM class_sessions cs
+                     JOIN timetables t ON t.id=cs.timetable_id
+                    WHERE t.branch_id IN ({ph}) AND cs.is_deleted=0
+                      AND cs.teacher_user_id IS NOT NULL) AS faculty_count,
+                  (SELECT COUNT(*) FROM feedback_forms
+                    WHERE branch_id IN ({ph}) AND status='draft' AND is_deleted=0) AS forms_draft,
+                  (SELECT COUNT(*) FROM feedback_forms
+                    WHERE branch_id IN ({ph}) AND status='open' AND is_deleted=0) AS forms_open,
+                  (SELECT COUNT(*) FROM feedback_forms
+                    WHERE branch_id IN ({ph}) AND status='closed' AND is_deleted=0) AS forms_closed,
+                  (SELECT COUNT(*) FROM second_faculty_assignments
+                    WHERE branch_id IN ({ph}) AND status='confirmed') AS sfa_confirmed,
+                  (SELECT COUNT(*) FROM second_faculty_assignments
+                    WHERE branch_id IN ({ph}) AND status='unresolved') AS sfa_unresolved""",
+            tuple(branch_ids) * 7, one=True)
+        for key in ('student_count', 'faculty_count', 'forms_draft', 'forms_open',
+                    'forms_closed', 'sfa_confirmed', 'sfa_unresolved'):
+            stats[key] = r[key]
         stats['recent_forms'] = db.query(
             f"""SELECT id, title, status, category, snapshot_subject_code,
                        snapshot_branch, published_at, created_at
@@ -121,16 +115,19 @@ def forms():
                   FROM feedback_forms WHERE {' AND '.join(where)}
                   ORDER BY created_at DESC"""
         forms_list = db.query(sql, tuple(args))
-        # Counts (unfiltered by status/search for tiles)
-        for st, key in [('open', 'open'), ('draft', 'draft'), ('closed', 'closed')]:
-            counts[key] = db.query(
-                f"""SELECT COUNT(*) c FROM feedback_forms
-                    WHERE branch_id IN ({ph}) AND is_deleted=0 AND status=?""",
-                tuple(branch_ids) + (st,), one=True)['c']
-        counts['total'] = db.query(
-            f"""SELECT COUNT(*) c FROM feedback_forms
+        # Counts (unfiltered by status/search for tiles) - one query, not four.
+        c = db.query(
+            f"""SELECT COUNT(*) AS total,
+                       COALESCE(SUM(CASE WHEN status='open' THEN 1 ELSE 0 END), 0) AS open_n,
+                       COALESCE(SUM(CASE WHEN status='draft' THEN 1 ELSE 0 END), 0) AS draft_n,
+                       COALESCE(SUM(CASE WHEN status='closed' THEN 1 ELSE 0 END), 0) AS closed_n
+                FROM feedback_forms
                 WHERE branch_id IN ({ph}) AND is_deleted=0""",
-            tuple(branch_ids), one=True)['c']
+            tuple(branch_ids), one=True)
+        counts['total'] = c['total']
+        counts['open'] = c['open_n']
+        counts['draft'] = c['draft_n']
+        counts['closed'] = c['closed_n']
         subjects = db.query(
             f"""SELECT DISTINCT COALESCE(subject_code, snapshot_subject_code) AS code,
                        COALESCE(subject_name, snapshot_subject_name) AS name
@@ -1686,4 +1683,3 @@ def performance_compare():
         user=user, branches=branches, teachers=teachers,
         teacher_id=teacher_id, form_a=form_a, form_b=form_b,
         teacher_forms=teacher_forms, comparison=comparison, error=error)
-  
