@@ -27,6 +27,7 @@
     <table class="data data-table">
       <thead>
         <tr>
+          <th>Form ID</th>
           <th>Faculty</th>
           <th>Dept</th>
           <th>Subject</th>
@@ -40,6 +41,7 @@
       <tbody>
         {% for r in rows %}
         <tr>
+          <td>#{{ r.form_id }}</td>
           <td class="wrap">{{ r.teacher_name or '—' }} ({{ r.teacher_emp_code or '—' }})</td>
           <td>{{ r.branch_code or '—' }}</td>
           <td class="wrap">{{ r.subject_code or '—' }}</td>
@@ -54,7 +56,7 @@
           <td><span class="badge">{{ r.status }}</span></td>
         </tr>
         {% else %}
-        <tr><td colspan="8" class="muted">No data for assigned departments.</td></tr>
+        <tr><td colspan="9" class="muted">No data for assigned departments.</td></tr>
         {% endfor %}
       </tbody>
     </table>
