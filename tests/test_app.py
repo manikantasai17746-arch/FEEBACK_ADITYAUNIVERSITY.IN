@@ -6,7 +6,7 @@ import pytest
 from feedback_system import db, services
 
 from helpers import (eligible_rolls, find_session, get_csrf, login, login_student,
-                     make_form, publish_form, question_ids, set_status,
+                     future_deadline, make_form, publish_form, question_ids, set_status,
                      submit_feedback, token_from)
 
 
@@ -450,7 +450,7 @@ def test_bulk_create_makes_one_form_per_session(admin, app):
     r = admin.post('/admin/forms/bulk/create',
                    json={'filters': {'teacher_id': tid},
                          'title_pattern': '{subject} — {teacher} (Period {period})',
-                         'status': 'draft',
+                         'status': 'draft', 'deadline_at': future_deadline(),
                          'questions': [
                              {'text': 'Rate the teaching', 'qtype': 'rating', 'is_required': True,
                               'options': [{'label': 'Excellent', 'value': 1},
@@ -478,6 +478,7 @@ def test_bulk_create_skips_existing_forms(admin, app):
     tid = _bulk_teacher(app, 1)
     tok = get_csrf(admin.get('/admin/forms/bulk').get_data(as_text=True))
     payload = {'filters': {'teacher_id': tid}, 'status': 'draft',
+               'deadline_at': future_deadline(),
                'questions': [{'text': 'Q', 'qtype': 'text', 'is_required': False, 'options': []}]}
     first = admin.post('/admin/forms/bulk/create', json=payload,
                        headers={'X-CSRF-Token': tok}).get_json()
@@ -494,6 +495,7 @@ def test_bulk_create_publishes_when_requested(admin, app):
     tok = get_csrf(admin.get('/admin/forms/bulk').get_data(as_text=True))
     r = admin.post('/admin/forms/bulk/create',
                    json={'filters': {'teacher_id': tid}, 'status': 'open',
+                         'deadline_at': future_deadline(),
                          'questions': [{'text': 'Rate', 'qtype': 'rating', 'is_required': True,
                                         'options': [{'label': 'Excellent', 'value': 1},
                                                     {'label': 'Good', 'value': 2}]}]},
@@ -513,6 +515,7 @@ def test_bulk_forms_keep_period_separation(admin, app):
     tok = get_csrf(admin.get('/admin/forms/bulk').get_data(as_text=True))
     admin.post('/admin/forms/bulk/create',
                json={'filters': {'teacher_id': tid}, 'status': 'draft',
+                     'deadline_at': future_deadline(),
                      'questions': [{'text': 'Rate', 'qtype': 'rating', 'is_required': True,
                                     'options': [{'label': 'Excellent', 'value': 1},
                                                 {'label': 'Good', 'value': 2}]}]},
