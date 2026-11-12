@@ -2,19 +2,15 @@
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
 from . import db
-from .security import audit,  current_user, role_required, scoped_branch_ids_or_none
+from .security import (audit, current_user, role_required, scoped_branch_ids_or_none,
+                       scoped_branches)
 
 bp = Blueprint('dean', __name__, url_prefix='/dean')
 
 
 def _dean_branches(user):
-    ids = scoped_branch_ids_or_none(user)
-    if not ids:
-        return []
-    placeholders = ','.join('?' * len(ids))
-    return db.query(
-        f'SELECT id, code, name FROM branches WHERE id IN ({placeholders}) ORDER BY code',
-        tuple(ids))
+    # One query (was: scope-ids query + branches query).
+    return scoped_branches(user)
 
 
 def _in_clause(ids):
