@@ -108,36 +108,52 @@ def _dashboard_data(user, branches, ay_id, sem_id, form_id):
     fids = [f['id'] for f in forms]
     data['active_forms'] = sum(1 for f in forms if f['status'] == 'open')
 
-    elig, subs, last = {}, {}, {}
+    # Students are counted ONCE per department, however many feedback forms
+    # (one per subject/teacher) they are eligible for.  Summing per-form counts
+    # would count the same student once per form, so we work with sets of
+    # student ids instead.  "Submitted" = the student has submitted at least
+    # one of the in-scope forms they are eligible for.
+    form_branch = {f['id']: f['branch_id'] for f in forms}
+    elig_pairs, sub_pairs, last = set(), set(), {}
     if fids:
         fph = _in_clause(fids)
         for r in db.query(
-                f"""SELECT fs.form_id, COUNT(DISTINCT ss.student_user_id) AS c
+                f"""SELECT DISTINCT fs.form_id, ss.student_user_id AS sid
                     FROM form_sessions fs
                     JOIN session_students ss ON ss.session_id=fs.session_id
                     JOIN users u ON u.id=ss.student_user_id AND u.is_active=1
-                    WHERE fs.form_id IN ({fph}) GROUP BY fs.form_id""",
+                    WHERE fs.form_id IN ({fph})""",
                 tuple(fids)):
-            elig[r['form_id']] = r['c'] or 0
-        # Completion only — answers are never read, so anonymity is untouched.
+            elig_pairs.add((r['form_id'], r['sid']))
+        # Completion only - answers are never read, so anonymity is untouched.
         for r in db.query(
-                f"""SELECT form_id, COUNT(*) AS c, MAX(submitted_at) AS last_at
-                    FROM submissions WHERE form_id IN ({fph}) GROUP BY form_id""",
+                f"""SELECT form_id, student_user_id AS sid, submitted_at
+                    FROM submissions WHERE form_id IN ({fph})""",
                 tuple(fids)):
-            subs[r['form_id']] = r['c'] or 0
-            last[r['form_id']] = r['last_at']
+            sub_pairs.add((r['form_id'], r['sid']))
+            la = r['submitted_at']
+            if la and (last.get(r['form_id']) is None or str(la) > str(last[r['form_id']])):
+                last[r['form_id']] = la
 
-    per = {b['id']: {'eligible': 0, 'submitted': 0, 'last': None} for b in branches}
+    per = {b['id']: {'eligible': 0, 'submitted': 0, 'last': None,
+                     'e_ids': set(), 's_ids': set()} for b in branches}
+    all_e, all_s = set(), set()
+    for (fid, sid) in elig_pairs:
+        per[form_branch[fid]]['e_ids'].add(sid)
+        all_e.add(sid)
+    for (fid, sid) in sub_pairs:
+        if (fid, sid) in elig_pairs:      # only students eligible for that form
+            per[form_branch[fid]]['s_ids'].add(sid)
+            all_s.add(sid)
     for f in forms:
         d = per[f['branch_id']]
-        e = elig.get(f['id'], 0)
-        d['eligible'] += e
-        d['submitted'] += min(subs.get(f['id'], 0), e) if e else subs.get(f['id'], 0)
         la = last.get(f['id'])
         if la and (d['last'] is None or str(la) > str(d['last'])):
             d['last'] = la
-    tot_e = sum(d['eligible'] for d in per.values())
-    tot_s = sum(d['submitted'] for d in per.values())
+    for d in per.values():
+        d['eligible'] = len(d['e_ids'])
+        d['submitted'] = len(d['s_ids'])
+    tot_e, tot_s = len(all_e), len(all_s)
     data['eligible'] = tot_e
     data['submitted'] = tot_s
     data['pending'] = max(tot_e - tot_s, 0)
