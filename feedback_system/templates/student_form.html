@@ -59,10 +59,11 @@
 {% elif form.status != 'open' %}
   <div class="card">
     <h2>This form is {{ status_labels.get(form.status, form.status) }}</h2>
-    <p class="sub">It is no longer accepting responses.</p>
+    <p class="sub">It is no longer accepting responses{% if form.deadline_at %} (deadline was {{ form.deadline_at|deadline }}){% endif %}.</p>
     <a class="btn btn-ghost" href="{{ url_for('student.dashboard') }}">Back to my feedback</a>
   </div>
 {% else %}
+{% if form.deadline_at %}<div class="flash flash-info">Submit before <strong>{{ form.deadline_at|deadline }}</strong>. The form closes automatically after that.</div>{% endif %}
 <form method="post" action="{{ url_for('student.submit', form_id=form.id) }}">
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   {% for q in questions %}
