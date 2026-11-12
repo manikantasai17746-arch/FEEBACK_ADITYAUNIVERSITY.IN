@@ -532,4 +532,9 @@ MIGRATIONS = [
         "CREATE INDEX IF NOT EXISTS ix_forms_branch_created "
         "ON feedback_forms(branch_id, created_at)",
     ]),
+    (16, "Mandatory form deadline (UTC ISO text); open forms close automatically after it", [
+        # NULL = legacy form created before deadlines existed (never auto-closes).
+        "ALTER TABLE feedback_forms ADD COLUMN deadline_at TEXT",
+        "CREATE INDEX IF NOT EXISTS ix_forms_deadline ON feedback_forms(status, deadline_at)",
+    ]),
 ]
