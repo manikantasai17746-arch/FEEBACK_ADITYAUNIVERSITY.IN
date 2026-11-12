@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Teacher subject comparison — Dean{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>{{ profile.teacher_name or 'Teacher' }} <span class="muted">({{ profile.teacher_emp_code }})</span></h1>
+    <nav class="subnav">
+      <a href="{{ url_for('dean.comparison') }}">← Comparison</a>
+      <a href="{{ url_for('dean.comparison_pdf', kind='teacher', teacher_id=profile.teacher_user_id) }}">Download PDF</a>
+    </nav>
+  </div>
+  <p class="sub">Subject averages are listed separately. Unrelated subjects are never combined into one percentage.</p>
+  {% if profile.subjects %}
+    {% for s in profile.subjects %}
+    <div class="card" style="margin-bottom:1rem">
+      <h2 style="margin-top:0">{{ s.subject_code }} — {{ s.subject_name }}</h2>
+      <p class="sub">{{ s.round_count }} closed round(s) · subject average
+        <strong>{{ '%.1f'|format(s.average_score) }}%</strong>
+        · net {{ '%+.1f'|format(s.net_change) if s.net_change is not none else '—' }}
+        ({{ s.net_trend }}) · latest {{ s.latest_date or '—' }}
+        · band {{ s.band.label if s.band else '—' }}</p>
+      <table class="data data-table">
+        <thead><tr><th>#</th><th>Form</th><th>Date</th><th>Score</th><th>Step Δ</th><th>Trend</th></tr></thead>
+        <tbody>
+        {% for r in s.rounds %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td class="wrap">{{ r.title }}</td>
+            <td>{{ r.round_date }}</td>
+            <td><strong>{{ '%.1f'|format(r.score) }}%</strong></td>
+            <td>{% if r.step_change is not none %}{{ '%+.1f'|format(r.step_change) }}{% else %}—{% endif %}</td>
+            <td>{{ r.step_trend }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endfor %}
+  {% else %}
+  <p class="sub">No closed subject rounds for this teacher in your scope.</p>
+  {% endif %}
+</div>
+{% endblock %}
