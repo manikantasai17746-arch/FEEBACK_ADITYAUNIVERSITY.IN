@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}Pending submissions — HOD{% endblock %}
+{% block body %}
+<div class="perf-welcome">
+  <div>
+    <h1 style="margin:0">Pending submissions</h1>
+    <p class="sub" style="margin:.25rem 0 0">Students who have <strong>not</strong> submitted yet, per teacher
+      (roll numbers only). Nothing here changes any submission.</p>
+  </div>
+</div>
+
+<div class="card">
+  <form method="get" class="btn-row" style="align-items:flex-end;gap:.75rem;flex-wrap:wrap">
+    <div class="field" style="min-width:320px;margin:0"><label for="form_id">Feedback form</label>
+      <select id="form_id" name="form_id" onchange="this.form.submit()">
+        {% for f in forms %}
+        <option value="{{ f.id }}" {{ 'selected' if form and form.id == f.id }}>
+          {{ f.title }}{% if f.subject_code %} · {{ f.subject_code }}{% endif %} — {{ f.status|capitalize }}{% if f.deadline_at %} (closes {{ f.deadline_at|deadline }}){% endif %}
+        </option>
+        {% endfor %}
+      </select></div>
+    <noscript><button class="btn" type="submit">Show</button></noscript>
+  </form>
+  {% if can_email and totals.with_pending %}
+  <form method="post" action="{{ url_for('hod.pending_email', fid=form.id) }}" style="margin-top:.75rem"
+        onsubmit="return confirm('Email the pending-roll PDF to {{ totals.with_pending }} teacher(s)?')">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="all" value="1">
+    <button class="btn btn-accent" type="submit">✉ Email all teachers with pending ({{ totals.with_pending }})</button>
+  </form>
+  {% endif %}
+  {% if form %}
+  <p class="sub" style="margin-top:.75rem">
+    <strong>{{ totals.pending }}</strong> pending across <strong>{{ totals.teachers }}</strong> teacher(s).
+    {% if form.deadline_at %}Deadline: {{ form.deadline_at|deadline }}.{% endif %}
+    {% if not can_email %}This form is {{ form.status }}, so reminder emails are disabled.{% endif %}
+    {% if not mail_ready %}<br><em>Mail is not configured (MAIL_USER / MAIL_APP_PASSWORD); emails are only printed to the server console locally.</em>{% endif %}
+  </p>
+  {% endif %}
+</div>
+
+{% if not forms %}
+<div class="card"><p class="sub">No open or closed forms in your department yet.</p></div>
+{% elif teachers %}
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Teacher</th><th>Subject(s)</th><th>Eligible</th><th>Submitted</th>
+        <th>Pending</th><th>Pending roll numbers</th><th>Actions</th></tr></thead>
+      <tbody>
+      {% for t in teachers %}
+        <tr>
+          <td class="wrap"><strong>{{ t.teacher_name }}</strong>
+            <div class="sub">{{ t.emp_code or '' }}{% if t.email %} · {{ t.email }}{% else %} · <em>no email on file</em>{% endif %}</div></td>
+          <td class="wrap">{{ t.subjects|join(', ') or '—' }}</td>
+          <td>{{ t.eligible }}</td>
+          <td>{{ t.submitted }}</td>
+          <td><strong>{{ t.pending }}</strong></td>
+          <td class="wrap">
+            {% if t.pending_rolls %}
+            <details><summary class="sub" style="cursor:pointer">Show {{ t.pending_rolls|length }} roll number(s)</summary>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;max-width:520px">
+                {% for r in t.pending_rolls %}<span class="badge">{{ r }}</span>{% endfor %}
+              </div></details>
+            {% else %}<span class="sub">All submitted ✓</span>{% endif %}
+          </td>
+          <td>
+            <div class="btn-row">
+              {% if t.pending %}
+              <a class="btn btn-ghost btn-sm" target="_blank"
+                 href="{{ url_for('hod.pending_pdf', fid=form.id, tid=t.teacher_user_id) }}">PDF</a>
+              {% endif %}
+              {% if can_email and t.pending %}
+              <form method="post" action="{{ url_for('hod.pending_email', fid=form.id) }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <input type="hidden" name="teacher_user_id" value="{{ t.teacher_user_id }}">
+                <button class="btn btn-sm" type="submit" {{ 'disabled' if not t.email }}>✉ Email PDF</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% elif form %}
+<div class="card"><p class="sub">No teachers are linked to this form.</p></div>
+{% endif %}
+{% endblock %}
