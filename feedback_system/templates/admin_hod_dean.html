@@ -1,168 +1,240 @@
 {% extends 'base.html' %}
 {% block title %}HOD / Dean Accounts — Admin{% endblock %}
+
+{# One row of account actions (same forms/routes as before) #}
+{% macro acct_actions(u) -%}
+<div class="acc-actions">
+  <form method="post" action="{{ url_for('admin.hod_dean_reset_onboarding', uid=u.id) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button type="submit" class="ab ab-ghost">Reset onboarding</button>
+  </form>
+  <form method="post" action="{{ url_for('admin.hod_dean_toggle_active', uid=u.id) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button type="submit" class="ab ab-outline">{{ 'Deactivate' if u.is_active else 'Activate' }}</button>
+  </form>
+  <form method="post" action="{{ url_for('admin.hod_dean_delete_request', uid=u.id) }}"
+        onsubmit="return confirm('Permanently delete this account? A confirmation code will be e-mailed for approval.')">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button type="submit" class="ab ab-danger">Delete</button>
+  </form>
+</div>
+{%- endmacro %}
+
+{% macro yn(v) -%}
+<span class="pill {{ 'pill-yes' if v else 'pill-no' }}">{{ 'Yes' if v else 'No' }}</span>
+{%- endmacro %}
+
+{% macro chips(csv) -%}
+{%- if csv -%}{% for c in csv.split(',') %}<span class="chip">{{ c.strip() }}</span>{% endfor %}{%- else -%}<span class="muted">—</span>{%- endif -%}
+{%- endmacro %}
+
 {% block body %}
-<div class="container page">
-  <div class="page-header">
+<style>
+  .acc{--a-blue:#1558C0;--a-navy:#0f2a6b;--a-line:#e3e9f4;--a-soft:#f3f6fc;--a-ok:#0e8a46;--a-err:#c0392b;--a-muted:#6b7a94}
+  .acc .acc-top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .acc .acc-top h1{margin:0}
+  .acc .acc-card{background:#fff;border:1px solid var(--a-line);border-radius:14px;padding:18px 20px;margin-bottom:18px;box-shadow:0 2px 10px rgba(20,50,120,.05)}
+  .acc .acc-card h2{margin:0 0 4px;font-size:1.2rem;color:var(--a-navy);display:flex;align-items:center;gap:10px}
+  .acc .acc-count{font-size:.78rem;font-weight:700;color:var(--a-blue);background:#e6eefc;border-radius:999px;padding:2px 10px}
+  .acc .acc-sub{margin:0 0 12px;color:var(--a-muted);font-size:.9rem}
+  .acc .acc-import{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:10px}
+  .acc .acc-import input[type=file]{flex:1;min-width:220px;border:1px dashed #b9c6e0;border-radius:10px;padding:8px 10px;background:var(--a-soft)}
+
+  .acc .acc-scroll{overflow-x:auto;border:1px solid var(--a-line);border-radius:12px}
+  .acc table.acc-table{width:100%;border-collapse:collapse;table-layout:fixed;min-width:1180px;font-size:.92rem}
+  .acc .acc-table th{background:var(--a-soft);color:var(--a-navy);text-align:left;font-size:.74rem;font-weight:700;
+      text-transform:uppercase;letter-spacing:.04em;padding:11px 12px;border-bottom:1px solid var(--a-line)}
+  .acc .acc-table td{padding:11px 12px;border-bottom:1px solid var(--a-line);vertical-align:middle;color:#1f2733}
+  .acc .acc-table tbody tr:last-child td{border-bottom:0}
+  .acc .acc-table tbody tr:hover td{background:#fafcff}
+  .acc .acc-table .c{text-align:center}
+  .acc .acc-table .emp{font-family:ui-monospace,Consolas,monospace;font-size:.85rem;color:var(--a-navy);font-weight:600;word-break:break-all}
+  .acc .acc-table .nm{font-weight:700;word-break:break-word}
+  .acc .acc-table .em{color:#44546f;word-break:break-all;font-size:.88rem}
+
+  .acc .pill{display:inline-block;min-width:44px;text-align:center;padding:3px 10px;border-radius:999px;font-size:.78rem;font-weight:700}
+  .acc .pill-yes{background:#d8f5e5;color:var(--a-ok)}
+  .acc .pill-no{background:#eceff5;color:#5d6b85}
+  .acc .chip{display:inline-block;margin:0 4px 4px 0;padding:2px 9px;border-radius:8px;background:#e6eefc;color:var(--a-blue);font-weight:700;font-size:.78rem}
+
+  .acc .acc-actions{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+  .acc .acc-actions form{margin:0}
+  .acc .ab{height:32px;padding:0 12px;border-radius:8px;font:inherit;font-size:.8rem;font-weight:700;cursor:pointer;white-space:nowrap;border:1px solid transparent}
+  .acc .ab-ghost{background:#fff;color:var(--a-blue);border-color:#c9d6ef}
+  .acc .ab-ghost:hover{background:#eef3fc}
+  .acc .ab-outline{background:#fff;color:#8a5a00;border-color:#ecd29a}
+  .acc .ab-outline:hover{background:#fff7e6}
+  .acc .ab-danger{background:#fff;color:var(--a-err);border-color:#f0b9b2}
+  .acc .ab-danger:hover{background:var(--a-err);color:#fff}
+
+  .acc .group-row td{background:#fbfcff}
+  .acc .empty{color:var(--a-muted);padding:6px 0}
+
+  html.dark-mode .acc .acc-card{background:#16213a;border-color:#2b3a5e}
+  html.dark-mode .acc .acc-card h2,html.dark-mode .acc .acc-table th,html.dark-mode .acc .acc-table .emp{color:#e5ecfa}
+  html.dark-mode .acc .acc-table th{background:#1e2b49}
+  html.dark-mode .acc .acc-table td{color:#e5ecfa;border-color:#2b3a5e}
+  html.dark-mode .acc .acc-table tbody tr:hover td,html.dark-mode .acc .group-row td{background:#1b2c52}
+  html.dark-mode .acc .acc-scroll{border-color:#2b3a5e}
+  html.dark-mode .acc .ab{background:#1e2b49}
+  html.dark-mode .acc .pill-no{background:#2b3a5e;color:#cbd5ea}
+</style>
+
+<div class="container page acc">
+  <div class="acc-top">
     <h1>HOD &amp; Dean accounts</h1>
-    <a class="btn" href="{{ url_for('admin.hod_dean_template') }}">Download CSV template</a>
+    <a class="btn" href="{{ url_for('admin.hod_dean_template') }}">⬇ Download CSV template</a>
   </div>
 
   {% if import_creds %}
-  <div class="card" style="border-left:4px solid #1558C0;margin-bottom:1rem">
-    <h2>E-mail not delivered — send these credentials manually (shown once)</h2>
-    <p class="muted">Credentials were e-mailed automatically to everyone else. These accounts could not be e-mailed (mail not configured, bad address or time limit). Deliver each password securely; the employee must change it on first login.</p>
-    <table class="data-table">
-      <thead><tr><th>Role</th><th>Employee ID</th><th>Name</th><th>Email</th><th>Temporary password</th></tr></thead>
-      <tbody>
-      {% for c in import_creds %}
-        <tr>
-          <td>{{ c.role }}</td><td>{{ c.employee_id }}</td><td>{{ c.name }}</td>
-          <td>{{ c.email }}</td><td><code>{{ c.temp_password }}</code></td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+  <div class="acc-card" style="border-left:4px solid #1558C0">
+    <h2>E-mail not delivered — send these credentials manually <span class="acc-count">shown once</span></h2>
+    <p class="acc-sub">Credentials were e-mailed automatically to everyone else. These accounts could not be e-mailed (mail not configured, bad address or time limit). Deliver each password securely; the employee must change it on first login.</p>
+    <div class="acc-scroll">
+      <table class="acc-table" style="min-width:720px">
+        <thead><tr><th>Role</th><th>Employee ID</th><th>Name</th><th>Email</th><th>Temporary password</th></tr></thead>
+        <tbody>
+        {% for c in import_creds %}
+          <tr>
+            <td>{{ c.role }}</td><td class="emp">{{ c.employee_id }}</td><td class="nm">{{ c.name }}</td>
+            <td class="em">{{ c.email }}</td><td><code>{{ c.temp_password }}</code></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
   {% endif %}
 
-  <div class="card">
+  <div class="acc-card">
     <h2>Import accounts from CSV</h2>
-    <form method="post" action="{{ url_for('admin.hod_dean_import') }}" enctype="multipart/form-data">
+    <p class="acc-sub">Columns: <code>role, employee_id, full_name, official_email, designation, department_codes, active</code>.
+      Separate multiple departments with <code>|</code>. No passwords in the file.</p>
+    <form method="post" action="{{ url_for('admin.hod_dean_import') }}" enctype="multipart/form-data" class="acc-import">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <div class="form-row">
-        <input type="file" name="csv_file" accept=".csv" required>
-        <button type="submit" class="btn primary">Import</button>
-      </div>
+      <input type="file" name="csv_file" accept=".csv" required>
+      <button type="submit" class="btn primary">Import</button>
     </form>
-    <p class="muted" style="margin-top:.5rem">
-      Columns: role, employee_id, full_name, official_email, designation, department_codes, active.
-      Multiple departments separated by <code>|</code>. No passwords in the file.
-    </p>
   </div>
 
-  <div class="card" style="margin-top:1rem">
-    <h2>HOD accounts</h2>
+  {# ================= HOD ACCOUNTS ================= #}
+  <div class="acc-card">
+    <h2>HOD accounts <span class="acc-count">{{ hods|length }}</span></h2>
+    <p class="acc-sub">Heads of department. “Branches” are the departments each HOD covers.</p>
     {% if hods %}
-    <table class="data-table">
-      <thead><tr>
-        <th>Emp</th><th>Name</th><th>Email</th><th>Branches</th>
-        <th>Verified</th><th>Onboarded</th><th>Active</th><th>Actions</th>
-      </tr></thead>
-      <tbody>
-      {% for h in hods %}
-        <tr>
-          <td>{{ h.emp_code or h.username }}</td>
-          <td>{{ h.name }}</td>
-          <td>{{ h.email or '—' }}</td>
-          <td>{{ h.branches or '—' }}</td>
-          <td>{{ 'Yes' if h.email_verified else 'No' }}</td>
-          <td>{{ 'Yes' if h.onboarding_complete else 'No' }}</td>
-          <td>{{ 'Yes' if h.is_active else 'No' }}</td>
-          <td class="actions">
-            <form method="post" action="{{ url_for('admin.hod_dean_reset_onboarding', uid=h.id) }}" style="display:inline">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <button type="submit" class="btn small">Reset onboarding</button>
-            </form>
-            <form method="post" action="{{ url_for('admin.hod_dean_toggle_active', uid=h.id) }}" style="display:inline">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <button type="submit" class="btn small">{{ 'Deactivate' if h.is_active else 'Activate' }}</button>
-            </form>
-            <form method="post" action="{{ url_for('admin.hod_dean_delete_request', uid=h.id) }}" style="display:inline"
-                  onsubmit="return confirm('Permanently delete this account? A confirmation code will be e-mailed for approval.')">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <button type="submit" class="btn small btn-danger">Delete</button>
-            </form>
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+    <div class="acc-scroll">
+      <table class="acc-table">
+        <colgroup>
+          <col style="width:8%"><col style="width:14%"><col style="width:20%"><col style="width:9%">
+          <col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:310px">
+        </colgroup>
+        <thead><tr>
+          <th>Emp ID</th><th>Name</th><th>Email</th><th>Branches</th>
+          <th class="c">Verified</th><th class="c">Onboarded</th><th class="c">Active</th><th style="text-align:right">Actions</th>
+        </tr></thead>
+        <tbody>
+        {% for h in hods %}
+          <tr>
+            <td class="emp">{{ h.emp_code or h.username }}</td>
+            <td class="nm">{{ h.name }}</td>
+            <td class="em">{{ h.email or '—' }}</td>
+            <td>{{ chips(h.branches) }}</td>
+            <td class="c">{{ yn(h.email_verified) }}</td>
+            <td class="c">{{ yn(h.onboarding_complete) }}</td>
+            <td class="c">{{ yn(h.is_active) }}</td>
+            <td>{{ acct_actions(h) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
-    <p class="muted">No HOD accounts yet. Import via CSV.</p>
+    <p class="empty">No HOD accounts yet. Import via CSV.</p>
     {% endif %}
   </div>
 
-  <div class="card" style="margin-top:1rem">
-    <h2>Dean accounts</h2>
+  {# ================= DEAN ACCOUNTS ================= #}
+  <div class="acc-card">
+    <h2>Dean accounts <span class="acc-count">{{ deans|length }}</span></h2>
+    <p class="acc-sub">“Scopes” are the departments each Dean oversees.</p>
     {% if deans %}
-    <table class="data-table">
-      <thead><tr>
-        <th>Emp</th><th>Name</th><th>Email</th><th>Scopes</th>
-        <th>Verified</th><th>Onboarded</th><th>Active</th><th>Actions</th>
-      </tr></thead>
-      <tbody>
-      {% for d in deans %}
-        <tr>
-          <td>{{ d.emp_code or d.username }}</td>
-          <td>{{ d.name }}</td>
-          <td>{{ d.email or '—' }}</td>
-          <td>{{ d.branches or '—' }}</td>
-          <td>{{ 'Yes' if d.email_verified else 'No' }}</td>
-          <td>{{ 'Yes' if d.onboarding_complete else 'No' }}</td>
-          <td>{{ 'Yes' if d.is_active else 'No' }}</td>
-          <td class="actions">
-            <form method="post" action="{{ url_for('admin.hod_dean_reset_onboarding', uid=d.id) }}" style="display:inline">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <button type="submit" class="btn small">Reset onboarding</button>
-            </form>
-            <form method="post" action="{{ url_for('admin.hod_dean_toggle_active', uid=d.id) }}" style="display:inline">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <button type="submit" class="btn small">{{ 'Deactivate' if d.is_active else 'Activate' }}</button>
-            </form>
-            <form method="post" action="{{ url_for('admin.hod_dean_delete_request', uid=d.id) }}" style="display:inline"
-                  onsubmit="return confirm('Permanently delete this account? A confirmation code will be e-mailed for approval.')">
-              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-              <button type="submit" class="btn small btn-danger">Delete</button>
-            </form>
-          </td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+    <div class="acc-scroll">
+      <table class="acc-table">
+        <colgroup>
+          <col style="width:8%"><col style="width:14%"><col style="width:20%"><col style="width:9%">
+          <col style="width:8%"><col style="width:9%"><col style="width:7%"><col style="width:310px">
+        </colgroup>
+        <thead><tr>
+          <th>Emp ID</th><th>Name</th><th>Email</th><th>Scopes</th>
+          <th class="c">Verified</th><th class="c">Onboarded</th><th class="c">Active</th><th style="text-align:right">Actions</th>
+        </tr></thead>
+        <tbody>
+        {% for d in deans %}
+          <tr>
+            <td class="emp">{{ d.emp_code or d.username }}</td>
+            <td class="nm">{{ d.name }}</td>
+            <td class="em">{{ d.email or '—' }}</td>
+            <td>{{ chips(d.branches) }}</td>
+            <td class="c">{{ yn(d.email_verified) }}</td>
+            <td class="c">{{ yn(d.onboarding_complete) }}</td>
+            <td class="c">{{ yn(d.is_active) }}</td>
+            <td>{{ acct_actions(d) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
-    <p class="muted">No Dean accounts yet. Import via CSV.</p>
+    <p class="empty">No Dean accounts yet. Import via CSV.</p>
     {% endif %}
   </div>
 
-  <div class="card" style="margin-top:1rem">
-    <h2>HOD allocations (exclusive)</h2>
-    <p class="muted">Key: academic year + department + semester + timetable. One HOD per exact key.</p>
+  {# ================= HOD ALLOCATIONS ================= #}
+  <div class="acc-card">
+    <h2>HOD allocations (exclusive) <span class="acc-count">{{ allocations|length }}</span></h2>
+    <p class="acc-sub">Key: academic year + department + semester + timetable. One HOD per exact key.</p>
     {% if allocations %}
-    <table class="data-table">
-      <thead><tr><th>HOD</th><th>Year</th><th>Dept</th><th>Sem</th><th>Timetable</th></tr></thead>
-      <tbody>
-      {% for a in allocations %}
-        <tr>
-          <td>{{ a.hod_name }} ({{ a.emp_code }})</td>
-          <td>{{ a.academic_year }}</td>
-          <td>{{ a.branch_code }}</td>
-          <td>{{ a.semester_number }}</td>
-          <td>{{ a.timetable_code }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+    <div class="acc-scroll">
+      <table class="acc-table" style="min-width:640px">
+        <thead><tr><th>HOD</th><th>Year</th><th>Dept</th><th class="c">Sem</th><th>Timetable</th></tr></thead>
+        <tbody>
+        {% for a in allocations %}
+          <tr>
+            <td><span class="nm">{{ a.hod_name }}</span> <span class="emp">({{ a.emp_code }})</span></td>
+            <td>{{ a.academic_year }}</td>
+            <td><span class="chip">{{ a.branch_code }}</span></td>
+            <td class="c">{{ a.semester_number }}</td>
+            <td>{{ a.timetable_code }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
-    <p class="muted">No exclusive allocations claimed yet (HODs claim them during onboarding).</p>
+    <p class="empty">No exclusive allocations claimed yet (HODs claim them during onboarding).</p>
     {% endif %}
   </div>
 
-  <div class="card" style="margin-top:1rem">
-    <h2>Dean → HOD assignments</h2>
+  {# ================= DEAN -> HOD ================= #}
+  <div class="acc-card">
+    <h2>Dean → HOD assignments <span class="acc-count">{{ dean_hods|length }}</span></h2>
+    <p class="acc-sub">Which HODs each Dean oversees.</p>
     {% if dean_hods %}
-    <table class="data-table">
-      <thead><tr><th>Dean</th><th>HOD</th></tr></thead>
-      <tbody>
-      {% for r in dean_hods %}
-        <tr>
-          <td>{{ r.dean_name }} ({{ r.dean_emp }})</td>
-          <td>{{ r.hod_name }} ({{ r.hod_emp }})</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
+    <div class="acc-scroll">
+      <table class="acc-table" style="min-width:640px">
+        <thead><tr><th style="width:32%">Dean</th><th>HODs under this Dean</th></tr></thead>
+        <tbody>
+        {% for g in dean_hods|groupby('dean_name') %}
+          <tr>
+            <td><span class="nm">{{ g.grouper }}</span> <span class="emp">({{ g.list[0].dean_emp }})</span></td>
+            <td>{% for r in g.list %}<span class="chip">{{ r.hod_name }} ({{ r.hod_emp }})</span>{% endfor %}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
     {% else %}
-    <p class="muted">No Dean–HOD assignments yet.</p>
+    <p class="empty">No Dean–HOD assignments yet.</p>
     {% endif %}
   </div>
 </div>
