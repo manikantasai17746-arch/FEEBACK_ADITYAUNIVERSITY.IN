@@ -848,12 +848,23 @@ def performance():
     if branch_id not in branch_ids:
         branch_id = None
     scope_ids = [branch_id] if branch_id else branch_ids
+    hod_id = request.args.get('hod_id', type=int)
+    hods = _band_hods(user)
+    hod_pick = next((h for h in hods if h['id'] == hod_id), None)
+    if not hod_pick:
+        hod_id = None
+    elif branch_id is None:
+        scope_ids = [b for b in scope_ids if b in hod_pick['branch_ids']]
     rows = []
     if branch_ids:
         rows = scoring.faculty_scores_for_branches(
             scope_ids,
             academic_year_id=academic_year_id,
             semester_id=semester_id)
+        if hod_pick:
+            rows = [r for r in rows
+                    if (r.get('academic_year_id'), r.get('branch_id'), r.get('semester_id'))
+                    in hod_pick['triples']]
         # Eligible counts and marks for ALL forms in a handful of queries
         # (was ~30 queries per row, one row after another).
         fids = [r['form_id'] for r in rows]
@@ -884,11 +895,23 @@ def performance():
         'responded': sum((r.get('students') or 0) for r in rows),
     }
     dept = next((b for b in branches if b['id'] == branch_id), None)
+    # Score bands live on this same page (click a band to list its teachers).
+    from . import mailer
+    from .hod import DEFAULT_BAND_SUBJECT
+    bands, _b, _h = _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id)
+    band_key = (request.args.get('band') or '').strip()
+    active = next((b for b in bands if b['key'] == band_key), None)
+    if not active:
+        band_key = ''
     return render_template(
         'dean_performance.html', user=user, branches=branches, rows=rows,
         years=years, semesters=semesters, summary=summary, dept=dept,
+        hods=hods, bands=bands, active=active, band_key=band_key,
+        default_subject=DEFAULT_BAND_SUBJECT,
+        default_message=_dean_default_message(band_key) if active else '',
+        mail_ready=mailer.is_configured(),
         filters={'academic_year_id': academic_year_id, 'semester_id': semester_id,
-                 'branch_id': branch_id})
+                 'branch_id': branch_id, 'hod_id': hod_id})
 
 
 # --------------------------------------------------------------------------- #
@@ -976,30 +999,9 @@ def _band_filters_from(src):
 @bp.route('/performance/bands')
 @role_required('dean')
 def performance_bands():
-    from . import mailer
-    from .hod import DEFAULT_BAND_SUBJECT
-    user = current_user()
-    academic_year_id, semester_id, branch_id, hod_id = _band_filters_from(request.args)
-    band_key = (request.args.get('band') or '').strip()
-    bands, branches, hods = _dean_band_data(user, branch_id, hod_id,
-                                            academic_year_id, semester_id)
-    if branch_id not in [b['id'] for b in branches]:
-        branch_id = None
-    if hod_id not in [h['id'] for h in hods]:
-        hod_id = None
-    if band_key not in {b['key'] for b in bands}:
-        band_key = next((b['key'] for b in bands if b['count']), bands[0]['key'])
-    active = next(b for b in bands if b['key'] == band_key)
-    years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
-    semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
-    return render_template(
-        'dean_performance_bands.html', user=user, branches=branches, hods=hods,
-        years=years, semesters=semesters, bands=bands, active=active, band_key=band_key,
-        default_subject=DEFAULT_BAND_SUBJECT,
-        default_message=_dean_default_message(band_key),
-        mail_ready=mailer.is_configured(),
-        filters={'academic_year_id': academic_year_id, 'semester_id': semester_id,
-                 'branch_id': branch_id, 'hod_id': hod_id})
+    """Legacy URL: score bands now live on the Performance page."""
+    args = {k: v for k, v in request.args.items() if v}
+    return redirect(url_for('dean.performance', **args) + '#bands')
 
 
 @bp.route('/performance/bands/send', methods=['POST'])
@@ -1013,8 +1015,8 @@ def performance_bands_send():
     f = request.form
     academic_year_id, semester_id, branch_id, hod_id = _band_filters_from(f)
     band_key = (f.get('band') or '').strip()
-    back = url_for('dean.performance_bands', band=band_key, academic_year_id=academic_year_id,
-                   semester_id=semester_id, branch_id=branch_id, hod_id=hod_id)
+    back = url_for('dean.performance', band=band_key, academic_year_id=academic_year_id,
+                   semester_id=semester_id, branch_id=branch_id, hod_id=hod_id) + '#bands'
     subject_tpl = ' '.join((f.get('subject') or '').split())[:150] or DEFAULT_BAND_SUBJECT
     message_tpl = (f.get('message') or '').strip()[:5000] or _dean_default_message(band_key)
     try:
@@ -1092,7 +1094,7 @@ def performance_detail(teacher_id):
         (teacher_id,), one=True)
     if not teacher:
         abort(404)
-    cards = _detail_cards(rows)
+    cards = _detail_cards(rows, teacher_id)
     profile = db.query(
         'SELECT id, name, emp_code, designation, email FROM users WHERE id=?',
         (teacher_id,), one=True)
@@ -1102,7 +1104,20 @@ def performance_detail(teacher_id):
                            back_branch=back_branch, branches=branches)
 
 
-def _detail_cards(rows):
+def _all_comments(form_id, session_ids):
+    """Every anonymous written comment of a form (this teacher's sessions only)."""
+    from . import services
+    out, page = [], 1
+    while True:
+        pg = services.suggestions_paged(form_id, page=page, per_page=100,
+                                        session_ids=session_ids)
+        out.extend(pg['comments'])
+        if page >= pg['pages'] or page >= 50:
+            return out
+        page += 1
+
+
+def _detail_cards(rows, teacher_id=None):
     """Per-form view model for the Dean's faculty page (same facts as the teacher's
     results page): eligible / responded / not submitted, marks, rating counts and
     per-question distributions.  Reads aggregate counts only - never individual
@@ -1145,7 +1160,11 @@ def _detail_cards(rows):
             'rank': max(1, min(5, n - i)),
         } for i, lbl in enumerate(order)]
         score = None if (r.get('hidden') or r.get('overall_score') is None) else r['overall_score']
+        tid = teacher_id or r.get('teacher_user_id')
+        sids = services.teacher_form_session_ids(tid, fid) if tid else None
+        comments = _all_comments(fid, sids) if sids else []
         cards.append({
+            'comments': comments,
             'row': r, 'meta': meta.get(fid) or {}, 'eligible': eligible,
             'responded': responded, 'not_submitted': max(eligible - responded, 0),
             'score': score, 'distribution': distribution, 'answer_total': grand,

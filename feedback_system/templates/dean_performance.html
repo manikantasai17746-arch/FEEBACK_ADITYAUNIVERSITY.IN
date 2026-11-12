@@ -22,8 +22,13 @@
           <option value="">All semesters</option>
           {% for s in semesters %}<option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>Semester {{ s.number }}</option>{% endfor %}
         </select></label>
+      <label>HOD name
+        <select name="hod_id" onchange="this.form.submit()">
+          <option value="">All HODs</option>
+          {% for h in hods %}<option value="{{ h.id }}" {{ 'selected' if filters.hod_id == h.id }}>{{ h.name }}</option>{% endfor %}
+        </select></label>
+      {% if band_key %}<input type="hidden" name="band" value="{{ band_key }}">{% endif %}
       <a class="dz-btn" href="{{ url_for('dean.publication') }}">← Publication</a>
-      <a class="dz-btn" href="{{ url_for('dean.performance_bands') }}">Teachers by score band</a>
     </form>
   </div>
 
@@ -34,6 +39,102 @@
     <div class="dz-stat"><small>Average score / 100</small><strong>{{ summary.avg if summary.avg is not none else '—' }}</strong></div>
   </div>
 
+  <div id="bands"></div>
+  <p class="dz-sub" style="margin:.2rem 0 .6rem">Click a band to see the teachers whose feedback score falls in that range, highest first. Use <strong>View result</strong> to open a teacher's full result.</p>
+  {% set fargs = {'academic_year_id': filters.academic_year_id, 'semester_id': filters.semester_id,
+                  'branch_id': filters.branch_id, 'hod_id': filters.hod_id} %}
+  <div class="band-tabs">
+    {% for b in bands %}
+    <a class="band-tab band-{{ loop.index }} {{ 'active' if b.key == band_key }}"
+       href="{{ url_for('dean.performance', band=(none if b.key == band_key else b.key), **fargs) }}#bands"
+       title="{{ 'Click again to show all faculty' if b.key == band_key else 'Show teachers in this band' }}">
+      <span class="band-label">{{ b.label }}</span>
+      <span class="band-count">{{ b.count }} teacher{{ '' if b.count == 1 else 's' }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  {% if active %}
+  <div class="dz-card" style="margin-top:1rem">
+    <h2 style="margin-top:0">{{ active.label }} <span class="muted">· {{ active.count }}</span>
+      <a class="dz-btn" style="float:right;font-size:.8rem" href="{{ url_for('dean.performance', **fargs) }}">Show all faculty</a></h2>
+    {% if active.rows %}
+    <form method="post" action="{{ url_for('dean.performance_bands_send') }}" id="band-mail-form"
+          onsubmit="return confirm('Send this email to the ticked teachers?');">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="band" value="{{ band_key }}">
+      {% for k, v in fargs.items() if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+      <label class="band-selectall"><input type="checkbox" id="band-all" checked> Select all teachers in this band</label>
+    <div class="band-grid band-{{ bands.index(active) + 1 }}">
+      {% for r in active.rows %}
+      {% set tname = r.teacher_name or 'Faculty' %}
+      {% set initials = (tname.split()|map('first')|join('')|upper)[:2] %}
+      <div class="band-card">
+        <div class="band-photo">
+          {% if r.teacher_emp_code %}
+          <img src="{{ url_for('static', filename='img/teachers/' ~ r.teacher_emp_code ~ '.jpg') }}"
+               alt="{{ tname }}"
+               onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          {% endif %}
+          <div class="band-initials" {% if r.teacher_emp_code %}style="display:none"{% endif %}>{{ initials }}</div>
+        </div>
+        <div class="band-info">
+          <div class="band-name">{{ tname }}</div>
+          <div class="band-sub">{{ r.subject_code or '' }} {{ r.subject_name or '' }}</div>
+          <div class="band-sub">Dept: <strong>{{ r.branch_code or '—' }}</strong> · HOD: <strong>{{ r.hod_names }}</strong></div>
+          <div class="band-sub">{{ r.valid_responses or r.response_count or 0 }} response(s)</div>
+        </div>
+        <div class="band-score">{{ '%.2f'|format(r.overall_score) }}%</div>
+        <label class="band-pick">
+          {% if r.teacher_email %}
+          <input type="checkbox" class="band-cb" name="teacher_user_id" value="{{ r.teacher_user_id }}" checked>
+          Email: {{ r.teacher_email }}
+          {% else %}
+          <input type="checkbox" disabled> <span class="band-noemail">No email on file</span>
+          {% endif %}
+        </label>
+        <a class="btn btn-sm btn-accent"
+           href="{{ url_for('dean.performance_detail', teacher_id=r.teacher_user_id) }}">👁 View result</a>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="band-compose">
+      <h3 style="margin:.2rem 0 .5rem">✉ Email to ticked teachers</h3>
+      {% if not mail_ready %}
+      <div class="flash flash-warning">Email sending is not set up on the server yet
+        (MAIL_USER / MAIL_APP_PASSWORD). Messages cannot be delivered until it is.</div>
+      {% endif %}
+      <div class="field"><label for="band-subject">Subject</label>
+        <input type="text" id="band-subject" name="subject" maxlength="150" value="{{ default_subject }}" style="width:100%"></div>
+      <div class="field"><label for="band-message">Message (a default is filled in; you can rewrite it)</label>
+        <textarea id="band-message" name="message" rows="9" maxlength="5000" style="width:100%">{{ default_message }}</textarea>
+        <p class="sub" style="margin:.3rem 0 0">Placeholders filled for each teacher:
+          <code>{name}</code> <code>{score}</code> <code>{subject}</code> <code>{dean}</code> <code>{hod}</code></p></div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-accent">✉ Send email</button>
+        <button type="button" class="btn btn-ghost" id="band-reset">Restore default message</button>
+      </div>
+    </div>
+    </form>
+    <script>
+    (function(){
+      var all=document.getElementById('band-all');
+      var cbs=document.querySelectorAll('.band-cb');
+      all.addEventListener('change',function(){cbs.forEach(function(c){c.checked=all.checked;});});
+      cbs.forEach(function(c){c.addEventListener('change',function(){
+        all.checked=Array.prototype.every.call(cbs,function(x){return x.checked;});});});
+      var msg=document.getElementById('band-message'), def=msg.value;
+      document.getElementById('band-reset').addEventListener('click',function(){msg.value=def;});
+    })();
+    </script>
+    {% else %}
+    <div class="dz-empty">No teachers in this score band for the selected filters.</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if not active %}
   {% if rows %}
   <div class="dz-fac-grid">
     {% for r in rows %}
@@ -63,6 +164,7 @@
   </div>
   {% else %}
   <div class="dz-card"><div class="dz-empty">No published feedback forms for the selected department and filters yet.</div></div>
+  {% endif %}
   {% endif %}
 </div>
 {% endblock %}
