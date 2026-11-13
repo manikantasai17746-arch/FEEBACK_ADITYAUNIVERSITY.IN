@@ -630,7 +630,6 @@ MIGRATIONS = [
     ]),
     # Phase 4: teacher-managed second-faculty assignments.
     (21, "Second-faculty soft-removal audit columns", [
->>>>>>> origin/phase3-teacher-assignment-setup
         "ALTER TABLE second_faculty_assignments ADD COLUMN removed_at TEXT",
         "ALTER TABLE second_faculty_assignments ADD COLUMN removed_by INTEGER",
         "ALTER TABLE second_faculty_assignments ADD COLUMN updated_by INTEGER",
@@ -648,4 +647,5 @@ MIGRATIONS = [
         "UPDATE teacher_subject_settings SET lab_status='available' "
         "WHERE lab_available=1 AND lab_status IS NULL",
         "CREATE INDEX IF NOT EXISTS ix_tss_lab_status ON teacher_subject_settings(lab_status)",
+    ]),
 ]
