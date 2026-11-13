@@ -628,8 +628,6 @@ MIGRATIONS = [
              AND must_change_password=0""",
         "UPDATE users SET email_verified=1 WHERE role='teacher' AND COALESCE(TRIM(email), '') <> ''",
     ]),
-<<<<<<< HEAD
-
     # Phase 3: Teacher Assignment Setup (room + lab availability).
     #  * teacher_subject_settings (v19, UNIQUE(session_id)) already stores one row
     #    per teaching session = section + subject + teacher, which is exactly the
@@ -649,7 +647,7 @@ MIGRATIONS = [
         "UPDATE teacher_subject_settings SET lab_status='available' "
         "WHERE lab_available=1 AND lab_status IS NULL",
         "CREATE INDEX IF NOT EXISTS ix_tss_lab_status ON teacher_subject_settings(lab_status)",
-=======
+    ]),
     # Phase 4: teacher-managed second-faculty assignments.
     # The v8/v19 table already carries every scope column (academic year,
     # semester, branch, timetable/section, session, subject) and
@@ -657,7 +655,7 @@ MIGRATIONS = [
     # audit trail for soft removal is added.  A removed assignment keeps its row
     # (status 'rejected' + removed_at) so forms/feedback that reference it stay
     # intact; re-adding the same employee re-activates that row.
-    (21, "Second-faculty soft-removal audit columns", [
+    (22, "Second-faculty soft-removal audit columns", [
         "ALTER TABLE second_faculty_assignments ADD COLUMN removed_at TEXT",
         "ALTER TABLE second_faculty_assignments ADD COLUMN removed_by INTEGER",
         "ALTER TABLE second_faculty_assignments ADD COLUMN updated_by INTEGER",
@@ -665,6 +663,5 @@ MIGRATIONS = [
         "ON second_faculty_assignments(second_teacher_user_id, status)",
         "CREATE INDEX IF NOT EXISTS ix_sfa_main_status "
         "ON second_faculty_assignments(main_teacher_user_id, status)",
->>>>>>> origin/main
     ]),
 ]
