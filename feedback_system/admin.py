@@ -8,7 +8,8 @@ from datetime import datetime
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
                    render_template, request, url_for, Response)
 
-from . import db, mailer, services, verification
+from . import category_forms, db, mailer, services, verification
+from .feedback_categories import ScopeError
 from .security import current_user, hash_password, role_required, audit
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -379,7 +380,12 @@ def form_status(fid):
             for e in errors:
                 flash(e, 'error')
             return redirect(url_for('admin.form_edit', fid=fid))
-    services.set_form_status(fid, status)
+    try:
+        category_forms.change_status(current_user(), fid, status)
+    except ScopeError as exc:
+        for e in (getattr(exc, 'errors', None) or [exc.message]):
+            flash(e, 'error')
+        return redirect(request.form.get('next') or url_for('admin.forms'))
     flash(f'Form status updated to {status}.', 'success')
     return redirect(request.form.get('next') or url_for('admin.forms'))
 

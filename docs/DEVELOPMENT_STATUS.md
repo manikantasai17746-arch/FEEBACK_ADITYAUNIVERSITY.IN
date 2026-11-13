@@ -69,6 +69,21 @@ Handoffs: `docs/PHASE_HANDOFFS/TEST_BASELINE_HANDOFF.md`, `docs/PHASE_HANDOFFS/M
 - Per-category HOD PDF downloads at `/hod/results/{main,second,lab}.pdf`.
 - Reuses reports.py; filters match results UI; HOD scope only.
 - Tests: test_hod_category_pdf.py 5 passed.
+ 
+## 3f. Latest reported test baseline from earlier Phase 6 planning notes
+
+The latest Checkpoint 0 inspection report supplied during planning reports:
+
+| Test command | Reported result |
+|---|---|
+| Phase 5B verification + Phase 5B safety fixes + Second Faculty Phase 4 unittest modules | 73 tests, OK |
+| Full pytest suite | 315 passed, 12 failed, 12 errors |
+
+The Checkpoint 0 report says 12 failures/errors appear around login requests returning 302 where tests expect 200/403, including `test_app.py`, `test_multi_round.py`, `test_teacher_scoping.py`, `test_hod_dean_second_faculty.py`, and `test_photos_phase1.py`. It suspects first-login/onboarding redirects but explicitly has **not confirmed the root cause**.
+
+It also reports a stale assertion in `test_assignment_setup_phase3.py::test_migration_v21…`: the test expects schema version 21 while current schema is reported as v24.
+
+These results are reported, not independently rerun as part of this documentation task. Do not call the failures harmless. Re-run and investigate before claiming a current baseline.
 
 ## 4. Phase 6 — planned, not implemented
 

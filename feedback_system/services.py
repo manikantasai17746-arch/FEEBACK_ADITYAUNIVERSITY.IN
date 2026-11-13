@@ -792,6 +792,10 @@ def set_form_deadline(form_id, deadline_iso):
 
 def set_form_status(form_id, status, admin_id=None):
     assert status in ('draft', 'open', 'closed', 'archived')
+    if status == 'draft' and form_has_submissions(form_id):
+        # Fail closed for every caller: a form students have answered can never
+        # disappear back into draft (see category_forms.change_status).
+        raise ValueError('A form with submissions cannot be returned to draft.')
     now = datetime.utcnow().isoformat(timespec='seconds')
     extra, args = '', []
     if status == 'open':
@@ -1224,6 +1228,16 @@ def _scope_clause(session_ids):
     return ' AND session_id IN (%s)' % ','.join('?' * len(ids)), tuple(ids)
 
 
+# Anonymous comments are ALWAYS listed in an order derived from their own text,
+# never from answer_id / insertion order.  answer_id follows submission order and
+# the admin tracking pages show each student's submission time, so listing by id
+# would let someone line comments up with students.  Ordering by content makes the
+# list a function of the SET of comments only; because it is applied in SQL, every
+# page of a paginated listing uses the same order (LIMIT/OFFSET cannot bring the
+# submission order back).  Identical texts are interchangeable, so ties leak nothing.
+_COMMENT_ORDER = 'LOWER(text_value), text_value'
+
+
 def question_stats(form_id, session_ids=None):
     """Per-question statistics computed from the anonymous answers view.
 
@@ -1240,7 +1254,7 @@ def question_stats(form_id, session_ids=None):
         if q['qtype'] == 'text':
             rows = db.query("""SELECT text_value FROM anonymous_answers
                 WHERE question_id=? AND text_value IS NOT NULL AND TRIM(text_value)<>''
-                """ + clause + ' ORDER BY answer_id', (q['id'],) + args)
+                """ + clause + ' ORDER BY ' + _COMMENT_ORDER, (q['id'],) + args)
             entry['suggestions'] = [r['text_value'] for r in rows]
             entry['valid'] = len(rows)
             result.append(entry)
@@ -1282,9 +1296,9 @@ def suggestions_paged(form_id, page=1, per_page=10, session_ids=None):
     total = db.query("""SELECT COUNT(*) c FROM anonymous_answers
         WHERE form_id=? AND text_value IS NOT NULL AND TRIM(text_value)<>''""" + clause,
         (form_id,) + args, one=True)['c']
-    rows = db.query("""SELECT text_value, submitted_at FROM anonymous_answers
+    rows = db.query("""SELECT text_value FROM anonymous_answers
         WHERE form_id=? AND text_value IS NOT NULL AND TRIM(text_value)<>''""" + clause +
-        ' ORDER BY answer_id LIMIT ? OFFSET ?',
+        ' ORDER BY ' + _COMMENT_ORDER + ' LIMIT ? OFFSET ?',
         (form_id,) + args + (per_page, (page - 1) * per_page))
     pages = max(1, (total + per_page - 1) // per_page)
     return {'comments': [r['text_value'] for r in rows], 'total': total,
