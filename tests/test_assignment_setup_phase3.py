@@ -421,6 +421,7 @@ def test_t18_all_four_steps_are_present_and_navigable(t1):
                   'Previous Step', 'Next Step', 'Save Configuration', 'Cancel changes',
                   'Yes, save'):
         assert label in html, label
+    assert html.count('Room Not Assigned') == 4
     assert 'js/assignment_setup.js' in html and 'css/assignment_setup.css' in html
     # actual click-through navigation is exercised in test_assignment_setup_ui.py
 
@@ -438,6 +439,9 @@ def test_t19_t20_save_then_reload_persists(app, t1, world, client_factory):
     html = fresh.get(SETUP).get_data(as_text=True)
     assert 'Setup complete' in html
     assert 'value="205"' in html and 'value="301"' in html and 'value="104"' in html
+    assert 'Assigned Room:</b> 205' in html
+    assert 'Assigned Room:</b> 301' in html
+    assert 'Assigned Room:</b> 104' in html
     assert re.search(r'name="lab-%d" value="available" checked' % world['ads_a'], html)
     assert re.search(r'name="lab-%d" value="none" checked' % world['ac_a'], html)
     assert got  # structure sanity

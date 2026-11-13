@@ -123,7 +123,12 @@
       </div>
       {% for sec in sub.sections %}
       <div class="tas-row" data-row-lab="{{ sec.session_id }}">
-        <div class="tas-meta">{{ section_meta(sec) }}</div>
+        <div class="tas-meta">
+          {{ section_meta(sec) }}
+          <span class="tas-room-assigned">
+            <b>Assigned Room:</b> {{ sec.room or 'Room Not Assigned' }}
+          </span>
+        </div>
         <fieldset class="tas-choice" data-lab-group="{{ sec.session_id }}" data-saved="{{ sec.lab_status or '' }}">
           <legend class="sr-only">Lab availability for {{ sub.subject_code }} section {{ sec.section }}</legend>
           <label class="tas-radio"><input type="radio" name="lab-{{ sec.session_id }}" value="available" {{ 'checked' if sec.lab_status == 'available' }}><span>Lab Available</span></label>

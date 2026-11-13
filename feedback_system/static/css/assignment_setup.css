@@ -46,6 +46,8 @@
 .tas-row.has-error{background:#fff6f4}
 .tas-meta{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
 .tas-chip{background:var(--navy-soft);color:var(--navy-dark);border-radius:20px;padding:2px 9px;font-size:.75rem;font-weight:600;white-space:nowrap}
+.tas-room-assigned{color:var(--navy-dark);font-size:.75rem;font-weight:600;white-space:nowrap}
+.tas-room-assigned b{color:var(--muted)}
 .tas-facts{display:flex;gap:18px;margin:0}
 .tas-facts div{min-width:0}
 .tas-facts dt{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
