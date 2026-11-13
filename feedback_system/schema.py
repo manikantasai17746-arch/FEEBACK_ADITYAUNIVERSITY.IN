@@ -543,4 +543,14 @@ MIGRATIONS = [
         "ALTER TABLE improvement_actions ADD COLUMN hod_replied_at TEXT",
         "CREATE INDEX IF NOT EXISTS ix_ia_teacher ON improvement_actions(teacher_user_id, form_id)",
     ]),
+    # ------------------------------------------------------------------ v18
+    # Login lockout shared by every server instance (serverless-safe). Keys are
+    # stored as SHA-256 hashes, never as raw roll numbers / e-mails.
+    (18, "Shared login-attempt counters for lockout", [
+        """CREATE TABLE IF NOT EXISTS login_attempts(
+            attempt_key TEXT PRIMARY KEY,
+            fail_count INTEGER NOT NULL DEFAULT 0,
+            first_ts BIGINT NOT NULL,
+            until_ts BIGINT NOT NULL DEFAULT 0)""",
+    ]),
 ]
