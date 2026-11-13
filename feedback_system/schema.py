@@ -664,4 +664,80 @@ MIGRATIONS = [
         "CREATE INDEX IF NOT EXISTS ix_sfa_main_status "
         "ON second_faculty_assignments(main_teacher_user_id, status)",
     ]),
+
+    # ------------------------------------------------------------------ v23
+    # Phase 5A: three independent feedback categories (main / second / lab).
+    # Purely additive: no row is rewritten, no table rebuilt.
+    #  * feedback_forms.category keeps its existing stored values
+    #    ('main','second','lab', plus legacy 'subject_only'/'any').  Canonical
+    #    names (main_faculty ...) are mapped in feedback_categories.py.
+    #  * category_basis records HOW RELIABLE a form's category is, so legacy
+    #    forms are never silently called "main":
+    #      declared        category is backed by an assignment id on the form
+    #      session_teacher session-scoped 'main' form whose session has a teacher
+    #      unclassified    nothing reliable (subject-scoped, no session, ...)
+    #  * form_eligible_students freezes WHO was eligible when a form was published
+    #    (identity is kept here, never next to answers).
+    #  * feedback_responses is the anonymous answer store: no student column and
+    #    no submission id.  response_group is a random per-submission token that
+    #    exists ONLY in this table, so answers of one submission can be grouped
+    #    without any path back to a student.  (Written by Phase 5B.)
+    #  * submissions gains category/assignment_id (completion tracking per category).
+    #  * lab_batch_students: optional lab batch membership.  If an assignment has
+    #    rows here only those students are eligible; if none, the whole session.
+    (23, "Three feedback categories: scope, eligibility snapshot, anonymous responses", [
+        "ALTER TABLE feedback_forms ADD COLUMN category_basis TEXT",
+        "ALTER TABLE feedback_forms ADD COLUMN eligible_count_at_publish INTEGER",
+        "ALTER TABLE feedback_forms ADD COLUMN eligibility_snapshot_at TEXT",
+        "ALTER TABLE submissions ADD COLUMN category TEXT",
+        "ALTER TABLE submissions ADD COLUMN assignment_id INTEGER",
+        """CREATE TABLE IF NOT EXISTS form_eligible_students(
+            form_id INTEGER NOT NULL REFERENCES feedback_forms(id),
+            student_user_id INTEGER NOT NULL REFERENCES users(id),
+            PRIMARY KEY (form_id, student_user_id))""",
+        "CREATE INDEX IF NOT EXISTS ix_fes_student ON form_eligible_students(student_user_id)",
+        """CREATE TABLE IF NOT EXISTS feedback_responses(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            form_id INTEGER NOT NULL REFERENCES feedback_forms(id),
+            category TEXT NOT NULL CHECK(category IN ('main','second','lab')),
+            session_id INTEGER REFERENCES class_sessions(id),
+            assignment_id INTEGER,
+            question_id INTEGER NOT NULL REFERENCES form_questions(id),
+            option_id INTEGER REFERENCES question_options(id),
+            text_value TEXT,
+            response_group TEXT NOT NULL,
+            created_day TEXT NOT NULL)""",
+        "CREATE INDEX IF NOT EXISTS ix_fresp_form_q ON feedback_responses(form_id, question_id)",
+        "CREATE INDEX IF NOT EXISTS ix_fresp_form_session ON feedback_responses(form_id, session_id)",
+        "CREATE INDEX IF NOT EXISTS ix_fresp_category ON feedback_responses(category, form_id)",
+        """CREATE TABLE IF NOT EXISTS lab_batch_students(
+            lab_faculty_assignment_id INTEGER NOT NULL REFERENCES lab_faculty_assignments(id),
+            student_user_id INTEGER NOT NULL REFERENCES users(id),
+            PRIMARY KEY (lab_faculty_assignment_id, student_user_id))""",
+        "CREATE INDEX IF NOT EXISTS ix_lbs_student ON lab_batch_students(student_user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_forms_sfa ON feedback_forms(second_faculty_assignment_id)",
+        "CREATE INDEX IF NOT EXISTS ix_forms_lfa ON feedback_forms(lab_faculty_assignment_id)",
+        "CREATE INDEX IF NOT EXISTS ix_forms_session_cat ON feedback_forms(session_id, category)",
+        # --- conservative back-fill of category_basis (category values untouched)
+        """UPDATE feedback_forms SET category_basis='declared'
+           WHERE category_basis IS NULL AND category='second'
+             AND second_faculty_assignment_id IS NOT NULL""",
+        """UPDATE feedback_forms SET category_basis='declared'
+           WHERE category_basis IS NULL AND category='lab'
+             AND lab_faculty_assignment_id IS NOT NULL""",
+        """UPDATE feedback_forms SET category_basis='session_teacher'
+           WHERE category_basis IS NULL AND category='main'
+             AND COALESCE(scope,'session')='session'
+             AND session_id IS NOT NULL
+             AND EXISTS (SELECT 1 FROM class_sessions cs
+                         WHERE cs.id=feedback_forms.session_id
+                           AND cs.teacher_user_id IS NOT NULL)""",
+        "UPDATE feedback_forms SET category_basis='unclassified' WHERE category_basis IS NULL",
+        # Submission tracking inherits the form's category only where that is reliable.
+        """UPDATE submissions SET category=(SELECT f.category FROM feedback_forms f
+                                           WHERE f.id=submissions.form_id)
+           WHERE category IS NULL AND EXISTS (
+               SELECT 1 FROM feedback_forms f WHERE f.id=submissions.form_id
+                 AND f.category_basis IN ('declared','session_teacher'))""",
+    ]),
 ]

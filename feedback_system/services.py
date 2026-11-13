@@ -514,9 +514,18 @@ def save_form(payload, questions, admin_id, form_id=None, session_ids=None):
     # Optional category / second-faculty linkage (HOD or admin). Defaults keep
     # existing behaviour: category='main', no second_faculty_assignment_id.
     category = (payload.get('category') or 'main').strip().lower()
-    if category not in ('main', 'second', 'subject_only', 'any'):
+    if category not in ('main', 'second', 'lab', 'subject_only', 'any'):
         category = 'main'
     fields['category'] = category
+    # Phase 5A: a lab form carries its lab_faculty_assignment_id (None otherwise).
+    if 'lab_faculty_assignment_id' in payload:
+        try:
+            lfa = payload.get('lab_faculty_assignment_id')
+            fields['lab_faculty_assignment_id'] = int(lfa) if lfa else None
+        except (TypeError, ValueError):
+            fields['lab_faculty_assignment_id'] = None
+    if 'category_basis' in payload:
+        fields['category_basis'] = payload.get('category_basis')
     sfa_id = payload.get('second_faculty_assignment_id')
     if sfa_id is not None:
         try:
