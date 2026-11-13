@@ -1,5 +1,6 @@
 """Security utilities: password hashing, CSRF, RBAC, rate limiting, audit log."""
 import functools
+import hashlib
 import logging
 import os
 import secrets
@@ -283,7 +284,12 @@ def _prune(now):
         _ATTEMPTS.pop(k, None)
 
 
-def login_locked(key):
+def _db_key(key):
+    """Hash the key so raw roll numbers / e-mails are never stored and length is bounded."""
+    return hashlib.sha256(str(key).encode('utf-8')).hexdigest()
+
+
+def _mem_locked(key):
     with _ATTEMPTS_LOCK:
         rec = _ATTEMPTS.get(key)
         if not rec:
@@ -293,8 +299,7 @@ def login_locked(key):
         return 0
 
 
-def register_login_failure(key, max_attempts, lock_seconds, window_seconds=900):
-    """Count a failed login. Old failures stop counting after ``window_seconds``."""
+def _mem_register(key, max_attempts, lock_seconds, window_seconds):
     now = _now()
     with _ATTEMPTS_LOCK:
         _prune(now)
@@ -308,7 +313,63 @@ def register_login_failure(key, max_attempts, lock_seconds, window_seconds=900):
             rec['first'] = now
 
 
+def login_locked(key):
+    """Seconds left on a lockout (0 = not locked). Shared across all server instances.
+
+    Uses the login_attempts table; falls back to in-process memory if the
+    database call fails, so a database hiccup can never block every login.
+    """
+    try:
+        row = db.query('SELECT until_ts FROM login_attempts WHERE attempt_key=?',
+                       (_db_key(key),), one=True)
+        if not row:
+            return 0
+        left = int(row['until_ts']) - int(_now())
+        return left if left > 0 else 0
+    except Exception:
+        logger.warning('login_attempts lookup failed; using in-memory lockout', exc_info=True)
+        return _mem_locked(key)
+
+
+def register_login_failure(key, max_attempts, lock_seconds, window_seconds=900):
+    """Count a failed login. Old failures stop counting after ``window_seconds``."""
+    now = int(_now())
+    k = _db_key(key)
+    try:
+        row = db.query('SELECT fail_count, first_ts, until_ts FROM login_attempts '
+                       'WHERE attempt_key=?', (k,), one=True)
+        if row is None or (int(row['until_ts']) <= now
+                           and now - int(row['first_ts']) > window_seconds):
+            count, first, until = 1, now, 0
+        else:
+            count, first, until = int(row['fail_count']) + 1, int(row['first_ts']), int(row['until_ts'])
+        if count >= max_attempts:
+            until, count, first = now + lock_seconds, 0, now
+        if row is None:
+            try:
+                db.execute('INSERT INTO login_attempts(attempt_key, fail_count, first_ts, until_ts) '
+                           'VALUES(?,?,?,?)', (k, count, first, until))
+            except Exception:
+                # Two simultaneous failures created the row first: update instead.
+                db.get_db().rollback()
+                db.execute('UPDATE login_attempts SET fail_count=?, first_ts=?, until_ts=? '
+                           'WHERE attempt_key=?', (count, first, until, k))
+        else:
+            db.execute('UPDATE login_attempts SET fail_count=?, first_ts=?, until_ts=? '
+                       'WHERE attempt_key=?', (count, first, until, k))
+        if secrets.randbelow(50) == 0:      # occasional cleanup keeps the table small
+            db.execute('DELETE FROM login_attempts WHERE until_ts < ? AND first_ts < ?',
+                       (now, now - 4 * window_seconds))
+    except Exception:
+        logger.warning('login_attempts write failed; using in-memory lockout', exc_info=True)
+        _mem_register(key, max_attempts, lock_seconds, window_seconds)
+
+
 def clear_login_failures(key):
+    try:
+        db.execute('DELETE FROM login_attempts WHERE attempt_key=?', (_db_key(key),))
+    except Exception:
+        logger.warning('login_attempts clear failed', exc_info=True)
     with _ATTEMPTS_LOCK:
         _ATTEMPTS.pop(key, None)
 
