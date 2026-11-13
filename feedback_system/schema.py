@@ -740,4 +740,32 @@ MIGRATIONS = [
                SELECT 1 FROM feedback_forms f WHERE f.id=submissions.form_id
                  AND f.category_basis IN ('declared','session_teacher'))""",
     ]),
+
+    # ------------------------------------------------------------------ v24
+    # Phase 5B: the Lab category is the MAIN faculty's lab teaching (no separate
+    # Lab Faculty) and new submissions store their answers ONLY in the anonymous
+    # feedback_responses table (v23).  Purely additive; v23 is untouched.
+    #  * anonymous_answers (the read-side every results page uses) is replaced by
+    #    a view over BOTH stores: legacy `answers` (pre-5B submissions) and
+    #    `feedback_responses` (5B).  Neither branch exposes a student or a
+    #    submission id.  For 5B rows submitted_at is the DAY only, and answer_id
+    #    is offset so ids from the two stores never collide.
+    #  * ix_submissions_form_cat: completion lookups per form / category.
+    (24, "Phase 5B: anonymous_answers reads legacy + feedback_responses", [
+        "DROP VIEW IF EXISTS anonymous_answers",
+        """CREATE VIEW anonymous_answers AS
+            SELECT a.id AS answer_id, a.question_id AS question_id, a.option_id AS option_id,
+                   a.text_value AS text_value, s.form_id AS form_id,
+                   s.session_id AS session_id, s.submitted_at AS submitted_at
+            FROM answers a
+            JOIN submissions s ON s.id = a.submission_id
+            UNION ALL
+            SELECT r.id + 1000000000 AS answer_id, r.question_id AS question_id,
+                   r.option_id AS option_id, r.text_value AS text_value,
+                   r.form_id AS form_id, r.session_id AS session_id,
+                   r.created_day AS submitted_at
+            FROM feedback_responses r""",
+        "CREATE INDEX IF NOT EXISTS ix_submissions_form_cat ON submissions(form_id, category)",
+        "CREATE INDEX IF NOT EXISTS ix_fresp_group ON feedback_responses(form_id, response_group)",
+    ]),
 ]

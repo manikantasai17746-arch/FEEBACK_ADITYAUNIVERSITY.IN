@@ -5,7 +5,22 @@ Categories
 Stored value (``feedback_forms.category``)  Canonical name   Assignment it points at
 ``main``                                    main_faculty     ``class_sessions.id`` (Phase 3 "teacher assignment")
 ``second``                                  second_faculty   ``second_faculty_assignments.id`` (Phase 4)
-``lab``                                     lab_faculty      ``lab_faculty_assignments.id``
+``lab``                                     lab_faculty      ``class_sessions.id`` (Phase 5B, see below)
+
+Phase 5B correction - what the three categories mean
+----------------------------------------------------
+* ``main``   Main Faculty feedback: the Main Faculty's regular subject teaching.
+* ``second`` Second Faculty feedback: the assigned Second Faculty's LAB ASSISTANCE
+             (observing students, checking practical work, helping with coding,
+             clearing doubts).
+* ``lab``    Lab feedback: the SAME Main Faculty's lab / practical teaching.  It
+             does NOT use a separate Lab Faculty.  It is anchored on the session
+             (``class_sessions.id``) and is only valid for a Lab Available session.
+             ``lab_faculty_assignments`` (Phase 1 table) is no longer used.
+
+Expected forms per session: No Lab -> main; Lab Available -> main + lab;
+Lab Available with a confirmed Second Faculty -> main + lab + one second per
+confirmed Second Faculty.
 
 The stored values already existed (``main``/``second``) and are read by the
 Dean/HOD code, so they are kept; canonical names are exposed for the API.
@@ -105,9 +120,8 @@ def _require_lab_available(sc, who):
 def resolve_scope(category, assignment_id):
     """Resolve and validate the scope of one category from the database.
 
-    ``assignment_id`` is a ``class_sessions.id`` for main, a
-    ``second_faculty_assignments.id`` for second and a
-    ``lab_faculty_assignments.id`` for lab.  Returns a plain dict; raises
+    ``assignment_id`` is a ``class_sessions.id`` for main AND lab, and a
+    ``second_faculty_assignments.id`` for second.  Returns a plain dict; raises
     :class:`ScopeError` for anything that is missing, removed or inconsistent.
     """
     category = normalize_category(category)
@@ -159,25 +173,16 @@ def resolve_scope(category, assignment_id):
                   lab_faculty_assignment_id=None)
         return sc
 
-    # lab
-    a = db.query("""SELECT lfa.*, u.name AS lab_name, u.is_active AS lab_active
-                    FROM lab_faculty_assignments lfa
-                    LEFT JOIN users u ON u.id = lfa.lab_teacher_user_id
-                    WHERE lfa.id=?""", (aid,), one=True)
-    if not a:
-        raise ScopeError('assignment_not_found',
-                         'That Lab Faculty assignment does not exist. Lab Faculty must be '
-                         'assigned before Lab feedback can be created.', 404)
-    if a['status'] != 'confirmed':
-        raise ScopeError('assignment_not_confirmed', 'That Lab Faculty assignment is cancelled.')
-    if not a['lab_active']:
-        raise ScopeError('faculty_inactive', 'The Lab Faculty member is not active.')
-    sc = _session_scope(a['session_id'])
-    _require_lab_available(sc, 'Lab Faculty')
-    sc.update(category=LAB, assignment_id=aid, faculty_user_id=a['lab_teacher_user_id'],
-              faculty_emp_code=a['lab_emp_code'], faculty_name=a['lab_name'],
-              main_assignment_id=sc['session_id'], second_faculty_assignment_id=None,
-              lab_faculty_assignment_id=aid)
+    # lab: the Main Faculty's lab teaching.  Anchored on the session itself.
+    sc = _session_scope(aid)
+    if not sc['teacher_user_id'] or not sc['main_active']:
+        raise ScopeError('no_main_faculty',
+                         'No active Main Faculty is assigned to this subject and section.')
+    _require_lab_available(sc, 'Lab')
+    sc.update(category=LAB, assignment_id=aid, faculty_user_id=sc['teacher_user_id'],
+              faculty_emp_code=sc['main_emp_code'], faculty_name=sc['main_name'],
+              main_assignment_id=aid, second_faculty_assignment_id=None,
+              lab_faculty_assignment_id=None)
     return sc
 
 
@@ -189,7 +194,7 @@ def scope_for_form(form):
     elif category == SECOND:
         aid = form['second_faculty_assignment_id']
     else:
-        aid = form['lab_faculty_assignment_id']
+        aid = form['session_id']          # lab = the Main Faculty's lab, keyed on the session
     if not aid:
         raise ScopeError('assignment_missing',
                          'This form is not linked to a faculty assignment.')
@@ -209,16 +214,7 @@ def _eligibility_where(sc):
              JOIN users u ON u.id = ss.student_user_id
              WHERE ss.session_id = ? AND u.role = 'student' AND u.is_active = 1"""
     args = [sc['session_id']]
-    if sc['category'] == LAB and _has_lab_batch(sc['assignment_id']):
-        sql += (' AND ss.student_user_id IN (SELECT student_user_id FROM lab_batch_students '
-                'WHERE lab_faculty_assignment_id = ?)')
-        args.append(sc['assignment_id'])
     return sql, args
-
-
-def _has_lab_batch(lab_assignment_id):
-    return db.query('SELECT 1 FROM lab_batch_students WHERE lab_faculty_assignment_id=? LIMIT 1',
-                    (lab_assignment_id,), one=True) is not None
 
 
 def eligible_students(sc, limit=None, offset=0):
@@ -299,24 +295,86 @@ def student_eligible_for_form(student_user_id, form):
     return True, None
 
 
+_ACCESS_MESSAGES = {
+    'ineligible': 'You are not eligible for this feedback form.',
+    'no_lab': 'This feedback form is no longer available (the subject is not a lab subject).',
+}
+
+
+def is_session_scoped(form):
+    """second/lab forms are always tied to one session; main forms only when
+    published session-scoped (legacy subject-scoped main forms span several)."""
+    cat = form['category']
+    return cat in (SECOND, LAB) or (cat == MAIN and (form['scope'] or 'session') == 'session'
+                                    and bool(form['session_id']))
+
+
+def access_check(student_user_id, form):
+    """May this student open / answer this form?  Returns ``(ok, code, message)``.
+
+    * a frozen eligibility snapshot (forms published by Phase 5) decides who is
+      in; forms without a snapshot (published before Phase 5) keep the original
+      session-based rule, which the caller has already applied;
+    * the live scope must still be valid (assignment present, Second Faculty
+      still confirmed, lab still available, Main Faculty still active).
+    Legacy categories (``subject_only``/``any``) are not restricted here."""
+    cat = form['category']
+    if cat not in CATEGORIES:
+        return True, None, None
+    if has_snapshot(form['id']) and not student_in_snapshot(student_user_id, form['id']):
+        return False, 'ineligible', _ACCESS_MESSAGES['ineligible']
+    if is_session_scoped(form):
+        try:
+            scope_for_form(form)
+        except ScopeError as exc:
+            return False, exc.code, ('This feedback form is no longer available: '
+                                     + exc.message)
+    return True, None, None
+
+
 # --------------------------------------------------------------------------- #
 # Duplicate / conflict detection
 # --------------------------------------------------------------------------- #
-def conflicting_forms(category, assignment_id, exclude_form_id=None):
-    """Live (draft/open, not deleted) forms already covering this exact
-    category + assignment.  Closed/archived forms are history (survey rounds)."""
-    col = {MAIN: 'session_id', SECOND: 'second_faculty_assignment_id',
-           LAB: 'lab_faculty_assignment_id'}[category]
-    sql = (f"SELECT id, title, status FROM feedback_forms WHERE category=? AND {col}=? "
-           "AND is_deleted=0 AND status IN ('draft','open')")
-    args = [category, assignment_id]
-    if category == MAIN:
-        # A main form is one that is not a second/lab form on the same session.
-        sql += ' AND second_faculty_assignment_id IS NULL AND lab_faculty_assignment_id IS NULL'
+def conflicting_forms(category, assignment_id, exclude_form_id=None, phase=None):
+    """Live (draft/open, not deleted) forms already covering this exact category +
+    assignment (+ phase).  Closed/archived forms are history (survey rounds).
+    main/lab are keyed on the session, second on the Second Faculty assignment."""
+    if category == SECOND:
+        where, args = 'second_faculty_assignment_id=?', [assignment_id]
+    else:
+        where, args = 'session_id=? AND second_faculty_assignment_id IS NULL', [assignment_id]
+    sql = ("SELECT id, title, status FROM feedback_forms WHERE category=? AND " + where +
+           " AND is_deleted=0 AND status IN ('draft','open')"
+           " AND COALESCE(phase,'')=COALESCE(?,'')")
+    args = [category] + args + [phase]
     if exclude_form_id:
         sql += ' AND id<>?'
         args.append(exclude_form_id)
     return [dict(r) for r in db.query(sql, tuple(args))]
+
+
+def expected_categories(session_id):
+    """Which of the three forms a session should have, from the database only.
+
+    ``{'main': bool, 'lab': bool, 'second': [second_faculty_assignment ids]}``.
+    No Lab -> main only; Lab Available -> main + lab; plus one ``second`` form per
+    confirmed, active Second Faculty when the lab is available."""
+    try:
+        sc = _session_scope(session_id)
+    except ScopeError:
+        return {'main': False, 'lab': False, 'second': []}
+    main_ok = bool(sc['teacher_user_id'] and sc['main_active'])
+    lab_ok = main_ok and sc.get('lab_status') == 'available'
+    second = []
+    if lab_ok:
+        second = [r['id'] for r in db.query(
+            """SELECT sfa.id FROM second_faculty_assignments sfa
+               JOIN users u ON u.id = sfa.second_teacher_user_id
+               WHERE sfa.session_id=? AND sfa.status='confirmed' AND u.is_active=1
+                 AND sfa.second_teacher_user_id IS NOT NULL
+                 AND sfa.second_teacher_user_id <> ?
+               ORDER BY sfa.id""", (session_id, sc['teacher_user_id']))]
+    return {'main': main_ok, 'lab': lab_ok, 'second': second}
 
 
 def duplicate_eligibility_records(form_id):

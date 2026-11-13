@@ -58,13 +58,15 @@
       </div>
 
       <div class="field">
-        <label for="category">Faculty type</label>
+        <label for="category">Feedback category</label>
         <select id="category">
-          <option value="main" selected>Main faculty (class teacher)</option>
-          <option value="second">Second faculty (requires confirmed assignment)</option>
+          <option value="main" selected>Main Faculty feedback — regular subject teaching</option>
+          <option value="lab">Lab feedback — the Main Faculty's lab / practical teaching (needs Lab Available)</option>
+          <option value="second">Second Faculty feedback — lab assistance (needs Lab Available + confirmed Second Faculty)</option>
         </select>
-        <div class="hint">Second faculty forms are only allowed when a confirmed second-faculty
-          assignment exists for the selected session.</div>
+        <div class="hint">Lab and Second Faculty forms apply to one subject / teacher / period
+          (Normal mode) whose lab is set to Lab Available in Assignment Setup. Lab feedback evaluates the
+          SAME Main Faculty as Main Faculty feedback; no separate Lab Faculty is needed.</div>
       </div>
 
       <div class="grid grid-3">

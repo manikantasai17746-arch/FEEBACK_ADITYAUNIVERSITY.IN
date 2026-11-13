@@ -443,7 +443,11 @@ FORM_SELECT = """SELECT f.*, cs.period_no,
     LEFT JOIN branches b ON b.id=f.branch_id
     LEFT JOIN semesters s ON s.id=f.semester_id
     LEFT JOIN academic_years ay ON ay.id=f.academic_year_id
-    LEFT JOIN users u ON u.id=cs.teacher_user_id"""
+    LEFT JOIN second_faculty_assignments sfa
+           ON sfa.id=f.second_faculty_assignment_id AND f.category='second'
+    LEFT JOIN users u ON u.id=(CASE WHEN f.category='second'
+                                    THEN sfa.second_teacher_user_id
+                                    ELSE cs.teacher_user_id END)"""
 
 
 def get_form(form_id, include_deleted=False):
@@ -579,6 +583,36 @@ def save_form(payload, questions, admin_id, form_id=None, session_ids=None):
     return form_id
 
 
+def _category_publish_errors(form):
+    """Phase 5B rules for the three categories, from the database only:
+    the assignment must resolve (Main Faculty active / Second Faculty confirmed /
+    subject is Lab Available), there must be eligible students and no other live
+    form may cover the same category + assignment + phase."""
+    from . import feedback_categories as fc
+    cat = form['category']
+    if cat not in fc.CATEGORIES:
+        return []
+    if not fc.is_session_scoped(form):
+        return []                      # legacy subject-scoped main form: unchanged
+    try:
+        sc = fc.scope_for_form(form)
+    except fc.ScopeError as exc:
+        return [exc.message]
+    errs = []
+    if form['status'] != 'open' and fc.eligible_count(sc) == 0:
+        errs.append('No eligible students exist for this assignment, so the form cannot '
+                    'be published.')
+    # Main forms keep the historical behaviour (several forms/rounds per period are
+    # allowed); the new Lab and Second Faculty forms allow one live form per
+    # assignment and phase.
+    for c in ([] if cat == fc.MAIN else
+              fc.conflicting_forms(cat, sc['assignment_id'], exclude_form_id=form['id'],
+                                   phase=form['phase'])):
+        errs.append(f'Another {c["status"]} {fc.canonical_name(cat).replace("_", " ")} form '
+                    f'(#{c["id"]}) already covers this assignment.')
+    return errs
+
+
 def validate_form_for_publish(form_id):
     errors = []
     form = get_form(form_id)
@@ -601,6 +635,7 @@ def validate_form_for_publish(form_id):
         errors.append(err + ' (Use "Change deadline" on the forms list.)')
     errors.extend(phase_rule_errors(
         form['phase'], sess_ids, exclude_form_id=form_id))
+    errors.extend(_category_publish_errors(form))
     questions = form_questions(form_id)
     if not questions:
         errors.append('Add at least one question.')
@@ -773,7 +808,37 @@ def set_form_status(form_id, status, admin_id=None):
                (status, now, *args, form_id))
     audit(f'form.{status}', 'feedback_forms', form_id, f'Status set to {status}')
     if status == 'open':
+        _freeze_category_eligibility(form_id)
         link_form_to_requirement(form_id)
+
+
+def _freeze_category_eligibility(form_id):
+    """Phase 5B: the first time a category form opens, freeze WHO is eligible
+    (``form_eligible_students``).  Re-opening a closed form keeps the frozen list.
+    Legacy subject-scoped forms are not frozen (they keep the session rule)."""
+    from . import feedback_categories as fc
+    form = get_form(form_id)
+    if not form or form['category'] not in fc.CATEGORIES or not fc.is_session_scoped(form):
+        return
+    try:
+        sc = fc.scope_for_form(form)
+    except fc.ScopeError:
+        return
+    if form['category'] == 'second':          # history shows the faculty the form is ABOUT
+        db.execute('UPDATE feedback_forms SET snapshot_teacher=? WHERE id=?',
+                   (sc['faculty_name'], form_id))
+    if fc.has_snapshot(form_id):
+        return
+    conn = db.get_db()
+    try:
+        n = fc.snapshot_eligibility(conn, form_id, sc)
+        conn.execute('UPDATE feedback_forms SET eligible_count_at_publish=?, '
+                     'eligibility_snapshot_at=?, category_basis=? WHERE id=?',
+                     (n, datetime.utcnow().isoformat(timespec='seconds'), 'declared', form_id))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
 
 
 def _requirement_matches_form(req, form):
@@ -910,34 +975,160 @@ _STUDENT_FORM_SELECT = """SELECT f.*,
     LEFT JOIN users u ON u.id=cs.teacher_user_id"""
 
 
+CATEGORY_LABELS = {
+    'main': 'Main Faculty Feedback',
+    'second': 'Second Faculty Feedback',
+    'lab': 'Lab Feedback',
+}
+CATEGORY_HINTS = {
+    'main': "Regular subject teaching by the Main Faculty",
+    'second': "Lab assistance by the Second Faculty: observing, checking practical work, "
+              "coding help and clearing doubts",
+    'lab': "Lab / practical teaching by the Main Faculty",
+}
+CATEGORY_ORDER = ('main', 'lab', 'second')
+
+
+def annotate_student_forms(student_user_id, rows):
+    """Turn student form rows into dicts for the portal.
+
+    * hides forms whose frozen eligibility snapshot does not contain the student;
+    * hides unanswered forms whose live scope became invalid (Second Faculty
+      removed, lab switched to No Lab, ...) - answered forms always stay visible;
+    * shows the faculty the form is ABOUT (the Second Faculty for a second form,
+      not the session's main teacher) and a category label.
+    """
+    from . import feedback_categories as fc
+    rows = [dict(r) for r in rows]
+    if not rows:
+        return rows
+    ids = [r['id'] for r in rows]
+    ph = ','.join('?' * len(ids))
+    snap_forms = {r['form_id'] for r in db.query(
+        f'SELECT DISTINCT form_id FROM form_eligible_students WHERE form_id IN ({ph})',
+        tuple(ids))}
+    mine = {r['form_id'] for r in db.query(
+        f'SELECT form_id FROM form_eligible_students WHERE student_user_id=? '
+        f'AND form_id IN ({ph})', (student_user_id, *ids))}
+    sfa_ids = [r['second_faculty_assignment_id'] for r in rows
+               if r.get('category') == 'second' and r.get('second_faculty_assignment_id')]
+    second = {}
+    if sfa_ids:
+        ph2 = ','.join('?' * len(set(sfa_ids)))
+        for r in db.query(
+                f"""SELECT sfa.id, u.name, u.emp_code, u.designation
+                    FROM second_faculty_assignments sfa
+                    JOIN users u ON u.id = sfa.second_teacher_user_id
+                    WHERE sfa.id IN ({ph2})""", tuple(set(sfa_ids))):
+            second[r['id']] = r
+    out = []
+    for r in rows:
+        cat = r.get('category')
+        if cat in fc.CATEGORIES:
+            if r['id'] in snap_forms and r['id'] not in mine:
+                continue
+            if not r.get('submission_id') and r['status'] == 'open':
+                ok, _c, _m = fc.access_check(student_user_id, r)
+                if not ok:
+                    continue
+            r['category_key'] = cat
+            r['category_label'] = CATEGORY_LABELS[cat]
+            r['category_hint'] = CATEGORY_HINTS[cat]
+            if cat == 'second' and r.get('second_faculty_assignment_id') in second:
+                f = second[r['second_faculty_assignment_id']]
+                r['teacher_name'], r['teacher_emp'] = f['name'], f['emp_code']
+                r['teacher_designation'] = f['designation']
+        else:
+            r['category_key'] = 'other'
+            r['category_label'] = 'Feedback'
+            r['category_hint'] = ''
+        out.append(r)
+    return out
+
+
 def student_forms(student_user_id):
     """All non-draft, non-deleted forms the student is eligible to answer.
 
     Eligibility is resolved through ``form_sessions`` so a subject-scoped form
     reaches every student group that studies the subject.  ``GROUP BY f.id``
     guarantees a single row per form even when a student matches several of the
-    covered sessions.
+    covered sessions.  Phase 5B then applies the per-category rules
+    (:func:`annotate_student_forms`).
     """
-    return db.query(_STUDENT_FORM_SELECT + """
+    rows = db.query(_STUDENT_FORM_SELECT + """
         WHERE f.is_deleted=0 AND f.status<>'draft'
         GROUP BY f.id
         ORDER BY (f.status='open') DESC, period_no, f.subject_code""",
         (student_user_id, student_user_id, student_user_id))
+    return annotate_student_forms(student_user_id, rows)
 
 
 def student_form(student_user_id, form_id):
-    return db.query(_STUDENT_FORM_SELECT + """
+    row = db.query(_STUDENT_FORM_SELECT + """
         WHERE f.id=? AND f.is_deleted=0 AND f.status<>'draft'
         GROUP BY f.id""",
         (student_user_id, student_user_id, student_user_id, form_id), one=True)
+    if not row:
+        return None
+    rows = annotate_student_forms(student_user_id, [row])
+    return rows[0] if rows else None
+
+
+def _parse_answers(questions, form_payload):
+    """Validate the posted answers against the form's OWN questions/options.
+
+    Returns ``(prepared, error)`` with ``prepared = [(question_id, option_id,
+    text)]``.  Only the form's questions are read, so unknown/foreign question
+    ids in the payload are ignored, an option that does not belong to its
+    question is rejected, and any number of questions is supported."""
+    getlist = form_payload.getlist if hasattr(form_payload, 'getlist') else None
+    prepared = []
+    for q in questions:
+        key = f'q_{q["id"]}'
+        if q['qtype'] == 'text':
+            text = (form_payload.get(key) or '').strip()[:2000]
+            if q['is_required'] and not text:
+                return None, f'Please answer: {q["text"]}'
+            prepared.append((q['id'], None, text or None))
+            continue
+        option_ids = {str(o['id']) for o in q['options']}
+        if getlist:
+            posted = [str(c) for c in getlist(key) if str(c).strip()]
+        else:
+            raw = form_payload.get(key)
+            posted = [str(c) for c in (raw if isinstance(raw, (list, tuple)) else [raw])
+                      if c not in (None, '')]
+        if any(c not in option_ids for c in posted):
+            return None, f'Invalid answer for: {q["text"]}'
+        posted = list(dict.fromkeys(posted))
+        if q['qtype'] != 'multiple_choice' and len(posted) > 1:
+            return None, f'Please choose only one answer for: {q["text"]}'
+        if q['is_required'] and not posted:
+            return None, f'Please answer: {q["text"]}'
+        prepared.extend((q['id'], int(c), None) for c in posted)
+    return prepared, None
 
 
 def submit_feedback(student_user_id, form_id, form_payload):
     """Validate and record a submission. Returns (ok, message).
 
-    Enforces: form open, student eligible, no duplicate, required questions and
-    option ownership. Answers are stored against the (anonymous) submission.
+    Checks, in order: the form is visible to the student, published (open),
+    before its deadline, not already submitted, the student is eligible for its
+    category/assignment, and every answer matches the form's own questions.
+
+    Storage (Phase 5B).  For the three categories the work is split in two
+    tables, written in ONE transaction:
+      * ``submissions``        completion tracking only (who finished which form,
+                               category and assignment) - holds NO answers;
+      * ``feedback_responses`` the anonymous answers: no student id, roll, e-mail
+                               or submission id, just a random per-submission
+                               ``response_group`` token and the DAY.
+    A form whose category is a pre-Phase-5 legacy value keeps the original
+    ``answers`` table.  ``UNIQUE(form_id, student_user_id)`` makes duplicate and
+    simultaneous submissions impossible; the loser gets the "already submitted"
+    message and nothing is stored twice.
     """
+    from . import feedback_categories as fc
     form = student_form(student_user_id, form_id)
     if not form:
         return False, 'That feedback form is not available to you.'
@@ -950,54 +1141,70 @@ def submit_feedback(student_user_id, form_id, form_payload):
         return False, 'You have already submitted feedback for this form.'
     if not student_eligible_for_form(student_user_id, form_id):
         return False, 'You are not eligible for this feedback form.'
+    ok, _code, message = fc.access_check(student_user_id, form)
+    if not ok:
+        return False, message
 
-    questions = form_questions(form_id)
-    prepared = []
-    for q in questions:
-        key = f'q_{q["id"]}'
-        if q['qtype'] == 'text':
-            text = (form_payload.get(key) or '').strip()[:2000]
-            if q['is_required'] and not text:
-                return False, f'Please answer: {q["text"]}'
-            prepared.append((q['id'], None, text or None))
-        else:
-            raw = form_payload.get(key)
-            option_ids = {str(o['id']) for o in q['options']}
-            if q['qtype'] == 'multiple_choice':
-                chosen = form_payload.getlist(key) if hasattr(form_payload, 'getlist') else \
-                    ([raw] if raw else [])
-                chosen = [c for c in chosen if str(c) in option_ids]
-                if q['is_required'] and not chosen:
-                    return False, f'Please answer: {q["text"]}'
-                for c in chosen:
-                    prepared.append((q['id'], int(c), None))
-            else:
-                if raw and str(raw) in option_ids:
-                    prepared.append((q['id'], int(raw), None))
-                elif q['is_required']:
-                    return False, f'Please answer: {q["text"]}'
+    prepared, error = _parse_answers(form_questions(form_id), form_payload)
+    if error:
+        return False, error
 
     # Bind the submission to the student's OWN covered session, so a form that
     # spans several timetables still keeps each group's responses attributable
     # to the right teaching session (for per-session, anonymous statistics).
     covered = student_form_session(student_user_id, form_id)
     submission_session = covered['session_id'] if covered else form['session_id']
+    category = form['category'] if form['category'] in fc.CATEGORIES else None
+    assignment_id = None
+    if category == fc.SECOND:
+        assignment_id = form['second_faculty_assignment_id']
+    elif category:
+        assignment_id = form['session_id']
 
     conn = db.get_db()
+    now = datetime.utcnow().isoformat(timespec='seconds')
     try:
-        now = datetime.utcnow().isoformat(timespec='seconds')
+        if not db.using_postgres():
+            try:                       # take the write lock before re-checking the form
+                conn.execute('BEGIN IMMEDIATE')
+            except Exception:
+                pass
+        # Re-check inside the transaction: the form may have been closed or its
+        # deadline reached while the student was answering.
+        cur_form = conn.execute('SELECT status, deadline_at FROM feedback_forms WHERE id=?',
+                                (form_id,)).fetchone()
+        if not cur_form or cur_form[0] != 'open' or (
+                cur_form[1] and str(cur_form[1]) <= _utc_now_iso()):
+            conn.rollback()
+            return False, 'This feedback form is closed and no longer accepts responses.'
         sub_id = db.insert_id(
-            'INSERT INTO submissions(form_id, session_id, student_user_id, submitted_at) '
-            'VALUES(?,?,?,?)', (form_id, submission_session, student_user_id, now))
-        conn.executemany(
-            'INSERT INTO answers(submission_id, question_id, option_id, text_value) '
-            'VALUES(?,?,?,?)', [(sub_id, qid, oid, txt) for (qid, oid, txt) in prepared])
+            'INSERT INTO submissions(form_id, session_id, student_user_id, submitted_at, '
+            'category, assignment_id) VALUES(?,?,?,?,?,?)',
+            (form_id, submission_session, student_user_id, now, category, assignment_id))
+        if category:
+            import random
+            import secrets
+            group = secrets.token_hex(12)             # exists ONLY in feedback_responses
+            rows = [(form_id, category, submission_session, assignment_id, qid, oid, txt,
+                     group, now[:10]) for (qid, oid, txt) in prepared]
+            random.SystemRandom().shuffle(rows)      # no insertion-order fingerprint
+            conn.executemany(
+                'INSERT INTO feedback_responses(form_id, category, session_id, assignment_id, '
+                'question_id, option_id, text_value, response_group, created_day) '
+                'VALUES(?,?,?,?,?,?,?,?,?)', rows)
+        else:
+            conn.executemany(
+                'INSERT INTO answers(submission_id, question_id, option_id, text_value) '
+                'VALUES(?,?,?,?)', [(sub_id, qid, oid, txt) for (qid, oid, txt) in prepared])
         conn.commit()
     except Exception:
         conn.rollback()
-        return False, 'You have already submitted feedback for this form.'
-    audit('feedback.submit', 'feedback_forms', form_id,
-          'Anonymous response recorded', actor=None)
+        if db.query('SELECT 1 FROM submissions WHERE form_id=? AND student_user_id=?',
+                    (form_id, student_user_id), one=True):
+            return False, 'You have already submitted feedback for this form.'
+        return False, 'Your feedback could not be saved. Please try again.'
+    audit('feedback.submit', 'feedback_forms', form_id, 'Anonymous response recorded',
+          actor={'id': None, 'name': 'system', 'username': 'system'})
     # Never let auto-publishing break a student's submission.
     try:
         maybe_auto_publish(form_id)
@@ -1234,11 +1441,23 @@ def sessions_by_section(session_ids):
     return list(groups.values())
 
 
+# The faculty member a form is ABOUT: the Second Faculty for a second form, the
+# session's Main Faculty for main and lab forms.  Teachers only ever see results of
+# forms about themselves; the Main Faculty never sees a colleague's Second Faculty
+# results (and vice versa).
+FACULTY_OF_FORM_SQL = ("(CASE WHEN f.category='second' THEN sfa.second_teacher_user_id "
+                       "ELSE cs.teacher_user_id END)")
+SFA_JOIN_SQL = ("LEFT JOIN second_faculty_assignments sfa "
+                "ON sfa.id=f.second_faculty_assignment_id AND f.category='second'")
+
+
 def teacher_form_session_ids(teacher_user_id, form_id):
     """The covered sessions of a form that belong to this teacher."""
-    rows = db.query("""SELECT cs.id FROM form_sessions fs
+    rows = db.query(f"""SELECT cs.id FROM form_sessions fs
+        JOIN feedback_forms f ON f.id=fs.form_id
         JOIN class_sessions cs ON cs.id=fs.session_id
-        WHERE fs.form_id=? AND cs.teacher_user_id=?""", (form_id, teacher_user_id))
+        {SFA_JOIN_SQL}
+        WHERE fs.form_id=? AND {FACULTY_OF_FORM_SQL}=?""", (form_id, teacher_user_id))
     return [r['id'] for r in rows]
 
 
@@ -1249,7 +1468,7 @@ def teacher_published_forms(teacher_user_id, subject_code=None):
     whole subject reach every contributing teacher — but each teacher's view is
     later restricted to their own sessions (see ``teacher_form_session_ids``).
     """
-    sql = """SELECT f.*, MIN(cs.period_no) AS period_no,
+    sql = f"""SELECT f.*, MIN(cs.period_no) AS period_no,
                 MIN(t.code) AS timetable, MIN(b.code) AS branch,
                 MIN(s.number) AS semester, MIN(ay.name) AS academic_year,
                 MAX(rp.published_at) AS results_published_at,
@@ -1257,12 +1476,13 @@ def teacher_published_forms(teacher_user_id, subject_code=None):
             FROM feedback_forms f
             JOIN form_sessions fs ON fs.form_id=f.id
             JOIN class_sessions cs ON cs.id=fs.session_id
+            {SFA_JOIN_SQL}
             JOIN timetables t ON t.id=cs.timetable_id
             JOIN branches b ON b.id=t.branch_id
             JOIN semesters s ON s.id=t.semester_id
             LEFT JOIN academic_years ay ON ay.id=t.academic_year_id
             JOIN result_publications rp ON rp.form_id=f.id AND rp.is_published=1
-            WHERE cs.teacher_user_id=? AND f.is_deleted=0 AND f.status<>'draft'"""
+            WHERE {FACULTY_OF_FORM_SQL}=? AND f.is_deleted=0 AND f.status<>'draft'"""
     args = [teacher_user_id]
     if subject_code:
         sql += ' AND cs.subject_code=?'
@@ -1280,17 +1500,18 @@ def teacher_unpublished_forms(teacher_user_id, subject_code=None):
     eligible / have responded.  Scores and marks are never exposed for these;
     ``teacher_published_forms`` remains the gate for the results pages.
     """
-    sql = """SELECT f.*, MIN(cs.period_no) AS period_no,
+    sql = f"""SELECT f.*, MIN(cs.period_no) AS period_no,
                 MIN(t.code) AS timetable, MIN(b.code) AS branch,
                 MIN(s.number) AS semester, MIN(ay.name) AS academic_year
             FROM feedback_forms f
             JOIN form_sessions fs ON fs.form_id=f.id
             JOIN class_sessions cs ON cs.id=fs.session_id
+            {SFA_JOIN_SQL}
             JOIN timetables t ON t.id=cs.timetable_id
             JOIN branches b ON b.id=t.branch_id
             JOIN semesters s ON s.id=t.semester_id
             LEFT JOIN academic_years ay ON ay.id=t.academic_year_id
-            WHERE cs.teacher_user_id=? AND f.is_deleted=0 AND f.status<>'draft'
+            WHERE {FACULTY_OF_FORM_SQL}=? AND f.is_deleted=0 AND f.status<>'draft'
               AND NOT EXISTS (SELECT 1 FROM result_publications rp
                               WHERE rp.form_id=f.id AND rp.is_published=1)"""
     args = [teacher_user_id]
@@ -1945,13 +2166,17 @@ def phase_from_title(title):
     return t if t in PHASE_LABELS else None
 
 
-def phase_rule_errors(phase, session_ids, exclude_form_id=None):
+def phase_rule_errors(phase, session_ids, exclude_form_id=None, category=None,
+                      second_assignment_id=None):
     """Phase rules for a form that covers ``session_ids``.
 
     * the same phase may not exist twice for the same teacher + subject + section
       (a session is exactly that triple, so any shared session is a clash);
     * Phase 2 needs every Phase 1 form for those sessions to be closed.
     Custom-named forms (phase is None) are not restricted.
+    Phase 5B: when ``category`` is given the rules apply WITHIN that category
+    (and, for second, within that Second Faculty assignment), so a Main form, a
+    Lab form and a Second Faculty form of the same phase can coexist.
     Returns a list of error strings.
     """
     session_ids = [s for s in dict.fromkeys(session_ids or []) if s]
@@ -1971,7 +2196,14 @@ def phase_rule_errors(phase, session_ids, exclude_form_id=None):
             f"JOIN timetables t ON t.id=cs.timetable_id "
             f"WHERE f.is_deleted=0 AND f.phase=? AND fs.session_id IN ({ph})")
     tail = " GROUP BY f.id ORDER BY f.id"
-    args = [phase, *session_ids]
+    cat_args = []
+    if category:
+        base += " AND COALESCE(f.category,'main')=?"
+        cat_args.append(category)
+        if category == 'second':
+            base += " AND COALESCE(f.second_faculty_assignment_id,0)=?"
+            cat_args.append(int(second_assignment_id or 0))
+    args = [phase, *session_ids, *cat_args]
     if exclude_form_id:
         base += " AND f.id<>?"
         args.append(exclude_form_id)
@@ -1989,7 +2221,7 @@ def phase_rule_errors(phase, session_ids, exclude_form_id=None):
             f'({r["subject_code"] or "subject"}, section {r["sections"]}{who}) — form #{r["id"]}. '
             f'A phase can only be created once.')
     if phase == 'phase2':
-        args1 = ['phase1', *session_ids]
+        args1 = ['phase1', *session_ids, *cat_args]
         sql1 = base + " AND f.status IN ('draft','open')"
         if exclude_form_id:
             args1.append(exclude_form_id)

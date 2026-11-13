@@ -33,8 +33,22 @@ def dashboard():
     pending = [f for f in forms if f['status'] == 'open' and not f['submission_id']]
     submitted = [f for f in forms if f['submission_id']]
     closed = [f for f in forms if f['status'] in ('closed', 'archived') and not f['submission_id']]
+    # One section per category, each with its own Pending / Submitted / Closed.
+    sections = []
+    for key in services.CATEGORY_ORDER + ('other',):
+        in_cat = [f for f in forms if f['category_key'] == key]
+        if not in_cat:
+            continue
+        sections.append({
+            'key': key,
+            'label': services.CATEGORY_LABELS.get(key, 'Other feedback'),
+            'hint': services.CATEGORY_HINTS.get(key, ''),
+            'pending': [f for f in in_cat if f in pending],
+            'submitted': [f for f in in_cat if f in submitted],
+            'closed': [f for f in in_cat if f in closed]})
     return render_template('student_dashboard.html', user=user, ctx=ctx,
                            pending=pending, submitted=submitted, closed=closed,
+                           sections=sections,
                            total=len(forms), year=_year_from_semester(ctx['semester'] if ctx else None))
 
 

@@ -18,10 +18,69 @@ Rules enforced here (never in the browser):
 from datetime import datetime
 
 from . import db, services
-from .feedback_categories import (ScopeError, conflicting_forms, eligible_count,
+from .feedback_categories import (LAB, MAIN, SECOND, ScopeError, conflicting_forms,
+                                  eligible_count, expected_categories, has_snapshot,
                                   normalize_category, resolve_scope, scope_for_form,
                                   snapshot_eligibility)
 from .security import audit, scoped_branch_ids_or_none
+
+
+# --------------------------------------------------------------------------- #
+# Default question sets - the three forms have DIFFERENT purposes/questions
+# --------------------------------------------------------------------------- #
+_SCALE = [{'label': 'Excellent', 'value': 5}, {'label': 'Very Good', 'value': 4},
+          {'label': 'Good', 'value': 3}, {'label': 'Average', 'value': 2},
+          {'label': 'Poor', 'value': 1}]
+
+
+def _rating(text):
+    return {'text': text, 'qtype': 'rating', 'is_required': True,
+            'options': [dict(o) for o in _SCALE]}
+
+
+def _comment(text):
+    return {'text': text, 'qtype': 'text', 'is_required': False, 'options': []}
+
+
+DEFAULT_QUESTIONS = {
+    # Main Faculty: regular subject teaching.
+    MAIN: [
+        _rating('How clearly does the faculty explain the subject concepts?'),
+        _rating('How well is the syllabus covered and the class time used?'),
+        _rating('How approachable is the faculty for doubts in class?'),
+        _rating('How regular and punctual are the classes?'),
+        _comment('Suggestions to improve the subject teaching'),
+    ],
+    # Second Faculty: lab ASSISTANCE.
+    SECOND: [
+        _rating('How well does the faculty observe and monitor students during the lab?'),
+        _rating('How carefully does the faculty check your practical work?'),
+        _rating('How helpful is the faculty in coding and debugging during the lab?'),
+        _rating('How well does the faculty clear your doubts in the lab?'),
+        _comment('Suggestions to improve the lab assistance'),
+    ],
+    # Lab feedback: the MAIN faculty's lab / practical teaching.
+    LAB: [
+        _rating('How clearly does the faculty explain the lab experiments and procedures?'),
+        _rating('How well does the faculty demonstrate and guide the practical work?'),
+        _rating('How useful are the lab sessions for understanding the theory?'),
+        _rating('How fairly and promptly are your lab records and work evaluated?'),
+        _comment('Suggestions to improve the lab sessions'),
+    ],
+}
+
+
+def default_questions(category):
+    """A fresh copy of the default question set of one category."""
+    return [dict(q, options=[dict(o) for o in q['options']])
+            for q in DEFAULT_QUESTIONS[normalize_category(category)]]
+
+
+def default_title(sc):
+    who = sc.get('faculty_name') or sc.get('faculty_emp_code') or ''
+    label = {MAIN: 'Main Faculty feedback', SECOND: 'Second Faculty feedback (lab assistance)',
+             LAB: 'Lab feedback'}[sc['category']]
+    return f'{label} - {who} - {sc["subject_name"] or sc["subject_code"]}'.strip()[:200]
 
 
 # --------------------------------------------------------------------------- #
@@ -96,7 +155,7 @@ def create_form(actor, category, assignment_id, title, questions, instructions='
     sc = resolve_scope(category, assignment_id)
     _require_actor(actor, sc)
     _check_questions(questions)
-    if conflicting_forms(sc['category'], sc['assignment_id']):
+    if conflicting_forms(sc['category'], sc['assignment_id'], phase=None):
         raise ScopeError('duplicate_form',
                          'A draft or open form already exists for this assignment.', 409)
     form_id = services.save_form(_payload(sc, title, instructions, deadline_at), questions,
@@ -160,7 +219,8 @@ def validate_for_publish(form_id):
     if eligible_count(sc) == 0:
         errors.append('No eligible students exist for this assignment, so the form cannot '
                       'be published.')
-    for c in conflicting_forms(cat, sc['assignment_id'], exclude_form_id=form_id):
+    for c in conflicting_forms(cat, sc['assignment_id'], exclude_form_id=form_id,
+                               phase=form['phase']):
         errors.append(f'Another {c["status"]} form (#{c["id"]}) already covers this assignment.')
     errors.extend(services.validate_form_for_publish(form_id))
     seen, out = set(), []
@@ -242,3 +302,36 @@ def eligible_count_for(form_id):
     if form['eligible_count_at_publish'] is not None:
         return form['eligible_count_at_publish']
     return eligible_count(scope_for_form(form))
+
+
+def create_forms_for_session(actor, session_id, deadline_at=None, phase=None):
+    """Create the DRAFT forms a session needs, from the database state:
+
+    No Lab -> main; Lab Available -> main + lab; with confirmed Second Faculty
+    -> + one second form per Second Faculty.  Categories that already have a live
+    form for the same phase are skipped.  Returns ``[{'category', 'form_id'|None,
+    'skipped'}]``.  Each form uses its own category's default questions."""
+    exp = expected_categories(session_id)
+    wanted = ([(MAIN, session_id)] if exp['main'] else []) \
+        + ([(LAB, session_id)] if exp['lab'] else []) \
+        + [(SECOND, a) for a in exp['second']]
+    if not wanted:
+        raise ScopeError('nothing_to_create',
+                         'This session has no active Main Faculty, so no forms apply.', 409)
+    out = []
+    for cat, aid in wanted:
+        sc = resolve_scope(cat, aid)
+        _require_actor(actor, sc)
+        if conflicting_forms(cat, aid, phase=phase):
+            out.append({'category': cat, 'form_id': None, 'skipped': 'already exists'})
+            continue
+        payload = _payload(sc, default_title(sc), '', deadline_at)
+        if phase:
+            payload['phase'] = phase
+        fid = services.save_form(payload, default_questions(cat), actor['id'],
+                                 session_ids=[sc['session_id']])
+        audit('form.category_created', 'feedback_forms', fid,
+              f'{cat} form for assignment {aid}', actor=actor)
+        out.append({'category': cat, 'form_id': fid, 'skipped': None})
+    return out
+

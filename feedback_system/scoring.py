@@ -168,6 +168,22 @@ def _load_form_data(form_ids, session_ids=None, with_answers=True) -> Dict[str, 
                     ORDER BY MIN(a.id)""",
                 tuple(chunk) + sargs2):
             out['answers'][r['form_id']].append(dict(r))
+
+        # Phase 5B: answers stored in the anonymous feedback_responses table
+        # (no student / submission column).  Same row shape as above; the scoring
+        # maths sums `n`, so legacy + 5B rows of one form combine correctly.
+        sf3, sargs3 = _session_filter(session_ids, 'r')
+        for r in db.query(
+                f"""SELECT r.form_id, r.question_id, qo.label, qo.value, qo.position,
+                           COUNT(*) AS n
+                    FROM feedback_responses r
+                    LEFT JOIN question_options qo ON qo.id = r.option_id
+                    WHERE r.form_id IN ({ph}) AND r.option_id IS NOT NULL{sf3}
+                    GROUP BY r.form_id, r.question_id, r.option_id,
+                             qo.label, qo.value, qo.position
+                    ORDER BY MIN(r.id)""",
+                tuple(chunk) + sargs3):
+            out['answers'][r['form_id']].append(dict(r))
     return out
 
 
@@ -317,12 +333,16 @@ def faculty_scores_for_branches(
                ff.snapshot_branch AS branch_code,
                ff.category,
                ff.academic_year_id, ff.semester_id, ff.branch_id,
-               cs.teacher_user_id,
+               u.id AS teacher_user_id,
                u.name AS teacher_name, u.emp_code AS teacher_emp_code,
                (SELECT COUNT(*) FROM submissions s WHERE s.form_id = ff.id) AS response_count
         FROM feedback_forms ff
         LEFT JOIN class_sessions cs ON cs.id = ff.session_id
-        LEFT JOIN users u ON u.id = cs.teacher_user_id
+        LEFT JOIN second_faculty_assignments sfa
+               ON sfa.id = ff.second_faculty_assignment_id AND ff.category = 'second'
+        LEFT JOIN users u ON u.id = (CASE WHEN ff.category = 'second'
+                                          THEN sfa.second_teacher_user_id
+                                          ELSE cs.teacher_user_id END)
         WHERE ff.branch_id IN ({ph})
           AND ff.is_deleted = 0
           AND ff.status IN ('open', 'closed', 'archived')
@@ -341,10 +361,10 @@ def faculty_scores_for_branches(
         sql += ' AND ff.id = ?'
         params.append(form_id)
     if teacher_user_id:
-        sql += ' AND cs.teacher_user_id = ?'
+        sql += ' AND u.id = ?'
         params.append(teacher_user_id)
     if teacher_user_ids:
-        sql += ' AND cs.teacher_user_id IN (' + ','.join('?' * len(teacher_user_ids)) + ')'
+        sql += ' AND u.id IN (' + ','.join('?' * len(teacher_user_ids)) + ')'
         params.extend(teacher_user_ids)
     if subject_codes:
         _sph = ','.join('?' * len(subject_codes))

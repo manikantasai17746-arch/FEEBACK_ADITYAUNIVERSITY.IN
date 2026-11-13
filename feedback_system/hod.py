@@ -203,7 +203,7 @@ def _hod_validate_form_payload(user, data):
         scope = 'session'
 
     category = (data.get('category') or 'main').strip().lower()
-    if category not in ('main', 'second'):
+    if category not in ('main', 'second', 'lab'):
         category = 'main'
 
     # Form name: pick list (Phase 1 / Phase 2) or a custom name typed by the HOD.
@@ -217,7 +217,7 @@ def _hod_validate_form_payload(user, data):
         phase = services.phase_from_title(title_in)
         if phase:
             title_in = services.PHASE_LABELS[phase]
-    if not title_in and category_is_not_second(data):
+    if not title_in and (data.get('category') or 'main').strip().lower() not in ('second', 'lab'):
         errors.append('Choose Phase 1, Phase 2, or type a custom form name.')
 
     payload = {
@@ -264,6 +264,10 @@ def _hod_validate_form_payload(user, data):
                 'cannot be changed. Create a new form instead.']
 
     session_ids = []
+    if scope == 'subject' and category in ('second', 'lab'):
+        return None, None, None, [
+            'Lab and Second Faculty feedback apply to one subject / teacher / period. '
+            'Use Normal mode (not Subject only) for these categories.']
     if scope == 'subject':
         subject_code = (data.get('subject_code') or '').strip()
         if not payload['academic_year_id']:
@@ -362,22 +366,44 @@ def _hod_validate_form_payload(user, data):
         )
         session_ids = [session['id']]
 
-        # Second-faculty path: HOD may create a form targeted at a confirmed
-        # second faculty member for this session.
-        if category == 'second':
-            sfa = services.confirmed_second_faculty_for_session(session['id'])
-            if not sfa:
-                return None, None, None, [
-                    'No confirmed second-faculty assignment exists for this session. '
-                    'Resolve the assignment before creating a second-faculty form.']
-            sfa = dict(sfa)
-            # Ensure the second teacher is permitted (assignment already scoped
-            # to the session's branch which we validated).
-            payload['second_faculty_assignment_id'] = sfa.get('id')
-            # Optionally override title hint
+        # Phase 5B: Lab (Main Faculty's lab teaching) and Second Faculty (lab
+        # assistance) forms are validated against the database, never the browser.
+        if category in ('second', 'lab'):
+            from . import feedback_categories as fc
+            from .category_forms import default_title
+            try:
+                if category == 'lab':
+                    targets = [fc.resolve_scope(fc.LAB, session['id'])]
+                else:
+                    explicit = _int(data.get('second_faculty_assignment_id'))
+                    ids = [explicit] if explicit else fc.expected_categories(
+                        session['id'])['second']
+                    if not ids:
+                        return None, None, None, [
+                            'No confirmed Second Faculty is assigned to this session '
+                            '(or the session has no lab). Resolve the assignment first.']
+                    targets = [fc.resolve_scope(fc.SECOND, i) for i in ids]
+                    if any(t['session_id'] != session['id'] for t in targets):
+                        return None, None, None, [
+                            'That Second Faculty assignment belongs to a different session.']
+            except fc.ScopeError as exc:
+                return None, None, None, [exc.message]
+            if not existing_id:
+                for t in targets:
+                    dup = fc.conflicting_forms(category, t['assignment_id'],
+                                               phase=payload.get('phase'))
+                    if dup:
+                        return None, None, None, [
+                            f'A {dup[0]["status"]} {category} form (#{dup[0]["id"]}) already '
+                            'exists for this assignment.']
+            payload['lab_faculty_assignment_id'] = None
+            payload['category_basis'] = 'declared'
+            payload['second_faculty_assignment_id'] = (
+                targets[0]['assignment_id'] if category == 'second' else None)
+            if category == 'second' and len(targets) > 1 and not existing_id:
+                payload['_second_targets'] = [t['assignment_id'] for t in targets]
             if not (payload.get('title') or '').strip():
-                second_name = sfa.get('second_teacher_name') or sfa.get('second_emp_code') or 'Second faculty'
-                payload['title'] = f'Second faculty feedback — {second_name}'
+                payload['title'] = default_title(targets[0])
 
     deadline_at, deadline_err = services.resolve_deadline_for_save(
         data.get('deadline_at'),
@@ -393,11 +419,13 @@ def _hod_validate_form_payload(user, data):
     if payload.get('_groups'):
         for g in payload['_groups']:
             for e in services.phase_rule_errors(
-                    payload.get('phase'), g['session_ids'], exclude_form_id=existing_id):
+                    payload.get('phase'), g['session_ids'], exclude_form_id=existing_id,
+                    category=category):
                 errors.append(f"{g['teacher_name']}: {e}" if g['teacher_name'] else e)
     else:
         errors.extend(services.phase_rule_errors(
-            payload.get('phase'), session_ids, exclude_form_id=existing_id))
+            payload.get('phase'), session_ids, exclude_form_id=existing_id,
+            category=category, second_assignment_id=payload.get('second_faculty_assignment_id')))
     if errors:
         return None, None, None, errors
 
@@ -410,6 +438,21 @@ def _save_hod_forms(user, payload, questions, session_ids, form_id):
     Returns a list of {form_id, teacher_name, teacher_emp, sessions}.
     """
     groups = payload.pop('_groups', None)
+    targets = payload.pop('_second_targets', None)
+    if targets and not form_id:                 # several Second Faculty: one form each
+        out = []
+        for aid in targets:
+            from . import feedback_categories as fc
+            from .category_forms import default_title
+            p = dict(payload, second_faculty_assignment_id=aid,
+                     title=default_title(fc.resolve_scope(fc.SECOND, aid)))
+            fid = services.save_form(p, questions or [], user['id'], form_id=None,
+                                     session_ids=session_ids)
+            audit('hod.form.save', 'feedback_forms', fid,
+                  f'HOD saved second-faculty form for assignment {aid}')
+            out.append({'form_id': fid, 'teacher_name': None, 'teacher_emp': None,
+                        'sessions': len(session_ids)})
+        return out
     if form_id or not groups:
         fid = services.save_form(payload, questions or [], user['id'],
                                  form_id=form_id, session_ids=session_ids)

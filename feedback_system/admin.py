@@ -324,6 +324,33 @@ def form_save():
                        branch_id=session['branch_id'], timetable_id=session['tt_id'],
                        subject_code=session['subject_code'], subject_name=session['subject_name'])
         session_ids = [session['id']]
+        category = (data.get('category') or 'main').strip().lower()
+        if category in ('second', 'lab'):
+            from . import feedback_categories as fc
+            try:
+                if category == 'lab':
+                    t = fc.resolve_scope(fc.LAB, session['id'])
+                else:
+                    aid = _int(data.get('second_faculty_assignment_id'))
+                    if not aid:
+                        ids = fc.expected_categories(session['id'])['second']
+                        if len(ids) != 1:
+                            return jsonify(ok=False, errors=[
+                                'Choose exactly one confirmed Second Faculty assignment '
+                                'for this session.']), 400
+                        aid = ids[0]
+                    t = fc.resolve_scope(fc.SECOND, aid)
+                    if t['session_id'] != session['id']:
+                        return jsonify(ok=False, errors=[
+                            'That Second Faculty assignment belongs to a different '
+                            'session.']), 400
+            except fc.ScopeError as exc:
+                return jsonify(ok=False, errors=[exc.message]), exc.status if exc.status in (
+                    400, 404, 409, 422) else 400
+            payload.update(category=category, category_basis='declared',
+                           lab_faculty_assignment_id=None,
+                           second_faculty_assignment_id=(
+                               t['assignment_id'] if category == 'second' else None))
 
     fid = services.save_form(payload, questions, current_user()['id'],
                              form_id=existing_id, session_ids=session_ids)
