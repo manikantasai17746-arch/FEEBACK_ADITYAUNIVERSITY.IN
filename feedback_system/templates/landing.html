@@ -284,7 +284,12 @@
 <div class="lp-login-overlay" id="lpLoginOverlay" hidden>
   <div class="lp-login-backdrop" id="lpLoginBackdrop"></div>
   <div class="lp-login-modal" role="dialog" aria-modal="true" aria-labelledby="lpLoginTitle">
-    <button type="button" class="lp-login-close" id="lpLoginClose" aria-label="Close">×</button>
+    <button type="button" class="lp-login-close" id="lpLoginClose" aria-label="Close">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+           stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+        <path d="M6 6l12 12M18 6L6 18"/>
+      </svg>
+    </button>
 
     <div class="lp-login-tabs" role="tablist">
       <button type="button" class="lp-login-tab active" data-role="student">Student</button>
@@ -451,7 +456,6 @@
     tab.addEventListener('click', function () {
       showRole(tab.getAttribute('data-role'));
     });
-    
   });
 
   // Optional ID scan for student / teacher in modal
@@ -471,6 +475,38 @@
   if (sBtn) sBtn.addEventListener('click', function () { scanInto('lp_roll', 'lpScanOkStudent'); });
   var tBtn = document.getElementById('lpScanTeacher');
   if (tBtn) tBtn.addEventListener('click', function () { scanInto('lp_emp_t', 'lpScanOkTeacher'); });
+
+  // Eye (show/hide) button on every password field
+  var EYE_SVG =
+    '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" ' +
+    'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path class="lid" d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/>' +
+    '<circle class="pupil" cx="12" cy="12" r="3"/>' +
+    '<line class="slash" x1="4" y1="4" x2="20" y2="20"/></svg>';
+
+  overlay.querySelectorAll('input[type=password]').forEach(function (input) {
+    var wrap = document.createElement('div');
+    wrap.className = 'pw-wrap';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+
+    var eye = document.createElement('button');
+    eye.type = 'button';
+    eye.className = 'pw-eye';
+    eye.setAttribute('aria-label', 'Show password');
+    eye.setAttribute('aria-pressed', 'false');
+    eye.innerHTML = EYE_SVG;
+    wrap.appendChild(eye);
+
+    eye.addEventListener('click', function () {
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      eye.setAttribute('aria-pressed', show ? 'true' : 'false');
+      eye.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      eye.classList.remove('blink'); void eye.offsetWidth; eye.classList.add('blink');
+      input.focus();
+    });
+  });
 })();
 </script>
 
