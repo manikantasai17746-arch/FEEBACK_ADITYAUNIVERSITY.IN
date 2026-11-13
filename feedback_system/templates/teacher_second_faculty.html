@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% block title %}Second Faculty Assignment — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="sf-page" id="sf-root" data-api="{{ url_for('second_faculty.index').rstrip('/') }}">
+  <div class="sf-pagehead">
+    <div>
+      <div class="eyebrow">Second Faculty</div>
+      <h1>Assign Second Faculty</h1>
+      <p class="sub">Choose a subject and section you teach, then add the employees who co-teach it.
+        Students of that section will be asked for feedback on each Second Faculty.</p>
+    </div>
+  </div>
+
+  <div id="sf-toast" class="sf-toasts" aria-live="polite"></div>
+  <div id="sf-cards" class="sf-grid">
+    <noscript><div class="card">JavaScript is required to manage Second Faculty assignments.</div></noscript>
+  </div>
+
+  <div id="sf-modal" class="sf-modal" hidden>
+    <div class="sf-dialog" role="dialog" aria-modal="true" aria-labelledby="sf-modal-title">
+      <header class="sf-dialog-head">
+        <h2 id="sf-modal-title">Assign Second Faculty</h2>
+        <button type="button" id="sf-close" class="sf-x" aria-label="Close">×</button>
+      </header>
+      <ol id="sf-steps" class="sf-steps" aria-label="Progress">
+        <li>Find</li><li>Select</li><li>Students</li><li>Confirm</li>
+      </ol>
+      <div id="sf-modal-body" class="sf-dialog-body"></div>
+    </div>
+  </div>
+</div>
+<script id="sf-data" type="application/json">{{ cards | tojson }}</script>
+<script src="{{ url_for('static', filename='js/second_faculty.js') }}" defer></script>
+{% endblock %}

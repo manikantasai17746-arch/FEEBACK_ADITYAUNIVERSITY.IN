@@ -137,6 +137,11 @@ class Cursor:
         self._order = order
         self.lastrowid = None
 
+    @property
+    def rowcount(self):
+        """Rows touched by the last statement (sqlite3-compatible)."""
+        return self._cur.rowcount
+
     def _wrap(self, row):
         return None if row is None else Row(row, self._order)
 
