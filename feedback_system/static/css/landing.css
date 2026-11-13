@@ -53,6 +53,7 @@ body.lp-menu-open .lp-drawer { transform: translateX(0); }
 .lp-drawer-nav a .chev { margin-left: auto; color: #94a3b8; font-size: 1.2rem; }
 .lp-drawer-nav hr { border: none; border-top: 1px solid #e5eaf2; margin: .6rem 0; }
 
+
 .lp-hero { background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 70%); padding: 1.5rem 1rem 0.5rem; }
 .lp-hero-inner { max-width: 1180px; margin: 0 auto; display: grid; grid-template-columns: 1.05fr 1fr; gap: 1.5rem; align-items: center; }
 .lp-kicker { letter-spacing: .12em; font-size: .72rem; font-weight: 700; color: #64748b; margin: 0 0 .4rem; }
