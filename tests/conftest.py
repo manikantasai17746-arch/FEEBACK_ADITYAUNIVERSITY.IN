@@ -49,12 +49,19 @@ def admin(client):
 
 @pytest.fixture()
 def teacher(app, client):
+    # Some tests change 6817's password hash on the shared session DB. Always
+    # restore the default hash before login so this fixture stays reliable.
+    from feedback_system import db
+    from feedback_system.security import hash_password
+    with app.app_context():
+        db.execute(
+            "UPDATE users SET password_hash=?, must_change_password=0, "
+            "first_login_complete=1 WHERE emp_code='6817'",
+            (hash_password('teacher@123'),))
     r = login(client, '/teacher/login', {'emp_code': '6817', 'password': 'teacher@123'})
     assert r.status_code == 302
-    # Logging in on the shared default password sets must_change_password; the
-    # first-login flow itself is covered by test_account_setup.py and
-    # test_first_login_phase2.py, so other tests start past it.
-    from feedback_system import db
+    # Login with the default password sets must_change_password again; clear it.
+    # First-login flow is covered by dedicated tests.
     with app.app_context():
         db.execute("UPDATE users SET must_change_password=0, first_login_complete=1 "
                    "WHERE emp_code='6817'")

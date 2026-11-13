@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}Main Faculty Feedback — HOD{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
+{% endblock %}
+{% block body %}
+<div class="hf" id="hfMainList">
+  <div class="hf-head">
+    <div>
+      <div class="eyebrow">HOD · Main Faculty</div>
+      <h1>Main Faculty Feedback</h1>
+      <p class="sub">Subjects and sections in your department. Create Main feedback forms for selected teaching sessions.</p>
+    </div>
+    <div class="hf-head-actions">
+      <a class="btn btn-primary" href="{{ url_for('hod_feedback.main_create') }}">Create Main form</a>
+    </div>
+  </div>
+  <form class="hf-filters card" method="get" action="{{ url_for('hod_feedback.main_list') }}">
+    <label>Subject <input type="search" name="subject" value="{{ filters.subject }}" placeholder="Code or name"></label>
+    <label>Section <input type="search" name="section" value="{{ filters.section }}" placeholder="Section code"></label>
+    <label>Faculty <input type="search" name="faculty" value="{{ filters.faculty }}" placeholder="Name or emp code"></label>
+    <div class="hf-filter-actions">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a class="btn" href="{{ url_for('hod_feedback.main_list') }}">Clear</a>
+    </div>
+  </form>
+  <p class="hf-meta">{{ total_sessions }} section{{ '' if total_sessions == 1 else 's' }} · {{ groups|length }} subject{{ '' if groups|length == 1 else 's' }}</p>
+  {% if not groups %}
+  <div class="card hf-empty"><h2>No teaching sessions found</h2>
+    <p class="sub">No main-faculty sessions match your filters in the departments assigned to you.</p></div>
+  {% endif %}
+  {% for sub in groups %}
+  <section class="card hf-subject">
+    <header class="hf-subject-head">
+      <h2>{{ sub.subject_code }} <span class="hf-muted">{{ sub.subject_name }}</span></h2>
+      <p class="sub">{{ sub.session_count }} section{{ '' if sub.session_count == 1 else 's' }} · {{ sub.eligible_total }} eligible (sum)</p>
+    </header>
+    {% for t in sub.teachers %}
+    <div class="hf-teacher">
+      <div class="hf-teacher-name"><strong>{{ t.teacher_name }}</strong> <span class="hf-muted">{{ t.teacher_emp_code }}</span></div>
+      <div class="hf-table-wrap">
+        <table class="hf-table">
+          <thead><tr><th>Section</th><th>Branch</th><th>Period</th><th>Room</th><th>Eligible</th><th>Live Main forms</th><th></th></tr></thead>
+          <tbody>
+            {% for s in t.sections %}
+            <tr>
+              <td>{{ s.section_code }}</td><td>{{ s.branch_code }}</td><td>{{ s.period_no or '—' }}</td>
+              <td>{{ s.room or '—' }}</td><td>{{ s.eligible_count }}</td>
+              <td>{% if s.live_main_forms %}<span class="hf-badge is-warn">{{ s.live_main_forms }} draft/open</span>{% else %}<span class="hf-badge">none</span>{% endif %}</td>
+              <td><a class="btn btn-sm" href="{{ url_for('hod_feedback.main_create') }}?session_id={{ s.session_id }}">Select</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

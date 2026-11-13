@@ -305,3 +305,142 @@ def build_comparison_pdf(profiles, title, subtitle=None, generated_at='', footer
     doc.build(story, canvasmaker=_numbered_canvas(
         footer or 'Faculty Feedback System — subject-wise comparison'))
     return buffer.getvalue()
+
+
+def build_category_results_pdf(entries, category, title=None, subtitle=None,
+                               generated_at='', footer='', filter_lines=None):
+    """PDF for one feedback category (main / second / lab).
+
+    ``entries`` is a list of dicts with at least:
+      faculty_name, faculty_emp, subject_code_display, subject_display,
+      section_code, room, eligible, submitted, pending, completion_pct,
+      obtained, maximum, answer_count, students_count, question_stats (optional list),
+      rating_breakdown (optional), photo_bytes (optional JPEG/PNG bytes).
+
+    Never includes student identity. Returns PDF bytes.
+    """
+    from xml.sax.saxutils import escape
+    from reportlab.platypus import Image, KeepTogether, HRFlowable
+
+    styles = _styles()
+    styles['h2'] = ParagraphStyle(
+        'RH2', parent=styles['subtitle'], fontName='Helvetica-Bold',
+        fontSize=11, textColor=NAVY, spaceBefore=8, spaceAfter=3)
+    styles['q'] = ParagraphStyle(
+        'RQ', parent=styles['meta'], fontName='Helvetica-Bold', fontSize=9, spaceBefore=4)
+    buffer = BytesIO()
+    cat_label = {
+        'main': 'Main Faculty Feedback',
+        'second': 'Second Faculty Feedback',
+        'lab': 'Lab Faculty Feedback',
+    }.get(category, category or 'Feedback')
+    title = title or f'{cat_label} — Results Report'
+    doc = BaseDocTemplate(
+        buffer, pagesize=A4,
+        leftMargin=14 * mm, rightMargin=14 * mm, topMargin=14 * mm, bottomMargin=16 * mm,
+        title=title, author='Faculty Feedback System')
+    frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='main',
+                  leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+    doc.addPageTemplates([PageTemplate(id='page', frames=[frame])])
+
+    story = [Paragraph(escape(title), styles['title'])]
+    if subtitle:
+        story.append(Paragraph(escape(subtitle), styles['subtitle']))
+    if generated_at:
+        story.append(Paragraph(f'Generated: {escape(str(generated_at))}', styles['meta']))
+    if filter_lines:
+        for line in filter_lines:
+            story.append(Paragraph(escape(str(line)), styles['meta']))
+    story.append(Paragraph(
+        f'Category: <b>{escape(cat_label)}</b> · {len(entries)} form(s). '
+        'Student identities are never included.', styles['meta']))
+    story.append(Spacer(1, 6))
+    story.append(HRFlowable(width='100%', thickness=0.6, color=LINE, spaceAfter=8))
+
+    if not entries:
+        story.append(Paragraph('No forms match the current filters in this category.',
+                               styles['empty']))
+    else:
+        for i, e in enumerate(entries, 1):
+            block = []
+            name = escape(str(e.get('faculty_name') or 'Faculty'))
+            emp = escape(str(e.get('faculty_emp') or '—'))
+            subj = escape(str(e.get('subject_code_display') or ''))
+            subjn = escape(str(e.get('subject_display') or ''))
+            sec = escape(str(e.get('section_code') or '—'))
+            room = escape(str(e.get('room') or '—'))
+            head = f'<b>{i}. {name}</b> ({emp}) · {subj} {subjn} · Section {sec} · Room {room}'
+            block.append(Paragraph(head, styles['h2']))
+
+            photo = e.get('photo_bytes')
+            if photo:
+                try:
+                    img_buf = BytesIO(photo)
+                    img = Image(img_buf, width=18 * mm, height=18 * mm)
+                    block.append(img)
+                    block.append(Spacer(1, 2))
+                except Exception:
+                    pass
+
+            elig = int(e.get('eligible') or 0)
+            sub = int(e.get('submitted') or 0)
+            pending = int(e.get('pending') or max(0, elig - sub))
+            pct = e.get('completion_pct')
+            if pct is None:
+                pct = round(100.0 * sub / elig, 2) if elig else 0.0
+            obtained = e.get('obtained', 0)
+            maximum = e.get('maximum', 0)
+            answers = e.get('answer_count', 0)
+            students = e.get('students_count', sub)
+            block.append(Paragraph(
+                f'Eligible: {elig} · Submitted: {sub} · Pending: {pending} · '
+                f'Completion: {pct}% · Marks: {obtained} / {maximum} · '
+                f'{answers} answers from {students} students',
+                styles['meta']))
+
+            breakdown = e.get('rating_breakdown') or []
+            if breakdown:
+                bits = [f"{escape(str(b.get('label') or ''))}: {b.get('count', 0)}"
+                        for b in breakdown]
+                block.append(Paragraph('Ratings — ' + ' · '.join(bits), styles['meta']))
+
+            qstats = e.get('question_stats') or []
+            for q in qstats:
+                qtext = escape(str(q.get('text') or ''))
+                qtype = escape(str(q.get('qtype') or ''))
+                block.append(Paragraph(f'Q: {qtext} <font color="#66738a">({qtype})</font>',
+                                       styles['q']))
+                opts = q.get('options') or []
+                if opts:
+                    rows = [[_cell(h, styles['head']) for h in ('Option', 'Count', '%')]]
+                    for o in opts:
+                        rows.append([
+                            _cell(escape(str(o.get('label') or '')), styles['cell']),
+                            _cell(o.get('count', 0), styles['cell']),
+                            _cell(f"{o.get('pct', 0)}%", styles['cell']),
+                        ])
+                    t = Table(rows, colWidths=[doc.width * 0.6, doc.width * 0.2, doc.width * 0.2])
+                    t.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+                        ('GRID', (0, 0), (-1, -1), 0.3, LINE),
+                        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, NAVY_SOFT]),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 3),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 3),
+                        ('TOPPADDING', (0, 0), (-1, -1), 2),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+                    ]))
+                    block.append(t)
+                # Anonymous text only — never names/rolls
+                suggestions = q.get('suggestions') or []
+                if suggestions:
+                    block.append(Paragraph(
+                        'Anonymous comments (not linked to students):', styles['meta']))
+                    for c in suggestions[:20]:
+                        block.append(Paragraph(f'• {escape(str(c)[:400])}', styles['cell']))
+            block.append(Spacer(1, 6))
+            block.append(HRFlowable(width='100%', thickness=0.4, color=LINE, spaceAfter=4))
+            story.append(KeepTogether(block))
+
+    doc.build(story, canvasmaker=_numbered_canvas(
+        footer or f'Faculty Feedback System — {cat_label} results (no student identities)'))
+    return buffer.getvalue()

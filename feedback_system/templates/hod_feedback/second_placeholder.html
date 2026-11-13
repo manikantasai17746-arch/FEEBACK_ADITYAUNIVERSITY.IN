@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Second Faculty Feedback — HOD{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
+{% endblock %}
+{% block body %}
+<div class="hf">
+  <div class="hf-head">
+    <div>
+      <div class="eyebrow">HOD · Second Faculty</div>
+      <h1>Second Faculty Feedback</h1>
+      <p class="sub">Module B is not implemented yet. Use Form Management for legacy second-faculty forms, or wait for the dedicated Second Faculty module.</p>
+    </div>
+    <a class="btn" href="{{ url_for('hod.forms') }}">Form Management</a>
+  </div>
+  <div class="card hf-empty">
+    <h2>Coming next</h2>
+    <p class="sub">Confirmed Second Faculty assignments will be listed here with create/publish for category=second forms.</p>
+  </div>
+</div>
+{% endblock %}

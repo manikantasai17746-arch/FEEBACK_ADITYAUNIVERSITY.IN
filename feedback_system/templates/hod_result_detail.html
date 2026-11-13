@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% block title %}Result detail — HOD{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
+{% endblock %}
+{% block body %}
+<div class="hf">
+  <div class="hf-head">
+    <div>
+      <div class="eyebrow">{{ form.category }} · Form #{{ form.id }}</div>
+      <h1>{{ form.title }}</h1>
+      <p class="sub">{{ '%.1f'|format(completion_pct) }}% complete
+        · {{ marks.students }} students · {{ marks.answer_count }} rating answers
+        · marks {{ marks.obtained }} / {{ marks.maximum }}</p>
+    </div>
+    <a class="btn" href="{{ url_for('hod.results', tab=form.category or 'main') }}">Back to results</a>
+  </div>
+
+  <section class="card" style="padding:1rem;margin-bottom:1rem">
+    <h2 style="margin-top:0">Rating breakdown</h2>
+    {% if marks.rating_breakdown %}
+    <ul>
+      {% for b in marks.rating_breakdown %}
+      <li>{{ b.label }}: {{ b.count }} ({{ b.total_marks }} marks)</li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="sub">No rating answers yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="card" style="padding:1rem;margin-bottom:1rem">
+    <h2 style="margin-top:0">Per-question statistics</h2>
+    {% for q in question_stats %}
+    <div style="margin-bottom:1rem">
+      <strong>{{ q.text }}</strong>
+      <span class="hf-muted">({{ q.qtype }})</span>
+      {% if q.options %}
+      <ul>
+        {% for o in q.options %}
+        <li>{{ o.label }}: {{ o.count }} · {{ '%.1f'|format(o.pct or 0) }}%</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if q.suggestions %}
+      <p class="sub">Anonymous text answers (order not tied to students):</p>
+      <ul>
+        {% for c in q.suggestions %}<li>{{ c }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+    {% else %}
+    <p class="sub">No question statistics available.</p>
+    {% endfor %}
+  </section>
+</div>
+{% endblock %}

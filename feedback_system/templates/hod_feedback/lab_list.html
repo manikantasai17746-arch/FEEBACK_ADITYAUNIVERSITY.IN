@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Lab Faculty Feedback — HOD{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
+{% endblock %}
+{% block body %}
+<div class="hf" id="hfLabList">
+  <div class="hf-head">
+    <div>
+      <div class="eyebrow">HOD · Lab Faculty</div>
+      <h1>Lab Faculty Feedback</h1>
+      <p class="sub">Only subjects marked <strong>Lab Available</strong>. No Lab and unconfigured subjects are excluded.</p>
+    </div>
+    <div class="hf-head-actions">
+      <a class="btn btn-primary" href="{{ url_for('hod_feedback.lab_create') }}">Create Lab form</a>
+    </div>
+  </div>
+  <form class="hf-filters card" method="get" action="{{ url_for('hod_feedback.lab_list') }}">
+    <label>Subject <input type="search" name="subject" value="{{ filters.subject }}" placeholder="Code or name"></label>
+    <label>Section <input type="search" name="section" value="{{ filters.section }}" placeholder="Section code"></label>
+    <label>Faculty <input type="search" name="faculty" value="{{ filters.faculty }}" placeholder="Name or emp code"></label>
+    <div class="hf-filter-actions">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a class="btn" href="{{ url_for('hod_feedback.lab_list') }}">Clear</a>
+    </div>
+  </form>
+  <p class="hf-meta">{{ total_sessions }} lab section{{ '' if total_sessions == 1 else 's' }} · {{ groups|length }} subject{{ '' if groups|length == 1 else 's' }}</p>
+  {% if not groups %}
+  <div class="card hf-empty">
+    <h2>No Lab Available sessions</h2>
+    <p class="sub">Teachers must mark Lab Available in Assignment Setup before lab feedback can be created.</p>
+  </div>
+  {% endif %}
+  {% for sub in groups %}
+  <section class="card hf-subject">
+    <header class="hf-subject-head">
+      <h2>{{ sub.subject_code }} <span class="hf-muted">{{ sub.subject_name }}</span>
+        <span class="hf-badge is-lab">Lab Available</span></h2>
+      <p class="sub">{{ sub.session_count }} section{{ '' if sub.session_count == 1 else 's' }} · {{ sub.eligible_total }} eligible (sum)</p>
+    </header>
+    <div class="hf-table-wrap">
+      <table class="hf-table">
+        <thead>
+          <tr>
+            <th>Section</th><th>Main faculty</th><th>Lab faculty</th><th>Room</th>
+            <th>Eligible</th><th>Live Lab forms</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in sub.sessions %}
+          <tr>
+            <td>{{ s.section_code }} <span class="hf-muted">{{ s.branch_code }}</span></td>
+            <td>{{ s.teacher_name }} <span class="hf-muted">{{ s.teacher_emp_code }}</span></td>
+            <td>
+              {% if s.lab_teacher_name %}
+                <div class="hf-fac-row">
+                  <img class="hf-avatar" src="{{ url_for('photos.serve', emp_code=s.lab_emp_code) }}" alt="" width="28" height="28">
+                  <span>{{ s.lab_teacher_name }} <span class="hf-muted">{{ s.lab_emp_code }}</span></span>
+                </div>
+              {% else %}
+                <span class="hf-muted">Main faculty lab teaching</span>
+              {% endif %}
+            </td>
+            <td>{{ s.room or '—' }}</td>
+            <td>{{ s.eligible_count }}</td>
+            <td>{% if s.live_lab_forms %}<span class="hf-badge is-warn">{{ s.live_lab_forms }} draft/open</span>{% else %}<span class="hf-badge">none</span>{% endif %}</td>
+            <td><a class="btn btn-sm" href="{{ url_for('hod_feedback.lab_create') }}?session_id={{ s.session_id }}">Select</a></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

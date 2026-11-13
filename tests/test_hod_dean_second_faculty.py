@@ -42,7 +42,11 @@ def admin(client):
 
 
 def _seed_hod_dean(app):
-    """Create one HOD and one Dean with explicit CSE branch scope (if CSE exists)."""
+    """Create one HOD and one Dean with explicit CSE branch scope (if CSE exists).
+
+    Users are seeded past HOD/Dean first-login onboarding so dashboard tests
+    exercise the portal itself, not the onboarding redirect gate.
+    """
     with app.app_context():
         branch = db_module.query("SELECT id, code FROM branches WHERE code='CSE'", one=True)
         if not branch:
@@ -54,25 +58,33 @@ def _seed_hod_dean(app):
             "SELECT id FROM users WHERE username='HODCSE1' AND role='hod'", one=True)
         if not existing:
             db_module.execute(
-                """INSERT INTO users(role, username, emp_code, name, email, password_hash, is_active)
-                   VALUES('hod','HODCSE1','HODCSE1','Test HOD','hod@test.edu',?,1)""",
+                """INSERT INTO users(role, username, emp_code, name, email, password_hash,
+                                     is_active, onboarding_complete)
+                   VALUES('hod','HODCSE1','HODCSE1','Test HOD','hod@test.edu',?,1,1)""",
                 (hash_password('hodpass123'),))
             hod = db_module.query("SELECT id FROM users WHERE username='HODCSE1'", one=True)
             db_module.execute(
                 "INSERT INTO user_department_scopes(user_id, branch_id, is_primary) VALUES(?,?,1)",
                 (hod['id'], branch['id']))
+        else:
+            db_module.execute(
+                "UPDATE users SET onboarding_complete=1 WHERE id=?", (existing['id'],))
         # Dean
         existing = db_module.query(
             "SELECT id FROM users WHERE username='DEAN1' AND role='dean'", one=True)
         if not existing:
             db_module.execute(
-                """INSERT INTO users(role, username, emp_code, name, email, password_hash, is_active)
-                   VALUES('dean','DEAN1','DEAN1','Test Dean','dean@test.edu',?,1)""",
+                """INSERT INTO users(role, username, emp_code, name, email, password_hash,
+                                     is_active, onboarding_complete)
+                   VALUES('dean','DEAN1','DEAN1','Test Dean','dean@test.edu',?,1,1)""",
                 (hash_password('deanpass123'),))
             dean = db_module.query("SELECT id FROM users WHERE username='DEAN1'", one=True)
             db_module.execute(
                 "INSERT INTO user_department_scopes(user_id, branch_id, is_primary) VALUES(?,?,1)",
                 (dean['id'], branch['id']))
+        else:
+            db_module.execute(
+                "UPDATE users SET onboarding_complete=1 WHERE id=?", (existing['id'],))
         return branch['id']
 
 

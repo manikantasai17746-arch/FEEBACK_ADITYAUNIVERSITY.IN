@@ -1,181 +1,134 @@
 {% extends 'base.html' %}
-{% block title %}HOD Results{% endblock %}
-{% block body %}
-{% set ns = namespace(pub=0, resp=0) %}
-{% for f in forms %}
-  {% if f.is_published %}{% set ns.pub = ns.pub + 1 %}{% endif %}
-  {% set ns.resp = ns.resp + f.responses %}
-{% endfor %}
-
+{% block title %}Feedback Results — HOD{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
 <style>
-  .hr-head{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px;margin-bottom:16px}
-  .hr-head h1{margin:0}
-  .hr-pills{display:flex;gap:6px;flex-wrap:wrap}
-  .hr-pills a{padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:#fff;
-    font-size:.85rem;font-weight:600;color:var(--navy)}
-  .hr-pills a:hover{text-decoration:none;background:var(--navy-soft)}
-  .hr-pills a.active{background:var(--navy);color:#fff;border-color:var(--navy)}
-
-  .hr-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
-  .hr-tile{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;
-    box-shadow:var(--shadow);border-left:4px solid var(--accent)}
-  .hr-tile .lbl{font-size:.74rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
-  .hr-tile .num{font-size:1.7rem;font-weight:800;color:var(--navy-dark);line-height:1.2}
-  .hr-tile.ok{border-left-color:var(--ok)} .hr-tile.warn{border-left-color:var(--warn)}
-  .hr-tile.purple{border-left-color:#7c3aed}
-
-  .hr-toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-  .hr-search{flex:1 1 260px;max-width:380px;padding:9px 12px;border:1px solid var(--line);
-    border-radius:8px;font:inherit;background:#fff}
-  .hr-search:focus{outline:2px solid var(--accent);outline-offset:1px}
-  .hr-seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
-  .hr-seg button{border:0;background:transparent;padding:8px 14px;font:inherit;font-size:.85rem;
-    font-weight:600;color:var(--muted);cursor:pointer}
-  .hr-seg button.active{background:var(--navy);color:#fff}
-  .hr-spacer{flex:1}
-  .hr-skip{display:inline-flex;align-items:center;gap:6px;font-size:.84rem;color:var(--muted)}
-  .btn[disabled]{opacity:.45;cursor:not-allowed}
-
-  .hr-title{font-weight:600;color:var(--navy-dark)}
-  .hr-teacher{font-size:.8rem;color:var(--muted)}
-  .hr-code{font-family:ui-monospace,Consolas,monospace;font-size:.82rem;background:var(--navy-soft);
-    padding:2px 7px;border-radius:6px;color:var(--navy-dark)}
-  .hr-resp{font-weight:700;font-variant-numeric:tabular-nums}
-  .hr-resp.zero{color:#a0aec0;font-weight:500}
-  .hr-empty-row td{text-align:center;color:var(--muted);padding:26px}
-  @media(max-width:800px){ .hr-tiles{grid-template-columns:1fr 1fr} }
+  .hr-tabs{display:flex;flex-wrap:wrap;gap:.4rem;margin:1rem 0}
+  .hr-tabs a{padding:.45rem .9rem;border-radius:999px;border:1px solid rgba(0,0,0,.12);text-decoration:none;font-weight:600;font-size:.88rem}
+  .hr-tabs a.active{background:var(--accent,#1a5fb4);color:#fff;border-color:transparent}
+  .hr-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.6rem;margin-bottom:1rem;padding:1rem}
+  .hr-filters label{font-size:.8rem;display:flex;flex-direction:column;gap:.25rem}
+  .hr-filters select,.hr-filters input{padding:.4rem .5rem;border-radius:6px;border:1px solid rgba(0,0,0,.15);font:inherit}
+  .hr-card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:.85rem}
+  .hr-card{border:1px solid rgba(0,0,0,.08);border-radius:10px;padding:.9rem;background:#fff}
+  .hr-card-top{display:flex;gap:.65rem;align-items:flex-start}
+  .hr-card-top img{width:44px;height:44px;border-radius:50%;object-fit:cover;background:rgba(0,0,0,.06)}
+  .hr-meta{display:flex;flex-wrap:wrap;gap:.35rem .7rem;font-size:.82rem;opacity:.85;margin:.55rem 0}
+  .hr-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem;font-size:.82rem;margin:.5rem 0}
+  .hr-stats strong{display:block;font-size:1.05rem}
+  .hr-actions{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.55rem}
+  .hr-pct{font-weight:700;color:var(--accent,#1a5fb4)}
 </style>
-
+{% endblock %}
+{% block body %}
 <div class="container page">
-  <div class="hr-head">
+  <div class="hf-head">
     <div>
-      <h1>Feedback results</h1>
-      <p class="sub">Teachers only see results after you publish them here.</p>
+      <h1 style="margin:0">Feedback Results</h1>
+      <p class="sub">Main, Second and Lab results stay separate. Teachers only see results you publish.</p>
     </div>
-    <nav class="hr-pills">
-      <a href="{{ url_for('hod.dashboard') }}">Dashboard</a>
-      <a href="{{ url_for('hod.forms') }}">Forms</a>
-      <a href="{{ url_for('hod.results') }}" class="active">Results</a>
-      <a href="{{ url_for('hod.second_faculty') }}">Second Faculty</a>
-    </nav>
   </div>
-
-  <div class="hr-tiles">
-    <div class="hr-tile"><div class="lbl">Total forms</div><div class="num">{{ forms|length }}</div></div>
-    <div class="hr-tile ok"><div class="lbl">Published to teachers</div><div class="num">{{ ns.pub }}</div></div>
-    <div class="hr-tile warn"><div class="lbl">Not published</div><div class="num">{{ forms|length - ns.pub }}</div></div>
-    <div class="hr-tile purple"><div class="lbl">Total responses</div><div class="num">{{ ns.resp }}</div></div>
-  </div>
-
+  <nav class="hr-tabs" aria-label="Result categories">
+    <a class="{{ 'active' if tab=='main' }}" href="{{ url_for('hod.results', tab='main') }}">Main Faculty Results</a>
+    <a class="{{ 'active' if tab=='second' }}" href="{{ url_for('hod.results', tab='second') }}">Second Faculty Results</a>
+    <a class="{{ 'active' if tab=='lab' }}" href="{{ url_for('hod.results', tab='lab') }}">Lab Faculty Results</a>
+    <a class="btn btn-sm" style="margin-left:auto"
+       href="{{ url_for('hod.results_category_pdf', category=tab, year_id=filters.year_id, semester_id=filters.semester_id, branch_id=filters.branch_id, section=filters.section, subject=filters.subject, faculty=filters.faculty) }}">Download {{ tab|capitalize }} PDF</a>
+  </nav>
+  <form class="card hr-filters" method="get" action="{{ url_for('hod.results') }}">
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <label>Academic year
+      <select name="year_id">
+        <option value="">All</option>
+        {% for y in years %}<option value="{{ y.id }}" {% if filters.year_id|string==y.id|string %}selected{% endif %}>{{ y.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Semester
+      <select name="semester_id">
+        <option value="">All</option>
+        {% for s in semesters %}<option value="{{ s.id }}" {% if filters.semester_id|string==s.id|string %}selected{% endif %}>{{ s.label or s.number }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Branch
+      <select name="branch_id">
+        <option value="">All in scope</option>
+        {% for b in branches %}<option value="{{ b.id }}" {% if filters.branch_id|string==b.id|string %}selected{% endif %}>{{ b.code }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Section <input type="search" name="section" value="{{ filters.section }}"></label>
+    <label>Subject <input type="search" name="subject" value="{{ filters.subject }}"></label>
+    <label>Faculty <input type="search" name="faculty" value="{{ filters.faculty }}"></label>
+    <div style="display:flex;gap:.4rem;align-items:end">
+      <button class="btn btn-primary" type="submit">Filter</button>
+      <a class="btn" href="{{ url_for('hod.results', tab=tab) }}">Clear</a>
+    </div>
+  </form>
   {% if forms %}
   <form method="post" action="{{ url_for('hod.results_publish_selected') }}" id="hrForm">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-
-    <div class="hr-toolbar">
-      <input type="search" class="hr-search" id="hrSearch" placeholder="Search teacher, subject or title…">
-      <div class="hr-seg" id="hrSeg">
-        <button type="button" data-f="all" class="active">All</button>
-        <button type="button" data-f="0">Not published</button>
-        <button type="button" data-f="1">Published</button>
-      </div>
-      <span class="hr-spacer"></span>
-      <label class="hr-skip"><input type="checkbox" name="skip_zero" value="1" checked> Skip forms with 0 responses</label>
-      <button class="btn btn-ok" type="submit" id="hrBulk" disabled
-              onclick="return confirm('Publish results for the selected forms?')">Publish selected (0)</button>
+    <div class="hr-card-grid">
+      {% for f in forms %}
+      <article class="hr-card">
+        <div class="hr-card-top">
+          {% if f.faculty_emp %}
+          <img src="{{ url_for('photos.serve', emp_code=f.faculty_emp) }}" alt="">
+          {% endif %}
+          <div>
+            <strong>{{ f.faculty_name or 'Faculty' }}</strong>
+            <div class="hf-muted">{{ f.faculty_emp or '—' }}</div>
+            <div class="hf-muted">{{ f.subject_code_display }} · {{ f.subject_display }}</div>
+          </div>
+          <label style="margin-left:auto"><input type="checkbox" class="hr-chk" name="form_ids" value="{{ f.id }}"></label>
+        </div>
+        <div class="hr-meta">
+          <span>Section {{ f.section_code or '—' }}</span>
+          <span>Room {{ f.room or '—' }}</span>
+          <span class="badge badge-{{ f.status }}">{{ f.status }}</span>
+          {% if f.is_published %}<span class="badge badge-published">Published</span>{% endif %}
+        </div>
+        <div class="hr-stats">
+          <div><strong>{{ f.eligible }}</strong> eligible</div>
+          <div><strong>{{ f.submitted }}</strong> submitted</div>
+          <div><strong>{{ f.pending }}</strong> pending</div>
+        </div>
+        <p class="sub" style="margin:.35rem 0">
+          <span class="hr-pct">{{ '%.1f'|format(f.completion_pct) }}%</span> complete
+          · {{ f.answer_count }} answers from {{ f.students_count }} students
+          · marks {{ f.obtained }} / {{ f.maximum }}
+        </p>
+        <div class="hr-actions">
+          <a class="btn btn-sm" href="{{ url_for('hod.result_detail', fid=f.id) }}">Details</a>
+          {% if f.is_published %}
+          <button class="btn btn-sm" type="submit" formaction="{{ url_for('hod.result_unpublish', fid=f.id) }}"
+                  onclick="return confirm('Unpublish results for this form?')">Unpublish</button>
+          {% else %}
+          <button class="btn btn-sm btn-primary" type="submit" formaction="{{ url_for('hod.result_publish', fid=f.id) }}"
+                  onclick="return confirm('Publish results to the teacher?')">Publish</button>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
     </div>
-
-    <div class="card" style="padding:0">
-      <div class="table-wrap" style="border:0">
-        <table class="data">
-          <thead><tr>
-            <th style="width:36px"><input type="checkbox" id="hrAll" aria-label="Select all"></th>
-            <th>Form</th><th>Subject</th><th>Responses</th><th>Form status</th><th>Results</th><th>Action</th>
-          </tr></thead>
-          <tbody>
-          {% for f in forms %}
-            <tr data-pub="{{ 1 if f.is_published else 0 }}"
-                data-q="{{ (f.title ~ ' ' ~ (f.snapshot_teacher or '') ~ ' ' ~ (f.snapshot_subject_code or ''))|lower }}">
-              <td>{% if not f.is_published %}<input type="checkbox" class="hr-chk" name="form_ids" value="{{ f.id }}">{% endif %}</td>
-              <td class="wrap">
-                <div class="hr-title">{{ f.title }}</div>
-                {% if f.snapshot_teacher %}<div class="hr-teacher">👤 {{ f.snapshot_teacher }}</div>{% endif %}
-              </td>
-              <td>{% if f.snapshot_subject_code %}<span class="hr-code">{{ f.snapshot_subject_code }}</span>{% else %}—{% endif %}</td>
-              <td><span class="hr-resp {{ 'zero' if f.responses == 0 }}">{{ f.responses }}</span></td>
-              <td><span class="badge badge-{{ f.status }}">{{ f.status|capitalize }}</span></td>
-              <td>
-                {% if f.is_published %}<span class="badge badge-published">✓ Published</span>
-                {% else %}<span class="badge badge-draft">Not published</span>{% endif %}
-              </td>
-              <td>
-                {% if f.is_published %}
-                  <button class="btn btn-warn btn-sm" type="submit"
-                          formaction="{{ url_for('hod.result_unpublish', fid=f.id) }}"
-                          onclick="return confirm('Unpublish? The teacher will no longer see these results.')">Unpublish</button>
-                {% else %}
-                  <button class="btn btn-ok btn-sm" type="submit"
-                          formaction="{{ url_for('hod.result_publish', fid=f.id) }}"
-                          onclick="return confirm('Publish these results to the teacher?')">Publish</button>
-                {% endif %}
-              </td>
-            </tr>
-          {% endfor %}
-            <tr class="hr-empty-row" id="hrNone" hidden><td colspan="7">No forms match your search.</td></tr>
-          </tbody>
-        </table>
-      </div>
+    <div style="margin-top:1rem">
+      <button class="btn btn-primary" type="submit" id="hrBulk">Publish selected</button>
+      <label class="hf-muted" style="margin-left:.75rem"><input type="checkbox" name="skip_zero" value="1" checked> Skip forms with 0 responses</label>
     </div>
   </form>
   {% else %}
-  <div class="empty">No published or closed forms in your department scope.</div>
+  <div class="card hf-empty">
+    <h2>No {{ tab }} results yet</h2>
+    <p class="sub">Published or closed forms in this category will appear here.</p>
+  </div>
   {% endif %}
 </div>
 {% endblock %}
-
 {% block scripts %}
 <script>
-(function () {
-  var rows = Array.prototype.slice.call(document.querySelectorAll('tbody tr[data-pub]'));
-  var search = document.getElementById('hrSearch');
-  var seg = document.getElementById('hrSeg');
-  var all = document.getElementById('hrAll');
-  var bulk = document.getElementById('hrBulk');
-  var none = document.getElementById('hrNone');
-  if (!search) return;
-  var filter = 'all';
-
-  function visibleRows() { return rows.filter(function (r) { return !r.hidden; }); }
-  function updateBulk() {
-    var n = document.querySelectorAll('.hr-chk:checked').length;
-    bulk.textContent = 'Publish selected (' + n + ')';
-    bulk.disabled = n === 0;
-  }
-  function apply() {
-    var q = search.value.trim().toLowerCase();
-    rows.forEach(function (r) {
-      var okQ = !q || r.getAttribute('data-q').indexOf(q) !== -1;
-      var okF = filter === 'all' || r.getAttribute('data-pub') === filter;
-      r.hidden = !(okQ && okF);
-    });
-    none.hidden = visibleRows().length !== 0;
-    all.checked = false;
-  }
-  search.addEventListener('input', apply);
-  seg.addEventListener('click', function (e) {
-    var b = e.target.closest('button'); if (!b) return;
-    Array.prototype.forEach.call(seg.children, function (x) { x.classList.remove('active'); });
-    b.classList.add('active'); filter = b.getAttribute('data-f'); apply();
-  });
-  all.addEventListener('change', function () {
-    visibleRows().forEach(function (r) {
-      var c = r.querySelector('.hr-chk'); if (c) c.checked = all.checked;
-    });
-    updateBulk();
-  });
-  document.addEventListener('change', function (e) {
-    if (e.target.classList && e.target.classList.contains('hr-chk')) updateBulk();
-  });
-  updateBulk();
+(function(){
+  var bulk=document.getElementById('hrBulk'); if(!bulk) return;
+  function upd(){ var n=document.querySelectorAll('.hr-chk:checked').length; bulk.textContent='Publish selected ('+n+')'; bulk.disabled=n===0; }
+  document.addEventListener('change',function(e){ if(e.target.classList.contains('hr-chk')) upd(); });
+  upd();
 })();
 </script>
 {% endblock %}

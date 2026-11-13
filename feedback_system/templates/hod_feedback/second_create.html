@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}Create Second Faculty Feedback — HOD{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
+{% endblock %}
+{% block body %}
+<div class="hf" id="hfSecondCreate"
+     data-api-sessions="{{ api_sessions }}"
+     data-api-preview="{{ api_preview }}"
+     data-api-create="{{ api_create }}"
+     data-question-sets='{{ question_sets_json|safe }}'>
+  <div class="hf-head">
+    <div>
+      <div class="eyebrow">HOD · Second Faculty</div>
+      <h1>Create Second Faculty Feedback</h1>
+      <p class="sub">Select sections, preview eligible students, choose a question set, then publish.</p>
+    </div>
+    <a class="btn" href="{{ url_for('hod_feedback.second_list') }}">Back to list</a>
+  </div>
+  <div id="hfAlert" class="hf-alert" role="status" aria-live="polite" hidden></div>
+  <nav class="hf-steps" aria-label="Create steps">
+    <button type="button" class="hf-step is-active" data-step="1">1. Select</button>
+    <button type="button" class="hf-step" data-step="2">2. Preview</button>
+    <button type="button" class="hf-step" data-step="3">3. Questions</button>
+    <button type="button" class="hf-step" data-step="4">4. Confirm</button>
+  </nav>
+  <section class="card hf-panel is-active" data-panel="1">
+    <h2>Select Second Faculty assignments</h2>
+    <div class="hf-filters hf-filters-inline">
+      <label>Subject <input type="search" id="hfSubject" placeholder="Filter subject"></label>
+      <label>Section <input type="search" id="hfSection" placeholder="Filter section"></label>
+      <label>Faculty <input type="search" id="hfFaculty" placeholder="Filter faculty"></label>
+      <button type="button" class="btn" id="hfReload">Refresh</button>
+    </div>
+    <div id="hfAssignTree" class="hf-session-tree"><p class="sub">Loading sessions…</p></div>
+    <div class="hf-panel-actions">
+      <button type="button" class="btn btn-primary" id="hfToPreview" disabled>Preview eligible students</button>
+    </div>
+  </section>
+  <section class="card hf-panel" data-panel="2" hidden>
+    <h2>Eligible students (authorized preview)</h2>
+    <p class="sub">Names and roll numbers are shown only here for eligibility checks. They are never stored with answers.</p>
+    <div id="hfPreview" class="hf-preview"><p class="sub">Select sections first.</p></div>
+    <div class="hf-panel-actions">
+      <button type="button" class="btn" data-back="1">Back</button>
+      <button type="button" class="btn btn-primary" id="hfToQuestions">Choose question set</button>
+    </div>
+  </section>
+  <section class="card hf-panel" data-panel="3" hidden>
+    <h2>Question set and options</h2>
+    <label class="hf-block">Question set <select id="hfQSet"></select></label>
+    <div id="hfQPreview" class="hf-qpreview sub"></div>
+    <label class="hf-block">Form title (optional)
+      <input type="text" id="hfTitle" maxlength="200" placeholder="Default title uses faculty and subject"></label>
+    <label class="hf-block">Deadline (optional)
+      <input type="datetime-local" id="hfDeadline"></label>
+    <label class="hf-block">Instructions
+      <textarea id="hfInstructions" rows="3">{{ default_instructions }}</textarea></label>
+    <div class="hf-panel-actions">
+      <button type="button" class="btn" data-back="2">Back</button>
+      <button type="button" class="btn btn-primary" id="hfToConfirm">Review and confirm</button>
+    </div>
+  </section>
+  <section class="card hf-panel" data-panel="4" hidden>
+    <h2>Confirm</h2>
+    <div id="hfSummary" class="hf-summary"></div>
+    <div class="hf-panel-actions">
+      <button type="button" class="btn" data-back="3">Back</button>
+      <button type="button" class="btn" id="hfSaveDraft">Save as draft</button>
+      <button type="button" class="btn btn-primary" id="hfPublish">Publish now</button>
+    </div>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hod_feedback_second.js') }}" defer></script>
+{% endblock %}
