@@ -385,9 +385,9 @@ def form_status(fid):
     except ScopeError as exc:
         for e in (getattr(exc, 'errors', None) or [exc.message]):
             flash(e, 'error')
-        return redirect(request.form.get('next') or url_for('admin.forms'))
+        return redirect(url_for('admin.forms'))
     flash(f'Form status updated to {status}.', 'success')
-    return redirect(request.form.get('next') or url_for('admin.forms'))
+    return redirect(url_for('admin.forms'))
 
 
 @bp.route('/forms/<int:fid>/deadline', methods=['POST'])
@@ -401,7 +401,7 @@ def form_deadline(fid):
     err = services.deadline_error(iso)
     if err:
         flash(err, 'error')
-        return redirect(request.form.get('next') or url_for('admin.forms'))
+        return redirect(url_for('admin.forms'))
     services.set_form_deadline(fid, iso)
     if form['status'] == 'closed':
         errors = services.validate_form_for_publish(fid)
@@ -414,7 +414,7 @@ def form_deadline(fid):
             flash('Deadline extended and the form is open again.', 'success')
     else:
         flash('Deadline updated.', 'success')
-    return redirect(request.form.get('next') or url_for('admin.forms'))
+    return redirect(url_for('admin.forms'))
 
 
 @bp.route('/forms/<int:fid>/delete', methods=['POST'])
@@ -621,7 +621,7 @@ def result_publish(fid):
         return redirect(url_for('admin.result_detail', fid=fid))
     services.publish_results(fid, current_user()['id'])
     flash('Results published to the teacher.', 'success')
-    return redirect(request.form.get('next') or url_for('admin.result_detail', fid=fid))
+    return redirect(url_for('admin.result_detail', fid=fid))
 
 
 @bp.route('/results/<int:fid>/unpublish', methods=['POST'])
@@ -629,7 +629,7 @@ def result_publish(fid):
 def result_unpublish(fid):
     services.unpublish_results(fid, current_user()['id'])
     flash('Results unpublished. The teacher can no longer see them.', 'success')
-    return redirect(request.form.get('next') or url_for('admin.result_detail', fid=fid))
+    return redirect(url_for('admin.result_detail', fid=fid))
 
 
 @bp.route('/results/publish-selected', methods=['POST'])
