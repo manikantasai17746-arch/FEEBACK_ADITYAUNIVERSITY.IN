@@ -1,6 +1,9 @@
 """Security utilities: password hashing, CSRF, RBAC, rate limiting, audit log."""
 import functools
+import logging
+import os
 import secrets
+import threading
 import time
 
 from flask import g, jsonify, redirect, request, session, url_for, abort
@@ -8,15 +11,32 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import db
 
+logger = logging.getLogger(__name__)
+
 # --------------------------------------------------------------------------- #
 # Passwords
 # --------------------------------------------------------------------------- #
 def hash_password(plain):
-    return generate_password_hash(plain)
+    # scrypt is memory-hard; fall back to PBKDF2 only if this Python lacks it.
+    try:
+        return generate_password_hash(plain, method='scrypt')
+    except Exception:
+        return generate_password_hash(plain, method='pbkdf2:sha256:600000')
+
+
+_DUMMY_HASH = hash_password('not-a-real-password')
 
 
 def verify_password(stored_hash, plain):
+    if plain is None or len(plain) > 1024:
+        return False
     if not stored_hash:
+        # Do the same amount of work as a real check so the response time does
+        # not reveal whether an account exists.
+        try:
+            check_password_hash(_DUMMY_HASH, plain)
+        except Exception:
+            pass
         return False
     try:
         return check_password_hash(stored_hash, plain)
@@ -27,12 +47,19 @@ def verify_password(stored_hash, plain):
 # --------------------------------------------------------------------------- #
 # Sessions / current user
 # --------------------------------------------------------------------------- #
+SESSION_IDLE_SECONDS = 30 * 60        # log out after 30 minutes of inactivity
+SESSION_MAX_SECONDS = 8 * 60 * 60     # and always after 8 hours
+
+
 def login_user(user_row):
     session.clear()
     session['uid'] = user_row['id']
     session['role'] = user_row['role']
     session['name'] = user_row['name'] or user_row['username']
     session['token'] = secrets.token_hex(16)      # CSRF token
+    now = time.time()
+    session['started'] = now
+    session['last'] = now
     session.permanent = False
 
 
@@ -40,11 +67,29 @@ def logout_user():
     session.clear()
 
 
+def _session_expired():
+    """True when the session is idle too long or older than the maximum age."""
+    now = time.time()
+    started = session.get('started')
+    last = session.get('last')
+    if started is None or last is None:       # session created before this change
+        session['started'] = session['last'] = now
+        return False
+    if now - last > SESSION_IDLE_SECONDS or now - started > SESSION_MAX_SECONDS:
+        return True
+    if now - last > 60:
+        session['last'] = now
+    return False
+
+
 def current_user():
     """Return the logged-in user as a dict, cached per request. None if guest."""
     if 'user' in g:
         return g.user
     uid = session.get('uid')
+    if uid and _session_expired():
+        session.clear()
+        uid = None
     user = None
     if uid:
         try:
@@ -105,6 +150,18 @@ def role_required(*roles):
 
 
 # --------------------------------------------------------------------------- #
+# Safe redirects
+# --------------------------------------------------------------------------- #
+def is_safe_next(target):
+    """True only for same-site relative paths. Use before redirecting to ?next=."""
+    if not target or not isinstance(target, str):
+        return False
+    if not target.startswith('/') or target.startswith('//') or '\\' in target:
+        return False
+    return not any(ord(c) < 32 for c in target)
+
+
+# --------------------------------------------------------------------------- #
 # CSRF
 # --------------------------------------------------------------------------- #
 def csrf_token():
@@ -117,7 +174,70 @@ def csrf_token():
 
 def _csrf_ok():
     sent = request.form.get('_csrf') or request.headers.get('X-CSRF-Token')
-    return bool(sent) and secrets.compare_digest(sent, session.get('token', ''))
+    expected = session.get('token', '')
+    if not sent or not expected:
+        return False
+    return secrets.compare_digest(sent.encode('utf-8'), expected.encode('utf-8'))
+
+
+# --------------------------------------------------------------------------- #
+# Security headers, cookie flags and CSP nonce
+# --------------------------------------------------------------------------- #
+def init_security_headers(app):
+    """Called from init_csrf(), so no change to the app factory is needed.
+
+    Environment switches (both default off so nothing breaks on first deploy):
+      FORCE_HTTPS=1   Secure session cookie + HSTS header. Set once the site is on HTTPS.
+      CSP_ENFORCE=1   Enforce the Content-Security-Policy. Until then it only reports
+                      problems in the browser console (Report-Only).
+    """
+    force_https = os.environ.get('FORCE_HTTPS', '0') == '1'
+    enforce_csp = os.environ.get('CSP_ENFORCE', '0') == '1'
+
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    if not app.config.get('SESSION_COOKIE_SAMESITE'):
+        app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    if force_https:
+        app.config['SESSION_COOKIE_SECURE'] = True
+
+    @app.before_request
+    def _csp_nonce():
+        g.csp_nonce = secrets.token_urlsafe(16)
+
+    @app.context_processor
+    def _inject_csp_nonce():
+        return {'csp_nonce': g.get('csp_nonce', '')}
+
+    @app.after_request
+    def _security_headers(resp):
+        nonce = g.get('csp_nonce', '')
+        csp = '; '.join([
+            "default-src 'self'",
+            f"script-src 'self' 'nonce-{nonce}'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: blob:",
+            "media-src 'self' blob:",
+            "font-src 'self' data:",
+            "connect-src 'self'",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'self'",
+        ])
+        name = ('Content-Security-Policy' if enforce_csp
+                else 'Content-Security-Policy-Report-Only')
+        resp.headers[name] = csp
+        resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+        resp.headers.setdefault('X-Frame-Options', 'SAMEORIGIN')
+        resp.headers.setdefault('Referrer-Policy', 'strict-origin-when-cross-origin')
+        resp.headers.setdefault('Permissions-Policy',
+                                'camera=(self), microphone=(), geolocation=()')
+        resp.headers.setdefault('Cross-Origin-Opener-Policy', 'same-origin')
+        resp.headers.setdefault('Cache-Control', 'no-store')
+        if force_https:
+            resp.headers.setdefault('Strict-Transport-Security',
+                                    'max-age=31536000; includeSubDomains')
+        return resp
 
 
 def init_csrf(app):
@@ -138,36 +258,59 @@ def init_csrf(app):
                                message=getattr(err, 'description', 'Bad request.'),
                                user=None), 400
 
+    init_security_headers(app)
+
 
 # --------------------------------------------------------------------------- #
 # Simple in-process login rate limiting / lockout
 # --------------------------------------------------------------------------- #
 _ATTEMPTS = {}
+_ATTEMPTS_LOCK = threading.Lock()
+_MAX_TRACKED = 5000
 
 
 def _now():
     return time.time()
 
 
+def _prune(now):
+    """Keep memory bounded: drop the oldest unlocked records when the table is big."""
+    if len(_ATTEMPTS) <= _MAX_TRACKED:
+        return
+    stale = [k for k, r in _ATTEMPTS.items() if r['until'] <= now]
+    stale.sort(key=lambda k: _ATTEMPTS[k]['first'])
+    for k in stale[:max(1, len(stale) // 2)]:
+        _ATTEMPTS.pop(k, None)
+
+
 def login_locked(key):
-    rec = _ATTEMPTS.get(key)
-    if not rec:
+    with _ATTEMPTS_LOCK:
+        rec = _ATTEMPTS.get(key)
+        if not rec:
+            return 0
+        if rec.get('until', 0) > _now():
+            return int(rec['until'] - _now())
         return 0
-    if rec.get('until', 0) > _now():
-        return int(rec['until'] - _now())
-    return 0
 
 
-def register_login_failure(key, max_attempts, lock_seconds):
-    rec = _ATTEMPTS.setdefault(key, {'count': 0, 'until': 0})
-    rec['count'] += 1
-    if rec['count'] >= max_attempts:
-        rec['until'] = _now() + lock_seconds
-        rec['count'] = 0
+def register_login_failure(key, max_attempts, lock_seconds, window_seconds=900):
+    """Count a failed login. Old failures stop counting after ``window_seconds``."""
+    now = _now()
+    with _ATTEMPTS_LOCK:
+        _prune(now)
+        rec = _ATTEMPTS.get(key)
+        if rec is None or (rec['until'] <= now and now - rec['first'] > window_seconds):
+            rec = _ATTEMPTS[key] = {'count': 0, 'until': 0, 'first': now}
+        rec['count'] += 1
+        if rec['count'] >= max_attempts:
+            rec['until'] = now + lock_seconds
+            rec['count'] = 0
+            rec['first'] = now
 
 
 def clear_login_failures(key):
-    _ATTEMPTS.pop(key, None)
+    with _ATTEMPTS_LOCK:
+        _ATTEMPTS.pop(key, None)
 
 
 # --------------------------------------------------------------------------- #
@@ -175,6 +318,9 @@ def clear_login_failures(key):
 # --------------------------------------------------------------------------- #
 def audit(action, entity=None, entity_id=None, detail=None, actor=None):
     actor = actor or current_user()
+    if detail is not None:
+        # One line per entry and bounded size, so logged input cannot forge entries.
+        detail = str(detail).replace('\r', ' ').replace('\n', ' ')[:2000]
     try:
         db.execute(
             'INSERT INTO audit_log(actor_user_id, actor_label, action, entity, '
@@ -183,8 +329,8 @@ def audit(action, entity=None, entity_id=None, detail=None, actor=None):
              (actor['name'] or actor['username']) if actor else 'system',
              action, entity, entity_id, detail))
     except Exception:
-        # Auditing must never break the request flow.
-        pass
+        # Auditing must never break the request flow, but a failure must not be silent.
+        logger.exception('Audit log write failed for action=%s', action)
 
 
 # --------------------------------------------------------------------------- #
