@@ -20,7 +20,7 @@ from datetime import datetime
 from . import db, services
 from .feedback_categories import (LAB, MAIN, SECOND, ScopeError, conflicting_forms,
                                   eligible_count, expected_categories, has_snapshot,
-                                  normalize_category, resolve_scope, scope_for_form,
+                                  is_session_scoped, normalize_category, resolve_scope, scope_for_form,
                                   snapshot_eligibility)
 from .security import audit, scoped_branch_ids_or_none
 
@@ -241,7 +241,13 @@ def publish(actor, form_id):
     problems = validate_for_publish(form_id)
     if problems:
         raise ScopeError('not_publishable', ' '.join(problems), 422)
+    return _open_with_snapshot(actor, form_id, sc)
 
+
+def _open_with_snapshot(actor, form_id, sc):
+    """The ONE place a draft category form becomes open: snapshot the eligible
+    students and flip draft -> open in a single transaction (a concurrent second
+    publish loses).  Callers validate first and have already authorised ``actor``."""
     conn = db.get_db()
     now = datetime.utcnow().isoformat(timespec='seconds')
     try:
@@ -284,6 +290,58 @@ def close(actor, form_id):
     if cur.rowcount != 1:
         raise ScopeError('invalid_transition', 'Only an open form can be closed.', 409)
     audit('form.closed', 'feedback_forms', form_id, 'Closed', actor=actor)
+
+
+def change_status(actor, form_id, status):
+    """Entry point for the legacy HOD/Admin ``/forms/<id>/status`` routes.
+
+    It adds no lifecycle of its own: transitions that already exist here are
+    delegated (draft -> open for Second/Lab = ``publish``; open -> closed =
+    ``close``), and everything else (re-open, archive, draft -> closed) stays on
+    ``services.set_form_status``.  New rule: a form that has submissions can
+    never go back to ``draft``.
+
+    Main forms keep their historical validation (``services.validate_form_for_publish``,
+    which allows several Main forms per session); only the transaction that
+    freezes the eligible students and opens the form is shared with ``publish``.
+    """
+    if status not in ('draft', 'open', 'closed', 'archived'):
+        raise ScopeError('invalid_status', 'Unknown form status.', 400)
+    form = _load_form(form_id)
+    current = form['status']
+    if status == current:                    # already there: nothing to change or re-freeze
+        return
+    try:
+        category = _category_of(form)
+        managed = is_session_scoped(form)
+    except ScopeError:                       # legacy form outside the three categories
+        category, managed = None, False
+
+    if status == 'draft' and current != 'draft' \
+            and services.form_has_submissions(form_id):
+        raise ScopeError('invalid_transition',
+                         'This form already has submissions, so it cannot be returned '
+                         'to draft. Close it instead.', 409)
+
+    if managed and status == 'open' and current == 'draft':
+        sc = scope_for_form(form)
+        _require_actor(actor, sc)
+        if category == MAIN:
+            problems = services.validate_form_for_publish(form_id)
+            if problems:
+                err = ScopeError('not_publishable', ' '.join(problems), 422)
+                err.errors = problems
+                raise err
+            _open_with_snapshot(actor, form_id, sc)
+        else:
+            publish(actor, form_id)
+        return
+    if managed and status == 'closed' and current == 'open':
+        close(actor, form_id)
+        return
+    if managed:                              # remaining moves still need the same authority
+        _require_actor(actor, scope_for_form_lenient(form))
+    services.set_form_status(form_id, status)
 
 
 def scope_for_form_lenient(form):
