@@ -59,6 +59,7 @@ def index():
 def api_employees():
     user = current_user()
     session = svc.owned_session(user, request.args.get('session_id'))
+    svc.require_lab(session)
     out = svc.search_employees(user, session, request.args.get('q', ''),
                                page=request.args.get('page', 1, type=int))
     return jsonify(ok=True, **out)
