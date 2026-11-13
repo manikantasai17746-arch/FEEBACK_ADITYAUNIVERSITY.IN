@@ -290,6 +290,15 @@
         <path d="M6 6l12 12M18 6L6 18"/>
       </svg>
     </button>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="lp-login-flashes" role="alert" aria-live="polite">
+          {% for category, message in messages %}
+            <div class="flash flash-{{ category or 'info' }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
 
     <!-- Student -->
     <div class="lp-login-panel active" data-role="student">
@@ -300,9 +309,10 @@
       <div class="lp-login-or">or enter it manually</div>
       <form method="post" action="{{ url_for('auth.student_login') }}" autocomplete="on" class="lp-login-form">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="login_context" value="landing">
         <div class="field">
           <label for="lp_roll">Roll Number</label>
-          <input type="text" id="lp_roll" name="roll" placeholder="e.g. 25B11CS015" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_roll" name="roll" value="{{ login_values.get('roll', '') if login_values else '' }}" placeholder="e.g. 25B11CS015" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
           <div class="scan-ok" id="lpScanOkStudent" style="display:none">✓ ID card scanned — now enter your password.</div>
         </div>
         <div class="field">
@@ -324,9 +334,10 @@
       <div class="lp-login-or">or enter it manually</div>
       <form method="post" action="{{ url_for('auth.teacher_login') }}" autocomplete="on" class="lp-login-form">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="login_context" value="landing">
         <div class="field">
           <label for="lp_emp_t">Employee Code</label>
-          <input type="text" id="lp_emp_t" name="emp_code" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_emp_t" name="emp_code" value="{{ login_values.get('emp_code', '') if login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
           <div class="scan-ok" id="lpScanOkTeacher" style="display:none">✓ ID card scanned — now enter your password.</div>
         </div>
         <div class="field">
@@ -345,9 +356,10 @@
       <p class="lp-login-sub">Sign in with your employee code to manage department feedback forms and results.</p>
       <form method="post" action="{{ url_for('auth.hod_login') }}" autocomplete="on" class="lp-login-form">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="login_context" value="landing">
         <div class="field">
           <label for="lp_emp_h">Employee Code</label>
-          <input type="text" id="lp_emp_h" name="emp_code" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_emp_h" name="emp_code" value="{{ login_values.get('emp_code', '') if login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
         </div>
         <div class="field">
           <label for="lp_h_pw">Password</label>
@@ -364,9 +376,10 @@
       <p class="lp-login-sub">Sign in with your employee code to view college-wide feedback and performance.</p>
       <form method="post" action="{{ url_for('auth.dean_login') }}" autocomplete="on" class="lp-login-form">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="login_context" value="landing">
         <div class="field">
           <label for="lp_emp_d">Employee Code</label>
-          <input type="text" id="lp_emp_d" name="emp_code" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_emp_d" name="emp_code" value="{{ login_values.get('emp_code', '') if login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
         </div>
         <div class="field">
           <label for="lp_d_pw">Password</label>
@@ -383,9 +396,10 @@
       <p class="lp-login-sub">Authorised administrators only.</p>
       <form method="post" action="{{ url_for('auth.admin_login') }}" autocomplete="on" class="lp-login-form">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="login_context" value="landing">
         <div class="field">
           <label for="lp_admin_email">Email Address</label>
-          <input type="email" id="lp_admin_email" name="email" placeholder="admin@college.edu" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="254">
+          <input type="email" id="lp_admin_email" name="email" value="{{ login_values.get('email', '') if login_values else '' }}" placeholder="admin@college.edu" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="254">
         </div>
         <div class="field">
           <label for="lp_a_pw">Password</label>
@@ -532,6 +546,9 @@
 
   // Back button must not restore typed credentials from the page cache
   window.addEventListener('pageshow', function (e) { if (e.persisted) resetSecrets(); });
+  {% if login_role %}
+  openLogin({{ login_role|tojson }});
+  {% endif %}
 })();
 </script>
 

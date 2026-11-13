@@ -258,6 +258,8 @@ body.lp-login-open { overflow: hidden; }
   padding: 1.25rem 1.35rem 1.4rem;
   animation: lpLoginIn .2s ease-out;
 }
+.lp-login-flashes { margin: 0 0 .9rem; }
+.lp-login-flashes .flash { padding: .6rem .75rem; margin-bottom: .45rem; font-size: .82rem; }
 @keyframes lpLoginIn {
   from { opacity: 0; transform: translateY(12px) scale(.98); }
   to { opacity: 1; transform: none; }

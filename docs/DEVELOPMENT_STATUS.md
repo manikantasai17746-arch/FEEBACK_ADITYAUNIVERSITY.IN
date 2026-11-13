@@ -9,7 +9,8 @@
 
 - Phases 3, 4, and 5B have handoff/verification documentation in the repository.
 - Phase 6 is in planning / Checkpoint 0 review. No Phase 6 application implementation was started in the inspected baseline.
-- This change is documentation-only; it does not modify application code or schema.
+- Invalid login submissions from the landing-page role modal now re-render the landing page, reopen the selected modal, preserve non-secret identifiers, and show all flashed messages in that modal. No schema change.
+- Focused verification: `pytest -q tests/test_app.py -k 'invalid_landing_modal_login or admin_login_rejects_bad_credentials or admin_login_success'` — 7 passed.
 - The documentation branch was created from the observed `main` commit. Before merging, check whether `main` has advanced.
 
 ## 2. Completed phase evidence
