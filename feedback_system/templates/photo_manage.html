@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% import '_photo_macros.html' as ph %}
+{% block title %}Profile photo — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="card" style="max-width:560px;margin:20px auto">
+  <h2>Profile photo</h2>
+  {% if on_behalf %}
+  <div class="flash flash-warning">You are updating the photo of <strong>{{ emp.name }}</strong> on their behalf.</div>
+  {% endif %}
+
+  {% if has_photo %}
+  <p class="sub">Current photo — upload a new one below to replace it.</p>
+  {% else %}
+  <p class="sub">No photo has been added yet. Upload one so students and the HOD can recognise you.</p>
+  {% endif %}
+
+  {{ ph.photo_card(emp_code=emp_code, name=emp.name, designation=emp.designation) }}
+
+  <form method="post" enctype="multipart/form-data" id="photoForm"
+        data-max-kb="{{ max_kb }}" autocomplete="off">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ next_url }}">
+    <div class="field">
+      <label for="photoInput">{{ 'Replace photo' if has_photo else 'Choose a photo' }}</label>
+      <input type="file" id="photoInput" name="photo" accept="image/jpeg,image/png" required>
+      <div class="hint">JPG or PNG, up to {{ max_kb // 1024 if max_kb >= 1024 else max_kb }}{{ ' MB' if max_kb >= 1024 else ' KB' }}.</div>
+    </div>
+    <div id="photoPreviewBox" class="photo-preview" hidden>
+      <p class="sub">Preview — this is how the photo will look:</p>
+      <img id="photoPreview" alt="Selected photo preview" width="140" height="140">
+    </div>
+    <p id="photoError" class="field-error" role="alert" hidden></p>
+    <button class="btn" type="submit" id="photoSubmit" disabled>Save photo</button>
+    {% if next_url %}<a class="btn btn-ghost" href="{{ next_url }}">Skip for now</a>{% endif %}
+  </form>
+</div>
+<script src="{{ url_for('static', filename='js/photo_upload.js') }}"></script>
+{% endblock %}
