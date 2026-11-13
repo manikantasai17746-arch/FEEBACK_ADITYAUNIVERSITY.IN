@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% import '_photo_macros.html' as ph %}
+{% block title %}Your photo — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card" style="max-width:560px">
+    <div class="eyebrow">Step 3 of 4 · One-time setup</div>
+    <h2>Your profile photo</h2>
+    {% if has_photo %}
+    <p class="sub">We already have a photo for you. Students and the HOD will see it next to your name.
+      Keep it, or upload a new one.</p>
+    {% else %}
+    <p class="sub">Add a clear photo so students and the HOD can recognise you. You can also skip this
+      and add it later — until then an initials avatar is shown.</p>
+    {% endif %}
+
+    {{ ph.photo_card(emp_code=emp_code, name=current_user.name, designation=designation) }}
+
+    <form method="post" enctype="multipart/form-data" id="photoForm"
+          data-max-kb="{{ max_kb }}" autocomplete="off" class="card" style="margin-top:1rem">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="upload">
+      <div class="field">
+        <label for="photoInput">{{ 'Replace photo' if has_photo else 'Choose a photo' }}</label>
+        <input type="file" id="photoInput" name="photo" accept="image/jpeg,image/png" required>
+        <div class="hint">JPG or PNG, up to {{ max_kb // 1024 if max_kb >= 1024 else max_kb }}{{ ' MB' if max_kb >= 1024 else ' KB' }}.</div>
+      </div>
+      <div id="photoPreviewBox" class="photo-preview" hidden>
+        <p class="sub">Preview — this is how the photo will look:</p>
+        <img id="photoPreview" alt="Selected photo preview" width="140" height="140">
+      </div>
+      <p id="photoError" class="field-error" role="alert" hidden></p>
+      <button class="btn" type="submit" id="photoSubmit" disabled>Save photo &amp; continue</button>
+    </form>
+
+    <form method="post" style="margin-top:.8rem;display:flex;gap:.6rem;flex-wrap:wrap">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      {% if has_photo %}
+      <button class="btn btn-ghost" type="submit" name="action" value="continue">Keep this photo &amp; continue</button>
+      {% else %}
+      <button class="btn btn-ghost" type="submit" name="action" value="skip">Skip for now</button>
+      {% endif %}
+    </form>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/photo_upload.js') }}"></script>
+{% endblock %}

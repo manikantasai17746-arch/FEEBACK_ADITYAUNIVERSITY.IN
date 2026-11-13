@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Teacher Assignment Setup — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="card" style="max-width:720px;margin:20px auto">
+  <div class="eyebrow">Step 4 of 4 · One-time setup</div>
+  <h2>Teacher Assignment Setup</h2>
+  <p class="sub">Welcome, <strong>{{ current_user.name }}</strong>. Your account is ready.</p>
+  <p>This is where you will confirm your subjects, room numbers and lab availability.
+     That setup form is added in the next release step; for now you can continue to your dashboard.</p>
+  <a class="btn" href="{{ url_for('teacher.dashboard') }}">Continue to dashboard</a>
+</div>
+{% endblock %}

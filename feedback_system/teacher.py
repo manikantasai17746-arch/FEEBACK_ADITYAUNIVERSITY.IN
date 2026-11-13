@@ -105,6 +105,13 @@ def _subject_row(user_id, form, session_ids, section=None):
     }
 
 
+@bp.route('/assignment-setup')
+@role_required('teacher')
+def assignment_setup():
+    """Landing page after the first-login flow (filled in by Phase 3)."""
+    return render_template('teacher_assignment_setup.html')
+
+
 @bp.route('/')
 @role_required('teacher')
 def dashboard():

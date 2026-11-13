@@ -96,8 +96,8 @@ def current_user():
         try:
             row = db.query(
                 'SELECT id, role, username, email, name, roll, emp_code, is_active, '
-                'must_change_password, email_verified, onboarding_complete, designation '
-                'FROM users WHERE id=?', (uid,), one=True)
+                'must_change_password, email_verified, onboarding_complete, designation, '
+                'first_login_complete FROM users WHERE id=?', (uid,), one=True)
         except Exception:
             row = db.query(
                 'SELECT id, role, username, email, name, roll, emp_code, is_active, '
@@ -107,6 +107,7 @@ def current_user():
             user.setdefault('email_verified', 0)
             user.setdefault('onboarding_complete', 0)
             user.setdefault('designation', None)
+            user.setdefault('first_login_complete', 1)
         else:
             session.clear()
     g.user = user

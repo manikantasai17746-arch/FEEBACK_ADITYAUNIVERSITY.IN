@@ -3,7 +3,7 @@
 {% block body %}
 <div class="auth-page">
   <div class="auth-card">
-    <div class="eyebrow">Step 1 of 2 · One-time setup</div>
+    <div class="eyebrow">Step 1 of {{ 4 if current_user.role == 'teacher' else 2 }} · One-time setup</div>
     <h2>Add your email</h2>
     <p class="sub" style="margin-bottom:1.2rem">Hi <strong>{{ current_user.name }}</strong>! Enter your
       email (Gmail) address. We will send you a <strong>6-digit code</strong> to confirm it.
