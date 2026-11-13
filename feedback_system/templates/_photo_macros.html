@@ -1,0 +1,31 @@
+{#- Shared employee photo components (Phase 1).
+    Usage:  {% import '_photo_macros.html' as ph %}
+            {{ ph.avatar(emp.emp_code, emp.name, 56) }}
+            {{ ph.photo_card(emp_code=..., name=..., designation=..., subjects=[...], manage_url=...) }}
+    The image URL never 404s: it falls back to a generated initials avatar. -#}
+{% macro avatar(emp_code, name, size=64) -%}
+  {%- if emp_code -%}
+  <img class="emp-avatar" src="{{ url_for('photos.serve', emp_code=emp_code) }}"
+       width="{{ size }}" height="{{ size }}" loading="lazy"
+       alt="{{ name or 'Employee' }}" style="width:{{ size }}px;height:{{ size }}px">
+  {%- else -%}
+  <span class="emp-avatar emp-avatar-initials" aria-hidden="true"
+        style="width:{{ size }}px;height:{{ size }}px;line-height:{{ size }}px">{{ ((name or '?')[:1])|upper }}</span>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro photo_card(emp_code, name, designation=None, subjects=None, manage_url=None, extra=None) -%}
+<div class="emp-card">
+  {{ avatar(emp_code, name, 88) }}
+  <div class="emp-card-meta">
+    <h3>{{ name or '—' }}</h3>
+    <p class="emp-card-sub">Employee ID: <strong>{{ emp_code or '—' }}</strong></p>
+    <p class="emp-card-sub">{{ designation or 'Faculty' }}</p>
+    {% if subjects %}
+    <p class="emp-card-sub">Subjects: {{ subjects | join(', ') }}</p>
+    {% endif %}
+    {% if extra %}<p class="emp-card-sub">{{ extra }}</p>{% endif %}
+    {% if manage_url %}<a class="btn btn-ghost btn-sm" href="{{ manage_url }}">Change photo</a>{% endif %}
+  </div>
+</div>
+{%- endmacro %}
