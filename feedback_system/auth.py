@@ -8,7 +8,7 @@ from flask import (Blueprint, current_app, flash, jsonify, redirect,
 
 from . import db, mailer, verification
 from .security import (audit, clear_login_failures, current_user, hash_password,
-                       login_locked, login_user, logout_user,
+                       is_safe_next, login_locked, login_user, logout_user,
                        register_login_failure, role_required, verify_password)
 
 bp = Blueprint('auth', __name__)
@@ -16,7 +16,7 @@ bp = Blueprint('auth', __name__)
 
 def _safe_next(default_endpoint):
     nxt = request.args.get('next') or request.form.get('next')
-    if nxt and nxt.startswith('/') and not nxt.startswith('//'):
+    if is_safe_next(nxt):
         return nxt
     return url_for(default_endpoint)
 
