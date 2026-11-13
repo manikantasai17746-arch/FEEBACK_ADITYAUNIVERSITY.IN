@@ -1065,3 +1065,15 @@ html.dark-mode .imp-info{background:#1e293b;border-color:#334155;color:#e2e8f0}
 html.dark-mode .imp-tile,html.dark-mode .imp-side-card,html.dark-mode .imp-side-meta,html.dark-mode .imp-chart-wrap{background:#0f172a;border-color:#334155}
 html.dark-mode .imp-side-card.highlight{background:#1e3a5f;border-color:#3b82f6}
 html.dark-mode .imp-single-msg{background:#0f172a;border-color:#334155}
+
+/* ---- Employee photo system (shared) ------------------------------------ */
+.emp-avatar{border-radius:50%;object-fit:cover;background:#e2e8f0;flex-shrink:0;display:inline-block;vertical-align:middle}
+.emp-avatar-initials{text-align:center;font-weight:700;color:#fff;background:#1f3a8a}
+.emp-card{display:flex;gap:1rem;align-items:center;padding:1rem;margin:.75rem 0 1rem;border:1px solid #dbe7f5;border-radius:14px;background:#f8fafc}
+.emp-card-meta{min-width:0;flex:1}
+.emp-card-meta h3{margin:0 0 .2rem;font-size:1.1rem}
+.emp-card-sub{margin:.1rem 0;color:#475569;font-size:.9rem;overflow-wrap:anywhere}
+.photo-preview{margin:.75rem 0}
+.photo-preview img{border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 2px 8px rgba(15,40,80,.15)}
+.field-error{color:#b91c1c;font-size:.9rem;margin:.4rem 0}
+@media (max-width:480px){.emp-card{flex-direction:column;text-align:center}}
