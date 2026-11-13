@@ -11,6 +11,8 @@
 - Phase 6 is in planning / Checkpoint 0 review. No Phase 6 application implementation was started in the inspected baseline.
 - Invalid login submissions from the landing-page role modal now re-render the landing page, reopen the selected modal, preserve non-secret identifiers, and show all flashed messages in that modal. No schema change.
 - Focused verification: `pytest -q tests/test_app.py -k 'invalid_landing_modal_login or admin_login_rejects_bad_credentials or admin_login_success'` — 7 passed.
+- Teacher Assignment Setup now includes a read-only, teacher-scoped eligible-student preview with search and pagination beside each editable room field. It reads active `session_students` records only and does not change room, assignment, student, or feedback data.
+- Preview verification: focused assignment setup tests — 4 passed; JavaScript syntax check passed. The browser UI module was not runnable in this environment because its Playwright/Chromium dependency was unavailable.
 - The documentation branch was created from the observed `main` commit. Before merging, check whether `main` has advanced.
 
 ## 2. Completed phase evidence

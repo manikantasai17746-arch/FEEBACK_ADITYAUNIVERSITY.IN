@@ -9,6 +9,7 @@
 
   var csrf = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
   var saveUrl = root.dataset.apiSave;
+  var studentsUrl = root.dataset.apiStudents;
   var dashboardUrl = root.dataset.dashboard;
   var roomMax = parseInt(root.dataset.roomMax, 10) || 20;
   var ROOM_RE = /^[A-Za-z0-9 \-\/_.,()#&]+$/;
@@ -23,8 +24,21 @@
   var cancel = document.getElementById('tasCancel');
   var alertBox = document.getElementById('tasAlert');
   var modal = document.getElementById('tasModal');
+  var previewModal = document.getElementById('tasPreviewModal');
+  var previewClose = document.getElementById('tasPreviewClose');
+  var previewSearch = document.getElementById('tasPreviewSearch');
+  var previewMeta = document.getElementById('tasPreviewMeta');
+  var previewCount = document.getElementById('tasPreviewCount');
+  var previewCountPlural = document.getElementById('tasPreviewCountPlural');
+  var previewStatus = document.getElementById('tasPreviewStatus');
+  var previewRows = document.getElementById('tasPreviewRows');
+  var previewPagination = document.getElementById('tasPreviewPagination');
   var step = 1;
   var saving = false;
+  var previewSession = null;
+  var previewPage = 1;
+  var previewSearchTimer = null;
+  var previewRequest = 0;
 
   function $all(sel, ctx) { return Array.prototype.slice.call((ctx || root).querySelectorAll(sel)); }
   function normRoom(v) { return (v || '').replace(/\s+/g, ' ').trim(); }
@@ -181,6 +195,112 @@
   }
   function closeModal() { modal.hidden = true; }
 
+  function previewText(assignment) {
+    var parts = [];
+    if (assignment.subject_name || assignment.subject_code) {
+      parts.push((assignment.subject_name || assignment.subject_code) +
+        (assignment.subject_code ? ' (' + assignment.subject_code + ')' : ''));
+    }
+    if (assignment.section) { parts.push('Section ' + assignment.section); }
+    if (assignment.branch) { parts.push(assignment.branch); }
+    if (assignment.semester) { parts.push(assignment.semester); }
+    if (assignment.academic_year) { parts.push(assignment.academic_year); }
+    return parts.join(' · ');
+  }
+
+  function renderPreviewRows(rows) {
+    previewRows.textContent = '';
+    if (!rows.length) {
+      var empty = el('tr');
+      var cell = el('td', '', 'No eligible students found.');
+      cell.colSpan = 2;
+      empty.appendChild(cell);
+      previewRows.appendChild(empty);
+      return;
+    }
+    rows.forEach(function (student) {
+      var row = el('tr');
+      row.appendChild(el('td', '', student.roll || '—'));
+      row.appendChild(el('td', '', student.name || '—'));
+      previewRows.appendChild(row);
+    });
+  }
+
+  function renderPreviewPagination(page, pages) {
+    previewPagination.textContent = '';
+    if (pages <= 1) { return; }
+    var previous = el('button', 'btn btn-ghost btn-sm', 'Previous');
+    previous.type = 'button'; previous.disabled = page <= 1;
+    previous.addEventListener('click', function () { loadPreview(page - 1); });
+    var label = el('span', 'tas-page-label', 'Page ' + page + ' of ' + pages);
+    var nextPage = el('button', 'btn btn-ghost btn-sm', 'Next');
+    nextPage.type = 'button'; nextPage.disabled = page >= pages;
+    nextPage.addEventListener('click', function () { loadPreview(page + 1); });
+    previewPagination.appendChild(previous);
+    previewPagination.appendChild(label);
+    previewPagination.appendChild(nextPage);
+  }
+
+  function loadPreview(page) {
+    if (!previewSession) { return; }
+    previewPage = Math.max(1, page || 1);
+    var requestId = ++previewRequest;
+    previewStatus.textContent = 'Loading students…';
+    var params = new URLSearchParams({
+      session_id: previewSession,
+      page: previewPage,
+      search: previewSearch.value.trim()
+    });
+    fetch(studentsUrl + '?' + params.toString(), {
+      credentials: 'same-origin',
+      headers: { 'Accept': 'application/json' }
+    }).then(function (response) {
+      return response.json().catch(function () { return { ok: false, error: 'Unexpected server response.' }; })
+        .then(function (body) { return { status: response.status, body: body }; });
+    }).then(function (result) {
+      if (requestId !== previewRequest) { return; }
+      if (!result.body.ok) {
+        previewStatus.textContent = result.body.error || 'Could not load students.';
+        renderPreviewRows([]);
+        previewPagination.textContent = '';
+        return;
+      }
+      previewStatus.textContent = result.body.total ? '' : 'No eligible students found.';
+      previewMeta.textContent = previewText(result.body.assignment);
+      previewCount.textContent = String(result.body.total);
+      previewCountPlural.textContent = result.body.total === 1 ? '' : 's';
+      renderPreviewRows(result.body.rows);
+      renderPreviewPagination(result.body.page, result.body.pages);
+    }).catch(function () {
+      if (requestId !== previewRequest) { return; }
+      previewStatus.textContent = 'Network problem — please try again.';
+      renderPreviewRows([]);
+      previewPagination.textContent = '';
+    });
+  }
+
+  function openPreview(sessionId) {
+    previewSession = sessionId;
+    previewPage = 1;
+    previewSearch.value = '';
+    previewMeta.textContent = '';
+    previewCount.textContent = '0';
+    previewCountPlural.textContent = 's';
+    previewRows.textContent = '';
+    previewPagination.textContent = '';
+    previewStatus.textContent = 'Loading students…';
+    previewModal.hidden = false;
+    document.body.classList.add('tas-preview-open');
+    loadPreview(1);
+    previewSearch.focus();
+  }
+
+  function closePreview() {
+    previewModal.hidden = true;
+    document.body.classList.remove('tas-preview-open');
+    previewRequest++;
+  }
+
   function setBusy(b) {
     saving = b;
     save.disabled = b;
@@ -251,7 +371,24 @@
   document.getElementById('tasConfirm').addEventListener('click', doSave);
   document.getElementById('tasModalCancel').addEventListener('click', closeModal);
   modal.addEventListener('click', function (e) { if (e.target === modal) { closeModal(); } });
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !modal.hidden) { closeModal(); } });
+  previewClose.addEventListener('click', closePreview);
+  previewModal.addEventListener('click', function (e) {
+    if (e.target === previewModal) { closePreview(); }
+  });
+  previewSearch.addEventListener('input', function () {
+    clearTimeout(previewSearchTimer);
+    previewSearchTimer = setTimeout(function () { loadPreview(1); }, 250);
+  });
+  $all('.tas-preview-btn').forEach(function (button) {
+    button.addEventListener('click', function () {
+      openPreview(button.dataset.previewSession);
+    });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') { return; }
+    if (!previewModal.hidden) { closePreview(); }
+    else if (!modal.hidden) { closeModal(); }
+  });
 
   cancel.addEventListener('click', function () {
     if (dirty() && !window.confirm('Discard your unsaved changes and go back to the last saved values?')) { return; }
