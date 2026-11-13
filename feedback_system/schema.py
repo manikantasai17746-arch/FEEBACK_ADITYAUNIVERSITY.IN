@@ -553,4 +553,66 @@ MIGRATIONS = [
             first_ts BIGINT NOT NULL,
             until_ts BIGINT NOT NULL DEFAULT 0)""",
     ]),
+    # ------------------------------------------------------------------ v19
+    # Phase 1 of the Main / Second / Lab feedback upgrade.  Purely additive:
+    # no existing table is rebuilt and no row is touched.
+    #  * employee_photos          one photo per employee code (stored in the DB so
+    #                             it survives serverless/read-only hosting)
+    #  * teacher_subject_settings room + lab availability, per teaching session
+    #                             (a session = timetable/section + subject + teacher)
+    #  * lab_faculty_assignments  who takes the lab for a session; independent of
+    #                             second_faculty_assignments so one person can hold
+    #                             both roles on the same session
+    #  * second_faculty_assignments gains created_by/source (teacher-made vs import)
+    #  * feedback_forms.lab_faculty_assignment_id links a 'lab' form to its
+    #    assignment (feedback_forms.category already exists and is free text,
+    #    so 'lab' needs no constraint change)
+    (19, "Employee photos, teacher room/lab settings, lab assignments, form categories", [
+        """CREATE TABLE IF NOT EXISTS employee_photos(
+            emp_code TEXT PRIMARY KEY,
+            filename TEXT NOT NULL,
+            mime TEXT NOT NULL,
+            data BLOB NOT NULL,
+            size_bytes INTEGER NOT NULL,
+            uploaded_by INTEGER REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+
+        """CREATE TABLE IF NOT EXISTS teacher_subject_settings(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES class_sessions(id),
+            teacher_user_id INTEGER NOT NULL REFERENCES users(id),
+            room TEXT,
+            lab_available INTEGER NOT NULL DEFAULT 0 CHECK(lab_available IN (0,1)),
+            updated_by INTEGER REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(session_id))""",
+        "CREATE INDEX IF NOT EXISTS ix_tss_teacher ON teacher_subject_settings(teacher_user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_tss_lab ON teacher_subject_settings(lab_available)",
+
+        """CREATE TABLE IF NOT EXISTS lab_faculty_assignments(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL REFERENCES class_sessions(id),
+            main_teacher_user_id INTEGER NOT NULL REFERENCES users(id),
+            lab_teacher_user_id INTEGER NOT NULL REFERENCES users(id),
+            lab_emp_code TEXT NOT NULL,
+            room TEXT,
+            status TEXT NOT NULL DEFAULT 'confirmed'
+                CHECK(status IN ('confirmed','cancelled')),
+            created_by INTEGER REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(session_id, lab_teacher_user_id))""",
+        "CREATE INDEX IF NOT EXISTS ix_lfa_session ON lab_faculty_assignments(session_id)",
+        "CREATE INDEX IF NOT EXISTS ix_lfa_lab ON lab_faculty_assignments(lab_teacher_user_id)",
+        "CREATE INDEX IF NOT EXISTS ix_lfa_main ON lab_faculty_assignments(main_teacher_user_id)",
+
+        "ALTER TABLE second_faculty_assignments ADD COLUMN created_by INTEGER",
+        "ALTER TABLE second_faculty_assignments ADD COLUMN source TEXT NOT NULL DEFAULT 'import'",
+        "CREATE INDEX IF NOT EXISTS ix_sfa_main ON second_faculty_assignments(main_teacher_user_id)",
+
+        "ALTER TABLE feedback_forms ADD COLUMN lab_faculty_assignment_id INTEGER",
+        "CREATE INDEX IF NOT EXISTS ix_forms_category ON feedback_forms(category, status)",
+    ]),
 ]
