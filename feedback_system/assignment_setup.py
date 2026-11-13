@@ -223,6 +223,13 @@ def _validate_items(teacher_user_id, items):
         f"""SELECT DISTINCT session_id FROM lab_faculty_assignments
             WHERE status = 'confirmed' AND session_id IN ({ph})""", tuple(ids))}
 
+    # Phase 4: Second Faculty only exists for sections with a lab, so "No Lab"
+    # must not orphan an active Second Faculty assignment either.
+    sf_taken = {r['session_id'] for r in db.query(
+        f"""SELECT DISTINCT session_id FROM second_faculty_assignments
+            WHERE status = 'confirmed' AND second_teacher_user_id IS NOT NULL
+              AND session_id IN ({ph})""", tuple(ids))}
+
     errors = []
     for it in items:
         sid = it['session_id']
@@ -247,6 +254,13 @@ def _validate_items(teacher_user_id, items):
                     'message': 'Lab faculty is already assigned to this subject and section. '
                                'Ask the HOD/admin to cancel that assignment before changing '
                                'the lab availability.'})
+            elif (entry['lab_set'] and entry.get('lab_status') != LAB_AVAILABLE
+                    and sid in sf_taken):
+                errors.append({
+                    'session_id': sid, 'field': 'lab_status',
+                    'message': 'Second Faculty is already assigned to this subject and section. '
+                               'Remove the Second Faculty (Second Faculty page) before marking '
+                               'it as No Lab.'})
         clean.append(entry)
     return clean, errors
 
