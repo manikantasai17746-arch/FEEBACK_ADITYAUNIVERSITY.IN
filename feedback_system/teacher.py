@@ -1,9 +1,9 @@
 """Teacher dashboard: subject-scoped, anonymous, published-only results."""
-from flask import Blueprint, abort, render_template, request
+from flask import Blueprint, abort, current_app, jsonify, render_template, request
 
-from . import analytics, db, services
+from . import analytics, assignment_setup as setup, db, services
 from . import scoring
-from .security import current_user, role_required
+from .security import audit, current_user, role_required
 
 bp = Blueprint('teacher', __name__, url_prefix='/teacher')
 
@@ -105,11 +105,90 @@ def _subject_row(user_id, form, session_ids, section=None):
     }
 
 
+# --------------------------------------------------------------------------- #
+# Phase 3: Teacher Assignment Setup (subjects -> rooms -> labs -> review/save)
+# The teacher is always taken from the session; ids in a request body are only
+# accepted if they belong to that teacher (see assignment_setup._validate_items).
+# --------------------------------------------------------------------------- #
 @bp.route('/assignment-setup')
 @role_required('teacher')
 def assignment_setup():
-    """Landing page after the first-login flow (filled in by Phase 3)."""
-    return render_template('teacher_assignment_setup.html')
+    user = current_user()
+    rows = setup.teacher_assignments(user['id'])
+    return render_template(
+        'teacher_assignment_setup.html',
+        subjects=setup.group_by_subject(rows),
+        summary=setup.summarize(rows),
+        room_max=setup.ROOM_MAX_LEN)
+
+
+def _json_error(exc):
+    body = {'ok': False, 'error': exc.message}
+    if exc.errors:
+        body['errors'] = exc.errors
+    return jsonify(body), exc.status
+
+
+def _saved_response(user, items, saved_fields):
+    try:
+        summary = setup.save_configuration(user['id'], items)
+    except setup.SetupError as exc:
+        return _json_error(exc)
+    except Exception:
+        current_app.logger.exception('Teacher setup save failed for user %s', user['id'])
+        return jsonify(ok=False, error='Could not save right now. Nothing was changed; '
+                                       'please try again.'), 500
+    audit('teacher_setup_save', 'teacher_subject_settings', user['id'],
+          f"{saved_fields}: {len(items)} assignment(s)", actor=user)
+    return jsonify(ok=True, summary=summary,
+                   assignments=setup.teacher_assignments(user['id']))
+
+
+@bp.route('/assignment-setup/api/assignments')
+@role_required('teacher')
+def assignment_setup_assignments():
+    rows = setup.teacher_assignments(current_user()['id'])
+    return jsonify(ok=True, subjects=setup.group_by_subject(rows),
+                   summary=setup.summarize(rows))
+
+
+@bp.route('/assignment-setup/api/summary')
+@role_required('teacher')
+def assignment_setup_summary():
+    return jsonify(ok=True, summary=setup.teacher_summary(current_user()['id']))
+
+
+@bp.route('/assignment-setup/api/save', methods=['POST'])
+@role_required('teacher')
+def assignment_setup_save():
+    """Save room + lab for many assignments in one transaction (Step 4)."""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        return jsonify(ok=False, error='Invalid request.'), 400
+    return _saved_response(current_user(), payload.get('items'), 'room+lab')
+
+
+@bp.route('/assignment-setup/api/room', methods=['POST'])
+@role_required('teacher')
+def assignment_setup_room():
+    """Save or clear the room of ONE assignment."""
+    p = request.get_json(silent=True)
+    if not isinstance(p, dict) or 'room' not in p:
+        return jsonify(ok=False, error='Invalid request.'), 400
+    return _saved_response(current_user(),
+                           [{'session_id': p.get('session_id'), 'room': p['room']}], 'room')
+
+
+@bp.route('/assignment-setup/api/lab', methods=['POST'])
+@role_required('teacher')
+def assignment_setup_lab():
+    """Save the lab availability of ONE assignment.  Never creates a lab assignment."""
+    p = request.get_json(silent=True)
+    if not isinstance(p, dict) or 'lab_status' not in p:
+        return jsonify(ok=False, error='Invalid request.'), 400
+    return _saved_response(current_user(),
+                           [{'session_id': p.get('session_id'), 'lab_status': p['lab_status']}],
+                           'lab')
 
 
 @bp.route('/')

@@ -1,12 +1,171 @@
 {% extends 'base.html' %}
 {% block title %}Teacher Assignment Setup — Faculty Feedback{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/assignment_setup.css') }}">{% endblock %}
+
+{% macro section_meta(sec) %}
+  <span class="tas-chip">Section {{ sec.section }}</span>
+  <span class="tas-chip">{{ sec.branch }}</span>
+  {% if sec.semester %}<span class="tas-chip">{{ sec.semester }}</span>{% endif %}
+  {% if sec.academic_year %}<span class="tas-chip">{{ sec.academic_year }}</span>{% endif %}
+  {% if sec.period_no %}<span class="tas-chip">Period {{ sec.period_no }}</span>{% endif %}
+  <span class="tas-chip">{{ sec.students }} student{{ '' if sec.students == 1 else 's' }}</span>
+{% endmacro %}
+
 {% block body %}
-<div class="card" style="max-width:720px;margin:20px auto">
-  <div class="eyebrow">Step 4 of 4 · One-time setup</div>
-  <h2>Teacher Assignment Setup</h2>
-  <p class="sub">Welcome, <strong>{{ current_user.name }}</strong>. Your account is ready.</p>
-  <p>This is where you will confirm your subjects, room numbers and lab availability.
-     That setup form is added in the next release step; for now you can continue to your dashboard.</p>
-  <a class="btn" href="{{ url_for('teacher.dashboard') }}">Continue to dashboard</a>
+<div class="tas" id="tas"
+     data-api-save="{{ url_for('teacher.assignment_setup_save') }}"
+     data-dashboard="{{ url_for('teacher.dashboard') }}"
+     data-room-max="{{ room_max }}">
+
+  <div class="tas-head">
+    <div>
+      <div class="eyebrow">One-time setup · editable any time</div>
+      <h1>Teacher Assignment Setup</h1>
+      <p class="sub">{{ current_user.name }} · Employee ID {{ current_user.emp_code or '—' }}</p>
+    </div>
+    <span id="tasStatus" class="tas-status {{ 'is-complete' if summary.complete else 'is-pending' }}">
+      {% if summary.total == 0 %}No subjects assigned
+      {% elif summary.complete %}Setup complete
+      {% else %}{{ summary.pending }} of {{ summary.total }} pending{% endif %}
+    </span>
+  </div>
+
+  <div id="tasAlert" class="tas-alert" role="status" aria-live="polite" hidden></div>
+  <noscript><div class="flash flash-warning">This page needs JavaScript to save your configuration.</div></noscript>
+
+  {% if not subjects %}
+  <div class="card tas-empty">
+    <h2>No subjects assigned yet</h2>
+    <p class="sub">We could not find any timetable sessions assigned to your Employee ID.
+       If this looks wrong, please contact your HOD or the administrator.</p>
+    <a class="btn" href="{{ url_for('teacher.dashboard') }}">Go to dashboard</a>
+  </div>
+  {% else %}
+
+  <ol class="tas-steps" id="tasSteps" aria-label="Setup progress">
+    <li><button type="button" class="tas-step" data-go="1"><b>1</b><span>Subjects</span></button></li>
+    <li><button type="button" class="tas-step" data-go="2"><b>2</b><span>Room Configuration</span></button></li>
+    <li><button type="button" class="tas-step" data-go="3"><b>3</b><span>Lab Availability</span></button></li>
+    <li><button type="button" class="tas-step" data-go="4"><b>4</b><span>Review and Save</span></button></li>
+  </ol>
+
+  {# ---------------- Step 1: subjects (read-only) ---------------- #}
+  <section class="tas-panel" data-panel="1" aria-labelledby="h-step1">
+    <h2 id="h-step1">Step 1 · Your assigned subjects</h2>
+    <p class="sub">These come from the timetable. A subject that appears in several periods is shown once per section.</p>
+    {% for sub in subjects %}
+    <details class="card tas-subject" open>
+      <summary>
+        <span class="tas-subject-name">{{ sub.subject_name or sub.subject_code }}</span>
+        <span class="tas-code">{{ sub.subject_code }}</span>
+        <span class="tas-count">{{ sub.sections|length }} section{{ '' if sub.sections|length == 1 else 's' }}</span>
+      </summary>
+      {% for sec in sub.sections %}
+      <div class="tas-row">
+        <div class="tas-meta">{{ section_meta(sec) }}</div>
+        <dl class="tas-facts">
+          <div><dt>Room</dt><dd data-view-room="{{ sec.session_id }}">{{ sec.room or 'Not set' }}</dd></div>
+          <div><dt>Lab</dt><dd data-view-lab="{{ sec.session_id }}">{{ 'Lab Available' if sec.lab_status == 'available' else ('No Lab' if sec.lab_status == 'none' else 'Not configured') }}</dd></div>
+        </dl>
+      </div>
+      {% endfor %}
+    </details>
+    {% endfor %}
+  </section>
+
+  {# ---------------- Step 2: rooms ---------------- #}
+  <section class="tas-panel" data-panel="2" aria-labelledby="h-step2" hidden>
+    <h2 id="h-step2">Step 2 · Room numbers</h2>
+    <p class="sub">Optional. Leave a field empty if there is no fixed room. Each section can use a different room.</p>
+    {% for sub in subjects %}
+    <div class="card tas-subject">
+      <div class="tas-subject-head">
+        <span class="tas-subject-name">{{ sub.subject_name or sub.subject_code }}</span>
+        <span class="tas-code">{{ sub.subject_code }}</span>
+      </div>
+      {% for sec in sub.sections %}
+      <div class="tas-row" data-row="{{ sec.session_id }}">
+        <div class="tas-meta">{{ section_meta(sec) }}</div>
+        <div class="field">
+          <label for="room-{{ sec.session_id }}">Room number</label>
+          <input type="text" id="room-{{ sec.session_id }}" class="tas-room" inputmode="text"
+                 autocomplete="off" maxlength="{{ room_max }}" placeholder="e.g. 205"
+                 data-session="{{ sec.session_id }}" data-saved="{{ sec.room or '' }}"
+                 value="{{ sec.room or '' }}">
+          <div class="field-error" data-error-for="{{ sec.session_id }}" role="alert" hidden></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </section>
+
+  {# ---------------- Step 3: labs ---------------- #}
+  <section class="tas-panel" data-panel="3" aria-labelledby="h-step3" hidden>
+    <h2 id="h-step3">Step 3 · Lab availability</h2>
+    <p class="sub">Choose <b>Lab Available</b> only if this subject has a lab for this section. This does not assign any lab faculty yet.</p>
+    {% for sub in subjects %}
+    <div class="card tas-subject" data-subject="{{ sub.subject_code }}">
+      <div class="tas-subject-head">
+        <span class="tas-subject-name">{{ sub.subject_name or sub.subject_code }}</span>
+        <span class="tas-code">{{ sub.subject_code }}</span>
+        {% if sub.sections|length > 1 %}
+        <span class="tas-bulk">
+          <button type="button" class="btn btn-ghost btn-sm" data-bulk="available">All sections: Lab Available</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-bulk="none">All sections: No Lab</button>
+        </span>
+        {% endif %}
+      </div>
+      {% for sec in sub.sections %}
+      <div class="tas-row" data-row-lab="{{ sec.session_id }}">
+        <div class="tas-meta">{{ section_meta(sec) }}</div>
+        <fieldset class="tas-choice" data-lab-group="{{ sec.session_id }}" data-saved="{{ sec.lab_status or '' }}">
+          <legend class="sr-only">Lab availability for {{ sub.subject_code }} section {{ sec.section }}</legend>
+          <label class="tas-radio"><input type="radio" name="lab-{{ sec.session_id }}" value="available" {{ 'checked' if sec.lab_status == 'available' }}><span>Lab Available</span></label>
+          <label class="tas-radio"><input type="radio" name="lab-{{ sec.session_id }}" value="none" {{ 'checked' if sec.lab_status == 'none' }} {{ 'disabled' if sec.lab_assignments }}><span>No Lab</span></label>
+        </fieldset>
+        {% if sec.lab_assignments %}
+        <p class="tas-lock">Lab faculty is already assigned here, so “No Lab” is locked. Ask the HOD/admin to cancel that assignment first.</p>
+        {% endif %}
+        <div class="field-error" data-error-for="{{ sec.session_id }}" role="alert" hidden></div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </section>
+
+  {# ---------------- Step 4: review & save ---------------- #}
+  <section class="tas-panel" data-panel="4" aria-labelledby="h-step4" hidden>
+    <h2 id="h-step4">Step 4 · Review and save</h2>
+    <div class="tas-stats" id="tasStats"></div>
+    <div id="tasReview"></div>
+    <p class="sub" id="tasUnsaved" hidden>You have changes that are not saved yet.</p>
+  </section>
+
+  <div class="tas-nav">
+    <button type="button" class="btn btn-ghost" id="tasPrev">← Previous Step</button>
+    <button type="button" class="btn btn-ghost" id="tasCancel" hidden>Cancel changes</button>
+    <span class="tas-spacer"></span>
+    <button type="button" class="btn btn-ghost" id="tasEdit" hidden>Edit</button>
+    <button type="button" class="btn" id="tasNext">Next Step →</button>
+    <button type="button" class="btn btn-ok" id="tasSave" hidden>Save Configuration</button>
+  </div>
+
+  {# confirmation dialog #}
+  <div class="tas-modal" id="tasModal" role="dialog" aria-modal="true" aria-labelledby="tasModalTitle" hidden>
+    <div class="tas-modal-box">
+      <h3 id="tasModalTitle">Save configuration?</h3>
+      <p id="tasModalBody"></p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-ok" id="tasConfirm">Yes, save</button>
+        <button type="button" class="btn btn-ghost" id="tasModalCancel">Go back</button>
+      </div>
+    </div>
+  </div>
+  {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if subjects %}<script src="{{ url_for('static', filename='js/assignment_setup.js') }}"></script>{% endif %}
 {% endblock %}
