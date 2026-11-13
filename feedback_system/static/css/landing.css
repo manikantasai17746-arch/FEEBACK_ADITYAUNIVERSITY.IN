@@ -262,13 +262,6 @@ body.lp-login-open { overflow: hidden; }
   from { opacity: 0; transform: translateY(12px) scale(.98); }
   to { opacity: 1; transform: none; }
 }
-.lp-login-close {
-  position: absolute; top: 10px; right: 12px;
-  width: 32px; height: 32px; border: 0; border-radius: 8px;
-  background: #f1f5f9; color: #475569; font-size: 1.35rem; line-height: 1;
-  cursor: pointer;
-}
-.lp-login-close:hover { background: #e2e8f0; color: #0f172a; }
 .lp-login-tabs {
   display: flex; gap: 4px; margin: 0 1.5rem 1rem 0;
   background: #f1f5f9; border-radius: 10px; padding: 4px;
@@ -335,3 +328,52 @@ body.lp-login-open { overflow: hidden; }
   .lp-login-tab { font-size: .7rem; padding: .4rem .15rem; }
   .lp-login-modal h2 { font-size: 1.25rem; }
 }
+
+/* ===== Rotating close button ===== */
+.lp-login-close {
+  position: absolute; top: 10px; right: 12px;
+  width: 36px; height: 36px; padding: 0;
+  display: grid; place-items: center;
+  border: 0; border-radius: 10px;
+  background: #eef2f9; color: #334e68; cursor: pointer;
+  transition: background .2s, color .2s;
+}
+.lp-login-close svg {
+  transition: transform .4s cubic-bezier(.4, 1.5, .6, 1);
+}
+.lp-login-close:hover { background: #e0e7f5; color: #0f172a; }
+.lp-login-close:hover svg { transform: rotate(90deg); }
+.lp-login-close:active svg { transform: rotate(180deg) scale(.85); }
+.lp-login-close:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+/* spins in when the modal opens */
+.lp-login-modal .lp-login-close svg { animation: lpXSpin .5s ease-out; }
+@keyframes lpXSpin { from { transform: rotate(-180deg) scale(.4); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ===== Eye button (always visible) ===== */
+.lp-login-form .field .pw-wrap { position: relative; }
+.lp-login-form .field .pw-wrap input { padding-right: 2.9rem; }
+.pw-wrap input::-ms-reveal, .pw-wrap input::-ms-clear { display: none; } /* hide Edge's built-in eye */
+
+.pw-eye {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 36px; height: 36px; padding: 0;
+  display: grid; place-items: center;
+  border: 1.5px solid transparent; border-radius: 10px;
+  background: transparent; color: #475569; cursor: pointer;
+  opacity: 1; visibility: visible; pointer-events: auto; /* never hidden */
+  transition: background .2s, color .2s, border-color .2s;
+}
+.pw-eye:hover { background: #eff6ff; color: #1d4ed8; }
+.pw-eye:focus-visible { outline: none; border-color: #2563eb; }
+
+.pw-eye .lid, .pw-eye .pupil { transform-box: fill-box; transform-origin: center; }
+.pw-eye .pupil { transition: transform .25s ease; }
+.pw-eye .slash {
+  stroke-dasharray: 24; stroke-dashoffset: 24;
+  transition: stroke-dashoffset .3s ease;
+}
+.pw-eye[aria-pressed="true"] { color: #1d4ed8; }
+.pw-eye[aria-pressed="true"] .slash { stroke-dashoffset: 0; }
+.pw-eye[aria-pressed="true"] .pupil { transform: scale(.55); }
+.pw-eye:hover .lid, .pw-eye.blink .lid { animation: lpBlink .45s ease; }
+@keyframes lpBlink { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.1); } }
