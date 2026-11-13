@@ -3,7 +3,8 @@ import json
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    url_for)
 
-from . import db, services
+from . import category_forms, db, services
+from .feedback_categories import ScopeError
 from .security import (audit, current_user, role_required, require_branch_access,
                        scoped_branch_ids_or_none, scoped_branches, csrf_token)
 
@@ -581,9 +582,18 @@ def form_status(fid):
             for e in errors:
                 flash(e, 'error')
             return redirect(url_for('hod.form_new'))
-    services.set_form_status(fid, status)
+    ajax = request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+    try:
+        category_forms.change_status(user, fid, status)
+    except ScopeError as exc:
+        msgs = getattr(exc, 'errors', None) or [exc.message]
+        if ajax:
+            return jsonify(ok=False, errors=msgs), exc.status
+        for e in msgs:
+            flash(e, 'error')
+        return redirect(request.form.get('next') or url_for('hod.forms'))
     audit('hod.form.status', 'feedback_forms', fid, f'Status -> {status}')
-    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+    if ajax:
         return jsonify(ok=True, form_id=fid, status=status)
     flash(f'Form status updated to {status}.', 'success')
     return redirect(request.form.get('next') or url_for('hod.forms'))
