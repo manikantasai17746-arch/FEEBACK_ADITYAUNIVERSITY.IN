@@ -85,6 +85,16 @@ It also reports a stale assertion in `test_assignment_setup_phase3.py::test_migr
 
 These results are reported, not independently rerun as part of this documentation task. Do not call the failures harmless. Re-run and investigate before claiming a current baseline.
 
+## 3f. Final verification (2026-11-13)
+
+- Full suite re-run after Overview assertion fix (accepts "Overview" on HOD home).
+- Behavioral checks: same person main+second, multi-assignment second employee,
+  main submission does not touch second, duplicate prevention, role gates, anonymity view.
+- Migration on populated DB copy: v24 → v24, **no data loss**.
+- Browser: HOD login rendered at mobile (~375) and desktop (~1280); module routes
+  verified HTTP 200 under HOD session in earlier run (server-side).
+- Deployment: docs/DEPLOYMENT.md
+
 ## 4. Phase 6 — planned, not implemented
 
 Proposed modules:

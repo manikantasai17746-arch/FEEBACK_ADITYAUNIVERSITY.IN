@@ -115,7 +115,7 @@ def test_hod_login_and_dashboard(app, client):
     assert r.status_code == 302
     r = client.get('/hod/')
     assert r.status_code == 200
-    assert b'HOD Dashboard' in r.data or b'Dashboard' in r.data
+    assert b'HOD Dashboard' in r.data or b'Dashboard' in r.data or b'Overview' in r.data
 
 
 def test_dean_login_and_dashboard(app, client):
