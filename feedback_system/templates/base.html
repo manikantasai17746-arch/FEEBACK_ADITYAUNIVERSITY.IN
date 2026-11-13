@@ -32,11 +32,8 @@
       {% elif current_user and current_user.role == 'teacher' %}
         <a href="{{ url_for('teacher.dashboard') }}">My Performance</a>
         <a href="{{ url_for('teacher.improvement') }}">My Improvement</a>
-<<<<<<< HEAD
         <a href="{{ url_for('teacher.assignment_setup') }}">Assignment Setup</a>
-=======
         <a href="{{ url_for('second_faculty.index') }}">Second Faculty</a>
->>>>>>> origin/main
         <a href="{{ url_for('photos.mine') }}">My Photo</a>
       {% elif current_user and current_user.role == 'student' %}
         <a href="{{ url_for('student.dashboard') }}">My Feedback</a>
