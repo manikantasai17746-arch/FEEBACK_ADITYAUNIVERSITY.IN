@@ -92,12 +92,13 @@
   /* ---------- cards ---------- */
   function cardNode(c) {
     var seconds = c.second_faculty.length ? c.second_faculty.map(function (s) {
-      var actions = s.editable ? [
+      var actions = s.editable ? [].concat(c.can_assign ? [
         h('button', { type: 'button', class: 'btn btn-ghost btn-sm', 'data-act': 'replace',
-                      'aria-label': 'Replace ' + s.name, onclick: function () { openFlow(c.session_id, s.assignment_id); } }, 'Replace'),
+                      'aria-label': 'Replace ' + s.name, onclick: function () { openFlow(c.session_id, s.assignment_id); } }, 'Replace')
+      ] : [], [
         h('button', { type: 'button', class: 'btn btn-ghost btn-sm sf-danger', 'data-act': 'remove',
                       'aria-label': 'Remove ' + s.name, onclick: function () { confirmRemove(c, s); } }, 'Remove')
-      ] : [h('span', { class: 'sf-tag', title: 'Set by the timetable import; managed by the administrator or HOD.', text: 'Imported' })];
+      ]) : [h('span', { class: 'sf-tag', title: 'Set by the timetable import; managed by the administrator or HOD.', text: 'Imported' })];
       return h('li', { class: 'sf-second' }, [
         avatar(s, 38),
         h('div', { class: 'sf-second-meta' }, [h('strong', { text: s.name }), h('span', { class: 'sub', text: 'ID ' + s.emp_code + ' · ' + s.designation })]),
@@ -117,7 +118,7 @@
         fact('Branch', c.branch),
         fact('Section', c.section),
         fact('Room', c.room || 'Not set'),
-        fact('Lab', c.lab_available === null ? 'Not set' : (c.lab_available ? 'Lab available' : 'No lab')),
+        fact('Lab', c.lab_status === 'available' ? 'Lab available' : c.lab_status === 'none' ? 'No lab' : 'Not set'),
         fact('Eligible students', String(c.eligible_students))
       ]),
       h('div', { class: 'sf-second-head' }, [
@@ -125,9 +126,11 @@
         h('span', { class: 'badge badge-published', text: c.second_count + ' assigned' })
       ]),
       h('ul', { class: 'sf-second-list' }, seconds),
-      h('button', { type: 'button', class: 'btn btn-accent sf-assign', 'data-act': 'assign',
-                    onclick: function () { openFlow(c.session_id, null); } },
-        c.second_count ? '＋ Add another Second Faculty' : 'Assign Second Faculty')
+      c.can_assign
+        ? h('button', { type: 'button', class: 'btn btn-accent sf-assign', 'data-act': 'assign',
+                        onclick: function () { openFlow(c.session_id, null); } },
+            c.second_count ? '＋ Add another Second Faculty' : 'Assign Second Faculty')
+        : h('p', { class: 'sf-empty sf-nolab', 'data-role': 'no-lab', text: c.assign_blocked_reason })
     ]);
   }
   function fact(k, v) { return h('div', {}, [h('dt', { text: k }), h('dd', { text: String(v) })]); }
