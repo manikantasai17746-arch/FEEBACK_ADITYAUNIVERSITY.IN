@@ -25,8 +25,10 @@ def sent(app, monkeypatch):
     app.config['REQUIRE_ACCOUNT_SETUP'] = False
     with app.app_context():
         db.execute("DELETE FROM email_codes")
-        db.execute("UPDATE users SET email=NULL, must_change_password=0 "
+        db.execute("UPDATE users SET email=NULL, must_change_password=0, "
+                   "first_login_complete=0, email_verified=0 "
                    "WHERE role IN ('student','teacher')")
+        db.execute("DELETE FROM employee_photos")
         db.execute("UPDATE users SET password_hash=? WHERE emp_code='6817'",
                    (hash_password('teacher@123'),))
 
@@ -53,7 +55,7 @@ def _confirm_email(client, sent, email):
 # ----------------------------------------------------------------------------- email + code
 def test_student_confirms_email_with_code(app, client, sent):
     roll = _student(app)
-    assert login(client, '/', {'roll': roll, 'password': 'student@123'}).status_code == 302
+    assert login(client, '/student/login', {'roll': roll, 'password': 'student@123'}).status_code == 302
     r = client.get('/student/')
     assert r.status_code == 302 and '/setup/email' in r.headers['Location']
 
@@ -76,7 +78,7 @@ def test_student_confirms_email_with_code(app, client, sent):
 
 
 def test_code_expires_and_locks_after_five_wrong_guesses(app, client, sent):
-    login(client, '/', {'roll': _student(app), 'password': 'student@123'})
+    login(client, '/student/login', {'roll': _student(app), 'password': 'student@123'})
     _post(client, '/setup/email', email='a@gmail.com')
     real = sent[-1]['code']
     bad = '000000' if real != '000000' else '111111'
@@ -93,7 +95,7 @@ def test_code_expires_and_locks_after_five_wrong_guesses(app, client, sent):
 
 
 def test_resend_has_a_cooldown(app, client, sent):
-    login(client, '/', {'roll': _student(app), 'password': 'student@123'})
+    login(client, '/student/login', {'roll': _student(app), 'password': 'student@123'})
     _post(client, '/setup/email', email='a@gmail.com')
     r = _post(client, '/setup/email/verify', action='resend')
     assert b'wait' in r.data and len(sent) == 1
@@ -105,7 +107,7 @@ def test_resend_has_a_cooldown(app, client, sent):
 
 def test_mail_failure_does_not_save_email(app, client, sent, monkeypatch):
     monkeypatch.setattr(mailer, 'send_email', lambda *a, **k: False)
-    login(client, '/', {'roll': _student(app), 'password': 'student@123'})
+    login(client, '/student/login', {'roll': _student(app), 'password': 'student@123'})
     r = _post(client, '/setup/email', email='a@gmail.com')
     assert r.status_code == 200 and b'could not send' in r.data
 
@@ -126,6 +128,10 @@ def test_teacher_on_default_password_must_change_it(app, client, sent):
     done = client.post('/change-password', data={'current_password': 'teacher@123',
         'new_password': 'MyNewPass#9', 'confirm_password': 'MyNewPass#9', '_csrf': tok})
     assert done.status_code == 302
+    # Phase 2: the photo step comes next, then the dashboard is open.
+    r = client.get('/teacher/')
+    assert r.status_code == 302 and '/setup/photo' in r.headers['Location']
+    assert _post(client, '/setup/photo', action='skip').status_code == 302
     assert client.get('/teacher/').status_code == 200
 
 
@@ -133,6 +139,9 @@ def test_teacher_with_own_password_is_not_forced(app, client, sent):
     _set_teacher_password(app, 'Personal#Pass1')
     login(client, '/teacher/login', {'emp_code': '6817', 'password': 'Personal#Pass1'})
     _confirm_email(client, sent, 't@gmail.com')
+    r = client.get('/teacher/')                       # photo step is still pending
+    assert r.status_code == 302 and '/setup/photo' in r.headers['Location']
+    assert _post(client, '/setup/photo', action='skip').status_code == 302
     assert client.get('/teacher/').status_code == 200
     assert client.get('/change-password').status_code == 200
 

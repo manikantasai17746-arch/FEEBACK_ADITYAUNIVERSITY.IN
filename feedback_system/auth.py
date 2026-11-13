@@ -85,7 +85,9 @@ _SETUP_ENDPOINTS = {'auth.logout', 'auth.setup_email', 'auth.verify_email',
                     'hod.onboarding', 'hod.onboarding_verify',
                     'hod.onboarding_save', 'dean.onboarding',
                     'dean.onboarding_verify', 'dean.onboarding_save',
-                    'auth.admin_setup_emails', 'auth.admin_setup_emails_verify'}
+                    'auth.admin_setup_emails', 'auth.admin_setup_emails_verify',
+                    # Phase 2: teacher photo step (+ the image it displays)
+                    'auth.setup_photo', 'photos.serve'}
 
 
 def _home_for(role):
@@ -114,12 +116,27 @@ def _enforce_account_setup():
     if not user or user['role'] not in ('student', 'teacher', 'hod', 'dean'):
         return None
 
-    # Password change is always enforced for any role that has the flag.
+    # Teachers follow a fixed one-time order (Phase 2):
+    #   1. confirm e-mail with a code   2. replace the default password
+    #   3. photo step                   4. Teacher Assignment Setup page
+    # The photo step is only enforced while account setup is switched on.
+    if role == 'teacher':
+        setup_on = current_app.config.get('REQUIRE_ACCOUNT_SETUP', True)
+        if setup_on and not (user.get('email') or '').strip():
+            return redirect(url_for('auth.setup_email', next=request.full_path.rstrip('?')
+                                    if request.method == 'GET' else None))
+        if user.get('must_change_password'):
+            return redirect(url_for('auth.change_password'))
+        if setup_on and not user.get('first_login_complete'):
+            return redirect(url_for('auth.setup_photo'))
+        return None
+
+    # Password change is always enforced for any other role that has the flag.
     if user.get('must_change_password'):
         return redirect(url_for('auth.change_password'))
 
-    # Student/teacher email setup (existing behaviour, gated by config).
-    if current_app.config.get('REQUIRE_ACCOUNT_SETUP', True) and role in ('student', 'teacher'):
+    # Student email setup (existing behaviour, gated by config).
+    if current_app.config.get('REQUIRE_ACCOUNT_SETUP', True) and role == 'student':
         if not (user.get('email') or '').strip():
             return redirect(url_for('auth.setup_email', next=request.full_path.rstrip('?')
                                     if request.method == 'GET' else None))
@@ -182,7 +199,8 @@ def verify_email():
         else:
             email = verification.check(user['id'], 'verify_email', request.form.get('code'))
             if email:
-                db.execute('UPDATE users SET email=? WHERE id=?', (email, user['id']))
+                db.execute('UPDATE users SET email=?, email_verified=1 WHERE id=?',
+                           (email, user['id']))
                 audit('user.verify_email', 'users', user['id'], 'Email verified at first login')
                 flash('Email confirmed. Thank you!', 'success')
                 return redirect(_safe_next(_home_for(user['role'])))
@@ -190,6 +208,64 @@ def verify_email():
             if not verification.pending(user['id'], 'verify_email'):
                 return redirect(url_for('auth.setup_email'))
     return render_template('verify_email.html', email=row['email'])
+
+
+# --------------------------------------------------------------------------- #
+# Teacher first-login photo step (Phase 2)
+# --------------------------------------------------------------------------- #
+@bp.route('/setup/photo', methods=['GET', 'POST'])
+@role_required('teacher')
+def setup_photo():
+    """Last onboarding step: show the current photo, or ask for one.
+
+    * photo on file  -> preview card, "Continue" (can also replace it)
+    * no photo       -> upload prompt with a live preview; "Skip for now" is
+                        allowed because every screen falls back to an initials
+                        avatar, and the photo can be added later.
+    Finishing (continue / skip / saved upload) sets ``first_login_complete``
+    and sends the teacher to the Teacher Assignment Setup page.
+    """
+    from . import photos
+    user = current_user()
+    if user.get('first_login_complete'):
+        return redirect(url_for('teacher.assignment_setup'))
+    # Steps cannot be skipped: send them to whichever earlier step is still open.
+    if not (user.get('email') or '').strip():
+        return redirect(url_for('auth.setup_email'))
+    if user.get('must_change_password'):
+        return redirect(url_for('auth.change_password'))
+    code = photos.normalize_emp(user.get('emp_code'))
+    if request.method == 'POST':
+        action = request.form.get('action') or 'upload'
+        if action in ('continue', 'skip'):
+            if action == 'continue' and code and not photos.has_any_photo(code):
+                flash('Please upload a photo, or choose “Skip for now”.', 'warning')
+            else:
+                return _finish_first_login(user, skipped=(action == 'skip'))
+        else:
+            upload = request.files.get('photo')
+            raw = upload.read(photos.MAX_UPLOAD_BYTES + 1) if upload and upload.filename else b''
+            if not code:
+                flash('Your account has no employee code, so a photo cannot be attached.', 'error')
+            else:
+                ok, msg = photos.save_photo(code, raw, user['id'])
+                if ok:
+                    audit('photo.upload', 'employee', code, f'by user {user["id"]} (onboarding)')
+                    return _finish_first_login(user, skipped=False)
+                flash(msg, 'error')
+    meta = photos.photo_meta(code) if code else None
+    return render_template(
+        'setup_photo.html', emp_code=code, designation=user.get('designation'),
+        has_photo=bool(code and photos.has_any_photo(code)), meta=meta,
+        max_kb=photos.MAX_UPLOAD_BYTES // 1024)
+
+
+def _finish_first_login(user, skipped):
+    db.execute('UPDATE users SET first_login_complete=1 WHERE id=?', (user['id'],))
+    audit('teacher.first_login_complete', 'users', user['id'],
+          'Photo step skipped' if skipped else 'Photo step done')
+    flash('Setup complete. Now review your subjects, rooms and labs.', 'success')
+    return redirect(url_for('teacher.assignment_setup'))
 
 
 # --------------------------------------------------------------------------- #

@@ -615,4 +615,17 @@ MIGRATIONS = [
         "ALTER TABLE feedback_forms ADD COLUMN lab_faculty_assignment_id INTEGER",
         "CREATE INDEX IF NOT EXISTS ix_forms_category ON feedback_forms(category, status)",
     ]),
+
+    # Phase 2: first-login onboarding for teachers.
+    #  * users.first_login_complete  1 once the teacher finished the one-time
+    #    flow (email code -> new password -> photo step).  Teachers who already
+    #    finished the old email/password setup are grandfathered in (flag = 1)
+    #    so nobody is pushed back through onboarding after the upgrade.
+    (20, "Teacher first-login onboarding flag", [
+        "ALTER TABLE users ADD COLUMN first_login_complete INTEGER NOT NULL DEFAULT 0",
+        """UPDATE users SET first_login_complete=1
+           WHERE role='teacher' AND COALESCE(TRIM(email), '') <> ''
+             AND must_change_password=0""",
+        "UPDATE users SET email_verified=1 WHERE role='teacher' AND COALESCE(TRIM(email), '') <> ''",
+    ]),
 ]

@@ -252,7 +252,7 @@ def mine():
     code = normalize_emp(user.get('emp_code'))
     if not code:
         flash('Your account has no employee code, so a photo cannot be attached.', 'error')
-        return redirect(url_for('auth.index'))
+        return redirect(url_for('auth.landing'))
     return redirect(url_for('photos.manage', emp_code=code))
 
 
