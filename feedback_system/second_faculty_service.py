@@ -72,6 +72,30 @@ def owned_session(user, session_id):
     return dict(row)
 
 
+def lab_status_of(session_id):
+    """Phase 3 lab decision for a session: 'available', 'none' or None (not set)."""
+    row = db.query('SELECT lab_status FROM teacher_subject_settings WHERE session_id=?',
+                   (session_id,), one=True)
+    return row['lab_status'] if row else None
+
+
+def assign_block_reason(lab_status):
+    """Why Second Faculty cannot be assigned, or None when it can."""
+    if lab_status == 'available':
+        return None
+    if lab_status == 'none':
+        return 'This section has No Lab, so no Second Faculty is needed.'
+    return ('Lab availability is not set for this section. Set it to Lab Available in '
+            'Assignment Setup first.')
+
+
+def require_lab(session):
+    """Second Faculty exists only for sections that have a lab (backend rule)."""
+    reason = assign_block_reason(lab_status_of(session['id']))
+    if reason:
+        raise ServiceError(409, 'no_lab', reason)
+
+
 def _active_sfa_sql():
     return ("sfa.status='confirmed' AND sfa.second_teacher_user_id IS NOT NULL "
             "AND COALESCE(sfa.second_emp_code,'')<>''")
@@ -316,7 +340,7 @@ def list_cards(user):
     if ids:
         ph = ','.join('?' * len(ids))
         for r in db.query(
-                f"""SELECT session_id, room, lab_available FROM teacher_subject_settings
+                f"""SELECT session_id, room, lab_available, lab_status FROM teacher_subject_settings
                     WHERE session_id IN ({ph})""", tuple(ids)):
             settings[r['session_id']] = r
     by_session = {}
@@ -338,7 +362,10 @@ def list_cards(user):
             'section': s['timetable'],
             'room': (st['room'] if st and st['room'] else None),
             # None = Phase 3 has not recorded it yet (never guessed).
-            'lab_available': (bool(st['lab_available']) if st else None),
+            'lab_status': (st['lab_status'] if st else None),
+            'lab_available': ((st['lab_status'] == 'available') if st and st['lab_status'] else None),
+            'can_assign': bool(st and st['lab_status'] == 'available'),
+            'assign_blocked_reason': assign_block_reason(st['lab_status'] if st else None),
             'eligible_students': counts.get(s['id'], 0),
             'second_faculty': seconds,
             'second_count': len(seconds),
@@ -357,6 +384,7 @@ def build_preview(user, session_id, emp_code, page=1, page_size=STUDENT_PAGE_SIZ
                   replace_assignment_id=None):
     """Everything the confirmation steps need, recomputed from live data."""
     session = owned_session(user, session_id)
+    require_lab(session)
     emp = validate_employee(user, session, emp_code)
     students = eligible_students_page(session, page, page_size)
 
@@ -521,6 +549,7 @@ def _require_students(session):
 
 def create_assignment(user, session_id, emp_code):
     session = owned_session(user, session_id)
+    require_lab(session)
     emp = validate_employee(user, session, emp_code)
     _require_students(session)
     room = _room_for(session['id'])
@@ -532,6 +561,7 @@ def replace_assignment(user, assignment_id, emp_code):
     """Swap one Second Faculty for another atomically (old row is soft-removed)."""
     old = _owned_assignment(user, assignment_id)
     session = owned_session(user, old['session_id'])
+    require_lab(session)
     emp = validate_employee(user, session, emp_code)
     if emp['emp_code'].upper() == (old['second_emp_code'] or '').upper():
         raise ServiceError(409, 'same_employee',
