@@ -556,11 +556,9 @@ def test_audit_entry_is_written_on_save(app, t1, world):
 # =========================================================================== #
 # Migration
 # =========================================================================== #
-def test_migration_v21_shape_backfill_and_postgres(app, world):
-    stmts = [s for v, _d, ss in schema.MIGRATIONS if v == 21 for s in ss]
-    # v21 must exist and be applied; later migrations (v22+) are expected.
-    assert stmts and schema.MIGRATIONS[-1][0] >= 21
-    assert any(v == 21 for v, _d, _ss in schema.MIGRATIONS)
+def test_migration_v22_shape_backfill_and_postgres(app, world):
+    stmts = [s for v, _d, ss in schema.MIGRATIONS if v == 22 for s in ss]
+    assert stmts and schema.MIGRATIONS[-1][0] == 22
     assert any('ADD COLUMN lab_status' in s for s in stmts)
     assert not any(re.search(r'\b(DROP|DELETE)\b', s, re.I) for s in stmts)      # non-destructive
     for s in stmts:

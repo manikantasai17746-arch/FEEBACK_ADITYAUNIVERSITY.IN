@@ -628,26 +628,6 @@ MIGRATIONS = [
              AND must_change_password=0""",
         "UPDATE users SET email_verified=1 WHERE role='teacher' AND COALESCE(TRIM(email), '') <> ''",
     ]),
-    # Phase 3: Teacher Assignment Setup (room + lab availability).
-    #  * teacher_subject_settings (v19, UNIQUE(session_id)) already stores one row
-    #    per teaching session = section + subject + teacher, which is exactly the
-    #    unit Phase 3 configures.  Repeated timetable periods already collapse
-    #    into that single class_sessions row, so no duplicates can arise.
-    #  * lab_available is a NOT NULL 0/1 that defaults to 0, so it cannot tell
-    #    "teacher chose No Lab" from "never configured".  lab_status adds that
-    #    third state: NULL = not configured, 'available', 'none'.  lab_available
-    #    is kept in sync by the app (1 only for 'available') so v19 readers keep
-    #    working.
-    #  * Back-fill is conservative: only rows already flagged lab_available=1 are
-    #    marked 'available'.  lab_available=0 rows stay NULL (the 0 was a default,
-    #    not a decision).
-    (21, "Teacher setup: tri-state lab status on teacher_subject_settings", [
-        "ALTER TABLE teacher_subject_settings ADD COLUMN lab_status TEXT "
-        "CHECK(lab_status IN ('available','none'))",
-        "UPDATE teacher_subject_settings SET lab_status='available' "
-        "WHERE lab_available=1 AND lab_status IS NULL",
-        "CREATE INDEX IF NOT EXISTS ix_tss_lab_status ON teacher_subject_settings(lab_status)",
-    ]),
     # Phase 4: teacher-managed second-faculty assignments.
     # The v8/v19 table already carries every scope column (academic year,
     # semester, branch, timetable/section, session, subject) and
@@ -655,7 +635,7 @@ MIGRATIONS = [
     # audit trail for soft removal is added.  A removed assignment keeps its row
     # (status 'rejected' + removed_at) so forms/feedback that reference it stay
     # intact; re-adding the same employee re-activates that row.
-    (22, "Second-faculty soft-removal audit columns", [
+    (21, "Second-faculty soft-removal audit columns", [
         "ALTER TABLE second_faculty_assignments ADD COLUMN removed_at TEXT",
         "ALTER TABLE second_faculty_assignments ADD COLUMN removed_by INTEGER",
         "ALTER TABLE second_faculty_assignments ADD COLUMN updated_by INTEGER",
@@ -663,6 +643,16 @@ MIGRATIONS = [
         "ON second_faculty_assignments(second_teacher_user_id, status)",
         "CREATE INDEX IF NOT EXISTS ix_sfa_main_status "
         "ON second_faculty_assignments(main_teacher_user_id, status)",
+    ]),
+    # Phase 3 was developed on a branch that also used version 21. Keep it
+    # separate at v22 so databases already upgraded through main's v21 still
+    # receive the new teacher setup column.
+    (22, "Teacher setup: tri-state lab status", [
+        "ALTER TABLE teacher_subject_settings ADD COLUMN lab_status TEXT "
+        "CHECK(lab_status IN ('available','none'))",
+        "UPDATE teacher_subject_settings SET lab_status='available' "
+        "WHERE lab_available=1 AND lab_status IS NULL",
+        "CREATE INDEX IF NOT EXISTS ix_tss_lab_status ON teacher_subject_settings(lab_status)",
     ]),
 
     # ------------------------------------------------------------------ v23
