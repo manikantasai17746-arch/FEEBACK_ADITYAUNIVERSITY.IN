@@ -1,13 +1,19 @@
 {% extends 'base.html' %}
 {% block title %}Second Faculty Assignment — Faculty Feedback{% endblock %}
 {% block body %}
-<div class="sf-page" id="sf-root" data-api="{{ url_for('second_faculty.index').rstrip('/') }}">
+<div class="sf-page"{% if tab == 'by-me' %} id="sf-root" data-api="{{ url_for('second_faculty.index').rstrip('/') }}"{% endif %}>
   <div class="sf-pagehead">
     <div>
       <div class="eyebrow">Second Faculty</div>
+      {% if tab == 'by-me' %}
       <h1>Assign Second Faculty</h1>
       <p class="sub">Choose a subject and section you teach, then add the employees who co-teach it.
         Students of that section will be asked for feedback on each Second Faculty.</p>
+      {% else %}
+      <h1>Classes where I am Second Faculty</h1>
+      <p class="sub">Colleagues who assigned you as their Second Faculty, with the subject, section and room.
+        These assignments are made by the Main Faculty of each class.</p>
+      {% endif %}
     </div>
     {% if setup_flow %}
     <a class="btn btn-ok" href="{{ url_for('teacher.dashboard', setup_complete=1) }}">
@@ -16,6 +22,65 @@
     {% endif %}
   </div>
 
+  <nav class="sf-tabs" aria-label="Second Faculty views">
+    <a class="sf-tab{{ ' is-on' if tab == 'by-me' }}" href="{{ url_for('second_faculty.index', setup=1 if setup_flow else None) }}"
+       {% if tab == 'by-me' %}aria-current="page"{% endif %}>Assigned by me</a>
+    <a class="sf-tab{{ ' is-on' if tab == 'to-me' }}" href="{{ url_for('second_faculty.index', tab='to-me', setup=1 if setup_flow else None) }}"
+       {% if tab == 'to-me' %}aria-current="page"{% endif %}>Assigned to me
+      <span class="sf-tab-count">{{ received.class_count }}</span></a>
+  </nav>
+
+  {% if tab == 'to-me' %}
+  <section class="sf-received" aria-label="Classes where I am Second Faculty">
+    {% if received.groups %}
+    <p class="sub">{{ received.class_count }} class{{ 'es' if received.class_count != 1 }}
+      from {{ received.teacher_count }} teacher{{ 's' if received.teacher_count != 1 }}.</p>
+    {% for g in received.groups %}
+    <article class="card sf-recv-card">
+      <header class="sf-recv-head">
+        {% if g.photo_url %}
+        <span class="sf-avatar" style="width:52px;height:52px">
+          <img src="{{ g.photo_url }}" alt="{{ g.main_name }}" width="52" height="52" loading="lazy">
+        </span>
+        {% else %}
+        <span class="sf-avatar" style="width:52px;height:52px"><span class="sf-avatar-ini">{{ g.initials }}</span></span>
+        {% endif %}
+        <div>
+          <h3>{{ g.main_name }}</h3>
+          <p class="sub" style="margin:0">{{ g.designation }}{% if g.emp_code %} · Employee ID {{ g.emp_code }}{% endif %}</p>
+        </div>
+        <span class="sf-code">{{ g.classes|length }} class{{ 'es' if g.classes|length != 1 }}</span>
+      </header>
+      <div style="overflow-x:auto">
+        <table class="marks-table sf-recv-table">
+          <thead><tr>
+            <th>Subject</th><th>Section</th><th>Room</th><th>Students</th><th>Assigned on</th>
+          </tr></thead>
+          <tbody>
+          {% for c in g.classes %}
+            <tr>
+              <td><strong>{{ c.subject_name or c.subject_code }}</strong>
+                <div class="sub">{{ c.subject_code }}{% if c.academic_year %} · {{ c.academic_year }}{% endif %}{% if c.semester %} · Sem {{ c.semester }}{% endif %}</div></td>
+              <td>{{ c.branch }}{% if c.section %} · {{ c.section }}{% endif %}</td>
+              <td><span class="room-chip{{ ' room-chip-empty' if not c.room }}">{{ c.room or 'not set' }}</span></td>
+              <td>{{ c.eligible_students }}</td>
+              <td>{{ c.assigned_on or '—' }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </article>
+    {% endfor %}
+    {% else %}
+    <div class="card sf-emptystate">
+      <h3 style="margin-top:0">No one has assigned you yet</h3>
+      <p>When a colleague adds you as Second Faculty for one of their classes, it will be listed here
+        with the subject, section and room.</p>
+    </div>
+    {% endif %}
+  </section>
+  {% else %}
   <div id="sf-toast" class="sf-toasts" aria-live="polite"></div>
   <div id="sf-cards" class="sf-grid">
     <noscript><div class="card">JavaScript is required to manage Second Faculty assignments.</div></noscript>
@@ -33,7 +98,10 @@
       <div id="sf-modal-body" class="sf-dialog-body"></div>
     </div>
   </div>
+  {% endif %}
 </div>
+{% if tab == 'by-me' %}
 <script id="sf-data" type="application/json">{{ cards | tojson }}</script>
 <script src="{{ url_for('static', filename='js/second_faculty.js') }}" defer></script>
+{% endif %}
 {% endblock %}

@@ -256,6 +256,34 @@ def mine():
     return redirect(url_for('photos.manage', emp_code=code))
 
 
+def _department_of(user):
+    """Best-effort department/branch label for the profile header."""
+    if user['role'] == 'teacher':
+        r = db.query(
+            """SELECT b.name FROM branches b
+               JOIN timetables t ON t.branch_id=b.id
+               JOIN class_sessions cs ON cs.timetable_id=t.id
+               WHERE cs.teacher_user_id=? AND cs.is_deleted=0
+               ORDER BY cs.id LIMIT 1""", (user['id'],), one=True)
+        return r['name'] if r else None
+    return None
+
+
+@bp.route('/profile')
+@role_required('teacher', 'hod', 'dean')
+def profile():
+    """One page for the signed-in employee's photo and password."""
+    user = current_user()
+    code = normalize_emp(user.get('emp_code'))
+    meta = photo_meta(code) if code else None
+    return render_template(
+        'profile.html', emp_code=code, department=_department_of(user),
+        has_photo=bool(code and (meta or _legacy_static_path(code))),
+        max_kb=MAX_UPLOAD_BYTES // 1024,
+        forced_password_change=bool(user['role'] == 'teacher'
+                                    and user.get('must_change_password')))
+
+
 @bp.route('/photos/manage/<emp_code>', methods=['GET', 'POST'])
 @role_required('teacher', 'hod', 'dean', 'admin')
 def manage(emp_code):
@@ -278,6 +306,8 @@ def manage(emp_code):
                 return redirect(nxt)
             return redirect(url_for('photos.manage', emp_code=code))
         flash(msg, 'error')
+        if request.form.get('from') == 'profile':
+            return redirect(url_for('photos.profile'))
     meta = photo_meta(code)
     return render_template(
         'photo_manage.html', emp=emp, emp_code=code, meta=meta,

@@ -64,3 +64,35 @@ def test_score_never_exceeds_100_and_marks_never_exceed_10_per_student():
     score, marks = _both(7, answers, students=5)
     assert score == 100.0
     assert marks['obtained'] == 50.0
+
+
+# --- Score / 100 = obtained / maximum * 100 (open: all eligible, closed: responders) ---
+def _six_q(students, closed=False, eligible=72):
+    # every student: Excellent x5 + Very Good x1  -> 10 * (5 + 0.75) / 6 = 9.58 marks each
+    answers = {q: {'Excellent': students} for q in range(1, 6)}
+    answers[6] = {'Very Good': students}
+    data = _data(6, answers, students)
+    data['closed'] = {1: closed}
+    return scoring._marks_from_data(1, eligible, data)
+
+
+def test_open_form_score_is_out_of_every_eligible_student():
+    one = _six_q(1)
+    assert one['maximum'] == 720.0
+    assert one['score_pct'] == pytest.approx(one['obtained'] / 720 * 100, abs=0.01)
+    assert one['score_pct'] < 2                       # ~1.34, not ~96
+    two = _six_q(2)
+    assert two['obtained'] == pytest.approx(2 * one['obtained'], abs=0.02)
+    assert two['score_pct'] == pytest.approx(2 * one['score_pct'], abs=0.02)
+
+
+def test_closed_form_drops_students_who_did_not_respond():
+    m = _six_q(60, closed=True, eligible=72)
+    assert m['maximum'] == 600.0                      # 60 responders * 10, not 720
+    assert m['score_pct'] == pytest.approx(m['obtained'] / 600 * 100, abs=0.01)
+    assert m['score_pct'] == pytest.approx(95.83, abs=0.01)
+
+
+def test_score_is_none_when_nobody_counts():
+    m = _six_q(0, closed=True)
+    assert m['maximum'] == 0 and m['score_pct'] is None

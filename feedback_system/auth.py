@@ -695,6 +695,8 @@ def logout():
 def change_password():
     user = current_user()
     if request.method == 'POST':
+        from_profile = request.form.get('from') == 'profile' and user['role'] in (
+            'teacher', 'hod', 'dean')
         current = request.form.get('current_password') or ''
         new = request.form.get('new_password') or ''
         confirm = request.form.get('confirm_password') or ''
@@ -711,6 +713,10 @@ def change_password():
             db.execute('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?',
                        (hash_password(new), user['id']))
             flash('Your password has been updated.', 'success')
+            if from_profile:
+                return redirect(url_for('photos.profile'))
             home = _home_for(user['role'])
             return redirect(url_for(home))
+        if from_profile:
+            return redirect(url_for('photos.profile'))
     return render_template('change_password.html')

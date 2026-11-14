@@ -34,7 +34,7 @@
         <a href="{{ url_for('teacher.improvement') }}">My Improvement</a>
         <a href="{{ url_for('teacher.assignment_setup') }}">Assignment Setup</a>
         <a href="{{ url_for('second_faculty.index') }}">Second Faculty</a>
-        <a href="{{ url_for('photos.mine') }}">My Photo</a>
+        <a href="{{ url_for('photos.profile') }}">Profile</a>
       {% elif current_user and current_user.role == 'student' %}
         <a href="{{ url_for('student.dashboard') }}">My Feedback</a>
         <a href="{{ url_for('student.notifications') }}">Notifications</a>
@@ -50,7 +50,7 @@
         <a href="{{ url_for('hod.comparison') }}">Comparison</a>
         <a href="{{ url_for('hod.second_faculty') }}">Second Faculty</a>
         <a href="{{ url_for('hod.my_actions') }}">My Actions</a>
-        <a href="{{ url_for('photos.mine') }}">My Photo</a>
+        <a href="{{ url_for('photos.profile') }}">Profile</a>
       {% elif current_user and current_user.role == 'dean' %}
         {% set ep = request.endpoint or '' %}
         <a class="dn {{ 'active' if ep == 'dean.dashboard' }}" href="{{ url_for('dean.dashboard') }}">
@@ -87,14 +87,13 @@
         {% endif %}
       </span>
       {% if current_user and current_user.role == 'dean' %}
-        <a href="{{ url_for('photos.mine') }}">My Photo</a>
-        <a href="{{ url_for('auth.change_password') }}">Password</a>
+        <a href="{{ url_for('photos.profile') }}">Profile</a>
         <a class="nav-user dean-user" href="{{ url_for('auth.logout') }}">
           <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="10" r="3.2"/><path d="M5.8 18.5c1.4-2.4 3.6-3.5 6.2-3.5s4.8 1.1 6.2 3.5"/></svg>
           <span><b>Logout</b><small>({{ current_user.name }})</small></span></a>
       {% elif current_user %}
         {% if current_user.role == 'admin' %}<a href="{{ url_for('auth.admin_setup_emails') }}">Recovery emails</a>{% endif %}
-        <a href="{{ url_for('auth.change_password') }}">Password</a>
+        {% if current_user.role not in ('teacher', 'hod') %}<a href="{{ url_for('auth.change_password') }}">Password</a>{% endif %}
         <a class="nav-user" href="{{ url_for('auth.logout') }}">Logout ({{ current_user.name }})</a>
       {% endif %}
     </nav>

@@ -84,8 +84,11 @@ def _subject_row(user_id, form, session_ids, section=None):
     eligible = services.eligible_count_for_sessions(session_ids)
     scores = scoring.compute_form_scores(form['id'], min_responses=1,
                                          session_ids=session_ids)
-    overall = scores.get('overall_score')
     fm = scoring.form_marks(form['id'], eligible, session_ids=session_ids)
+    # Score / 100 = obtained marks / maximum marks * 100, on the same basis as the
+    # marks columns: every eligible student counts while the form is open, only
+    # the students who responded once it is closed.
+    overall = fm['score_pct']
     return {
         'form': form,
         'section': (section or {}).get('timetable'),
@@ -103,6 +106,67 @@ def _subject_row(user_id, form, session_ids, section=None):
         'scores': scores,
         'form_marks': fm,
     }
+
+
+def _role_context(user, row):
+    """Which hat the teacher wears for this row, plus room / main-faculty info.
+
+    ``role`` is ``main`` (the teacher's own class), ``second`` (the teacher is
+    Second Faculty for a colleague's class) or ``lab`` (the lab hours of the
+    teacher's own class).  The room comes from the assignment itself and falls
+    back to the Main Faculty's Assignment Setup room, so it is never blank when
+    the class has one.
+    """
+    form = row.get('form') or {}
+    category = (form.get('category') or 'main').strip().lower()
+    role = {'second': 'second', 'second_faculty': 'second',
+            'lab': 'lab', 'lab_faculty': 'lab'}.get(category, 'main')
+    sids = [int(i) for i in (row.get('session_ids') or [])]
+    ctx = {'role': role, 'room': None, 'main_name': None, 'main_emp_code': None}
+
+    def setup_room():
+        if not sids:
+            return None
+        ph = ','.join('?' * len(sids))
+        r = db.query(
+            f"""SELECT room FROM teacher_subject_settings
+                WHERE session_id IN ({ph}) AND COALESCE(room,'')<>''
+                ORDER BY session_id LIMIT 1""", tuple(sids), one=True)
+        return r['room'] if r else None
+
+    if role == 'second':
+        sfa = None
+        if form.get('second_faculty_assignment_id'):
+            sfa = db.query(
+                """SELECT sfa.room, u.name AS main_name, u.emp_code AS main_emp
+                   FROM second_faculty_assignments sfa
+                   LEFT JOIN users u ON u.id=sfa.main_teacher_user_id
+                   WHERE sfa.id=?""", (form['second_faculty_assignment_id'],), one=True)
+        main = None
+        if sids:
+            ph = ','.join('?' * len(sids))
+            main = db.query(
+                f"""SELECT u.name AS main_name, u.emp_code AS main_emp
+                    FROM class_sessions cs JOIN users u ON u.id=cs.teacher_user_id
+                    WHERE cs.id IN ({ph}) LIMIT 1""", tuple(sids), one=True)
+        ctx['room'] = (sfa['room'] if sfa and sfa['room'] else None) or setup_room()
+        src = (sfa if sfa and sfa['main_name'] else main)
+        if src:
+            ctx['main_name'] = src['main_name']
+            ctx['main_emp_code'] = src['main_emp']
+    elif role == 'lab':
+        lab_room = None
+        if sids:
+            ph = ','.join('?' * len(sids))
+            r = db.query(
+                f"""SELECT room FROM lab_faculty_assignments
+                    WHERE session_id IN ({ph}) AND status='confirmed'
+                      AND COALESCE(room,'')<>'' LIMIT 1""", tuple(sids), one=True)
+            lab_room = r['room'] if r else None
+        ctx['room'] = lab_room or setup_room()
+    else:
+        ctx['room'] = setup_room()
+    return ctx
 
 
 # --------------------------------------------------------------------------- #
@@ -367,6 +431,7 @@ def dashboard():
     # Rounds are never merged: every row is one form with its own numbers.
     info = services.round_info([r['form']['id'] for r in rows if r['form'].get('id')])
     for r in rows:
+        r.update(_role_context(user, r))
         ri = info.get(r['form'].get('id')) or {}
         r['round_no'] = ri.get('round_no')
         r['round_label'] = ri.get('label')
