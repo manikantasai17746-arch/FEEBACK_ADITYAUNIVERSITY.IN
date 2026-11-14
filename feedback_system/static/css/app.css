@@ -1159,3 +1159,4 @@ html.dark-mode .sf-context{background:#243047}
 
 .icon-btn[data-del]{color:#b3261e;border-color:#e6b8b4;background:#fff5f4;font-weight:600;padding:4px 10px}
 .icon-btn[data-del]:hover{background:#b3261e;color:#fff;border-color:#b3261e}
+.flash-info{background:#e8f1ff;border:1px solid #b6d0f7;color:#1c3d7a;padding:10px 14px;border-radius:8px;font-size:14px}
