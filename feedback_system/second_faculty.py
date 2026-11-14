@@ -50,7 +50,8 @@ def _body():
 @role_required('teacher')
 def index():
     user = current_user()
-    return render_template('teacher_second_faculty.html', cards=svc.list_cards(user))
+    return render_template('teacher_second_faculty.html', cards=svc.list_cards(user),
+                           setup_flow=request.args.get('setup') == '1')
 
 
 @bp.route('/api/employees')

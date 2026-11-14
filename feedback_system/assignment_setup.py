@@ -30,6 +30,8 @@ LAB_NONE = 'none'
 LAB_STATUSES = (LAB_AVAILABLE, LAB_NONE)
 
 ROOM_MAX_LEN = 20
+STUDENT_PAGE_SIZE = 10
+MAX_STUDENT_PAGE_SIZE = 50
 MAX_ITEMS = 500
 # Letters, digits, space and the punctuation seen in room labels ("A-204", "Lab 3/B").
 _ROOM_RE = re.compile(r"^[A-Za-z0-9 \-/_.,()#&]+$")
@@ -150,6 +152,45 @@ def get_assignment(teacher_user_id, session_id):
     """One session, only if it belongs to this teacher; else ``None``."""
     r = db.query(_ASSIGNMENT_SQL + ' AND cs.id = ?', (teacher_user_id, session_id), one=True)
     return _row(r) if r else None
+
+
+def eligible_students_page(teacher_user_id, session_id, page=1, search='',
+                           page_size=STUDENT_PAGE_SIZE):
+    """Return active students eligible for one teacher-owned session."""
+    assignment = get_assignment(teacher_user_id, session_id)
+    if not assignment:
+        return None
+
+    requested_page = max(1, int(page or 1))
+    page = requested_page
+    page_size = max(1, min(int(page_size or STUDENT_PAGE_SIZE), MAX_STUDENT_PAGE_SIZE))
+    search = ' '.join((search or '').split())[:100]
+    pattern = f'%{search.lower()}%' if search else None
+    where = """FROM session_students ss
+               JOIN users u ON u.id=ss.student_user_id
+               WHERE ss.session_id=? AND u.is_active=1 AND u.role='student'"""
+    args = [session_id]
+    if pattern:
+        where += """ AND (LOWER(COALESCE(u.roll, '')) LIKE ?
+                          OR LOWER(COALESCE(u.name, '')) LIKE ?)"""
+        args.extend([pattern, pattern])
+
+    total = db.query(f'SELECT COUNT(*) c {where}', tuple(args), one=True)['c']
+    pages = max(1, -(-total // page_size))
+    page = min(requested_page, pages)
+    rows = db.query(
+        f"""SELECT u.roll, u.name {where}
+            ORDER BY u.roll, u.id LIMIT ? OFFSET ?""",
+        (*args, page_size, (page - 1) * page_size))
+    return {
+        'assignment': assignment,
+        'total': total,
+        'page': page,
+        'page_size': page_size,
+        'pages': pages,
+        'search': search,
+        'rows': [{'roll': r['roll'], 'name': r['name']} for r in rows],
+    }
 
 
 def summarize(rows):

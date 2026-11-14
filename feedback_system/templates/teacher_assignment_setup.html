@@ -14,7 +14,9 @@
 {% block body %}
 <div class="tas" id="tas"
      data-api-save="{{ url_for('teacher.assignment_setup_save') }}"
+     data-api-students="{{ url_for('teacher.assignment_setup_students') }}"
      data-dashboard="{{ url_for('teacher.dashboard') }}"
+     data-second-faculty="{{ url_for('second_faculty.index') }}"
      data-room-max="{{ room_max }}">
 
   <div class="tas-head">
@@ -88,10 +90,14 @@
         <div class="tas-meta">{{ section_meta(sec) }}</div>
         <div class="field">
           <label for="room-{{ sec.session_id }}">Room number</label>
-          <input type="text" id="room-{{ sec.session_id }}" class="tas-room" inputmode="text"
-                 autocomplete="off" maxlength="{{ room_max }}" placeholder="e.g. 205"
-                 data-session="{{ sec.session_id }}" data-saved="{{ sec.room or '' }}"
-                 value="{{ sec.room or '' }}">
+          <div class="tas-room-controls">
+            <input type="text" id="room-{{ sec.session_id }}" class="tas-room" inputmode="text"
+                   autocomplete="off" maxlength="{{ room_max }}" placeholder="e.g. 205"
+                   data-session="{{ sec.session_id }}" data-saved="{{ sec.room or '' }}"
+                   value="{{ sec.room or '' }}">
+            <button type="button" class="btn btn-ghost btn-sm tas-preview-btn"
+                    data-preview-session="{{ sec.session_id }}">Preview Students</button>
+          </div>
           <div class="field-error" data-error-for="{{ sec.session_id }}" role="alert" hidden></div>
         </div>
       </div>
@@ -118,7 +124,12 @@
       </div>
       {% for sec in sub.sections %}
       <div class="tas-row" data-row-lab="{{ sec.session_id }}">
-        <div class="tas-meta">{{ section_meta(sec) }}</div>
+        <div class="tas-meta">
+          {{ section_meta(sec) }}
+          <span class="tas-room-assigned">
+            <b>Assigned Room:</b> {{ sec.room or 'Room Not Assigned' }}
+          </span>
+        </div>
         <fieldset class="tas-choice" data-lab-group="{{ sec.session_id }}" data-saved="{{ sec.lab_status or '' }}">
           <legend class="sr-only">Lab availability for {{ sub.subject_code }} section {{ sec.section }}</legend>
           <label class="tas-radio"><input type="radio" name="lab-{{ sec.session_id }}" value="available" {{ 'checked' if sec.lab_status == 'available' }}><span>Lab Available</span></label>
@@ -160,6 +171,36 @@
         <button type="button" class="btn btn-ok" id="tasConfirm">Yes, save</button>
         <button type="button" class="btn btn-ghost" id="tasModalCancel">Go back</button>
       </div>
+    </div>
+  </div>
+
+  <div class="tas-preview-modal" id="tasPreviewModal" role="dialog" aria-modal="true"
+       aria-labelledby="tasPreviewTitle" hidden>
+    <div class="tas-preview-box">
+      <div class="tas-preview-head">
+        <div>
+          <h3 id="tasPreviewTitle">Eligible Students</h3>
+          <p id="tasPreviewMeta" class="sub"></p>
+        </div>
+        <button type="button" class="tas-preview-close" id="tasPreviewClose" aria-label="Close preview">×</button>
+      </div>
+      <div class="tas-preview-summary">
+        <b id="tasPreviewCount">0</b>
+        <span>eligible student<span id="tasPreviewCountPlural">s</span></span>
+      </div>
+      <label class="tas-preview-search">
+        <span class="sr-only">Search by roll number or student name</span>
+        <input type="search" id="tasPreviewSearch" placeholder="Search roll number or student name"
+               autocomplete="off">
+      </label>
+      <div id="tasPreviewStatus" class="tas-preview-status" role="status" aria-live="polite"></div>
+      <div class="tas-preview-table-wrap">
+        <table class="tas-preview-table">
+          <thead><tr><th>Roll Number</th><th>Student Name</th></tr></thead>
+          <tbody id="tasPreviewRows"></tbody>
+        </table>
+      </div>
+      <div class="tas-preview-pagination" id="tasPreviewPagination"></div>
     </div>
   </div>
   {% endif %}

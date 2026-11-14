@@ -204,3 +204,28 @@ def delete_code_email(code, role, emp_id, name, requested_by, minutes):
             f'<p style="color:#5A6473">Expires in {minutes} minutes. If you did not expect this, '
             f'do not share the code.</p></div>')
     return subject, text, html
+
+
+def account_removed_email(role, name, emp_id):
+    """Return (subject, text, html) telling a HOD/Dean their account was removed."""
+    from html import escape
+    label = 'Dean' if role == 'dean' else 'HOD'
+    subject = f'Your {label} account has been removed - thank you for your contribution'
+    text = (f'Dear {name},\n\n'
+            f'Your {label} account (Employee ID: {emp_id}) on the Aditya University '
+            'Faculty Feedback Portal has been removed by the administrator.\n\n'
+            'Thank you for your contribution and support to the Faculty Feedback System. '
+            'We truly appreciate the time and effort you gave.\n\n'
+            'If you believe this was done by mistake, please contact the administrator.\n\n'
+            'Best wishes,\nAditya University - Faculty Feedback System')
+    html = (f'<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto">'
+            f'<h2 style="color:#0B2F6B">Aditya University</h2>'
+            f'<p>Dear {escape(name)},</p>'
+            f'<p>Your <b>{label}</b> account (Employee ID: <b>{escape(str(emp_id))}</b>) on the '
+            f'Faculty Feedback Portal has been removed by the administrator.</p>'
+            f'<p>Thank you for your contribution and support to the Faculty Feedback System. '
+            f'We truly appreciate the time and effort you gave.</p>'
+            f'<p style="color:#5A6473">If you believe this was done by mistake, please '
+            f'contact the administrator.</p>'
+            f'<p>Best wishes,<br>Aditya University - Faculty Feedback System</p></div>')
+    return subject, text, html

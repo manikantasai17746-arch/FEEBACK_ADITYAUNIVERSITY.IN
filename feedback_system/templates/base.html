@@ -47,6 +47,9 @@
         <a href="{{ url_for('hod.forms') }}">Form Management</a>
         <a href="{{ url_for('hod.results') }}">Feedback Results</a>
         <a href="{{ url_for('hod.performance') }}">Reports</a>
+        <a href="{{ url_for('hod.comparison') }}">Comparison</a>
+        <a href="{{ url_for('hod.second_faculty') }}">Second Faculty</a>
+        <a href="{{ url_for('hod.my_actions') }}">My Actions</a>
         <a href="{{ url_for('photos.mine') }}">My Photo</a>
       {% elif current_user and current_user.role == 'dean' %}
         {% set ep = request.endpoint or '' %}
