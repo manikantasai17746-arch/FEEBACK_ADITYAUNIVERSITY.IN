@@ -960,6 +960,23 @@ def soft_delete_form(form_id):
     audit('form.delete', 'feedback_forms', form_id, 'Soft deleted')
 
 
+def bulk_soft_delete_forms(form_ids):
+    """Soft-delete the requested live forms and return the number changed."""
+    ids = sorted({int(form_id) for form_id in form_ids})
+    if not ids:
+        return 0
+    placeholders = ','.join('?' for _ in ids)
+    now = datetime.utcnow().isoformat(timespec='seconds')
+    cur = db.execute(
+        f'UPDATE feedback_forms SET is_deleted=1, deleted_at=?, updated_at=? '
+        f'WHERE is_deleted=0 AND id IN ({placeholders})',
+        (now, now, *ids))
+    changed = cur.rowcount
+    for form_id in ids:
+        audit('form.delete', 'feedback_forms', form_id, 'Soft deleted in bulk')
+    return changed
+
+
 def restore_form(form_id):
     db.execute('UPDATE feedback_forms SET is_deleted=0, deleted_at=NULL WHERE id=?', (form_id,))
     audit('form.restore', 'feedback_forms', form_id, 'Restored')

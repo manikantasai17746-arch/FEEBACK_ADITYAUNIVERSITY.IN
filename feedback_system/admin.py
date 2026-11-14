@@ -425,6 +425,23 @@ def form_delete(fid):
     return redirect(url_for('admin.forms'))
 
 
+@bp.route('/forms/delete-selected', methods=['POST'])
+@admin_only
+def forms_delete_selected():
+    form_ids = []
+    for value in request.form.getlist('form_ids'):
+        form_id = _int(value)
+        if form_id:
+            form_ids.append(form_id)
+    deleted = services.bulk_soft_delete_forms(form_ids)
+    if deleted:
+        flash(f'{deleted} form(s) archived (soft-deleted). Historical responses were preserved.',
+              'success')
+    else:
+        flash('Select at least one active form to delete.', 'error')
+    return redirect(url_for('admin.forms'))
+
+
 @bp.route('/forms/<int:fid>/restore', methods=['POST'])
 @admin_only
 def form_restore(fid):

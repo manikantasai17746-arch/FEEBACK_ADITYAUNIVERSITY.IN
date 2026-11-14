@@ -430,6 +430,20 @@ def test_soft_delete_preserves_history(admin, app):
         assert services.response_count(form_id) == 1   # historical response retained
 
 
+def test_bulk_soft_delete_selected_forms(admin, app):
+    sid = find_session(app, '6817', '2501IT07')
+    first = make_form(admin, sid, title='Bulk delete first')
+    second = make_form(admin, sid, title='Bulk delete second')
+    tok = token_from(admin, '/admin/forms')
+    response = admin.post('/admin/forms/delete-selected', data={
+        '_csrf': tok, 'form_ids': [str(first), str(second)]
+    })
+    assert response.status_code == 302
+    with app.app_context():
+        assert services.get_form(first, include_deleted=True)['is_deleted'] == 1
+        assert services.get_form(second, include_deleted=True)['is_deleted'] == 1
+
+
 # --------------------------------------------------------------------------- #
 # Bulk form generation
 # --------------------------------------------------------------------------- #
