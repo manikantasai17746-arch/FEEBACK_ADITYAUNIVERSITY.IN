@@ -58,7 +58,8 @@
 <p class="sub" style="margin:1rem 0;padding:.75rem 1rem;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd">
   Each student gives 10 marks in total. This form has {{ question_count or row.question_count or 'N' }} questions,
   so each is worth {{ '%.2f'|format(marks_per_question or row.marks_per_question or 0) }} marks.
-  Maximum = 10 × eligible students ({{ row.eligible }} → {{ max_marks_total }}).
+  {% if row.form_marks and row.form_marks.closed %}Form closed: Maximum = 10 × students who responded ({{ row.form_marks.max_students }} → {{ max_marks_total }}); students who did not respond are not counted.
+  {% else %}Form open: Maximum = 10 × eligible students ({{ row.eligible }} → {{ max_marks_total }}).{% endif %}
 </p>
 
 <div class="detail-grid">

@@ -1447,6 +1447,7 @@ def _detail_cards(rows, teacher_id=None):
             'score': score, 'distribution': distribution, 'answer_total': grand,
             'max_count': max([d['count'] for d in distribution] + [1]),
             'obtained': fm.get('obtained'), 'maximum': fm.get('maximum'),
+            'closed': fm.get('closed'), 'max_students': fm.get('max_students'),
             'marks_per_question': fm.get('marks_per_question'),
             'question_count': fm.get('question_count') or len(r.get('criteria') or []),
         })
