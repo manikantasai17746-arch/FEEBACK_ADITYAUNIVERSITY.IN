@@ -911,41 +911,50 @@
   }
 
   function publishMany(ids, codes) {
-    // Publish several forms at once (3 at a time) instead of strictly one after
-    // another: each request is a round trip to the server and database.
-    var failures = [], done = 0, next = 0, LIMIT = 3;
-    function one(i) {
-      var id = ids[i];
-      return fetch(statusUrlTpl.replace('/0/status', '/' + id + '/status'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf,
-                   'X-Requested-With': 'XMLHttpRequest' },
-        body: JSON.stringify({ status: 'open' })
-      }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
-        .then(function (res) {
-          if (!res.ok || !res.data.ok) {
-            (res.data.errors || ['Could not publish.']).forEach(function (e) {
-              failures.push(((lastLabels && lastLabels[i]) || subjectName(codes[i])) + ' (draft #' + id + '): ' + e);
-            });
-          }
-        })
-        .catch(function () {
-          failures.push('Network error while publishing draft #' + id + '. Check the Forms page for drafts.');
-        })
-        .then(function () {
-          done++;
-          window.FFBusy.show('Publishing forms… ' + done + ' of ' + ids.length);
-        });
-    }
-    function worker() {
-      if (next >= ids.length) return Promise.resolve();
-      var i = next++;
-      return one(i).then(worker);
-    }
+    // One server-side bulk request (scope/eligibility cached per request;
+    // partial success). Falls back to per-form status calls if the bulk URL
+    // is unavailable.
+    var bulkUrl = (builder.getAttribute('data-bulk-publish-url')
+      || (statusUrlTpl ? statusUrlTpl.replace(/\/0\/status$/, '/publish-selected')
+                                    .replace(/\/\d+\/status$/, '/publish-selected') : null));
     window.FFBusy.show('Publishing forms… 0 of ' + ids.length);
-    var workers = [];
-    for (var k = 0; k < Math.min(LIMIT, ids.length); k++) workers.push(worker());
-    return Promise.all(workers).then(function () { return failures; });
+    if (!bulkUrl || !ids.length) {
+      return Promise.resolve(ids.length ? ['No publish URL configured.'] : []);
+    }
+    return fetch(bulkUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf,
+                 'X-Requested-With': 'XMLHttpRequest' },
+      body: JSON.stringify({ form_ids: ids })
+    }).then(function (r) {
+      return r.json().then(function (d) { return { http: r.status, data: d }; });
+    }).then(function (res) {
+      var failures = [];
+      var data = res.data || {};
+      var labelFor = function (fid, idx) {
+        if (lastLabels && lastLabels[idx]) return lastLabels[idx];
+        if (codes && codes[idx] != null) return subjectName(codes[idx]);
+        return 'Form';
+      };
+      (data.failed || []).forEach(function (f) {
+        var idx = ids.indexOf(f.form_id);
+        var who = labelFor(f.form_id, idx >= 0 ? idx : 0);
+        (f.errors || ['Could not publish.']).forEach(function (e) {
+          failures.push(who + ' (draft #' + f.form_id + '): ' + e);
+        });
+      });
+      (data.skipped || []).forEach(function (s) {
+        failures.push('Draft #' + s.form_id + ' skipped: ' + (s.reason || s.status || 'not draft'));
+      });
+      var n = (data.published || []).length;
+      window.FFBusy.show('Publishing forms… ' + n + ' of ' + ids.length + ' done');
+      if (!res.data && res.http >= 400) {
+        failures.push('Bulk publish failed (HTTP ' + res.http + ').');
+      }
+      return failures;
+    }).catch(function () {
+      return ['Network error while bulk-publishing. Check the Forms page for drafts.'];
+    });
   }
 
   function isMulti() { return pickerActive() ? pickItems().length > 1 : (scope === 'subject' && subjValues().length > 1); }

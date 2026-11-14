@@ -688,6 +688,83 @@ def form_status(fid):
     return redirect(request.form.get('next') or url_for('hod.forms'))
 
 
+@bp.route('/forms/publish-selected', methods=['POST'])
+@role_required('hod')
+def forms_publish_selected():
+    """Bulk-publish draft forms in the HOD's department (partial success).
+
+    Accepts JSON ``{"form_ids": [1,2,...]}`` or form field ``form_ids``.
+    Each form is authorized and validated independently; one failure does not
+    undo earlier successful publishes. Uses request-scoped scope/eligibility
+    caches inside ``category_forms.publish_many``.
+    """
+    from flask import jsonify
+    user = current_user()
+    data = request.get_json(silent=True) or {}
+    raw_ids = data.get('form_ids')
+    if raw_ids is None:
+        raw_ids = request.form.getlist('form_ids')
+    if not isinstance(raw_ids, list):
+        raw_ids = [raw_ids] if raw_ids is not None else []
+
+    # Normalize ids; branch authorization is enforced inside publish_many via
+    # actor_may_manage / _require_actor, and again here with one bulk query so
+    # out-of-scope forms are reported as forbidden (not generic failures).
+    allowed = set(scoped_branch_ids_or_none(user) or [])
+    want, seen = [], set()
+    for raw in raw_ids:
+        try:
+            fid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if fid <= 0 or fid in seen:
+            continue
+        seen.add(fid)
+        want.append(fid)
+
+    forbidden, ids = [], []
+    if want:
+        ph = ','.join('?' * len(want))
+        by_id = {r['id']: dict(r) for r in db.query(
+            f'SELECT id, branch_id FROM feedback_forms WHERE id IN ({ph}) AND is_deleted=0',
+            tuple(want))}
+        for fid in want:
+            row = by_id.get(fid)
+            if not row:
+                forbidden.append({'form_id': fid, 'errors': ['Form not found.'],
+                                  'code': 'form_not_found'})
+            elif row['branch_id'] not in allowed:
+                forbidden.append({'form_id': fid, 'errors': ['Outside your department scope.'],
+                                  'code': 'forbidden'})
+            else:
+                ids.append(fid)
+
+    try:
+        result = category_forms.publish_many(user, ids)
+    except ScopeError as exc:
+        return jsonify(ok=False, errors=[exc.message], code=exc.code), exc.status
+
+    result['failed'] = forbidden + list(result.get('failed') or [])
+    published_n = len(result['published'])
+    failed_n = len(result['failed'])
+    skipped_n = len(result.get('skipped') or [])
+    audit('hod.forms.bulk_publish', 'feedback_forms', None,
+          f'Bulk publish published={published_n} failed={failed_n} skipped={skipped_n}')
+
+    # 200 if anything published or only skips; 207 multi-status if mix; 422 if all failed
+    if published_n and (failed_n or skipped_n):
+        status = 207
+    elif published_n:
+        status = 200
+    elif skipped_n and not failed_n:
+        status = 200
+    else:
+        status = 422
+    return jsonify(ok=bool(published_n), **result,
+                   counts={'published': published_n, 'failed': failed_n, 'skipped': skipped_n}
+                   ), status
+
+
 @bp.route('/forms/<int:fid>/deadline', methods=['POST'])
 @role_required('hod')
 def form_deadline(fid):

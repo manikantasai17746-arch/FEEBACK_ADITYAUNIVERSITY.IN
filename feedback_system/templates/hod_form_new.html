@@ -26,6 +26,7 @@
   <div id="builder"
        data-save-url="{{ url_for('hod.form_save') }}"
        data-status-url="{{ url_for('hod.form_status', fid=0) }}"
+       data-bulk-publish-url="{{ url_for('hod.forms_publish_selected') }}"
        data-form-id=""
        data-sets-only="1"
        data-scope="{{ preset_scope or 'session' }}"
@@ -151,13 +152,19 @@
           <div id="set-items"></div></div>
       </div>
 
-      <div class="field"><label>3. Extra questions for this form only (optional)</label>
+           <div class="field"><label>3. Extra questions for this form only (optional)</label>
+        <div class="flash flash-info" style="margin:6px 0 10px">
+          Want to ask something that isn't in the question set above? Click
+          <strong>＋ Add a question</strong> for a rating question or
+          <strong>＋ Add written question</strong> for a typed answer.
+          Extra questions appear only in this form.
+        </div>
         <div id="extra-items"></div>
         <div class="btn-row">
           <button type="button" class="btn btn-ghost btn-sm" id="extra-rating">＋ Add a question</button>
           <button type="button" class="btn btn-ghost btn-sm" id="extra-text">＋ Add written question</button>
         </div>
-        <div class="hint">These are used in this form only and are not saved to any set.</div></div>
+                <div class="hint">Extra questions are added at the end of this form and are not saved to any question set.</div></div>
 
       <div class="field"><label style="display:flex;gap:8px;align-items:center;cursor:pointer">
           <input type="checkbox" id="comment-on" checked>

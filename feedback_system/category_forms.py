@@ -203,14 +203,23 @@ def _existing_questions(form_id):
 # --------------------------------------------------------------------------- #
 # Publish / close
 # --------------------------------------------------------------------------- #
-def validate_for_publish(form_id):
-    """List of human-readable problems; empty list = ready to publish."""
-    form = services.get_form(form_id)
+def validate_for_publish(form_id, form=None, sc=None):
+    """List of human-readable problems; empty list = ready to publish.
+
+    Optional ``form`` / ``sc`` reuse work already done by the caller (e.g. publish)
+    so get_form / resolve_scope / eligible_count / conflicting_forms run once.
+    All validation rules are still applied; category-layer checks are not
+    repeated inside ``services.validate_form_for_publish``.
+    """
+    if form is None:
+        form = services.get_form(form_id)
     if not form:
         return ['Form not found.']
+    form = dict(form) if not isinstance(form, dict) else form
     try:
         cat = _category_of(form)
-        sc = scope_for_form(form)
+        if sc is None:
+            sc = scope_for_form(form)
     except ScopeError as exc:
         return [exc.message]
     errors = []
@@ -219,10 +228,18 @@ def validate_for_publish(form_id):
     if eligible_count(sc) == 0:
         errors.append('No eligible students exist for this assignment, so the form cannot '
                       'be published.')
-    for c in conflicting_forms(cat, sc['assignment_id'], exclude_form_id=form_id,
-                               phase=form['phase']):
-        errors.append(f'Another {c["status"]} form (#{c["id"]}) already covers this assignment.')
-    errors.extend(services.validate_form_for_publish(form_id))
+    # Main keeps historical behaviour: several live Main forms per session are
+    # allowed. Second/Lab allow one live form per assignment + phase.
+    if cat != MAIN:
+        for c in conflicting_forms(cat, sc['assignment_id'], exclude_form_id=form_id,
+                                   phase=form['phase']):
+            errors.append(
+                f'Another {c["status"]} form (#{c["id"]}) already covers this assignment.')
+    # Shared checks (title, deadline, phase, questions, session link). Category
+    # eligible/conflict/scope already done above → skip_category_checks=True.
+    errors.extend(services.validate_form_for_publish(
+        form_id, form=form, skip_category_checks=True,
+        session_ids=[sc['session_id']] if sc.get('session_id') else None))
     seen, out = set(), []
     for e in errors:                      # de-duplicate while keeping order
         if e not in seen:
@@ -235,13 +252,153 @@ def publish(actor, form_id):
     """Validate, freeze eligibility and open the form atomically.  Returns the
     number of eligible students frozen into the form."""
     form = _load_form(form_id)
+    form = dict(form)
     _category_of(form)
     sc = scope_for_form(form)
     _require_actor(actor, sc)
-    problems = validate_for_publish(form_id)
+    # Reuse form + scope: one resolve, one eligibility count, one conflict check.
+    problems = validate_for_publish(form_id, form=form, sc=sc)
     if problems:
         raise ScopeError('not_publishable', ' '.join(problems), 422)
     return _open_with_snapshot(actor, form_id, sc)
+
+
+def publish_many(actor, form_ids, max_forms=200):
+    """Publish many draft forms with partial success.
+
+    * Authorization is checked per form (HOD branch / admin).
+    * Each successful publish still freezes eligibility and opens the form in
+      its own transaction (same guarantees as ``publish`` / ``_open_with_snapshot``).
+    * Failures do not roll back earlier successes.
+    * Within this request, scope resolution is cached by ``(category, assignment_id)``
+      and eligible counts by ``session_id`` (eligibility is session-based for all
+      three categories). Conflict checks stay live so publishing form A then
+      form B for the same assignment still detects the conflict.
+
+    Returns ``{'published': [...], 'failed': [...], 'skipped': [...]}`` where
+    each entry is a dict with at least ``form_id``.
+    """
+    ids = []
+    seen = set()
+    for raw in form_ids or []:
+        try:
+            fid = int(raw)
+        except (TypeError, ValueError):
+            continue
+        if fid <= 0 or fid in seen:
+            continue
+        seen.add(fid)
+        ids.append(fid)
+    if len(ids) > max_forms:
+        raise ScopeError('too_many', f'At most {max_forms} forms can be published at once.', 400)
+
+    published, failed, skipped = [], [], []
+    if not ids:
+        return {'published': published, 'failed': failed, 'skipped': skipped}
+
+    # Request-scoped caches (not cross-request; process-local only for this call).
+    scope_cache = {}       # (category, assignment_id) -> sc dict
+    eligible_cache = {}    # session_id -> int count
+
+    def _scope_for(form):
+        cat = normalize_category(form['category'])
+        if cat == MAIN:
+            aid = form['session_id']
+        elif cat == SECOND:
+            aid = form['second_faculty_assignment_id']
+        else:
+            aid = form['session_id']
+        if not aid:
+            raise ScopeError('assignment_missing',
+                             'This form is not linked to a faculty assignment.')
+        key = (cat, int(aid))
+        if key not in scope_cache:
+            scope_cache[key] = resolve_scope(cat, aid)
+        sc = scope_cache[key]
+        if form['session_id'] and form['session_id'] != sc['session_id']:
+            raise ScopeError('scope_mismatch',
+                             'The form\'s teaching session does not match its assignment.', 409)
+        return sc
+
+    def _eligible(sc):
+        sid = sc['session_id']
+        if sid not in eligible_cache:
+            eligible_cache[sid] = eligible_count(sc)
+        return eligible_cache[sid]
+
+    # Prefetch form rows in one query when possible.
+    ph = ','.join('?' * len(ids))
+    rows = {r['id']: dict(r) for r in db.query(
+        f'SELECT * FROM feedback_forms WHERE id IN ({ph}) AND is_deleted=0', tuple(ids))}
+
+    for fid in ids:
+        form = rows.get(fid)
+        if not form:
+            failed.append({'form_id': fid, 'errors': ['Form not found.'], 'code': 'form_not_found'})
+            continue
+        try:
+            cat = _category_of(form)
+        except ScopeError as exc:
+            # Legacy forms: fall back to services validation + set_form_status path
+            # is not used here; bulk publish is for category forms.
+            failed.append({'form_id': fid, 'errors': [exc.message], 'code': exc.code})
+            continue
+
+        if form['status'] != 'draft':
+            skipped.append({
+                'form_id': fid, 'status': form['status'],
+                'reason': f'Only draft forms can be published (this one is {form["status"]}).'})
+            continue
+
+        try:
+            sc = _scope_for(form)
+            _require_actor(actor, sc)
+        except ScopeError as exc:
+            failed.append({'form_id': fid, 'errors': [exc.message], 'code': exc.code})
+            continue
+
+        errors = []
+        elig = _eligible(sc)
+        if elig == 0:
+            errors.append('No eligible students exist for this assignment, so the form cannot '
+                          'be published.')
+        # Main: several live forms per session allowed (matches _category_publish_errors).
+        if cat != MAIN:
+            for c in conflicting_forms(cat, sc['assignment_id'], exclude_form_id=fid,
+                                       phase=form['phase']):
+                errors.append(
+                    f'Another {c["status"]} form (#{c["id"]}) already covers this assignment.')
+        errors.extend(services.validate_form_for_publish(
+            fid, form=form, skip_category_checks=True,
+            session_ids=[sc['session_id']] if sc.get('session_id') else None))
+        # de-dupe
+        seen_e, uniq = set(), []
+        for e in errors:
+            if e not in seen_e:
+                seen_e.add(e)
+                uniq.append(e)
+        if uniq:
+            failed.append({'form_id': fid, 'errors': uniq, 'code': 'not_publishable'})
+            continue
+
+        try:
+            frozen = _open_with_snapshot(actor, fid, sc)
+            published.append({
+                'form_id': fid, 'eligible_count': frozen,
+                'category': cat, 'title': form.get('title')})
+            # After a successful open, a later form for the same assignment must
+            # see the conflict — conflicting_forms reads DB, so no cache to bust.
+            # Eligible count for the session is unchanged by publish.
+        except ScopeError as exc:
+            failed.append({
+                'form_id': fid,
+                'errors': getattr(exc, 'errors', None) or [exc.message],
+                'code': exc.code})
+        except Exception:
+            failed.append({'form_id': fid, 'errors': ['Could not publish this form.'],
+                           'code': 'publish_failed'})
+
+    return {'published': published, 'failed': failed, 'skipped': skipped}
 
 
 def _open_with_snapshot(actor, form_id, sc):
@@ -324,17 +481,27 @@ def change_status(actor, form_id, status):
                          'to draft. Close it instead.', 409)
 
     if managed and status == 'open' and current == 'draft':
+        form = dict(form)
         sc = scope_for_form(form)
         _require_actor(actor, sc)
         if category == MAIN:
-            problems = services.validate_form_for_publish(form_id)
+            # Main: full services validation (allows several Main forms per session).
+            problems = services.validate_form_for_publish(
+                form_id, form=form, scope=sc,
+                session_ids=[sc['session_id']] if sc.get('session_id') else None)
             if problems:
                 err = ScopeError('not_publishable', ' '.join(problems), 422)
                 err.errors = problems
                 raise err
             _open_with_snapshot(actor, form_id, sc)
         else:
-            publish(actor, form_id)
+            # Second/Lab: reuse form+scope (no second get_form / resolve_scope).
+            problems = validate_for_publish(form_id, form=form, sc=sc)
+            if problems:
+                err = ScopeError('not_publishable', ' '.join(problems), 422)
+                err.errors = problems
+                raise err
+            _open_with_snapshot(actor, form_id, sc)
         return
     if managed and status == 'closed' and current == 'open':
         close(actor, form_id)

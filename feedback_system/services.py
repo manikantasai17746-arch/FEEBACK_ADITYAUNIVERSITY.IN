@@ -179,21 +179,38 @@ def form_session_ids(form_id):
 
 
 def form_teachers_map(form_ids):
-    """{form_id: ["NAME (emp_code)", ...]} - teachers assigned to each form's sessions."""
+    """{form_id: ["NAME (emp_code)", ...]} - faculty identity for each form.
+
+    Category-aware (Phase 5B / Phase 1 correctness):
+    * ``second`` forms -> Second Faculty from ``second_faculty_assignments``
+    * ``main`` / ``lab`` / legacy forms -> Main Faculty from ``class_sessions``
+    """
     ids = [i for i in dict.fromkeys(form_ids or []) if i]
     out = {i: [] for i in ids}
     if not ids:
         return out
     ph = ','.join('?' * len(ids))
-    for r in db.query(
-            f"""SELECT DISTINCT fs.form_id, u.name, u.emp_code
-                FROM form_sessions fs
-                JOIN class_sessions cs ON cs.id=fs.session_id
-                JOIN users u ON u.id=cs.teacher_user_id
-                WHERE fs.form_id IN ({ph}) ORDER BY u.name""", tuple(ids)):
+    # One query: Main/Lab via session teacher; Second via SFA second teacher.
+    rows = db.query(
+        f"""SELECT DISTINCT f.id AS form_id, u.name, u.emp_code
+            FROM feedback_forms f
+            LEFT JOIN second_faculty_assignments sfa
+                   ON sfa.id = f.second_faculty_assignment_id
+                  AND COALESCE(f.category, 'main') = 'second'
+            LEFT JOIN form_sessions fs ON fs.form_id = f.id
+            LEFT JOIN class_sessions cs ON cs.id = fs.session_id
+            JOIN users u ON u.id = CASE
+                WHEN COALESCE(f.category, 'main') = 'second'
+                     THEN sfa.second_teacher_user_id
+                ELSE cs.teacher_user_id
+            END
+            WHERE f.id IN ({ph})
+            ORDER BY u.name""", tuple(ids))
+    for r in rows:
         if r['name']:
-            out[r['form_id']].append(
-                f"{r['name']} ({r['emp_code']})" if r['emp_code'] else r['name'])
+            label = (f"{r['name']} ({r['emp_code']})" if r['emp_code'] else r['name'])
+            if label not in out[r['form_id']]:
+                out[r['form_id']].append(label)
     return out
 
 
@@ -583,21 +600,25 @@ def save_form(payload, questions, admin_id, form_id=None, session_ids=None):
     return form_id
 
 
-def _category_publish_errors(form):
+def _category_publish_errors(form, sc=None):
     """Phase 5B rules for the three categories, from the database only:
     the assignment must resolve (Main Faculty active / Second Faculty confirmed /
     subject is Lab Available), there must be eligible students and no other live
-    form may cover the same category + assignment + phase."""
+    form may cover the same category + assignment + phase.
+
+    ``sc`` may be a pre-resolved scope (avoids a second ``scope_for_form`` call).
+    """
     from . import feedback_categories as fc
-    cat = form['category']
+    cat = form['category'] if isinstance(form, dict) else form['category']
     if cat not in fc.CATEGORIES:
         return []
     if not fc.is_session_scoped(form):
         return []                      # legacy subject-scoped main form: unchanged
-    try:
-        sc = fc.scope_for_form(form)
-    except fc.ScopeError as exc:
-        return [exc.message]
+    if sc is None:
+        try:
+            sc = fc.scope_for_form(form)
+        except fc.ScopeError as exc:
+            return [exc.message]
     errs = []
     if form['status'] != 'open' and fc.eligible_count(sc) == 0:
         errs.append('No eligible students exist for this assignment, so the form cannot '
@@ -613,15 +634,29 @@ def _category_publish_errors(form):
     return errs
 
 
-def validate_form_for_publish(form_id):
+def validate_form_for_publish(form_id, form=None, skip_category_checks=False,
+                              session_ids=None, scope=None):
+    """Validate that a form is ready to publish.
+
+    All existing rules remain. Optional args avoid repeated work when the caller
+    has already loaded the form / session ids / category scope checks:
+
+    * ``form`` – already-loaded form row (dict or Row); skips ``get_form``
+    * ``session_ids`` – already-known form session ids; skips ``form_session_ids``
+    * ``scope`` – pre-resolved category scope; passed to ``_category_publish_errors``
+    * ``skip_category_checks`` – when True, omit ``_category_publish_errors``
+      (caller already ran eligible_count + conflicting_forms + scope resolution)
+    """
     errors = []
-    form = get_form(form_id)
+    if form is None:
+        form = get_form(form_id)
     if not form:
         return ['Form not found.']
+    form = dict(form)  # sqlite3.Row has no .get; normalize for safe access
     if not form['session_id']:
         errors.append('Select a subject / teacher / period (a teaching session), '
                       'or choose a subject to reach every matching timetable.')
-    sess_ids = form_session_ids(form_id)
+    sess_ids = session_ids if session_ids is not None else form_session_ids(form_id)
     if not sess_ids:
         errors.append('This form is not linked to any eligible students '
                       '(no matching teaching sessions were found).')
@@ -633,9 +668,16 @@ def validate_form_for_publish(form_id):
     err = deadline_error(form['deadline_at'])
     if err:
         errors.append(err + ' (Use "Change deadline" on the forms list.)')
+    # Phase 5B: phase uniqueness is WITHIN category (and for second, within the
+    # Second Faculty assignment). Passing category here matches create-time
+    # checks in hod.py and allows Main / Second / Lab of the same phase to coexist.
+    cat = (form.get('category') or 'main').strip().lower()
     errors.extend(phase_rule_errors(
-        form['phase'], sess_ids, exclude_form_id=form_id))
-    errors.extend(_category_publish_errors(form))
+        form['phase'], sess_ids, exclude_form_id=form_id,
+        category=cat if cat in ('main', 'second', 'lab') else None,
+        second_assignment_id=form.get('second_faculty_assignment_id')))
+    if not skip_category_checks:
+        errors.extend(_category_publish_errors(form, sc=scope))
     questions = form_questions(form_id)
     if not questions:
         errors.append('Add at least one question.')
@@ -2223,13 +2265,17 @@ def phase_rule_errors(phase, session_ids, exclude_form_id=None, category=None,
         args.append(exclude_form_id)
     errors = []
     label = PHASE_LABELS[phase]
-    for r in db.query(base + tail, tuple(args)):
-        tnames = [t['name'] for t in db.query(
-            "SELECT DISTINCT u.name FROM form_sessions fs "
-            "JOIN class_sessions cs ON cs.id=fs.session_id "
-            "JOIN users u ON u.id=cs.teacher_user_id WHERE fs.form_id=? ORDER BY u.name",
-            (r['id'],)) if t['name']]
-        who = f', teacher: {", ".join(tnames)}' if tnames else ''
+    conflict_rows = [dict(r) for r in db.query(base + tail, tuple(args))]
+    # Batch faculty names for conflict messages (category-aware, no N+1).
+    conflict_ids = [r['id'] for r in conflict_rows]
+    teacher_by_form = form_teachers_map(conflict_ids) if conflict_ids else {}
+    for r in conflict_rows:
+        tnames = teacher_by_form.get(r['id']) or []
+        # form_teachers_map labels are "NAME (emp)"; strip emp for the short message.
+        short = []
+        for t in tnames:
+            short.append(t.split(' (')[0] if ' (' in t else t)
+        who = f', teacher: {", ".join(short)}' if short else ''
         errors.append(
             f'{label} already exists for this teacher, subject and section '
             f'({r["subject_code"] or "subject"}, section {r["sections"]}{who}) — form #{r["id"]}. '
