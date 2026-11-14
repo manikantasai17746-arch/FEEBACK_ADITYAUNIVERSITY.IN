@@ -71,7 +71,77 @@ def dashboard():
         stats['recent_forms'] = [dict(f, teachers=_tm.get(f['id'], []))
                                  for f in stats['recent_forms']]
 
+        # Overview counts per feedback category (main / second / lab).
+        stats['category_overview'] = _category_overview(branch_ids)
+
     return render_template('hod_dashboard.html', stats=stats, user=user)
+
+
+def _category_overview(branch_ids):
+    """Assignments, published forms, eligible, submitted, pending per category."""
+    if not branch_ids:
+        return []
+    ph = ','.join('?' * len(branch_ids))
+    # Main assignments = teaching sessions with a teacher in scope
+    main_assign = db.query(
+        f"""SELECT COUNT(*) c FROM class_sessions cs
+            JOIN timetables t ON t.id=cs.timetable_id
+            WHERE t.branch_id IN ({ph}) AND cs.is_deleted=0 AND cs.teacher_user_id IS NOT NULL""",
+        tuple(branch_ids), one=True)['c']
+    second_assign = db.query(
+        f"""SELECT COUNT(*) c FROM second_faculty_assignments
+            WHERE branch_id IN ({ph}) AND status='confirmed'""",
+        tuple(branch_ids), one=True)['c']
+    lab_assign = db.query(
+        f"""SELECT COUNT(*) c FROM class_sessions cs
+            JOIN timetables t ON t.id=cs.timetable_id
+            JOIN teacher_subject_settings s ON s.session_id=cs.id AND s.lab_status='available'
+            WHERE t.branch_id IN ({ph}) AND cs.is_deleted=0""",
+        tuple(branch_ids), one=True)['c']
+
+    def form_stats(category):
+        row = db.query(
+            f"""SELECT
+                  SUM(CASE WHEN status='open' THEN 1 ELSE 0 END) AS published,
+                  SUM(CASE WHEN status='draft' THEN 1 ELSE 0 END) AS draft
+                FROM feedback_forms
+                WHERE branch_id IN ({ph}) AND is_deleted=0 AND category=?""",
+            tuple(branch_ids) + (category,), one=True)
+        published = int(row['published'] or 0)
+        # Eligible / submitted on open forms via form_eligible_students + submissions
+        elig = db.query(
+            f"""SELECT COUNT(*) c FROM form_eligible_students fes
+                JOIN feedback_forms f ON f.id=fes.form_id
+                WHERE f.branch_id IN ({ph}) AND f.is_deleted=0 AND f.category=?
+                  AND f.status='open'""",
+            tuple(branch_ids) + (category,), one=True)['c']
+        sub = db.query(
+            f"""SELECT COUNT(*) c FROM submissions s
+                JOIN feedback_forms f ON f.id=s.form_id
+                WHERE f.branch_id IN ({ph}) AND f.is_deleted=0 AND f.category=?
+                  AND f.status='open'""",
+            tuple(branch_ids) + (category,), one=True)['c']
+        pending = max(0, int(elig or 0) - int(sub or 0))
+        return {
+            'published': published,
+            'draft': int(row['draft'] or 0),
+            'eligible': int(elig or 0),
+            'submitted': int(sub or 0),
+            'pending': pending,
+        }
+
+    out = []
+    for key, label, assign in (
+        ('main', 'Main Faculty', main_assign),
+        ('second', 'Second Faculty', second_assign),
+        ('lab', 'Lab Faculty', lab_assign),
+    ):
+        fs = form_stats(key)
+        out.append({
+            'key': key, 'label': label, 'assignments': assign,
+            **fs,
+        })
+    return out
 
 
 @bp.route('/forms')
@@ -985,29 +1055,229 @@ def pending_email(fid):
     return redirect(back)
 
 
-@bp.route('/results')
-@role_required('hod')
-def results():
-    user = current_user()
+
+def _hod_results_filters(request_args, tab):
+    return {
+        'year_id': request_args.get('year_id') or '',
+        'semester_id': request_args.get('semester_id') or '',
+        'branch_id': request_args.get('branch_id') or '',
+        'section': (request_args.get('section') or '').strip(),
+        'subject': (request_args.get('subject') or '').strip(),
+        'faculty': (request_args.get('faculty') or '').strip(),
+        'category': tab,
+    }
+
+
+def _hod_results_rows(user, tab, filters):
+    """Return enriched form rows for one category within HOD scope (shared by UI + PDF)."""
+    from . import scoring
     branches = _hod_branches(user)
     branch_ids = [b['id'] for b in branches]
     forms_list = []
-    if branch_ids:
-        ph = ','.join('?' * len(branch_ids))
-        forms_list = db.query(
-            f"""SELECT f.id, f.title, f.status, f.category, f.session_id,
-                       f.snapshot_subject_code, f.snapshot_teacher, f.snapshot_branch,
-                       (SELECT COUNT(*) FROM submissions s WHERE s.form_id=f.id) AS responses,
-                       COALESCE(rp.is_published, 0) AS is_published,
-                       rp.published_at AS results_published_at
-                FROM feedback_forms f
-                LEFT JOIN result_publications rp
-                       ON rp.form_id=f.id AND rp.session_id=f.session_id
-                WHERE f.branch_id IN ({ph}) AND f.is_deleted=0
-                  AND f.status IN ('open','closed','archived')
-                ORDER BY f.published_at DESC, f.id DESC""",
-            tuple(branch_ids))
-    return render_template('hod_results.html', forms=forms_list)
+    if not branch_ids:
+        return forms_list, branches, [], []
+    ph = ','.join('?' * len(branch_ids))
+    args = list(branch_ids)
+    where = [
+        f'f.branch_id IN ({ph})',
+        'f.is_deleted=0',
+        "f.status IN ('open','closed','archived')",
+        'f.category = ?',
+    ]
+    args.append(tab)
+    if filters.get('year_id'):
+        where.append('f.academic_year_id = ?')
+        args.append(int(filters['year_id']))
+    if filters.get('semester_id'):
+        where.append('f.semester_id = ?')
+        args.append(int(filters['semester_id']))
+    if filters.get('branch_id'):
+        bid = int(filters['branch_id'])
+        if bid in branch_ids:
+            where.append('f.branch_id = ?')
+            args.append(bid)
+    if filters.get('subject'):
+        where.append('(f.subject_code LIKE ? OR f.subject_name LIKE ? OR f.snapshot_subject_code LIKE ?)')
+        like = f"%{filters['subject']}%"
+        args.extend([like, like, like])
+    if filters.get('section'):
+        where.append(
+            'f.timetable_id IN (SELECT id FROM timetables WHERE code LIKE ? OR name LIKE ?)')
+        like = f"%{filters['section']}%"
+        args.extend([like, like])
+    if filters.get('faculty'):
+        where.append(
+            """(f.snapshot_teacher LIKE ? OR EXISTS (
+                  SELECT 1 FROM users u WHERE u.id IN (
+                    SELECT teacher_user_id FROM class_sessions WHERE id=f.session_id
+                    UNION
+                    SELECT second_teacher_user_id FROM second_faculty_assignments
+                     WHERE id=f.second_faculty_assignment_id)
+                  AND (u.name LIKE ? OR u.emp_code LIKE ?)))""")
+        like = f"%{filters['faculty']}%"
+        args.extend([like, like, like])
+
+    forms_list = [dict(r) for r in db.query(
+        f"""SELECT f.id, f.title, f.status, f.category, f.session_id,
+                   f.second_faculty_assignment_id, f.subject_code, f.subject_name,
+                   f.snapshot_subject_code, f.snapshot_teacher, f.snapshot_branch,
+                   f.timetable_id, f.branch_id, f.academic_year_id, f.semester_id,
+                   (SELECT COUNT(*) FROM submissions s WHERE s.form_id=f.id) AS responses,
+                   COALESCE(rp.is_published, 0) AS is_published,
+                   rp.published_at AS results_published_at
+            FROM feedback_forms f
+            LEFT JOIN result_publications rp
+                   ON rp.form_id=f.id AND rp.session_id=f.session_id
+            WHERE {' AND '.join(where)}
+            ORDER BY f.published_at DESC, f.id DESC""",
+        tuple(args))]
+
+    fids = [f['id'] for f in forms_list]
+    elig_map = services.eligible_counts_for_forms(fids) if fids else {}
+    for f in forms_list:
+        eligible = int(elig_map.get(f['id'], 0) or 0)
+        submitted = int(f['responses'] or 0)
+        f['eligible'] = eligible
+        f['submitted'] = submitted
+        f['pending'] = max(0, eligible - submitted)
+        f['completion_pct'] = (
+            round(100.0 * submitted / eligible, 2) if eligible > 0 else 0.0)
+        marks = scoring.form_marks(f['id'], eligible)
+        f['obtained'] = marks.get('obtained', 0)
+        f['maximum'] = marks.get('maximum', 0)
+        f['answer_count'] = marks.get('answer_count', 0)
+        f['students_count'] = marks.get('students', submitted)
+        f['rating_breakdown'] = marks.get('rating_breakdown') or []
+        f['question_stats'] = services.question_stats(f['id'])
+        sess = services.session(f['session_id']) if f.get('session_id') else None
+        sess = dict(sess) if sess else {}
+        f['section_code'] = sess.get('timetable') or ''
+        room_row = None
+        if f.get('session_id'):
+            room_row = db.query(
+                'SELECT room FROM teacher_subject_settings WHERE session_id=?',
+                (f['session_id'],), one=True)
+        f['room'] = (dict(room_row).get('room') if room_row else None)
+        f['faculty_name'] = f.get('snapshot_teacher') or ''
+        f['faculty_emp'] = ''
+        if tab == 'second' and f.get('second_faculty_assignment_id'):
+            sfa = db.query(
+                """SELECT sfa.second_emp_code, u.name FROM second_faculty_assignments sfa
+                   LEFT JOIN users u ON u.id=sfa.second_teacher_user_id
+                   WHERE sfa.id=?""",
+                (f['second_faculty_assignment_id'],), one=True)
+            if sfa:
+                sfa = dict(sfa)
+                f['faculty_emp'] = sfa.get('second_emp_code') or ''
+                f['faculty_name'] = sfa.get('name') or f['faculty_name']
+        elif sess:
+            f['faculty_emp'] = sess.get('teacher_emp') or ''
+            f['faculty_name'] = sess.get('teacher_name') or f['faculty_name']
+        f['subject_display'] = (
+            f.get('subject_name') or f.get('snapshot_subject_code') or f.get('subject_code') or '')
+        f['subject_code_display'] = f.get('subject_code') or f.get('snapshot_subject_code') or ''
+
+    years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
+    semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
+    return forms_list, branches, years, semesters
+
+
+@bp.route('/results')
+@role_required('hod')
+def results():
+    """HOD results with independent Main / Second / Lab tabs and scoring stats."""
+    user = current_user()
+    tab = (request.args.get('tab') or 'main').strip().lower()
+    if tab not in ('main', 'second', 'lab'):
+        tab = 'main'
+    filters = _hod_results_filters(request.args, tab)
+    forms_list, branches, years, semesters = _hod_results_rows(user, tab, filters)
+    return render_template(
+        'hod_results.html',
+        forms=forms_list,
+        tab=tab,
+        filters=filters,
+        branches=branches,
+        years=years,
+        semesters=semesters,
+    )
+
+
+@bp.route('/results/<int:fid>/detail')
+@role_required('hod')
+def result_detail(fid):
+    """Per-form question stats and anonymous text answers (HOD scope)."""
+    from . import scoring
+    form = _hod_form_or_403(fid)
+    elig = services.eligible_counts_for_forms([fid]).get(fid, 0)
+    marks = scoring.form_marks(fid, elig)
+    scores = scoring.compute_form_scores(fid)
+    qstats = services.question_stats(fid)
+    return render_template(
+        'hod_result_detail.html',
+        form=form,
+        marks=marks,
+        scores=scores,
+        question_stats=qstats,
+        eligible=elig,
+        completion_pct=(round(100.0 * marks['students'] / elig, 2) if elig else 0.0),
+    )
+
+
+@bp.route('/results/<category>.pdf')
+@role_required('hod')
+def results_category_pdf(category):
+    """Download a PDF report for one category (main / second / lab) within HOD scope."""
+    from datetime import datetime
+    from flask import Response
+    from . import photos, reports
+
+    category = (category or '').strip().lower()
+    if category not in ('main', 'second', 'lab'):
+        abort(404)
+    user = current_user()
+    filters = _hod_results_filters(request.args, category)
+    rows, branches, _years, _sems = _hod_results_rows(user, category, filters)
+
+    # Attach photo bytes when available (no student data).
+    entries = []
+    for f in rows:
+        entry = dict(f)
+        emp = entry.get('faculty_emp') or ''
+        photo = photos.get_photo(emp) if emp else None
+        entry['photo_bytes'] = photo['data'] if photo else None
+        entries.append(entry)
+
+    filter_lines = []
+    if filters.get('year_id'):
+        filter_lines.append(f"Academic year id: {filters['year_id']}")
+    if filters.get('semester_id'):
+        filter_lines.append(f"Semester id: {filters['semester_id']}")
+    if filters.get('branch_id'):
+        filter_lines.append(f"Branch id: {filters['branch_id']}")
+    if filters.get('section'):
+        filter_lines.append(f"Section filter: {filters['section']}")
+    if filters.get('subject'):
+        filter_lines.append(f"Subject filter: {filters['subject']}")
+    if filters.get('faculty'):
+        filter_lines.append(f"Faculty filter: {filters['faculty']}")
+    scope = ', '.join(b['code'] for b in branches) or 'none'
+    filter_lines.insert(0, f'HOD scope: {scope}')
+
+    pdf = reports.build_category_results_pdf(
+        entries,
+        category=category,
+        subtitle=f'Prepared for {(user.get("name") or "HOD")}',
+        generated_at=datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC'),
+        filter_lines=filter_lines,
+        footer=f'Faculty Feedback System — {category} results (HOD scope only; no student identities)',
+    )
+    fname = f'{category}_feedback_results.pdf'
+    return Response(pdf, mimetype='application/pdf', headers={
+        'Content-Disposition': f'attachment; filename={fname}',
+        'Content-Length': str(len(pdf)),
+    })
+
 
 
 @bp.route('/results/<int:fid>/publish', methods=['POST'])

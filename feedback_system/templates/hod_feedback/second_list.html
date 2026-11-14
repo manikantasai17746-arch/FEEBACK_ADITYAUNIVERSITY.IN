@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}Second Faculty Feedback — HOD{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
+{% endblock %}
+{% block body %}
+<div class="hf">
+  <div class="hf-head">
+    <div>
+      <div class="eyebrow">HOD · Second Faculty</div>
+      <h1>Second Faculty Feedback</h1>
+      <p class="sub">Confirmed assignments only. Each card is one assignment row — the same person may appear more than once.</p>
+    </div>
+    <div class="hf-head-actions">
+      <a class="btn btn-primary" href="{{ url_for('hod_feedback.second_create') }}">Create Second form</a>
+    </div>
+  </div>
+  <form class="hf-filters card" method="get" action="{{ url_for('hod_feedback.second_list') }}">
+    <label>Subject <input type="search" name="subject" value="{{ filters.subject }}" placeholder="Code or name"></label>
+    <label>Section <input type="search" name="section" value="{{ filters.section }}"></label>
+    <label>Second faculty <input type="search" name="faculty" value="{{ filters.faculty }}" placeholder="Name or ID"></label>
+    <label>Main faculty <input type="search" name="main" value="{{ filters.main }}" placeholder="Name or ID"></label>
+    <div class="hf-filter-actions">
+      <button type="submit" class="btn btn-primary">Filter</button>
+      <a class="btn" href="{{ url_for('hod_feedback.second_list') }}">Clear</a>
+    </div>
+  </form>
+  <p class="hf-meta">{{ total }} assignment{{ '' if total == 1 else 's' }} · {{ groups|length }} subject{{ '' if groups|length == 1 else 's' }}</p>
+  {% if not groups %}
+  <div class="card hf-empty"><h2>No confirmed Second Faculty assignments</h2>
+    <p class="sub">Removed or unresolved assignments are hidden.</p></div>
+  {% endif %}
+  {% for sub in groups %}
+  <section class="card hf-subject">
+    <header class="hf-subject-head">
+      <h2>{{ sub.subject_code }} <span class="hf-muted">{{ sub.subject_name }}</span></h2>
+      <p class="sub">{{ sub.assignment_count }} assignment{{ '' if sub.assignment_count == 1 else 's' }}</p>
+    </header>
+    <div class="hf-card-grid">
+      {% for a in sub.assignments %}
+      <article class="hf-assign-card" data-assignment-id="{{ a.assignment_id }}">
+        <div class="hf-fac-pair">
+          <div class="hf-fac">
+            <img class="hf-avatar" src="{{ url_for('photos.serve', emp_code=a.main_emp_code) }}" alt="" width="40" height="40">
+            <div>
+              <div class="hf-fac-label">Main</div>
+              <strong>{{ a.main_name }}</strong>
+              <div class="hf-muted">{{ a.main_emp_code }}</div>
+            </div>
+          </div>
+          <div class="hf-fac">
+            <img class="hf-avatar" src="{{ url_for('photos.serve', emp_code=a.second_emp_code) }}" alt="" width="40" height="40">
+            <div>
+              <div class="hf-fac-label">Second</div>
+              <strong>{{ a.second_name or a.second_emp_code }}</strong>
+              <div class="hf-muted">{{ a.second_emp_code }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="hf-assign-meta">
+          <span>Section {{ a.section_code }}</span>
+          <span>{{ a.branch_code }}</span>
+          <span>Room {{ a.room or '—' }}</span>
+          <span>{{ a.eligible_count }} eligible</span>
+          {% if a.live_forms %}<span class="hf-badge is-warn">{{ a.live_forms }} live form(s)</span>{% endif %}
+        </div>
+        <div class="hf-assign-actions">
+          <span class="hf-muted">Assignment #{{ a.assignment_id }}</span>
+          <a class="btn btn-sm" href="{{ url_for('hod_feedback.second_create') }}?assignment_id={{ a.assignment_id }}">Select</a>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -20,6 +20,33 @@ def login(client, path, data, token_path=None):
     return client.post(path, data={**data, '_csrf': tok})
 
 
+def login_teacher(client, emp_code='6817', password='teacher@123', app=None):
+    """Log in as a teacher and clear the forced password-change gate.
+
+    Logging in with the shared default password sets must_change_password=1.
+    First-login / account-setup flows are covered by dedicated tests; other
+    tests need a teacher session that can reach the portal immediately.
+
+    When *app* is provided, the user's password hash is reset to *password*
+    first so earlier tests that mutated the shared session DB cannot break login.
+    """
+    if app is not None:
+        from feedback_system.security import hash_password
+        with app.app_context():
+            db.execute(
+                "UPDATE users SET password_hash=?, must_change_password=0, "
+                "first_login_complete=1 WHERE emp_code=?",
+                (hash_password(password), emp_code))
+    r = login(client, '/teacher/login', {'emp_code': emp_code, 'password': password})
+    if app is not None:
+        with app.app_context():
+            db.execute(
+                "UPDATE users SET must_change_password=0, first_login_complete=1 "
+                "WHERE emp_code=?",
+                (emp_code,))
+    return r
+
+
 def find_session(app, emp_code, subject_code, timetable=None):
     with app.app_context():
         sql = """SELECT cs.id FROM class_sessions cs

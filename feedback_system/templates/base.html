@@ -39,11 +39,14 @@
         <a href="{{ url_for('student.dashboard') }}">My Feedback</a>
         <a href="{{ url_for('student.notifications') }}">Notifications</a>
       {% elif current_user and current_user.role == 'hod' %}
-        <a href="{{ url_for('hod.dashboard') }}">Dashboard</a>
-        <a href="{{ url_for('hod.forms') }}">Forms</a>
-        <a href="{{ url_for('hod.pending') }}">Pending</a>
-        <a href="{{ url_for('hod.results') }}">Results</a>
-        <a href="{{ url_for('hod.performance') }}">Performance</a>
+        <a href="{{ url_for('hod.dashboard') }}">Overview</a>
+        <a href="{{ url_for('hod_feedback.main_list') }}">Main Faculty Feedback</a>
+        <a href="{{ url_for('hod_feedback.second_list') }}">Second Faculty Feedback</a>
+        <a href="{{ url_for('hod_feedback.lab_list') }}">Lab Faculty Feedback</a>
+        <a href="{{ url_for('hod.pending') }}">Faculty Assignments</a>
+        <a href="{{ url_for('hod.forms') }}">Form Management</a>
+        <a href="{{ url_for('hod.results') }}">Feedback Results</a>
+        <a href="{{ url_for('hod.performance') }}">Reports</a>
         <a href="{{ url_for('hod.comparison') }}">Comparison</a>
         <a href="{{ url_for('hod.second_faculty') }}">Second Faculty</a>
         <a href="{{ url_for('hod.my_actions') }}">My Actions</a>

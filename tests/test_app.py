@@ -6,8 +6,8 @@ import pytest
 from feedback_system import db, services
 
 from helpers import (eligible_rolls, find_session, get_csrf, login, login_student,
-                     future_deadline, make_form, publish_form, question_ids, set_status,
-                     submit_feedback, token_from)
+                     login_teacher, future_deadline, make_form, publish_form,
+                     question_ids, set_status, submit_feedback, token_from)
 
 
 def in_app(app, fn, *a, **k):
@@ -321,7 +321,7 @@ def test_teacher_cannot_see_unpublished_results(app):
     publish_form(admin_c, form_id)          # form open, results NOT published
 
     teacher_c = app.test_client()
-    login(teacher_c, '/teacher/login', {'emp_code': '6817', 'password': 'teacher@123'})
+    login_teacher(teacher_c, app=app)
     assert teacher_c.get(f'/teacher/results/{form_id}').status_code == 403
 
 
@@ -341,7 +341,7 @@ def test_teacher_sees_published_results_and_stays_anonymous(admin, app):
     admin.post(f'/admin/results/{form_id}/publish', data={'_csrf': tok})
 
     t = app.test_client()
-    login(t, '/teacher/login', {'emp_code': '6817', 'password': 'teacher@123'})
+    login_teacher(t, app=app)
     page = t.get(f'/teacher/results/{form_id}').get_data(as_text=True)
     assert 'How well does the teacher explain?' in page
     assert 'The lectures are clear.' in page
@@ -362,7 +362,7 @@ def test_teacher_subject_scoping(app):
     admin_c.post(f'/admin/results/{f_adsa}/publish', data={'_csrf': tok})
 
     t = app.test_client()
-    login(t, '/teacher/login', {'emp_code': '6817', 'password': 'teacher@123'})
+    login_teacher(t, app=app)
     # filter to ADSA -> only ADSA forms
     page = t.get('/teacher/?subject_code=2501CS10').get_data(as_text=True)
     assert 'Scoped ADSA' in page
@@ -403,8 +403,10 @@ def test_published_form_questions_cannot_be_rewritten(admin, app):
     rq, tq, oid = question_ids(html)
     submit_feedback(c, form_id, rq, tq, oid)
     tok = get_csrf(admin.get('/admin/forms/new').get_data(as_text=True))
+    # Include a deadline so validation reaches the "has submissions" guard (409).
     r = admin.post('/admin/forms/save',
-                   json={'form_id': form_id, 'title': 'changed', 'session_id': sid, 'questions': []},
+                   json={'form_id': form_id, 'title': 'changed', 'session_id': sid,
+                         'questions': [], 'deadline_at': future_deadline()},
                    headers={'X-CSRF-Token': tok})
     assert r.status_code == 409
     assert response_count(app, form_id) == 1

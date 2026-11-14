@@ -43,7 +43,37 @@ Source: `feedback_system/PHASE_5B_VERIFICATION_REPORT.md`.
 - No migration was added in the Phase 5B safety follow-up; report says schema v23/v24 were untouched.
 - Full pytest suite, PostgreSQL concurrency, and some browser checks remained pending in that report.
 
-## 3. Latest reported test baseline for Phase 6 planning
+## 3. Verified test baseline + Module A (2026-11-13)
+
+| Command | Result |
+|---|---|
+| Full pytest after baseline test fixes | **334 passed, 1 skipped, 0 failed, 0 errors** |
+| `tests/test_hod_feedback_main.py` | **7 passed** |
+
+Baseline fixes were tests-only (password-change gate, HOD onboarding seed, shared-DB pollution, v21 assertion, tile text). Module A adds HOD Main Faculty Feedback (`hod_feedback` blueprint). Schema remains **v24**.
+
+Handoffs: `docs/PHASE_HANDOFFS/TEST_BASELINE_HANDOFF.md`, `docs/PHASE_HANDOFFS/MODULE_A_MAIN_FEEDBACK_HANDOFF.md`.
+
+## 3c. Module C — Lab Feedback + HOD nav (2026-11-13)
+
+- Lab module on `hod_feedback` blueprint; only Lab Available sessions.
+- HOD nav redesign + Overview category counts.
+- Tests: `test_hod_feedback_lab.py` 8 passed. Schema v24.
+- Handoff: `docs/PHASE_HANDOFFS/MODULE_C_LAB_AND_NAV_HANDOFF.md`.
+
+## 3d. Module B + Results tabs (2026-11-13)
+
+- Second Faculty HOD module; results tabs Main/Second/Lab; completion & scoring via scoring.py.
+- Tests: test_hod_feedback_second_and_results.py 8 passed.
+- Handoff: docs/PHASE_HANDOFFS/MODULE_B_RESULTS_HANDOFF.md
+
+## 3e. Category PDF reports (2026-11-13)
+
+- Per-category HOD PDF downloads at `/hod/results/{main,second,lab}.pdf`.
+- Reuses reports.py; filters match results UI; HOD scope only.
+- Tests: test_hod_category_pdf.py 5 passed.
+ 
+## 3f. Latest reported test baseline from earlier Phase 6 planning notes
 
 The latest Checkpoint 0 inspection report supplied during planning reports:
 
@@ -57,6 +87,16 @@ The Checkpoint 0 report says 12 failures/errors appear around login requests ret
 It also reports a stale assertion in `test_assignment_setup_phase3.py::test_migration_v21…`: the test expects schema version 21 while current schema is reported as v24.
 
 These results are reported, not independently rerun as part of this documentation task. Do not call the failures harmless. Re-run and investigate before claiming a current baseline.
+
+## 3f. Final verification (2026-11-13)
+
+- Full suite re-run after Overview assertion fix (accepts "Overview" on HOD home).
+- Behavioral checks: same person main+second, multi-assignment second employee,
+  main submission does not touch second, duplicate prevention, role gates, anonymity view.
+- Migration on populated DB copy: v24 → v24, **no data loss**.
+- Browser: HOD login rendered at mobile (~375) and desktop (~1280); module routes
+  verified HTTP 200 under HOD session in earlier run (server-side).
+- Deployment: docs/DEPLOYMENT.md
 
 ## 4. Phase 6 — planned, not implemented
 

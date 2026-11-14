@@ -1,14 +1,44 @@
 {% extends 'base.html' %}
-{% block title %}HOD Dashboard — Faculty Feedback{% endblock %}
+{% block title %}Overview — HOD Faculty Feedback{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
+{% endblock %}
 {% block body %}
 <div class="perf-welcome">
   <div>
     <h1 style="margin:0;display:flex;align-items:center;gap:.5rem">
-      <span aria-hidden="true">📊</span> HOD Dashboard
+      <span aria-hidden="true">📊</span> Overview
     </h1>
-    <p class="sub" style="margin:.35rem 0 0">Overview of your department forms, faculty and second-faculty status.</p>
+    <p class="sub" style="margin:.35rem 0 0">Department feedback status by category — Main, Second, and Lab stay separate.</p>
   </div>
 </div>
+
+{% if stats.category_overview %}
+<div class="hod-ov">
+  {% for c in stats.category_overview %}
+  <div class="hod-ov-card">
+    <h3>{{ c.label }}</h3>
+    <div class="hod-ov-stats">
+      <div><strong>{{ c.assignments }}</strong> assignments</div>
+      <div><strong>{{ c.published }}</strong> published</div>
+      <div><strong>{{ c.eligible }}</strong> eligible</div>
+      <div><strong>{{ c.submitted }}</strong> submitted</div>
+      <div><strong>{{ c.pending }}</strong> pending</div>
+      <div><strong>{{ c.draft }}</strong> drafts</div>
+    </div>
+    <div class="hod-ov-links">
+      {% if c.key == 'main' %}
+        <a class="btn btn-sm" href="{{ url_for('hod_feedback.main_list') }}">Open Main</a>
+      {% elif c.key == 'second' %}
+        <a class="btn btn-sm" href="{{ url_for('hod_feedback.second_list') }}">Open Second</a>
+      {% else %}
+        <a class="btn btn-sm" href="{{ url_for('hod_feedback.lab_list') }}">Open Lab</a>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
 {% if not stats.branches %}
 <div class="card alert alert-warning">

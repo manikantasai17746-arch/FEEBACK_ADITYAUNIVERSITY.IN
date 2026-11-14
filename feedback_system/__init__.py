@@ -147,6 +147,7 @@ def create_app(config=None):
     from .teacher import bp as teacher_bp
     from .photos import bp as photos_bp
     from .second_faculty import bp as second_faculty_bp
+    from .hod_feedback import bp as hod_feedback_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
@@ -156,6 +157,7 @@ def create_app(config=None):
     app.register_blueprint(dean_bp)
     app.register_blueprint(photos_bp)
     app.register_blueprint(second_faculty_bp)
+    app.register_blueprint(hod_feedback_bp)
 
     @app.route('/favicon.ico')
     def favicon():
