@@ -68,6 +68,24 @@
   .acc .ab-danger:hover{background:var(--a-err);color:#fff}
 
   .acc .group-row td{background:#fbfcff}
+
+  /* search box + grouped allocations */
+  .acc .acc-search{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+  .acc .acc-search input{flex:1;min-width:220px;max-width:460px;height:38px;padding:0 12px;border:1px solid #c9d6ef;border-radius:10px;font:inherit;font-size:.92rem;background:#fff;color:#1f2733}
+  .acc .acc-search input:focus{outline:2px solid #bcd0f5;border-color:var(--a-blue)}
+  .acc .acc-search .acc-found{color:var(--a-muted);font-size:.85rem}
+  .acc .acc-nomatch{display:none;color:var(--a-muted);padding:10px 2px}
+  .acc table.al-table{min-width:560px;table-layout:auto}
+  .acc .al-head td{background:var(--a-soft);border-top:1px solid var(--a-line);padding:10px 12px;cursor:pointer;user-select:none}
+  .acc .al-head .al-n{float:right;font-size:.78rem;font-weight:700;color:var(--a-blue);background:#e6eefc;border-radius:999px;padding:2px 10px}
+  .acc .al-head .al-arrow{display:inline-block;width:14px;color:var(--a-muted);transition:transform .15s}
+  .acc .al-group.collapsed .al-arrow{transform:rotate(-90deg)}
+  .acc .al-group.collapsed .al-row{display:none}
+  .acc .al-row td{padding:8px 12px}
+  .acc .al-tt{display:inline-block;margin:2px 4px 2px 0;padding:2px 9px;border-radius:8px;background:#f1f4fa;border:1px solid var(--a-line);font-size:.8rem}
+  html.dark-mode .acc .acc-search input{background:#1e2b49;border-color:#2b3a5e;color:#e5ecfa}
+  html.dark-mode .acc .al-head td{background:#1e2b49;border-color:#2b3a5e}
+  html.dark-mode .acc .al-tt{background:#1e2b49;border-color:#2b3a5e}
   .acc .empty{color:var(--a-muted);padding:6px 0}
 
   html.dark-mode .acc .acc-card{background:#16213a;border-color:#2b3a5e}
@@ -191,25 +209,37 @@
 
   {# ================= HOD ALLOCATIONS ================= #}
   <div class="acc-card">
-    <h2>HOD allocations (exclusive) <span class="acc-count">{{ allocations|length }}</span></h2>
+    <h2>HOD allocations (exclusive) <span class="acc-count">{{ alloc_groups|length }} HOD{{ '' if alloc_groups|length == 1 else 's' }} · {{ allocations|length }}</span></h2>
     <p class="acc-sub">Key: academic year + department + semester + timetable. One HOD per exact key.</p>
-    {% if allocations %}
-    <div class="acc-scroll">
-      <table class="acc-table" style="min-width:640px">
-        <thead><tr><th>HOD</th><th>Year</th><th>Dept</th><th class="c">Sem</th><th>Timetable</th></tr></thead>
-        <tbody>
-        {% for a in allocations %}
-          <tr>
-            <td><span class="nm">{{ a.hod_name }}</span> <span class="emp">({{ a.emp_code }})</span></td>
-            <td>{{ a.academic_year }}</td>
-            <td><span class="chip">{{ a.branch_code }}</span></td>
-            <td class="c">{{ a.semester_number }}</td>
-            <td>{{ a.timetable_code }}</td>
+    {% if alloc_groups %}
+    <div class="acc-search">
+      <input type="search" id="alSearch" placeholder="Search HOD name, ID, department, year, timetable…"
+             data-filter-items="#alList .al-group" data-filter-found="#alFound" data-filter-none="#alNone" autocomplete="off">
+      <button type="button" class="ab ab-ghost" id="alToggle">Collapse all</button>
+      <span class="acc-found" id="alFound"></span>
+    </div>
+    <div class="acc-scroll" id="alList">
+      <table class="acc-table al-table">
+        <thead><tr><th>Year</th><th>Dept</th><th class="c">Sem</th><th>Timetables</th></tr></thead>
+        {% for g in alloc_groups %}
+        <tbody class="al-group" data-search="{{ g.search }}">
+          <tr class="al-head">
+            <td colspan="4"><span class="al-arrow">▾</span><span class="nm">{{ g.name }}</span> <span class="emp">({{ g.emp }})</span>
+              <span class="al-n">{{ g.total }} allocation{{ '' if g.total == 1 else 's' }}</span></td>
           </tr>
-        {% endfor %}
+          {% for b in g.blocks %}
+          <tr class="al-row">
+            <td>{{ b.year }}</td>
+            <td><span class="chip">{{ b.branch }}</span></td>
+            <td class="c">{{ b.sem }}</td>
+            <td>{% for tt in b.timetables %}<span class="al-tt">{{ tt }}</span>{% endfor %}</td>
+          </tr>
+          {% endfor %}
         </tbody>
+        {% endfor %}
       </table>
     </div>
+    <p class="acc-nomatch" id="alNone">No HOD or allocation matches your search.</p>
     {% else %}
     <p class="empty">No exclusive allocations claimed yet (HODs claim them during onboarding).</p>
     {% endif %}
@@ -220,12 +250,17 @@
     <h2>Dean → HOD assignments <span class="acc-count">{{ dean_hods|length }}</span></h2>
     <p class="acc-sub">Which HODs each Dean oversees.</p>
     {% if dean_hods %}
-    <div class="acc-scroll">
+    <div class="acc-search">
+      <input type="search" id="dhSearch" placeholder="Search Dean or HOD name / ID…"
+             data-filter-items="#dhList tbody tr" data-filter-found="#dhFound" data-filter-none="#dhNone" autocomplete="off">
+      <span class="acc-found" id="dhFound"></span>
+    </div>
+    <div class="acc-scroll" id="dhList">
       <table class="acc-table" style="min-width:640px">
         <thead><tr><th style="width:32%">Dean</th><th>HODs under this Dean</th></tr></thead>
         <tbody>
         {% for g in dean_hods|groupby('dean_name') %}
-          <tr>
+          <tr data-search="{{ (g.grouper ~ ' ' ~ g.list[0].dean_emp ~ ' ' ~ (g.list|map(attribute='hod_name')|join(' ')) ~ ' ' ~ (g.list|map(attribute='hod_emp')|join(' ')))|lower }}">
             <td><span class="nm">{{ g.grouper }}</span> <span class="emp">({{ g.list[0].dean_emp }})</span></td>
             <td>{% for r in g.list %}<span class="chip">{{ r.hod_name }} ({{ r.hod_emp }})</span>{% endfor %}</td>
           </tr>
@@ -233,9 +268,44 @@
         </tbody>
       </table>
     </div>
+    <p class="acc-nomatch" id="dhNone">No Dean or HOD matches your search.</p>
     {% else %}
     <p class="empty">No Dean–HOD assignments yet.</p>
     {% endif %}
   </div>
 </div>
+
+<script>
+(function () {
+  // Live search: every whitespace-separated word must appear in the item's data-search text.
+  document.querySelectorAll('input[data-filter-items]').forEach(function (box) {
+    var items = document.querySelectorAll(box.getAttribute('data-filter-items'));
+    var found = document.querySelector(box.getAttribute('data-filter-found'));
+    var none = document.querySelector(box.getAttribute('data-filter-none'));
+    function run() {
+      var words = box.value.toLowerCase().split(/\s+/).filter(Boolean), shown = 0;
+      items.forEach(function (el) {
+        var hay = el.getAttribute('data-search') || '';
+        var ok = words.every(function (w) { return hay.indexOf(w) !== -1; });
+        el.style.display = ok ? '' : 'none';
+        if (ok) { shown++; if (words.length) el.classList.remove('collapsed'); }
+      });
+      if (found) found.textContent = words.length ? ('Showing ' + shown + ' of ' + items.length) : '';
+      if (none) none.style.display = shown ? 'none' : 'block';
+    }
+    box.addEventListener('input', run);
+  });
+  // Click a HOD header to fold/unfold its allocations; one button for all.
+  document.querySelectorAll('.al-head').forEach(function (h) {
+    h.addEventListener('click', function () { h.parentNode.classList.toggle('collapsed'); });
+  });
+  var tg = document.getElementById('alToggle');
+  if (tg) tg.addEventListener('click', function () {
+    var groups = document.querySelectorAll('.al-group');
+    var collapse = tg.textContent.indexOf('Collapse') === 0;
+    groups.forEach(function (g) { g.classList.toggle('collapsed', collapse); });
+    tg.textContent = collapse ? 'Expand all' : 'Collapse all';
+  });
+})();
+</script>
 {% endblock %}

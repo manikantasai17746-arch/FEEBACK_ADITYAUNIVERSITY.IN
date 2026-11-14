@@ -379,7 +379,11 @@ def clear_login_failures(key):
 # Audit log
 # --------------------------------------------------------------------------- #
 def audit(action, entity=None, entity_id=None, detail=None, actor=None):
-    actor = actor or current_user()
+    if actor is None:
+        try:
+            actor = current_user()
+        except RuntimeError:          # service called outside a request (jobs, tests)
+            actor = None
     if detail is not None:
         # One line per entry and bounded size, so logged input cannot forge entries.
         detail = str(detail).replace('\r', ' ').replace('\n', ' ')[:2000]

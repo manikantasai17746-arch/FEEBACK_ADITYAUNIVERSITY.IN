@@ -185,6 +185,43 @@ def test_t3_multiple_subjects_display_one_card_each(t1, world):
     assert j['summary']['total'] == 4
 
 
+def test_t3b_preview_returns_only_active_eligible_students_and_supports_search(app, t1, world):
+    with app.app_context():
+        second = _user('student', 'S2', name='Second Student')
+        db.execute('INSERT INTO session_students(session_id, student_user_id) VALUES(?,?)',
+                   (world['ads_a'], second))
+        inactive = _user('student', 'INACTIVE', name='Inactive Student')
+        db.execute('UPDATE users SET is_active=0 WHERE id=?', (inactive,))
+        db.execute('INSERT INTO session_students(session_id, student_user_id) VALUES(?,?)',
+                   (world['ads_a'], inactive))
+
+    response = t1.get(API + '/students', query_string={'session_id': world['ads_a']})
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body['ok'] and body['total'] == 2
+    assert body['assignment']['subject_code'] == 'ADSI'
+    assert body['assignment']['section'] == 'A'
+    assert {row['roll'] for row in body['rows']} == {'S1', 'S2'}
+
+    response = t1.get(API + '/students', query_string={
+        'session_id': world['ads_a'], 'search': 'second'})
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body['total'] == 1 and body['rows'][0]['roll'] == 'S2'
+
+    response = t1.get(API + '/students', query_string={
+        'session_id': world['ads_a'], 'page': 2, 'page_size': 1})
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body['page'] == 2 and body['pages'] == 2
+    assert len(body['rows']) == 1
+
+
+def test_t3c_preview_rejects_another_teachers_session(t1, world):
+    response = t1.get(API + '/students', query_string={'session_id': world['other_a']})
+    assert response.status_code == 404
+
+
 def test_t4_repeated_timetable_sessions_never_duplicate(app, world):
     """The (timetable, subject, teacher) key is unique, so periods collapse into one
     assignment; the settings table is additionally unique per session."""
@@ -384,6 +421,7 @@ def test_t18_all_four_steps_are_present_and_navigable(t1):
                   'Previous Step', 'Next Step', 'Save Configuration', 'Cancel changes',
                   'Yes, save'):
         assert label in html, label
+    assert html.count('Room Not Assigned') == 4
     assert 'js/assignment_setup.js' in html and 'css/assignment_setup.css' in html
     # actual click-through navigation is exercised in test_assignment_setup_ui.py
 
@@ -401,6 +439,9 @@ def test_t19_t20_save_then_reload_persists(app, t1, world, client_factory):
     html = fresh.get(SETUP).get_data(as_text=True)
     assert 'Setup complete' in html
     assert 'value="205"' in html and 'value="301"' in html and 'value="104"' in html
+    assert 'Assigned Room:</b> 205' in html
+    assert 'Assigned Room:</b> 301' in html
+    assert 'Assigned Room:</b> 104' in html
     assert re.search(r'name="lab-%d" value="available" checked' % world['ads_a'], html)
     assert re.search(r'name="lab-%d" value="none" checked' % world['ac_a'], html)
     assert got  # structure sanity

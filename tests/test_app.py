@@ -74,6 +74,24 @@ def test_admin_login_rejects_bad_credentials(client):
     assert 'Invalid credentials' in r.get_data(as_text=True)
 
 
+@pytest.mark.parametrize(('role', 'path', 'data'), [
+    ('student', '/student/login', {'roll': 'NOT-A-STUDENT', 'password': 'wrong'}),
+    ('teacher', '/teacher/login', {'emp_code': 'NOT-A-TEACHER', 'password': 'wrong'}),
+    ('hod', '/hod/login', {'emp_code': 'NOT-A-HOD', 'password': 'wrong'}),
+    ('dean', '/dean/login', {'emp_code': 'NOT-A-DEAN', 'password': 'wrong'}),
+    ('admin', '/admin/login', {'email': 'not-an-admin@example.com', 'password': 'wrong'}),
+])
+def test_invalid_landing_modal_login_stays_on_landing_page(client, role, path, data):
+    token = get_csrf(client.get('/').get_data(as_text=True))
+    r = client.post(path, data={**data, '_csrf': token, 'login_context': 'landing'})
+
+    html = r.get_data(as_text=True)
+    assert r.status_code == 200
+    assert '<title>Aditya University — Faculty Feedback Portal</title>' in html
+    assert 'Invalid credentials. Please check and try again.' in html
+    assert f'openLogin("{role}")' in html
+
+
 def test_admin_login_success(client):
     r = login(client, '/admin/login', {'email': 'admin@college.edu', 'password': 'admin123'})
     assert r.status_code == 302

@@ -8,7 +8,8 @@ from datetime import datetime
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
                    render_template, request, url_for, Response)
 
-from . import db, mailer, services, verification
+from . import category_forms, db, mailer, services, verification
+from .feedback_categories import ScopeError
 from .security import current_user, hash_password, role_required, audit
 
 bp = Blueprint('admin', __name__, url_prefix='/admin')
@@ -324,6 +325,33 @@ def form_save():
                        branch_id=session['branch_id'], timetable_id=session['tt_id'],
                        subject_code=session['subject_code'], subject_name=session['subject_name'])
         session_ids = [session['id']]
+        category = (data.get('category') or 'main').strip().lower()
+        if category in ('second', 'lab'):
+            from . import feedback_categories as fc
+            try:
+                if category == 'lab':
+                    t = fc.resolve_scope(fc.LAB, session['id'])
+                else:
+                    aid = _int(data.get('second_faculty_assignment_id'))
+                    if not aid:
+                        ids = fc.expected_categories(session['id'])['second']
+                        if len(ids) != 1:
+                            return jsonify(ok=False, errors=[
+                                'Choose exactly one confirmed Second Faculty assignment '
+                                'for this session.']), 400
+                        aid = ids[0]
+                    t = fc.resolve_scope(fc.SECOND, aid)
+                    if t['session_id'] != session['id']:
+                        return jsonify(ok=False, errors=[
+                            'That Second Faculty assignment belongs to a different '
+                            'session.']), 400
+            except fc.ScopeError as exc:
+                return jsonify(ok=False, errors=[exc.message]), exc.status if exc.status in (
+                    400, 404, 409, 422) else 400
+            payload.update(category=category, category_basis='declared',
+                           lab_faculty_assignment_id=None,
+                           second_faculty_assignment_id=(
+                               t['assignment_id'] if category == 'second' else None))
 
     fid = services.save_form(payload, questions, current_user()['id'],
                              form_id=existing_id, session_ids=session_ids)
@@ -352,7 +380,12 @@ def form_status(fid):
             for e in errors:
                 flash(e, 'error')
             return redirect(url_for('admin.form_edit', fid=fid))
-    services.set_form_status(fid, status)
+    try:
+        category_forms.change_status(current_user(), fid, status)
+    except ScopeError as exc:
+        for e in (getattr(exc, 'errors', None) or [exc.message]):
+            flash(e, 'error')
+        return redirect(request.form.get('next') or url_for('admin.forms'))
     flash(f'Form status updated to {status}.', 'success')
     return redirect(request.form.get('next') or url_for('admin.forms'))
 
@@ -1005,9 +1038,33 @@ def hod_dean_accounts():
                JOIN branches b ON b.id = ha.branch_id
                JOIN semesters s ON s.id = ha.semester_id
                JOIN timetables t ON t.id = ha.timetable_id
-               ORDER BY b.code, s.number, t.code""")
+               ORDER BY u.name, ay.name, b.code, s.number, t.code""")
     except Exception:
         pass
+    # One group per HOD, with their allocations folded into
+    # (year, department, semester) blocks listing all timetables - much
+    # shorter than one row per timetable, and easy to search.
+    alloc_groups, _by_hod = [], {}
+    for a in allocations:
+        g = _by_hod.get(a['hod_user_id'])
+        if g is None:
+            g = {'name': a['hod_name'], 'emp': a['emp_code'], 'total': 0,
+                 'blocks': [], '_idx': {}}
+            _by_hod[a['hod_user_id']] = g
+            alloc_groups.append(g)
+        key = (a['academic_year'], a['branch_code'], a['semester_number'])
+        blk = g['_idx'].get(key)
+        if blk is None:
+            blk = {'year': key[0], 'branch': key[1], 'sem': key[2], 'timetables': []}
+            g['_idx'][key] = blk
+            g['blocks'].append(blk)
+        blk['timetables'].append(a['timetable_code'])
+        g['total'] += 1
+    for g in alloc_groups:
+        g['search'] = ' '.join(
+            [str(g['name'] or ''), str(g['emp'] or '')] +
+            [f"{b['year']} {b['branch']} sem {b['sem']} {' '.join(map(str, b['timetables']))}"
+             for b in g['blocks']]).lower()
     dean_hods = []
     try:
         dean_hods = db.query(
@@ -1022,7 +1079,8 @@ def hod_dean_accounts():
     import_creds = _session.pop('hod_dean_import_creds', None)
     return render_template(
         'admin_hod_dean.html',
-        hods=hods, deans=deans, allocations=allocations, dean_hods=dean_hods,
+        hods=hods, deans=deans, allocations=allocations, alloc_groups=alloc_groups,
+        dean_hods=dean_hods,
         import_creds=import_creds)
 
 
@@ -1354,6 +1412,11 @@ def hod_dean_delete_confirm(uid):
             'DELETE FROM user_department_scopes WHERE user_id=?',
             'DELETE FROM hod_allocations WHERE hod_user_id=?',
             'DELETE FROM dean_hod_assignments WHERE dean_user_id=? OR hod_user_id=?',
+            # private question sets owned by this account (items first, so it
+            # works whether or not the DB enforces ON DELETE CASCADE)
+            'DELETE FROM question_set_items WHERE set_id IN '
+            '(SELECT id FROM question_sets WHERE owner_user_id=?)',
+            'DELETE FROM question_sets WHERE owner_user_id=?',
         ):
             conn.execute(sql, (uid,) * sql.count('?'))
         # ...and keep history (forms, results, audit) but detach this person.
@@ -1370,6 +1433,9 @@ def hod_dean_delete_confirm(uid):
             ('improvement_actions', 'created_by'),
             ('improvement_action_log', 'actor_user_id'),
             ('second_faculty_import_batches', 'imported_by'),
+            ('employee_photos', 'uploaded_by'),
+            ('teacher_subject_settings', 'updated_by'),
+            ('lab_faculty_assignments', 'created_by'),
         ):
             conn.execute(f'UPDATE {table} SET {col}=NULL WHERE {col}=?', (uid,))
         conn.execute("DELETE FROM users WHERE id=? AND role IN ('hod','dean')", (uid,))
@@ -1382,7 +1448,17 @@ def hod_dean_delete_confirm(uid):
         flash(f'Deletion failed and was rolled back: {exc}', 'error')
         return redirect(url_for('admin.hod_dean_accounts'))
     audit('admin.hod_dean_deleted', 'users', uid, f'Permanently deleted {ident}')
-    flash(f'{ident} was permanently deleted.', 'success')
+    # Tell the person their account was removed (best effort: a mail problem
+    # must never undo or block the deletion that already succeeded).
+    notice = ''
+    if user['email']:
+        subject, text, html = mailer.account_removed_email(
+            user['role'], user['name'], user['emp_code'] or user['username'])
+        if mailer.send_email(user['email'], subject, text, html):
+            notice = f" A removal notice was e-mailed to {user['email']}."
+        else:
+            notice = ' (The removal notice e-mail could not be sent.)'
+    flash(f'{ident} was permanently deleted.{notice}', 'success')
     return redirect(url_for('admin.hod_dean_accounts'))
 
 

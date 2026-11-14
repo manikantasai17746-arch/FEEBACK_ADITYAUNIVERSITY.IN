@@ -35,6 +35,13 @@
   </div>
 </div>
 
+{% if form.category_key in ('main', 'second', 'lab') %}
+<div class="card card-tight" style="margin-bottom:1rem" data-category="{{ form.category_key }}">
+  <strong>{{ form.category_label }}</strong><br>
+  <span class="sub">{{ form.category_hint }}</span>
+</div>
+{% endif %}
+
 <div class="anon-banner">
   <span class="lock" aria-hidden="true">🔒</span>
   <div>

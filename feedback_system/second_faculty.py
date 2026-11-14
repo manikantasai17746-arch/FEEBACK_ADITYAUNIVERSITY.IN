@@ -50,7 +50,8 @@ def _body():
 @role_required('teacher')
 def index():
     user = current_user()
-    return render_template('teacher_second_faculty.html', cards=svc.list_cards(user))
+    return render_template('teacher_second_faculty.html', cards=svc.list_cards(user),
+                           setup_flow=request.args.get('setup') == '1')
 
 
 @bp.route('/api/employees')
@@ -59,6 +60,7 @@ def index():
 def api_employees():
     user = current_user()
     session = svc.owned_session(user, request.args.get('session_id'))
+    svc.require_lab(session)
     out = svc.search_employees(user, session, request.args.get('q', ''),
                                page=request.args.get('page', 1, type=int))
     return jsonify(ok=True, **out)

@@ -158,6 +158,32 @@ def assignment_setup_summary():
     return jsonify(ok=True, summary=setup.teacher_summary(current_user()['id']))
 
 
+@bp.route('/assignment-setup/api/students')
+@role_required('teacher')
+def assignment_setup_students():
+    session_id = request.args.get('session_id', type=int)
+    if not session_id:
+        return jsonify(ok=False, error='A session is required.'), 400
+    data = setup.eligible_students_page(
+        current_user()['id'], session_id,
+        page=request.args.get('page', 1, type=int),
+        search=request.args.get('search', ''),
+        page_size=request.args.get('page_size', setup.STUDENT_PAGE_SIZE, type=int))
+    if not data:
+        return jsonify(ok=False, error='Assignment not found.'), 404
+    assignment = data.pop('assignment')
+    return jsonify(ok=True, assignment={
+        'subject_code': assignment['subject_code'],
+        'subject_name': assignment['subject_name'],
+        'section': assignment['section'],
+        'section_name': assignment['section_name'],
+        'branch': assignment['branch'],
+        'branch_name': assignment['branch_name'],
+        'semester': assignment['semester'],
+        'academic_year': assignment['academic_year'],
+    }, **data)
+
+
 @bp.route('/assignment-setup/api/save', methods=['POST'])
 @role_required('teacher')
 def assignment_setup_save():
@@ -382,6 +408,7 @@ def dashboard():
         subjects=subjects, subject_code=subject_code,
         rows=rows, years=years, semesters=semesters,
         academic_year_id=academic_year_id, semester_id=semester_id,
+        setup_complete=request.args.get('setup_complete') == '1',
         stats={
             'subjects': len(subjects),
             'eligible': distinct_eligible,

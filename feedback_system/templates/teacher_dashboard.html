@@ -2,6 +2,16 @@
 {% import '_macros.html' as m %}
 {% block title %}My Performance — Faculty Feedback{% endblock %}
 {% block body %}
+{% if setup_complete %}
+<script>
+  window.addEventListener('load', function () {
+    window.alert('Configuration saved. Your setup is complete.');
+    if (window.history && window.history.replaceState) {
+      window.history.replaceState({}, document.title, '{{ url_for("teacher.dashboard") }}');
+    }
+  });
+</script>
+{% endif %}
 <div class="perf-welcome">
   <div>
     <h1>Welcome, {{ current_user.name }}</h1>
