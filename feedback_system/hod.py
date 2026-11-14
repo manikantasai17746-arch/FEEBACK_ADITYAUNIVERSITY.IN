@@ -379,6 +379,17 @@ def _hod_validate_form_payload(user, data):
             return None, None, None, [
                 'No teaching sessions match that year, semester, branch, timetable and '
                 'subject.']
+        # Teacher picker: optionally restrict the subject to the ticked teachers.
+        raw_teachers = data.get('teacher_ids')
+        if isinstance(raw_teachers, str):
+            raw_teachers = [x for x in raw_teachers.split(',') if x.strip()]
+        picked_teachers = {v for v in (_int(x) for x in (raw_teachers or [])) if v}
+        if picked_teachers and not existing_id:
+            sessions = [x for x in sessions if x.get('teacher_user_id') in picked_teachers]
+            if not sessions:
+                return None, None, None, [
+                    'None of the selected teachers teach this subject in the chosen '
+                    'timetables.']
         # Ensure every session is inside HOD scope (subject_scope_filters already
         # filtered by branch, but re-validate).
         for s in sessions:
@@ -591,8 +602,16 @@ def form_new():
 
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
     semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
+    preset_category = (request.args.get('category') or '').strip().lower()
+    if preset_category not in ('main', 'lab', 'second'):
+        preset_category = ''
+    preset_scope = (request.args.get('scope') or '').strip().lower()
+    if preset_scope not in ('session', 'subject'):
+        preset_scope = 'subject' if preset_category == 'main' else 'session'
     return render_template('hod_form_new.html', branches=branches,
                            years=years, semesters=semesters,
+                           preset_category=preset_category,
+                           preset_scope=preset_scope,
                            default_instructions=services.DEFAULT_INSTRUCTIONS,
                            question_sets_json=json.dumps(
                                [x for x in services.question_sets_for(user['id'])
@@ -890,6 +909,141 @@ def api_subjects():
         # Prefer requiring branch selection in UI; return empty if no branch.
         return jsonify(subjects=[])
     return jsonify(subjects=subjects)
+
+
+@bp.route('/forms/pick-teachers')
+@role_required('hod')
+def pick_teachers():
+    """Full-page, subject-wise teacher picker (multi-select + search).
+
+    Used for Main, Lab and Second Faculty forms.  The page is filled by
+    ``api_teacher_picker``; the selection is handed back to the form page in the
+    browser, and every ID is re-validated on save.
+    """
+    user = current_user()
+    if not _hod_branches(user):
+        flash('No department scope assigned. Contact Admin.', 'warning')
+        return redirect(url_for('hod.dashboard'))
+    category = (request.args.get('category') or 'main').strip().lower()
+    if category not in ('main', 'lab', 'second'):
+        category = 'main'
+    scope = (request.args.get('scope') or 'subject').strip().lower()
+    if scope not in ('session', 'subject') or category != 'main':
+        scope = 'session' if category != 'main' else (scope if scope in ('session', 'subject') else 'subject')
+    return render_template('hod_pick_teachers.html', scope=scope, category=category,
+                           api_url=url_for('hod.api_teacher_picker'),
+                           back_url=url_for('hod.form_new', category=category,
+                                            scope=scope, restore=1))
+
+
+def _session_student_counts(session_ids):
+    counts = {}
+    for i in range(0, len(session_ids), 500):
+        chunk = session_ids[i:i + 500]
+        ph = ','.join('?' * len(chunk))
+        for c in db.query(
+                f"""SELECT ss.session_id AS sid, COUNT(*) AS n FROM session_students ss
+                    JOIN users stu ON stu.id = ss.student_user_id AND stu.is_active = 1
+                    WHERE ss.session_id IN ({ph}) GROUP BY ss.session_id""", tuple(chunk)):
+            counts[c['sid']] = c['n']
+    return counts
+
+
+@bp.route('/api/teacher-picker')
+@role_required('hod')
+def api_teacher_picker():
+    """Subjects -> teachers -> sessions for the selected year/semester/department.
+
+    category=main   every teaching session with eligible students
+    category=lab    only sessions whose lab is set to Lab Available
+    category=second one row per confirmed Second Faculty assignment (Lab Available)
+    """
+    from flask import jsonify
+    user = current_user()
+    allowed = scoped_branch_ids_or_none(user) or []
+    branch_id = request.args.get('branch_id', type=int)
+    if not branch_id or branch_id not in allowed:
+        return jsonify(ok=True, subjects=[])
+    category = (request.args.get('category') or 'main').strip().lower()
+    if category not in ('main', 'lab', 'second'):
+        category = 'main'
+    year_id = request.args.get('academic_year_id', type=int)
+    sem_id = request.args.get('semester_id', type=int)
+    tt_ids = list(dict.fromkeys(request.args.getlist('timetable_id', type=int)))
+    entries = []      # {code,name,tid,tname,temp,session_id,aid,timetable,period,main}
+    if category == 'second':
+        where = ['t.branch_id = ?', "sfa.status = 'confirmed'", 'sfa.removed_at IS NULL',
+                 'sfa.second_teacher_user_id IS NOT NULL', 'cs.is_deleted = 0',
+                 "ts.lab_status = 'available'"]
+        args = [branch_id]
+        if year_id:
+            where.append('t.academic_year_id = ?'); args.append(year_id)
+        if sem_id:
+            where.append('t.semester_id = ?'); args.append(sem_id)
+        if tt_ids:
+            where.append('t.id IN (' + ','.join('?' * len(tt_ids)) + ')'); args.extend(tt_ids)
+        rows = [dict(r) for r in db.query(
+            f"""SELECT sfa.id AS aid, sfa.session_id, sfa.second_teacher_user_id AS tid,
+                       su.name AS tname, su.emp_code AS temp, cs.subject_code, cs.subject_name,
+                       cs.period_no, t.code AS timetable, mu.name AS main_name
+                FROM second_faculty_assignments sfa
+                JOIN class_sessions cs ON cs.id = sfa.session_id
+                JOIN timetables t ON t.id = cs.timetable_id
+                JOIN users mu ON mu.id = cs.teacher_user_id
+                JOIN teacher_subject_settings ts ON ts.session_id = cs.id
+                LEFT JOIN users su ON su.id = sfa.second_teacher_user_id
+                WHERE {' AND '.join(where)}
+                ORDER BY LOWER(cs.subject_code), sfa.id""", tuple(args))]
+        counts = _session_student_counts(list({r['session_id'] for r in rows}))
+        for r in rows:
+            entries.append({'code': r['subject_code'] or '', 'name': r['subject_name'],
+                            'tid': r['tid'], 'tname': r['tname'] or 'Unassigned',
+                            'temp': r['temp'] or '', 'session_id': r['session_id'],
+                            'aid': r['aid'], 'timetable': r['timetable'],
+                            'period': r['period_no'], 'main': r['main_name'],
+                            'n': counts.get(r['session_id'], 0)})
+    else:
+        filters = services.subject_scope_filters(
+            year_id, sem_id, branch_id,
+            tt_ids[0] if len(tt_ids) == 1 else None, None,
+            timetable_ids=tt_ids if len(tt_ids) > 1 else None)
+        rows = [dict(r) for r in services.sessions_for_bulk(filters)
+                if r['teacher_user_id'] and r['branch_id'] in allowed]
+        ids = [r['id'] for r in rows]
+        if category == 'lab' and ids:
+            lab_ok = set()
+            for i in range(0, len(ids), 500):
+                chunk = ids[i:i + 500]
+                ph = ','.join('?' * len(chunk))
+                lab_ok |= {x['session_id'] for x in db.query(
+                    f"SELECT session_id FROM teacher_subject_settings "
+                    f"WHERE lab_status='available' AND session_id IN ({ph})", tuple(chunk))}
+            rows = [r for r in rows if r['id'] in lab_ok]
+        counts = _session_student_counts([r['id'] for r in rows])
+        for r in rows:
+            entries.append({'code': r['subject_code'] or '', 'name': r['subject_name'],
+                            'tid': r['teacher_user_id'], 'tname': r['teacher_name'] or 'Unassigned',
+                            'temp': r.get('teacher_emp') or '', 'session_id': r['id'],
+                            'aid': None, 'timetable': r['timetable'], 'period': r['period_no'],
+                            'main': None, 'n': counts.get(r['id'], 0)})
+    subjects = {}
+    for e in entries:
+        if not e['n']:      # no eligible students, no form (same rule as the subject list)
+            continue
+        sub = subjects.setdefault(e['code'], {
+            'code': e['code'], 'name': e['name'] or e['code'], 'teachers': {}})
+        t = sub['teachers'].setdefault(e['tid'], {
+            'id': e['tid'], 'name': e['tname'], 'emp': e['temp'], 'students': 0, 'sessions': []})
+        t['students'] += e['n']
+        t['sessions'].append({'id': e['session_id'], 'assignment_id': e['aid'],
+                              'timetable': e['timetable'], 'period': e['period'],
+                              'students': e['n'], 'main': e['main']})
+    out = []
+    for sub in sorted(subjects.values(), key=lambda x: (x['code'] or '').lower()):
+        sub['teachers'] = sorted(sub['teachers'].values(),
+                                 key=lambda x: (x['name'] or '').lower())
+        out.append(sub)
+    return jsonify(ok=True, subjects=out)
 
 
 @bp.route('/api/subject/preview')

@@ -1,0 +1,168 @@
+{% extends 'base.html' %}
+{% block title %}Select teachers — HOD{% endblock %}
+{% block head %}
+<style>
+.pk-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.pk-bar input[type=search]{flex:1;min-width:220px}
+.pk-sub{border:1px solid #dbe2ef;border-radius:10px;margin-bottom:12px;background:#fff;overflow:hidden}
+.pk-sh{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 14px;background:#f4f7fc;border-bottom:1px solid #dbe2ef}
+.pk-sh strong{font-size:15px}
+.pk-code{font-size:12px;padding:2px 8px;border-radius:6px;background:#fff;border:1px solid #dbe2ef;color:#475569;margin-left:6px}
+.pk-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid #eef1f7;cursor:pointer;font-size:14px}
+.pk-row:last-child{border-bottom:none}
+.pk-row:hover{background:#f8faff}
+.pk-row.on{background:#e8effb}
+.pk-row input{width:17px;height:17px;flex:none}
+.pk-meta{margin-left:auto;font-size:12px;color:#64748b;text-align:right}
+.pk-foot{position:sticky;bottom:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:#fff;border:1px solid #dbe2ef;border-radius:10px;margin-top:8px}
+.pk-err{color:#b3261e;font-size:13px;margin:6px 0 0}
+</style>
+{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header">
+    <h1>Select teachers</h1>
+  </div>
+  <p class="sub" id="pk-context">Loading…</p>
+  <div class="pk-bar">
+    <input type="search" id="pk-q" placeholder="Search teacher, subject or code" aria-label="Search teachers">
+    <button type="button" class="btn btn-ghost btn-sm" id="pk-all">Select all shown</button>
+    <button type="button" class="btn btn-ghost btn-sm" id="pk-clear">Clear</button>
+    <a class="btn btn-ghost btn-sm" href="{{ back_url }}" id="pk-back">Back to form</a>
+  </div>
+  <div id="pk-list"><p class="sub">Loading teachers…</p></div>
+  <div class="pk-foot">
+    <span><strong id="pk-count">0</strong> <span id="pk-noun">teachers</span> selected</span>
+    <button type="button" class="btn btn-accent" id="pk-go">Continue to form</button>
+  </div>
+  <p class="pk-err" id="pk-err" role="alert"></p>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function () {
+  var SCOPE = {{ scope|tojson }};
+  var CATEGORY = {{ category|tojson }};
+  var WHO = CATEGORY === 'second' ? 'second faculty' : 'teacher';
+  var API = {{ api_url|tojson }};
+  var BACK = {{ back_url|tojson }};
+  var $ = function (id) { return document.getElementById(id); };
+  var draft = {};
+  try { draft = JSON.parse(sessionStorage.getItem('hodFormDraft') || '{}'); } catch (e) {}
+  var f = draft.filters || {};
+  var data = [];            // [{code,name,teachers:[{id,name,emp,students,sessions:[...]}]}]
+  var sel = {};             // key -> true ; subject mode: 's|teacherId' ; session mode: 'x|sessionId'
+
+  function esc(t) { var d = document.createElement('div'); d.textContent = t == null ? '' : t; return d.innerHTML; }
+  function key(code, t, s) {
+    if (SCOPE === 'subject') return code + '|' + t.id;
+    return s.assignment_id ? 'a|' + s.assignment_id : 'x|' + s.id;
+  }
+
+  // rows shown in a subject: one per teacher (subject mode) or one per session (normal mode)
+  function rowsOf(sub) {
+    var out = [];
+    sub.teachers.forEach(function (t) {
+      if (SCOPE === 'subject') out.push({ k: key(sub.code, t), t: t, s: null });
+      else t.sessions.forEach(function (s) { out.push({ k: key(sub.code, t, s), t: t, s: s }); });
+    });
+    return out;
+  }
+
+  function visible() {
+    var q = $('pk-q').value.trim().toLowerCase();
+    return data.map(function (sub) {
+      var subHit = (sub.name + ' ' + sub.code).toLowerCase().indexOf(q) > -1;
+      var rows = rowsOf(sub).filter(function (r) {
+        return !q || subHit || (r.t.name + ' ' + r.t.emp + ' ' + (r.s && r.s.main ? r.s.main : '')).toLowerCase().indexOf(q) > -1;
+      });
+      return { sub: sub, rows: rows };
+    }).filter(function (x) { return x.rows.length; });
+  }
+
+  function render() {
+    var v = visible(), box = $('pk-list');
+    box.innerHTML = '';
+    if (!v.length) { box.innerHTML = '<p class="sub">Nobody matches your search.</p>'; }
+    v.forEach(function (x) {
+      var wrap = document.createElement('div'); wrap.className = 'pk-sub';
+      var allOn = x.rows.every(function (r) { return sel[r.k]; });
+      var head = document.createElement('div'); head.className = 'pk-sh';
+      head.innerHTML = '<div><strong>' + esc(x.sub.name) + '</strong><span class="pk-code">' + esc(x.sub.code) + '</span></div>';
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'btn btn-ghost btn-sm';
+      b.textContent = allOn ? 'Deselect all' : 'Select all';
+      b.onclick = function () { x.rows.forEach(function (r) { if (allOn) delete sel[r.k]; else sel[r.k] = 1; }); render(); };
+      head.appendChild(b); wrap.appendChild(head);
+      x.rows.forEach(function (r) {
+        var lab = document.createElement('label'); lab.className = 'pk-row' + (sel[r.k] ? ' on' : '');
+        var meta = SCOPE === 'subject'
+          ? r.t.sessions.length + ' section' + (r.t.sessions.length === 1 ? '' : 's') + ' · ' + r.t.students + ' students'
+          : esc(r.s.timetable) + ' · Period ' + esc(r.s.period) + (r.s.main ? ' · Main: ' + esc(r.s.main) : '') + ' · ' + r.s.students + ' students';
+        lab.innerHTML = '<input type="checkbox"' + (sel[r.k] ? ' checked' : '') + '><span>' + esc(r.t.name) +
+          '</span><span class="pk-meta">' + meta + '</span>';
+        lab.querySelector('input').onchange = function (e) { if (e.target.checked) sel[r.k] = 1; else delete sel[r.k]; render(); };
+        wrap.appendChild(lab);
+      });
+      box.appendChild(wrap);
+    });
+    var n = Object.keys(sel).length;
+    $('pk-count').textContent = n;
+    $('pk-noun').textContent = SCOPE === 'subject' ? WHO + (n === 1 ? '' : 's') : (CATEGORY === 'second' ? 'assignment' : 'session') + (n === 1 ? '' : 's');
+  }
+
+  $('pk-q').addEventListener('input', function () { $('pk-err').textContent = ''; render(); });
+  $('pk-q').addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
+  $('pk-clear').onclick = function () { sel = {}; $('pk-err').textContent = ''; render(); };
+  $('pk-all').onclick = function () { visible().forEach(function (x) { x.rows.forEach(function (r) { sel[r.k] = 1; }); }); render(); };
+
+  $('pk-go').onclick = function () {
+    var picks = { scope: SCOPE, category: CATEGORY, key: draft.key || '', subjects: [] };
+    data.forEach(function (sub) {
+      var teachers = [];
+      sub.teachers.forEach(function (t) {
+        if (SCOPE === 'subject') {
+          if (sel[key(sub.code, t)]) teachers.push({ id: t.id, name: t.name, sessions: [] });
+        } else {
+          var ss = t.sessions.filter(function (s) { return sel[key(sub.code, t, s)]; })
+            .map(function (s) { return { id: s.id, assignment_id: s.assignment_id || null, label: s.timetable + ' · Period ' + s.period }; });
+          if (ss.length) teachers.push({ id: t.id, name: t.name, sessions: ss });
+        }
+      });
+      if (teachers.length) picks.subjects.push({ code: sub.code, name: sub.name, teachers: teachers });
+    });
+    if (!picks.subjects.length) { $('pk-err').textContent = 'Select at least one teacher'; return; }
+    try { sessionStorage.setItem('hodPicks', JSON.stringify(picks)); } catch (e) {}
+    window.location.href = BACK;
+  };
+
+  if (!f.branch_id) {
+    $('pk-list').innerHTML = '<p class="sub">Choose the academic year, semester and department on the form first.</p>';
+    $('pk-context').textContent = '';
+    return;
+  }
+  $('pk-context').textContent = (draft.context || '') + ' · tick as many as you need';
+  if (CATEGORY === 'second') { document.querySelector('h1').textContent = 'Select second faculty'; $('pk-q').placeholder = 'Search second faculty, main teacher, subject or code'; }
+  else if (CATEGORY === 'lab') { document.querySelector('h1').textContent = 'Select teachers for lab feedback'; }
+  var qs = new URLSearchParams();
+  qs.append('category', CATEGORY);
+  ['academic_year_id', 'semester_id', 'branch_id'].forEach(function (k) { if (f[k]) qs.append(k, f[k]); });
+  (f.timetable_ids || []).forEach(function (t) { qs.append('timetable_id', t); });
+  fetch(API + '?' + qs.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      data = d.subjects || [];
+      var old = null;
+      try { old = JSON.parse(sessionStorage.getItem('hodPicks') || 'null'); } catch (e) {}
+      if (old && old.scope === SCOPE && old.category === CATEGORY && old.key === (draft.key || '')) {
+        old.subjects.forEach(function (s) { s.teachers.forEach(function (t) {
+          if (SCOPE === 'subject') sel[s.code + '|' + t.id] = 1;
+          else t.sessions.forEach(function (x) { sel[x.assignment_id ? 'a|' + x.assignment_id : 'x|' + x.id] = 1; });
+        }); });
+      }
+      if (!data.length) $('pk-list').innerHTML = '<p class="sub">Nothing available for these filters. ' + (CATEGORY === 'main' ? '' : 'Lab feedback needs Lab Available in Assignment Setup' + (CATEGORY === 'second' ? ' and a confirmed Second Faculty' : '') + '.') + '</p>';
+      else render();
+    })
+    .catch(function () { $('pk-list').innerHTML = '<p class="sub">Could not load teachers. Go back and try again.</p>'; });
+})();
+</script>
+{% endblock %}

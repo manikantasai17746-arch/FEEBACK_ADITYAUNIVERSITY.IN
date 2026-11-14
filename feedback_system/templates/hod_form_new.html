@@ -28,7 +28,10 @@
        data-status-url="{{ url_for('hod.form_status', fid=0) }}"
        data-form-id=""
        data-sets-only="1"
-       data-scope="session"
+       data-scope="{{ preset_scope or 'session' }}"
+       data-picker="1"
+       data-pick-url="{{ url_for('hod.pick_teachers') }}"
+       data-restore="{{ 1 if request.args.get('restore') else 0 }}"
        data-selected-subject=""
        data-selected-timetable=""
        data-selected-session=""
@@ -59,10 +62,10 @@
 
       <div class="field">
         <label for="category">Feedback category</label>
-        <select id="category">
-          <option value="main" selected>Main Faculty feedback — regular subject teaching</option>
-          <option value="lab">Lab feedback — the Main Faculty's lab / practical teaching (needs Lab Available)</option>
-          <option value="second">Second Faculty feedback — lab assistance (needs Lab Available + confirmed Second Faculty)</option>
+        <select id="category"{% if preset_category %} disabled{% endif %}>
+          <option value="main"{% if preset_category in ('', 'main') %} selected{% endif %}>Main Faculty feedback — regular subject teaching</option>
+          <option value="lab"{% if preset_category == 'lab' %} selected{% endif %}>Lab feedback — the Main Faculty's lab / practical teaching (needs Lab Available)</option>
+          <option value="second"{% if preset_category == 'second' %} selected{% endif %}>Second Faculty feedback — lab assistance (needs Lab Available + confirmed Second Faculty)</option>
         </select>
         <div class="hint">Lab and Second Faculty forms apply to one subject / teacher / period
           (Normal mode) whose lab is set to Lab Available in Assignment Setup. Lab feedback evaluates the
@@ -91,6 +94,15 @@
         <div class="field" id="subject-field" style="grid-column:span 2;display:none"><label id="subject_ms_label">Subject(s)</label>
           <details id="subject_ms" aria-labelledby="subject_ms_label"></details>
           <div class="hint">Tick one or more subjects. Each ticked subject gets its own form.</div>
+        </div>
+        <div class="field" id="picker-field" style="grid-column:span 2;display:none">
+          <label>Teachers and subjects</label>
+          <div class="picker-box">
+            <span id="picker-summary" class="picker-summary">No teachers selected yet</span>
+            <button type="button" class="btn btn-sm" id="picker-open">Select teachers</button>
+          </div>
+          <div id="picker-chips" class="picker-chips"></div>
+          <div class="hint" id="picker-hint">Opens a page listing every teacher subject-wise. Tick as many as you need.</div>
         </div>
         <div class="field" id="session-field" style="grid-column:span 2">
           <label for="session_id">Subject · Teacher · Period</label>
@@ -173,3 +185,9 @@
 </div>
 {% endblock %}
 {% block scripts %}{% endblock %}
+{% block head %}<style>
+.picker-box{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;border:1px dashed #b8c2d6;border-radius:8px}
+.picker-summary{font-size:14px}
+.picker-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.picker-chip{font-size:12px;padding:3px 9px;border-radius:999px;background:#e8effb;color:#1c3d7a}
+</style>{% endblock %}
