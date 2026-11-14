@@ -7,6 +7,7 @@
   <title>Aditya University — Faculty Feedback Portal</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/anonymity_card.css') }}">
 </head>
 <body class="landing-page">
 <header class="lp-header">
@@ -67,34 +68,8 @@
       </div>
     </div>
 
-    <!-- Interactive sample: an answer sheet that shows what gets saved -->
-    <div class="sheet" id="demo">
-      <p class="sheet-tag">Sample question. Nothing here is saved.</p>
-      <h2 class="sheet-q" id="demoQ">The faculty explains concepts in a way I can follow.</h2>
-      <div class="scale" role="radiogroup" aria-labelledby="demoQ">
-        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Poor"><i></i><span>Poor</span></button>
-        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Average"><i></i><span>Average</span></button>
-        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Good"><i></i><span>Good</span></button>
-        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Very good"><i></i><span>Very good</span></button>
-        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Excellent"><i></i><span>Excellent</span></button>
-      </div>
-      <div class="receipt" aria-live="polite">
-        <p class="receipt-idle" id="receiptIdle">Tap a bubble to see what gets saved.</p>
-        <div class="receipt-body" id="receiptBody" hidden>
-          <div>
-            <h3>Saved with the answer</h3>
-            <p class="receipt-saved">Rating: <strong id="pickLabel">Very good</strong></p>
-          </div>
-          <div>
-            <h3>Never attached</h3>
-            <ul>
-              <li>Your name</li>
-              <li>Your roll number</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- Sample answer card: folded corner + Aditya University stamp animation (CSS only) -->
+    {% include '_anonymity_card.html' %}
   </div>
 </section>
 
@@ -229,49 +204,6 @@
   </div>
 </footer>
 
-<script nonce="{{ csp_nonce }}">
-// Sample answer sheet in the hero: picking a bubble shows what is saved.
-(function () {
-  var sheet = document.getElementById('demo');
-  if (!sheet) return;
-  var bubbles = Array.prototype.slice.call(sheet.querySelectorAll('.bubble'));
-  var idle = document.getElementById('receiptIdle');
-  var body = document.getElementById('receiptBody');
-  var label = document.getElementById('pickLabel');
-  var touched = false;
-
-  function pick(i) {
-    bubbles.forEach(function (b, j) {
-      b.setAttribute('aria-checked', j === i ? 'true' : 'false');
-      b.tabIndex = j === i ? 0 : -1;
-    });
-    label.textContent = bubbles[i].getAttribute('data-label');
-    idle.hidden = true;
-    body.hidden = false;
-  }
-
-  bubbles.forEach(function (b, i) {
-    if (i > 0) b.tabIndex = -1;
-    b.addEventListener('click', function () { touched = true; pick(i); });
-    b.addEventListener('keydown', function (e) {
-      var next = null;
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (i + 1) % bubbles.length;
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (i + bubbles.length - 1) % bubbles.length;
-      if (next === null) return;
-      e.preventDefault();
-      touched = true;
-      pick(next);
-      bubbles[next].focus();
-    });
-  });
-
-  // One page-load moment: the sheet fills in a sample answer to show what it does.
-  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!calm) {
-    setTimeout(function () { if (!touched) pick(3); }, 1100);
-  }
-})();
-</script>
 
 <script nonce="{{ csp_nonce }}">
 (function () {
