@@ -12,7 +12,7 @@
       <p class="sub">Only subjects marked <strong>Lab Available</strong>. No Lab and unconfigured subjects are excluded.</p>
     </div>
     <div class="hf-head-actions">
-      <a class="btn btn-primary" href="{{ url_for('hod_feedback.lab_create') }}">Create Lab form</a>
+      <a class="btn btn-primary" href="{{ url_for('hod.form_new', category='lab', scope='session') }}">Create Lab form</a>
     </div>
   </div>
   <form class="hf-filters card" method="get" action="{{ url_for('hod_feedback.lab_list') }}">
@@ -64,7 +64,7 @@
             <td>{{ s.room or '—' }}</td>
             <td>{{ s.eligible_count }}</td>
             <td>{% if s.live_lab_forms %}<span class="hf-badge is-warn">{{ s.live_lab_forms }} draft/open</span>{% else %}<span class="hf-badge">none</span>{% endif %}</td>
-            <td><a class="btn btn-sm" href="{{ url_for('hod_feedback.lab_create') }}?session_id={{ s.session_id }}">Select</a></td>
+            <td><a class="btn btn-sm" href="{{ url_for('hod.form_new', category='lab', scope='session') }}">Select</a></td>
           </tr>
           {% endfor %}
         </tbody>

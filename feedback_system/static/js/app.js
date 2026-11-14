@@ -458,6 +458,12 @@
         allLabel: '— Select subject(s) —', noun: 'subjects',
         emptyText: 'Select year, semester & department first.' }) : null;
   var subjectLabels = {};
+  /* ---- Teacher picker (HOD form page; Main, Lab and Second Faculty) ---- */
+  var pickerOn = builder.getAttribute('data-picker') === '1';
+  var pickUrl = builder.getAttribute('data-pick-url') || '';
+  var picks = null, itemMap = {}, restoreTT = null;
+  function catVal() { var c = document.getElementById('category'); return c ? c.value : 'main'; }
+  function pickerActive() { return pickerOn; }
   var sSel = document.getElementById('session_id');
   var subjSel = document.getElementById('subject_code');
   var sessionField = document.getElementById('session-field');
@@ -479,6 +485,7 @@
   }
   /* ticked subject codes */
   function subjValues() {
+    if (pickerActive()) return scope === 'subject' ? pickItems() : [];
     if (subjMS) return subjMS.values();
     return subjSel && subjSel.value ? [subjSel.value] : [];
   }
@@ -501,6 +508,78 @@
       subject_code: subjSel ? subjSel.value : ''
     };
   }
+
+  function filterKey() {
+    return [val('academic_year_id'), val('semester_id'), val('branch_id'), ttEffective().join(','), catVal()].join('|');
+  }
+  function validPicks() {
+    return (picks && picks.scope === scope && picks.category === catVal()) ? picks : null;
+  }
+  function itemKey(x) { return x.assignment_id ? 'a' + x.assignment_id : String(x.id); }
+  function pickItems() {
+    var p = validPicks(), out = [];
+    if (!p) return out;
+    p.subjects.forEach(function (s) {
+      if (scope === 'subject') { out.push(s.code); return; }
+      s.teachers.forEach(function (t) { t.sessions.forEach(function (x) { out.push(itemKey(x)); }); });
+    });
+    return out;
+  }
+  function items() { return pickerActive() ? pickItems() : subjValues(); }
+  function indexPicks() {
+    itemMap = {};
+    if (!picks) return;
+    picks.subjects.forEach(function (s) {
+      if (picks.scope === 'subject') { subjectLabels[s.code] = s.name + ' (' + s.code + ')'; return; }
+      s.teachers.forEach(function (t) { t.sessions.forEach(function (x) {
+        var k = itemKey(x);
+        itemMap[k] = { session_id: x.id, assignment_id: x.assignment_id || '' };
+        subjectLabels[k] = s.name + ' — ' + t.name + ' · ' + x.label;
+      }); });
+    });
+  }
+  function clearPicks() {
+    picks = null; itemMap = {};
+    try { sessionStorage.removeItem('hodPicks'); } catch (e) {}
+  }
+  function renderPicker() {
+    var sum = document.getElementById('picker-summary'), chips = document.getElementById('picker-chips'),
+        btn = document.getElementById('picker-open');
+    if (!sum) return;
+    var who = catVal() === 'second' ? 'second faculty' : 'teacher';
+    chips.innerHTML = '';
+    var p = validPicks();
+    if (!p || !p.subjects.length) { sum.textContent = 'No ' + who + 's selected yet'; btn.textContent = 'Select ' + who + 's'; return; }
+    var n = 0;
+    p.subjects.forEach(function (s) {
+      var names = [];
+      s.teachers.forEach(function (t) {
+        var c = scope === 'subject' ? 1 : t.sessions.length; n += c;
+        names.push(t.name + (scope === 'session' && t.sessions.length === 1 ? ' (' + t.sessions[0].label + ')' : ''));
+      });
+      var chip = document.createElement('span'); chip.className = 'picker-chip';
+      chip.textContent = s.name + ': ' + names.join(', ');
+      chips.appendChild(chip);
+    });
+    sum.textContent = scope === 'subject'
+      ? p.subjects.length + ' subject' + (p.subjects.length === 1 ? '' : 's') + ' · ' + n + ' ' + who + (n === 1 ? '' : 's') + ' selected'
+      : n + ' session' + (n === 1 ? '' : 's') + ' selected';
+    btn.textContent = 'Change selection';
+  }
+  function saveDraft() {
+    function opt(id) { var e = document.getElementById(id); return e && e.selectedOptions && e.selectedOptions[0] ? e.selectedOptions[0].text : ''; }
+    var d = {
+      filters: { academic_year_id: val('academic_year_id'), semester_id: val('semester_id'),
+                 branch_id: val('branch_id'), timetable_ids: ttEffective() },
+      key: filterKey(), ttRaw: ttValues(),
+      context: opt('semester_id') + ' · ' + opt('branch_id'),
+      form: { academic_year_id: val('academic_year_id'), semester_id: val('semester_id'),
+              branch_id: val('branch_id'), phase: phaseSelVal(), title: val('title'),
+              deadline_at: val('deadline_at'), instructions: val('instructions') }
+    };
+    try { sessionStorage.setItem('hodFormDraft', JSON.stringify(d)); } catch (e) {}
+  }
+  function phaseSelVal() { var e = document.getElementById('phase'); return e ? e.value : ''; }
 
   function applyScope() {
     builder.setAttribute('data-scope', scope);
@@ -530,6 +609,16 @@
     }
     if (ttMS) ttMS.setLabels(scope === 'subject' ? 'No Preference (All Timetables)' : 'Select timetable(s)', 'timetables');
     if (previewPanel && scope !== 'subject') previewPanel.style.display = 'none';
+    if (pickerActive()) {
+      if (sessionField) sessionField.style.display = 'none';
+      if (subjectField) subjectField.style.display = 'none';
+      if (previewPanel) previewPanel.style.display = 'none';
+      var pf = document.getElementById('picker-field');
+      if (pf) pf.style.display = '';
+      var subBtn = modeBtn('subject');
+      if (subBtn) subBtn.style.display = catVal() === 'main' ? '' : 'none';
+      renderPicker();
+    }
   }
 
   function loadTimetables() {
@@ -544,7 +633,8 @@
         if (ttMS) {
           ttMS.setItems(d.timetables.map(function (t) {
             return { value: String(t.id), label: t.branch + ' · ' + t.code };
-          }), selTimetable ? [selTimetable] : null);
+          }), restoreTT ? restoreTT : (selTimetable ? [selTimetable] : null));
+          restoreTT = null;
           ttMS.setEmptyText('No timetables found for these filters.');
           selTimetable = '';
         } else {
@@ -562,6 +652,7 @@
   }
 
   function loadSessions() {
+    if (pickerActive()) return;
     var ttIds = ttValues();
     if (!ttIds.length) { sSel.innerHTML = '<option value="">— Select a timetable first —</option>'; return; }
     sSel.innerHTML = '<option value="">Loading…</option>';
@@ -579,6 +670,7 @@
 
   var subjectsSeq = 0, previewSeq = 0;   // only the newest request may update the page
   function loadSubjects() {
+    if (pickerActive()) return;
     if (!subjSel && !subjMS) return;
     var seq = ++subjectsSeq;
     var f = currentFilters();
@@ -609,6 +701,7 @@
   }
 
   function loadSubjectPreview() {
+    if (pickerActive()) return;
     if (!previewPanel || scope !== 'subject') return;
     var codes = subjValues();
     if (!codes.length) { previewPanel.style.display = 'none'; return; }
@@ -669,6 +762,11 @@
   }
 
   function afterTimetableChange() {
+    if (pickerActive()) {
+      if (picks && picks.key !== filterKey()) clearPicks();   // year/semester/department/timetable changed
+      renderPicker();
+      return;
+    }
     if (scope === 'subject') { loadSubjects(); }
     else { loadSessions(); }
   }
@@ -702,6 +800,11 @@
     syncPhase();
   }
 
+  function pickSession(code) {
+    var k = code !== undefined ? code : (pickItems()[0] || '');
+    return itemMap[k] ? String(itemMap[k].session_id) : '';
+  }
+
   function collect(code, fid) {
     var catEl = document.getElementById('category');
     var tts = ttEffective();
@@ -717,11 +820,21 @@
       semester_id: val('semester_id'),
       branch_id: val('branch_id'),
       timetable_id: tts.length === 1 ? tts[0] : '',
-      subject_code: code !== undefined ? code : (subjValues()[0] || ''),
-      session_id: scope === 'session' ? sSel.value : '',
+      subject_code: (pickerActive() && scope === 'session') ? '' : (code !== undefined ? code : (subjValues()[0] || '')),
+      session_id: scope === 'session' ? (pickerActive() ? pickSession(code) : sSel.value) : '',
       questions: model
     };
     if (ttMS) body.timetable_ids = tts;
+    if (pickerActive()) {
+      if (scope === 'subject') {
+        var cd = body.subject_code, p = validPicks(), sub = null;
+        if (p) p.subjects.forEach(function (x) { if (x.code === cd) sub = x; });
+        body.teacher_ids = sub ? sub.teachers.map(function (t) { return t.id; }) : [];
+      } else {
+        var k = code !== undefined ? code : (pickItems()[0] || '');
+        body.second_faculty_assignment_id = itemMap[k] ? itemMap[k].assignment_id : '';
+      }
+    }
     return body;
   }
 
@@ -835,12 +948,12 @@
     return Promise.all(workers).then(function () { return failures; });
   }
 
-  function isMulti() { return scope === 'subject' && subjValues().length > 1; }
+  function isMulti() { return pickerActive() ? pickItems().length > 1 : (scope === 'subject' && subjValues().length > 1); }
 
   var saveBtn = document.getElementById('save-draft');
   if (saveBtn) saveBtn.addEventListener('click', function () {
     if (isMulti()) {
-      saveMany(subjValues()).then(function (ids) {
+      saveMany(items()).then(function (ids) {
         if (!ids) return;
         var t = document.getElementById('save-toast');
         if (t) { t.style.display = ''; t.textContent = ids.length + ' draft forms saved (#' + ids.join(', #') + ').'; }
@@ -866,7 +979,9 @@
     if (!val('academic_year_id')) errors.push('Select an academic year.');
     if (!val('semester_id')) errors.push('Select a semester.');
     if (!val('branch_id')) errors.push('Select a branch.');
-    if (scope === 'subject') {
+    if (pickerActive()) {
+      if (!pickItems().length) errors.push(catVal() === 'second' ? 'Select at least one second faculty.' : 'Select at least one teacher.');
+    } else if (scope === 'subject') {
       if (!subjValues().length) errors.push('Select at least one subject.');
     } else if (!sSel.value) {
       errors.push('Select a subject, teacher and period.');
@@ -881,7 +996,7 @@
     var errors = validateSelection();
     if (errors.length) { showErrors(errors); return; }
     if (isMulti()) {
-      var codes = subjValues();
+      var codes = items();
       saveMany(codes).then(function (ids) {
         if (!ids) return;
         publishMany(ids, codes).then(function (failures) {
@@ -920,6 +1035,42 @@
       f.submit();
     });
   });
+
+  var openBtn = document.getElementById('picker-open');
+  if (openBtn) openBtn.addEventListener('click', function () {
+    if (!val('academic_year_id') || !val('semester_id') || !val('branch_id')) {
+      showErrors(['Select the academic year, semester and department first.']);
+      return;
+    }
+    showErrors([]);
+    saveDraft();
+    window.location.href = pickUrl + '?category=' + encodeURIComponent(catVal()) + '&scope=' + encodeURIComponent(scope);
+  });
+  var catSel = document.getElementById('category');
+  if (catSel) catSel.addEventListener('change', function () {
+    if (catVal() !== 'main' && scope === 'subject') scope = 'session';
+    applyScope();
+    if (!pickerActive()) { afterTimetableChange(); }
+  });
+
+  if (pickerOn) {
+    if (builder.getAttribute('data-restore') === '1') {
+      try {
+        var dr = JSON.parse(sessionStorage.getItem('hodFormDraft') || 'null');
+        if (dr && dr.form) {
+          ['academic_year_id', 'semester_id', 'branch_id', 'deadline_at', 'title', 'instructions'].forEach(function (id) {
+            var el = document.getElementById(id); if (el && dr.form[id] != null && dr.form[id] !== '') el.value = dr.form[id];
+          });
+          if (phaseSel && dr.form.phase) { phaseSel.value = dr.form.phase; phaseSel.dispatchEvent(new Event('change')); }
+          restoreTT = dr.ttRaw && dr.ttRaw.length ? dr.ttRaw : null;
+        }
+        var pk = JSON.parse(sessionStorage.getItem('hodPicks') || 'null');
+        if (pk && pk.scope === scope && pk.category === catVal()) { picks = pk; indexPicks(); }
+      } catch (e) {}
+    } else {
+      try { sessionStorage.removeItem('hodFormDraft'); sessionStorage.removeItem('hodPicks'); } catch (e) {}
+    }
+  }
 
   applyScope();
   if (document.getElementById('branch_id').value) { loadTimetables(); }

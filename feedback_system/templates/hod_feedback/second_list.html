@@ -12,7 +12,7 @@
       <p class="sub">Confirmed assignments only. Each card is one assignment row — the same person may appear more than once.</p>
     </div>
     <div class="hf-head-actions">
-      <a class="btn btn-primary" href="{{ url_for('hod_feedback.second_create') }}">Create Second form</a>
+      <a class="btn btn-primary" href="{{ url_for('hod.form_new', category='second', scope='session') }}">Create Second form</a>
     </div>
   </div>
   <form class="hf-filters card" method="get" action="{{ url_for('hod_feedback.second_list') }}">
@@ -66,7 +66,7 @@
         </div>
         <div class="hf-assign-actions">
           <span class="hf-muted">Assignment #{{ a.assignment_id }}</span>
-          <a class="btn btn-sm" href="{{ url_for('hod_feedback.second_create') }}?assignment_id={{ a.assignment_id }}">Select</a>
+          <a class="btn btn-sm" href="{{ url_for('hod.form_new', category='second', scope='session') }}">Select</a>
         </div>
       </article>
       {% endfor %}
