@@ -185,7 +185,7 @@ def forms():
             args.extend([like, like, like])
         sql = f"""SELECT id, title, status, category, snapshot_subject_code,
                          snapshot_subject_name, snapshot_branch, snapshot_timetable,
-                         published_at, closed_at, created_at
+                         published_at, closed_at, created_at, deadline_at
                   FROM feedback_forms WHERE {' AND '.join(where)}
                   ORDER BY created_at DESC, id DESC"""
         forms_list = db.query(sql, tuple(args))
