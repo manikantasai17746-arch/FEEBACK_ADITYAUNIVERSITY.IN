@@ -1423,7 +1423,17 @@ def hod_dean_delete_confirm(uid):
         flash(f'Deletion failed and was rolled back: {exc}', 'error')
         return redirect(url_for('admin.hod_dean_accounts'))
     audit('admin.hod_dean_deleted', 'users', uid, f'Permanently deleted {ident}')
-    flash(f'{ident} was permanently deleted.', 'success')
+    # Tell the person their account was removed (best effort: a mail problem
+    # must never undo or block the deletion that already succeeded).
+    notice = ''
+    if user['email']:
+        subject, text, html = mailer.account_removed_email(
+            user['role'], user['name'], user['emp_code'] or user['username'])
+        if mailer.send_email(user['email'], subject, text, html):
+            notice = f" A removal notice was e-mailed to {user['email']}."
+        else:
+            notice = ' (The removal notice e-mail could not be sent.)'
+    flash(f'{ident} was permanently deleted.{notice}', 'success')
     return redirect(url_for('admin.hod_dean_accounts'))
 
 
