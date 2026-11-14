@@ -15,6 +15,7 @@ Rules (Change 11 / 12):
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from . import db
@@ -36,6 +37,20 @@ DEFAULT_SCALE = {
 }
 
 MIN_RESPONSE_THRESHOLD = 5
+
+
+def _form_is_closed(status: Optional[str], deadline_at: Optional[str]) -> bool:
+    """True once a form no longer accepts feedback.
+
+    That is status 'closed' / 'archived', or an 'open' form whose deadline has
+    already passed (the status flip happens lazily on web requests, so the
+    deadline is checked here too and the numbers never depend on that sweep).
+    """
+    if status in ('closed', 'archived'):
+        return True
+    if status == 'open' and deadline_at:
+        return str(deadline_at) <= datetime.utcnow().isoformat(timespec='seconds')
+    return False
 
 
 def _option_points(opt: dict) -> Optional[int]:
@@ -118,12 +133,14 @@ def _load_form_data(form_ids, session_ids=None, with_answers=True) -> Dict[str, 
 
     Returns {'questions': {fid: [scoreable question dicts with options]},
              'sub_count': {fid: int},
-             'answers':   {fid: [ {question_id,label,value,position,n} ... ]}}
+             'answers':   {fid: [ {question_id,label,value,position,n} ... ]},
+             'closed':    {fid: bool}  (feedback no longer accepted)}
     """
     ids = list(dict.fromkeys(int(i) for i in form_ids if i))
     out: Dict[str, Any] = {'questions': {i: [] for i in ids},
                            'sub_count': {i: 0 for i in ids},
-                           'answers': {i: [] for i in ids}}
+                           'answers': {i: [] for i in ids},
+                           'closed': {i: False for i in ids}}
     if not ids:
         return out
 
@@ -154,6 +171,11 @@ def _load_form_data(form_ids, session_ids=None, with_answers=True) -> Dict[str, 
                 f'WHERE form_id IN ({ph}){sf} GROUP BY form_id',
                 tuple(chunk) + sargs):
             out['sub_count'][r['form_id']] = r['c']
+
+        for r in db.query(
+                f'SELECT id, status, deadline_at FROM feedback_forms '
+                f'WHERE id IN ({ph})', tuple(chunk)):
+            out['closed'][r['id']] = _form_is_closed(r['status'], r['deadline_at'])
 
         sf2, sargs2 = _session_filter(session_ids, 's')
         for r in db.query(
@@ -538,9 +560,13 @@ def form_marks(form_id: int, eligible: int, session_ids=None) -> Dict[str, Any]:
       questions          – scoreable question list
       marks_per_question – float (10 / n)
       students           – distinct submissions count
-      eligible           – eligible students (passed in; used for maximum)
+      eligible           – eligible students (passed in)
+      closed             – True once the form no longer accepts feedback
+      max_students       – students the maximum is based on: every eligible
+                           student while the form is OPEN, only the students
+                           who responded once it is CLOSED
       obtained           – sum of marks over every answer (2 dp)
-      maximum            – 10 * eligible (2 dp)
+      maximum            – 10 * max_students (2 dp)
       rating_breakdown   – list of {label, count, marks_each, total_marks}
       answer_count       – total rating answers across all questions
     """
@@ -558,7 +584,13 @@ def _marks_from_data(form_id: int, eligible: int, data: Dict[str, Any]) -> Dict[
     sub_count = data['sub_count'].get(form_id, 0)
 
     eligible = int(eligible or 0)
-    maximum = round(10.0 * eligible, 2)
+    # Maximum marks: while the form is open every eligible student counts
+    # (10 marks each).  Once it is closed, students who never responded are
+    # dropped, so the teacher is judged only on the feedback actually given.
+    # The per-question split (10 / number of questions) is NOT affected.
+    closed = bool(data.get('closed', {}).get(form_id))
+    max_students = sub_count if closed else eligible
+    maximum = round(10.0 * max_students, 2)
 
     if not questions:
         return {
@@ -567,6 +599,8 @@ def _marks_from_data(form_id: int, eligible: int, data: Dict[str, Any]) -> Dict[
             'question_count': 0,
             'students': sub_count,
             'eligible': eligible,
+            'closed': closed,
+            'max_students': max_students,
             'obtained': 0.0,
             'maximum': maximum,
             'rating_breakdown': [],
@@ -623,6 +657,8 @@ def _marks_from_data(form_id: int, eligible: int, data: Dict[str, Any]) -> Dict[
         'question_count': n,
         'students': sub_count,
         'eligible': eligible,
+        'closed': closed,
+        'max_students': max_students,
         'obtained': obtained,
         'maximum': maximum,
         'rating_breakdown': breakdown,
