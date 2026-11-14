@@ -1038,9 +1038,33 @@ def hod_dean_accounts():
                JOIN branches b ON b.id = ha.branch_id
                JOIN semesters s ON s.id = ha.semester_id
                JOIN timetables t ON t.id = ha.timetable_id
-               ORDER BY b.code, s.number, t.code""")
+               ORDER BY u.name, ay.name, b.code, s.number, t.code""")
     except Exception:
         pass
+    # One group per HOD, with their allocations folded into
+    # (year, department, semester) blocks listing all timetables - much
+    # shorter than one row per timetable, and easy to search.
+    alloc_groups, _by_hod = [], {}
+    for a in allocations:
+        g = _by_hod.get(a['hod_user_id'])
+        if g is None:
+            g = {'name': a['hod_name'], 'emp': a['emp_code'], 'total': 0,
+                 'blocks': [], '_idx': {}}
+            _by_hod[a['hod_user_id']] = g
+            alloc_groups.append(g)
+        key = (a['academic_year'], a['branch_code'], a['semester_number'])
+        blk = g['_idx'].get(key)
+        if blk is None:
+            blk = {'year': key[0], 'branch': key[1], 'sem': key[2], 'timetables': []}
+            g['_idx'][key] = blk
+            g['blocks'].append(blk)
+        blk['timetables'].append(a['timetable_code'])
+        g['total'] += 1
+    for g in alloc_groups:
+        g['search'] = ' '.join(
+            [str(g['name'] or ''), str(g['emp'] or '')] +
+            [f"{b['year']} {b['branch']} sem {b['sem']} {' '.join(map(str, b['timetables']))}"
+             for b in g['blocks']]).lower()
     dean_hods = []
     try:
         dean_hods = db.query(
@@ -1055,7 +1079,8 @@ def hod_dean_accounts():
     import_creds = _session.pop('hod_dean_import_creds', None)
     return render_template(
         'admin_hod_dean.html',
-        hods=hods, deans=deans, allocations=allocations, dean_hods=dean_hods,
+        hods=hods, deans=deans, allocations=allocations, alloc_groups=alloc_groups,
+        dean_hods=dean_hods,
         import_creds=import_creds)
 
 
@@ -1546,4 +1571,4 @@ def requirement_delete(rid):
 def requirement_rematch():
     n = services.rematch_requirements()
     flash(f'Linked {n} published form(s) to requirements.', 'success')
-    return redirect(url_for('admin.feedback_requirements'))
+    return redirect(url_for('admin.feedback_requirements'))s
