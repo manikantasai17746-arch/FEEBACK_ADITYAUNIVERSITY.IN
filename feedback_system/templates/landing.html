@@ -7,6 +7,73 @@
   <title>Aditya University — Faculty Feedback Portal</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+  <style nonce="{{ csp_nonce }}">
+/* How it works: animated feedback story (student -> HOD -> faculty -> department) */
+.steps li.walk-track{display:none}
+@media (min-width:981px){
+  .steps{margin-top:6.6rem;position:relative}
+  .steps li:nth-child(4)::after{display:none}
+  .steps li.walk-track{display:block;position:absolute;left:72px;top:0;width:calc(75% + 1.5rem);height:0;padding:0;min-height:0;z-index:0;pointer-events:none}
+  .steps li.walk-track::after{display:none}
+  .step-mark{animation:mark 18s infinite}
+  .steps li:nth-child(1) .step-mark{animation-delay:0s}
+  .steps li:nth-child(2) .step-mark{animation-delay:4.7s}
+  .steps li:nth-child(3) .step-mark{animation-delay:9.95s}
+  .steps li:nth-child(4) .step-mark{animation-delay:15.15s}
+}
+@keyframes mark{0%{transform:scale(1);box-shadow:0 0 0 0 rgba(245,112,37,.55)}3%{transform:scale(1.2);box-shadow:0 0 0 0 rgba(245,112,37,.55)}9%{transform:scale(1);box-shadow:0 0 0 14px rgba(245,112,37,0)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(245,112,37,0)}}
+.actor{position:absolute;top:-75px;left:0;width:64px;height:96px;margin-left:-32px;overflow:visible}
+.a2{left:33.333%}.a3{left:66.667%}.a4{left:100%}
+.actor *{transform-box:fill-box;transform-origin:center}
+.actor text{font:700 7px var(--text);text-anchor:middle}
+.walker{position:absolute;left:0;top:-30px;width:0;height:0;animation:travel 18s infinite}
+.token{position:absolute;left:-20px;top:-20px;width:40px;height:40px;overflow:visible;filter:drop-shadow(0 3px 4px rgba(7,30,61,.3))}
+.tokin{animation:arc 18s infinite}
+.e1{animation:e1 18s infinite}.e2{animation:e2 18s infinite}
+.pill{opacity:0}
+.p1{animation:p1 18s infinite}.p2{animation:p2 18s infinite}.p4{animation:p4 18s infinite}
+.scr{animation:glow .6s ease-in-out infinite}
+.ring{opacity:0;transform-origin:50% 100%;animation:ring 18s infinite}
+.stu{animation:breathe 3s ease-in-out infinite}
+.harm{transform-box:view-box!important;transform-origin:22px 42px!important;animation:stamp 18s infinite}
+.hb{transform-origin:50% 100%;animation:hb 18s infinite}
+.hb.b2{animation-delay:.12s}.hb.b3{animation-delay:.24s}
+.fhop{transform-origin:50% 100%;animation:hop 18s infinite}
+.fN{animation:fN 18s infinite}.fH,.blush{opacity:0;animation:fH 18s infinite}
+.fpage{opacity:0;animation:fpage 18s infinite}
+.sp{opacity:0;animation:sp 18s infinite}.sp.s2{animation-delay:.25s}.sp.s3{animation-delay:.5s}
+.win{fill:#c9d6ea;animation:win 18s infinite}
+.bld{animation:bpop 18s infinite}
+.flag{transform-origin:0 50%!important;animation:wave 1.2s ease-in-out infinite}
+@keyframes travel{
+ 0%,4.5%{left:0;opacity:0}
+ 5%{left:0;opacity:1;animation-timing-function:ease-in-out}
+ 27.5%{left:33.333%;opacity:1}28%,33.9%{left:33.333%;opacity:0}
+ 34%{left:33.333%;opacity:1;animation-timing-function:ease-in-out}
+ 56.5%{left:66.667%;opacity:1}57%,63.9%{left:66.667%;opacity:0}
+ 64%{left:66.667%;opacity:1;animation-timing-function:ease-in-out}
+ 85.5%{left:100%;opacity:1}86%,100%{left:100%;opacity:0}}
+@keyframes arc{0%,5%,27.5%,34%,56.5%,64%,85.5%,100%{transform:translateY(0)}16%,45%,75%{transform:translateY(-12px)}}
+@keyframes e1{0%,30%{opacity:1}30.1%,100%{opacity:0}}
+@keyframes e2{0%,30%{opacity:0}30.1%,100%{opacity:1}}
+@keyframes p1{0%,4%{opacity:0;transform:scale(.4)}6%{opacity:1;transform:scale(1.12)}7.5%,20%{opacity:1;transform:scale(1)}23%,100%{opacity:0}}
+@keyframes p2{0%,30%{opacity:0;transform:scale(.4)}32%{opacity:1;transform:scale(1.12)}33.5%,41%{opacity:1;transform:scale(1)}44%,100%{opacity:0}}
+@keyframes p4{0%,87%{opacity:0;transform:scale(.4)}89%{opacity:1;transform:scale(1.12)}90.5%,97%{opacity:1;transform:scale(1)}99%,100%{opacity:0}}
+@keyframes glow{0%,100%{fill:#04529B}50%{fill:#5aa0f0}}
+@keyframes ring{0%,3.5%{opacity:0;transform:scale(.6)}5%{opacity:.9}9%,100%{opacity:0;transform:scale(1.8) translateY(-4px)}}
+@keyframes breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
+@keyframes stamp{0%,29%{transform:rotate(0)}30.5%{transform:rotate(-75deg)}32%,100%{transform:rotate(0)}}
+@keyframes hb{0%,28%{transform:scaleY(.1)}31%,100%{transform:scaleY(1)}}
+@keyframes hop{0%,57.5%,63.5%,100%{transform:translateY(0)}59%,62%{transform:translateY(-7px)}60.5%{transform:translateY(0)}}
+@keyframes fN{0%,57.5%{opacity:1}57.6%,100%{opacity:0}}
+@keyframes fH{0%,57.5%{opacity:0}57.6%,99%{opacity:1}100%{opacity:0}}
+@keyframes fpage{0%,56%{opacity:0}57%,64%{opacity:1}65%,100%{opacity:0}}
+@keyframes sp{0%,57.5%{opacity:0;transform:scale(0)}59%{opacity:1;transform:scale(1.4)}66%{opacity:1;transform:scale(1)}70%,100%{opacity:0;transform:scale(0)}}
+@keyframes win{0%,86%{fill:#c9d6ea}88%,99%{fill:#ffd36b}100%{fill:#c9d6ea}}
+@keyframes bpop{0%,86%,91%,100%{transform:scale(1)}88%{transform:scale(1.07)}}
+@keyframes wave{0%,100%{transform:scaleX(.8)}50%{transform:scaleX(1.12)}}
+
+  </style>
 </head>
 <body class="landing-page">
 <header class="lp-header">
@@ -137,6 +204,52 @@
         <h3>Departments follow up</h3>
         <p>HODs and the Dean review results across departments and decide what needs attention.</p>
       </li>
+      <li class="walk-track" aria-hidden="true"><svg class="actor a1" viewBox="0 0 64 96" focusable="false"><g class="stu">
+<rect x="13" y="38" width="10" height="26" rx="4" fill="#F57025"/>
+<rect x="24" y="64" width="7" height="28" rx="3" fill="#2c3d63"/><rect x="33" y="64" width="7" height="28" rx="3" fill="#34487a"/>
+<ellipse cx="27" cy="93" rx="6" ry="3" fill="#fff" stroke="#c4ccd9"/><ellipse cx="37" cy="93" rx="6" ry="3" fill="#fff" stroke="#c4ccd9"/>
+<rect x="21" y="36" width="22" height="32" rx="8" fill="#e9f0fb" stroke="#b9c9e2"/>
+<path d="M24 42L19 58" stroke="#e9f0fb" stroke-width="6" stroke-linecap="round"/><circle cx="19" cy="60" r="3.4" fill="#d9a37a"/>
+<circle cx="32" cy="24" r="10" fill="#d9a37a"/><path d="M22 22C22 11 42 11 42 22C38 17 26 17 22 22Z" fill="#1b1410"/>
+<circle cx="28" cy="26" r="1.2" fill="#1b1410"/><circle cx="36" cy="26" r="1.2" fill="#1b1410"/><path d="M28.5 30Q32 33 35.500 30" stroke="#8a4f33" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+<path d="M41 42L43 54L38 55" stroke="#e9f0fb" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+<rect x="29" y="44" width="10" height="16" rx="2" fill="#071E3D"/><rect class="scr" x="30.500" y="46" width="7" height="11" rx="1" fill="#04529B"/><circle cx="39" cy="56" r="3" fill="#d9a37a"/>
+<g class="ring" fill="none" stroke="#04529B" stroke-width="1.2" stroke-linecap="round"><path d="M30 41Q34 37 38 41"/><path d="M27 38Q34 31 41 38"/></g></g>
+<g transform="translate(38 4)"><g class="pill p1"><rect width="26" height="12" rx="6" fill="#1f9d63"/><text x="13.0" y="8.6" fill="#fff">Sent</text></g></g></svg><svg class="actor a2" viewBox="0 0 64 96" focusable="false">
+<rect x="24" y="64" width="7" height="28" rx="3" fill="#1b2845"/><rect x="33" y="64" width="7" height="28" rx="3" fill="#1b2845"/>
+<ellipse cx="27" cy="93" rx="6" ry="3" fill="#0d1526"/><ellipse cx="37" cy="93" rx="6" ry="3" fill="#0d1526"/>
+<rect x="20" y="36" width="24" height="32" rx="7" fill="#04529B"/><path d="M28 36H36L32 48Z" fill="#fff"/><path d="M32 46L30 58L32 62L34 58Z" fill="#F57025"/>
+<g class="harm"><path d="M22 42L16 58" stroke="#04529B" stroke-width="6" stroke-linecap="round"/><circle cx="16" cy="60" r="3.4" fill="#c68e63"/></g>
+<circle cx="32" cy="24" r="10" fill="#c68e63"/><path d="M22 22C22 11 42 11 42 22C38 17 26 17 22 22Z" fill="#2a2a2a"/>
+<circle cx="28" cy="25.500" r="3.300" fill="none" stroke="#071E3D" stroke-width="1"/><circle cx="36" cy="25.500" r="3.300" fill="none" stroke="#071E3D" stroke-width="1"/><path d="M31.300 25.500H32.700" stroke="#071E3D"/>
+<circle cx="28" cy="25.500" r="1" fill="#1b1410"/><circle cx="36" cy="25.500" r="1" fill="#1b1410"/><path d="M28.500 30Q32 32.500 35.500 30" stroke="#7d4530" stroke-width="1.200" fill="none" stroke-linecap="round"/>
+<path d="M42 42L46 54" stroke="#04529B" stroke-width="6" stroke-linecap="round"/>
+<rect x="34" y="46" width="16" height="20" rx="2" fill="#071E3D"/><rect x="35.500" y="48" width="13" height="16" rx="1" fill="#EEF3FB"/>
+<rect class="hb" x="37" y="58" width="3" height="4" fill="#04529B"/><rect class="hb b2" x="42" y="52" width="3" height="10" fill="#F57025"/><rect class="hb b3" x="46.500" y="55" width="3" height="7" fill="#04529B"/>
+<circle cx="46" cy="55" r="3" fill="#c68e63"/>
+<g transform="translate(30 0)"><g class="pill p2"><rect width="36" height="12" rx="6" fill="#F57025"/><text x="18.0" y="8.6" fill="#fff">Published</text></g></g></svg><svg class="actor a3" viewBox="0 0 64 96" focusable="false"><g class="fhop">
+<path d="M21 24C19 6 45 6 43 24L44 42H20Z" fill="#1b1410"/>
+<rect x="24" y="64" width="7" height="28" rx="3" fill="#2c3d63"/><rect x="33" y="64" width="7" height="28" rx="3" fill="#2c3d63"/>
+<ellipse cx="27" cy="93" rx="6" ry="3" fill="#3a2a22"/><ellipse cx="37" cy="93" rx="6" ry="3" fill="#3a2a22"/>
+<rect x="20" y="36" width="24" height="32" rx="8" fill="#6c8ebf"/>
+<path d="M23 42L27 58M41 42L37 58" stroke="#6c8ebf" stroke-width="6" stroke-linecap="round"/>
+<g class="fpage"><rect x="24" y="46" width="16" height="19" rx="2" fill="#fff" stroke="#04529B"/><rect x="27" y="57" width="3" height="5" fill="#04529B"/><rect x="31" y="52" width="3" height="10" fill="#F57025"/><rect x="35" y="55" width="3" height="7" fill="#04529B"/></g>
+<circle cx="27" cy="60" r="3.2" fill="#d9a37a"/><circle cx="37" cy="60" r="3.2" fill="#d9a37a"/>
+<circle cx="32" cy="24" r="10" fill="#d9a37a"/><path d="M22 22C22 10 42 10 42 22C37 15 27 15 22 22Z" fill="#1b1410"/>
+<circle cx="28" cy="25.500" r="1.200" fill="#1b1410"/><circle cx="36" cy="25.500" r="1.200" fill="#1b1410"/>
+<path class="fN" d="M29 30.500H35" stroke="#8a4f33" stroke-width="1.200" stroke-linecap="round"/>
+<path class="fH" d="M27.500 29Q32 35.500 36.500 29Z" fill="#fff" stroke="#8a4f33" stroke-width="1.100" stroke-linejoin="round"/>
+<circle class="blush" cx="25" cy="29" r="2" fill="#e8806f" opacity=".4"/><circle class="blush" cx="39" cy="29" r="2" fill="#e8806f" opacity=".4"/>
+<path class="sp " transform="translate(12 14)" d="M0 -4L1.2 -1.2L4 0L1.2 1.2L0 4L-1.2 1.2L-4 0L-1.2 -1.2Z" fill="#F57025"/><path class="sp s2" transform="translate(54 10)" d="M0 -4L1.2 -1.2L4 0L1.2 1.2L0 4L-1.2 1.2L-4 0L-1.2 -1.2Z" fill="#f7b500"/><path class="sp s3" transform="translate(56 38)" d="M0 -4L1.2 -1.2L4 0L1.2 1.2L0 4L-1.2 1.2L-4 0L-1.2 -1.2Z" fill="#F57025"/></g></svg><svg class="actor a4" viewBox="0 0 64 96" focusable="false"><g class="bld">
+<path d="M32 30V12" stroke="#071E3D" stroke-width="1.500"/><path class="flag" d="M32 12L46 16L32 20Z" fill="#F57025"/>
+<path d="M4 50L32 28L60 50Z" fill="#04529B"/><rect x="8" y="50" width="48" height="42" fill="#EEF3FB" stroke="#04529B" stroke-width="2"/>
+<rect class="win" x="13" y="56" width="10" height="10" rx="1"/><rect class="win" x="27" y="56" width="10" height="10" rx="1"/><rect class="win" x="41" y="56" width="10" height="10" rx="1"/>
+<rect class="win" x="13" y="72" width="10" height="10" rx="1"/><rect class="win" x="41" y="72" width="10" height="10" rx="1"/>
+<rect x="26" y="74" width="12" height="18" rx="1" fill="#071E3D"/></g>
+<g transform="translate(10 -2)"><g class="pill p4"><rect width="44" height="12" rx="6" fill="#04529B"/><text x="22.0" y="8.6" fill="#fff">Follow up</text></g></g></svg><div class="walker"><svg class="token" viewBox="0 0 40 40" focusable="false"><g class="tokin">
+<g class="e1"><rect x="5" y="10" width="30" height="21" rx="3" fill="#fff" stroke="#F57025" stroke-width="2"/><path d="M5 12L20 23L35 12" fill="none" stroke="#F57025" stroke-width="2" stroke-linejoin="round"/></g>
+<g class="e2"><rect x="9" y="5" width="22" height="29" rx="3" fill="#fff" stroke="#04529B" stroke-width="2"/><rect x="13" y="21" width="4" height="8" fill="#04529B"/><rect x="19" y="14" width="4" height="15" fill="#F57025"/><rect x="25" y="18" width="4" height="11" fill="#04529B"/><circle cx="31" cy="7" r="6" fill="#1f9d63"/><path d="M28 7l2 2 3.500-4" fill="none" stroke="#fff" stroke-width="1.800" stroke-linecap="round" stroke-linejoin="round"/></g>
+</g></svg></div></li>
     </ol>
   </div>
 </section>
