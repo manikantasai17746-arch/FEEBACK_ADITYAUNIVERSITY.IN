@@ -412,7 +412,7 @@ def test_published_form_questions_cannot_be_rewritten(admin, app):
     assert response_count(app, form_id) == 1
 
 
-def test_soft_delete_preserves_history(admin, app):
+def test_soft_delete_preserves_history(admin, app, monkeypatch):
     sid = find_session(app, '6817', '2501IT07')
     form_id = make_form(admin, sid)
     publish_form(admin, form_id)
@@ -422,21 +422,41 @@ def test_soft_delete_preserves_history(admin, app):
     html = c.get(f'/student/form/{form_id}').get_data(as_text=True)
     rq, tq, oid = question_ids(html)
     submit_feedback(c, form_id, rq, tq, oid)
+    monkeypatch.setenv('DELETE_OTP_EMAIL', 'delete-approval@example.com')
+    sent = []
+    from feedback_system import mailer
+    monkeypatch.setattr(mailer, 'send_email',
+                        lambda to, subject, text, html=None: sent.append(text) or True)
     tok = token_from(admin, '/admin/forms')
-    admin.post(f'/admin/forms/{form_id}/delete', data={'_csrf': tok})
+    response = admin.post(f'/admin/forms/{form_id}/delete', data={'_csrf': tok})
+    code = re.search(r'\n\s+(\d{6})\n', sent[0]).group(1)
+    confirm_tok = token_from(admin, '/admin/forms/delete')
+    admin.post('/admin/forms/delete', data={'_csrf': confirm_tok, 'code': code})
     with app.app_context():
         f = services.get_form(form_id, include_deleted=True)
         assert f['is_deleted'] == 1
         assert services.response_count(form_id) == 1   # historical response retained
 
 
-def test_bulk_soft_delete_selected_forms(admin, app):
+def test_bulk_soft_delete_selected_forms(admin, app, monkeypatch):
     sid = find_session(app, '6817', '2501IT07')
     first = make_form(admin, sid, title='Bulk delete first')
     second = make_form(admin, sid, title='Bulk delete second')
+    monkeypatch.setenv('DELETE_OTP_EMAIL', 'delete-approval@example.com')
+    sent = []
+    from feedback_system import mailer
+    monkeypatch.setattr(mailer, 'send_email',
+                        lambda to, subject, text, html=None: sent.append(text) or True)
     tok = token_from(admin, '/admin/forms')
     response = admin.post('/admin/forms/delete-selected', data={
         '_csrf': tok, 'form_ids': [str(first), str(second)]
+    })
+    assert response.status_code == 302
+    assert '/admin/forms/delete' in response.location
+    code = re.search(r'\n\s+(\d{6})\n', sent[0]).group(1)
+    confirm_tok = token_from(admin, '/admin/forms/delete')
+    response = admin.post('/admin/forms/delete', data={
+        '_csrf': confirm_tok, 'code': code
     })
     assert response.status_code == 302
     with app.app_context():

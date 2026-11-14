@@ -6,7 +6,7 @@ import math
 from datetime import datetime
 
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
-                   render_template, request, url_for, Response)
+                   render_template, request, session, url_for, Response)
 
 from . import category_forms, db, mailer, services, verification
 from .feedback_categories import ScopeError
@@ -420,9 +420,7 @@ def form_deadline(fid):
 @bp.route('/forms/<int:fid>/delete', methods=['POST'])
 @admin_only
 def form_delete(fid):
-    services.soft_delete_form(fid)
-    flash('Form archived (soft-deleted). Historical responses were preserved.', 'success')
-    return redirect(url_for('admin.forms'))
+    return _request_form_deletion([fid])
 
 
 @bp.route('/forms/delete-selected', methods=['POST'])
@@ -433,13 +431,43 @@ def forms_delete_selected():
         form_id = _int(value)
         if form_id:
             form_ids.append(form_id)
-    deleted = services.bulk_soft_delete_forms(form_ids)
-    if deleted:
-        flash(f'{deleted} form(s) archived (soft-deleted). Historical responses were preserved.',
-              'success')
-    else:
-        flash('Select at least one active form to delete.', 'error')
+    return _request_form_deletion(form_ids)
+
+
+@bp.route('/forms/delete', methods=['GET', 'POST'])
+@admin_only
+def form_delete_confirm():
+    admin = current_user()
+    purpose = _form_delete_purpose(admin['id'])
+    pending = verification.pending(admin['id'], purpose)
+    ids = session.get('pending_form_deletion_ids') or []
+    if request.method == 'GET':
+        if not pending or not ids:
+            flash('Request a confirmation code first.', 'error')
+            return redirect(url_for('admin.forms'))
+        masked = ', '.join(_mask_email(e.strip()) for e in pending['email'].split(','))
+        return render_template('admin_forms_delete.html', count=len(ids), masked=masked)
+
+    if not verification.check(admin['id'], purpose, request.form.get('code')):
+        audit('admin.form_delete_failed', 'feedback_forms', None, 'Wrong or expired code')
+        flash('Wrong or expired code. Request a new code and try again.', 'error')
+        return redirect(url_for('admin.forms'))
+    session.pop('pending_form_deletion_ids', None)
+    deleted = services.bulk_soft_delete_forms(ids)
+    flash(f'{deleted} form(s) archived (soft-deleted). Historical responses were preserved.',
+          'success')
+    audit('admin.forms_deleted', 'feedback_forms', None, f'Soft deleted {deleted} form(s)')
     return redirect(url_for('admin.forms'))
+
+
+@bp.route('/forms/delete/resend', methods=['POST'])
+@admin_only
+def form_delete_resend():
+    ids = session.get('pending_form_deletion_ids') or []
+    if not ids:
+        flash('Request a confirmation code first.', 'error')
+        return redirect(url_for('admin.forms'))
+    return _request_form_deletion(ids)
 
 
 @bp.route('/forms/<int:fid>/restore', methods=['POST'])
@@ -1369,6 +1397,53 @@ def _hod_dean_or_404(uid):
 
 def _delete_purpose(uid):
     return f'delete_account:{uid}'
+
+
+def _form_delete_purpose(admin_id):
+    return f'delete_forms:{admin_id}'
+
+
+def _request_form_deletion(form_ids):
+    """Issue an OTP for a set of live forms and return the next response."""
+    ids = sorted({int(form_id) for form_id in form_ids})
+    if not ids:
+        flash('Select at least one active form to delete.', 'error')
+        return redirect(url_for('admin.forms'))
+    placeholders = ','.join('?' for _ in ids)
+    live = db.query(
+        f'SELECT id FROM feedback_forms WHERE is_deleted=0 AND id IN ({placeholders})',
+        tuple(ids))
+    ids = sorted(row['id'] for row in live)
+    if not ids:
+        flash('Select at least one active form to delete.', 'error')
+        return redirect(url_for('admin.forms'))
+
+    admin = current_user()
+    recipients = _delete_otp_recipients()
+    if not recipients:
+        flash('Deletion is disabled: set DELETE_OTP_EMAIL in the environment '
+              '(the address that receives the confirmation code).', 'error')
+        return redirect(url_for('admin.forms'))
+    purpose = _form_delete_purpose(admin['id'])
+    try:
+        code = verification.issue(admin['id'], purpose, ', '.join(recipients))
+    except verification.Cooldown as c:
+        flash(f'A code was just sent. Wait {c.seconds}s before requesting another.', 'error')
+        return redirect(url_for('admin.form_delete_confirm'))
+    session['pending_form_deletion_ids'] = ids
+    subject, text, html = mailer.delete_forms_code_email(
+        code, len(ids), admin['email'] or admin['username'],
+        verification.CODE_TTL_SECONDS // 60)
+    if not all(mailer.send_email(recipient, subject, text, html) for recipient in recipients):
+        verification.discard(admin['id'], purpose)
+        session.pop('pending_form_deletion_ids', None)
+        flash('Could not send the confirmation code. Check the mail settings and try again.',
+              'error')
+        return redirect(url_for('admin.forms'))
+    audit('admin.form_delete_requested', 'feedback_forms', None,
+          f'Deletion code sent for {len(ids)} form(s)')
+    flash('A confirmation code was sent to the deletion-approval e-mail.', 'success')
+    return redirect(url_for('admin.form_delete_confirm'))
 
 
 @bp.route('/accounts/hod-dean/<int:uid>/delete/request', methods=['POST'])
