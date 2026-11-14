@@ -1387,6 +1387,11 @@ def hod_dean_delete_confirm(uid):
             'DELETE FROM user_department_scopes WHERE user_id=?',
             'DELETE FROM hod_allocations WHERE hod_user_id=?',
             'DELETE FROM dean_hod_assignments WHERE dean_user_id=? OR hod_user_id=?',
+            # private question sets owned by this account (items first, so it
+            # works whether or not the DB enforces ON DELETE CASCADE)
+            'DELETE FROM question_set_items WHERE set_id IN '
+            '(SELECT id FROM question_sets WHERE owner_user_id=?)',
+            'DELETE FROM question_sets WHERE owner_user_id=?',
         ):
             conn.execute(sql, (uid,) * sql.count('?'))
         # ...and keep history (forms, results, audit) but detach this person.
@@ -1403,6 +1408,9 @@ def hod_dean_delete_confirm(uid):
             ('improvement_actions', 'created_by'),
             ('improvement_action_log', 'actor_user_id'),
             ('second_faculty_import_batches', 'imported_by'),
+            ('employee_photos', 'uploaded_by'),
+            ('teacher_subject_settings', 'updated_by'),
+            ('lab_faculty_assignments', 'created_by'),
         ):
             conn.execute(f'UPDATE {table} SET {col}=NULL WHERE {col}=?', (uid,))
         conn.execute("DELETE FROM users WHERE id=? AND role IN ('hod','dean')", (uid,))
