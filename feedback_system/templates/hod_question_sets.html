@@ -2,7 +2,9 @@
 {% block title %}Question sets — HOD{% endblock %}
 {% block body %}
 <div class="container page">
-  <div class="page-header">
+    <div class="page-header">
+    <a href="{{ url_for('hod.forms') }}" class="btn btn-ghost btn-sm" style="margin-bottom:8px"
+       onclick="if (document.referrer && history.length > 1) { history.back(); return false; }">← Back</a>
     <h1>My question sets</h1>
     <nav class="subnav">
       <a href="{{ url_for('hod.dashboard') }}">Dashboard</a>

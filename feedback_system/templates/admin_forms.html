@@ -37,14 +37,21 @@
   <a class="btn btn-ghost" href="{{ url_for('admin.forms') }}">Reset</a>
 </form>
 
+<form id="bulk-delete-forms" method="post" action="{{ url_for('admin.forms_delete_selected') }}"
+      onsubmit="return confirmBulkDelete()">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+</form>
 <div class="card">
   <div class="table-wrap">
     <table class="data">
-      <thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Deadline</th><th>Subject</th><th>Teacher</th>
+      <thead><tr><th><input type="checkbox" id="select-all-forms" aria-label="Select all forms on this page"></th>
+        <th>ID</th><th>Title</th><th>Status</th><th>Deadline</th><th>Subject</th><th>Teacher</th>
         <th>Timetable</th><th>Branch</th><th>Sem</th><th>Period</th><th>Actions</th></tr></thead>
       <tbody>
         {% for f in rows %}
         <tr {% if f.is_deleted %}style="opacity:.6"{% endif %}>
+          <td>{% if not f.is_deleted %}<input type="checkbox" name="form_ids" value="{{ f.id }}"
+            form="bulk-delete-forms" class="form-select" aria-label="Select form {{ f.id }}">{% endif %}</td>
           <td>{{ f.id }}</td>
           <td class="wrap">{{ f.title }}{% if f.is_deleted %} <span class="badge badge-draft">Deleted</span>{% endif %}</td>
           <td>{{ m.status_badge(f.status) }}</td>
@@ -86,12 +93,31 @@
             </div>
           </td>
         </tr>
-        {% else %}<tr><td colspan="10">{{ m.empty('No forms match your filters.') }}</td></tr>{% endfor %}
+        {% else %}<tr><td colspan="11">{{ m.empty('No forms match your filters.') }}</td></tr>{% endfor %}
       </tbody>
     </table>
+  </div>
+  <div class="btn-row" style="justify-content:flex-end;padding:1rem">
+    <button class="btn btn-danger" type="submit" form="bulk-delete-forms">Delete selected</button>
   </div>
   {{ m.pagination(pg, 'admin.forms', {'q': filters.q or '', 'status': filters.status or '',
       'branch_id': filters.branch_id or '', 'semester_id': filters.semester_id or '',
       'include_deleted': '1' if filters.include_deleted else ''}) }}
 </div>
+<script>
+  const selectAllForms = document.getElementById('select-all-forms');
+  const formSelections = () => Array.from(document.querySelectorAll('.form-select'));
+  selectAllForms?.addEventListener('change', () => {
+    formSelections().forEach((checkbox) => { checkbox.checked = selectAllForms.checked; });
+  });
+  formSelections().forEach((checkbox) => checkbox.addEventListener('change', () => {
+    selectAllForms.checked = formSelections().length > 0 &&
+      formSelections().every((item) => item.checked);
+  }));
+  function confirmBulkDelete() {
+    const selected = formSelections().filter((checkbox) => checkbox.checked).length;
+    return selected > 0 &&
+      confirm(`Soft-delete ${selected} selected form(s)? Responses are preserved.`);
+  }
+</script>
 {% endblock %}
