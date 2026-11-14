@@ -9,6 +9,11 @@
       <p class="sub">Choose a subject and section you teach, then add the employees who co-teach it.
         Students of that section will be asked for feedback on each Second Faculty.</p>
     </div>
+    {% if setup_flow %}
+    <a class="btn btn-ok" href="{{ url_for('teacher.dashboard', setup_complete=1) }}">
+      Complete setup
+    </a>
+    {% endif %}
   </div>
 
   <div id="sf-toast" class="sf-toasts" aria-live="polite"></div>

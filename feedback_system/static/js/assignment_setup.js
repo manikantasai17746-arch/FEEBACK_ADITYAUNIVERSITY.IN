@@ -11,6 +11,7 @@
   var saveUrl = root.dataset.apiSave;
   var studentsUrl = root.dataset.apiStudents;
   var dashboardUrl = root.dataset.dashboard;
+  var secondFacultyUrl = root.dataset.secondFaculty;
   var roomMax = parseInt(root.dataset.roomMax, 10) || 20;
   var ROOM_RE = /^[A-Za-z0-9 \-\/_.,()#&]+$/;
   var LAB_TEXT = { available: 'Lab Available', none: 'No Lab', '': 'Not configured' };
@@ -347,6 +348,11 @@
         say('ok', res.body.summary.complete
           ? 'Configuration saved. Your setup is complete.'
           : 'Configuration saved. ' + res.body.summary.pending + ' assignment(s) still need a lab choice.');
+        if (res.body.summary.complete && secondFacultyUrl) {
+          window.setTimeout(function () {
+            window.location.assign(secondFacultyUrl + '?setup=1');
+          }, 700);
+        }
         return;
       }
       (res.body.errors || []).forEach(function (e) { rowError(e.session_id, e.message); });

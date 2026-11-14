@@ -408,6 +408,7 @@ def dashboard():
         subjects=subjects, subject_code=subject_code,
         rows=rows, years=years, semesters=semesters,
         academic_year_id=academic_year_id, semester_id=semester_id,
+        setup_complete=request.args.get('setup_complete') == '1',
         stats={
             'subjects': len(subjects),
             'eligible': distinct_eligible,
