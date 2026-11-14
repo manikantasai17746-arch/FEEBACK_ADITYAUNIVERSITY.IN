@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071E3D">
   <title>Aditya University — Faculty Feedback Portal</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
@@ -12,16 +13,17 @@
   <div class="lp-header-inner">
     <a class="lp-brand" href="{{ url_for('auth.landing') }}">
       <img src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="Aditya University">
-      <span>Faculty Feedback<small>FEEDBACK PORTAL</small></span>
+      <span>Faculty Feedback</span>
     </a>
-    <nav class="lp-nav lp-nav-desktop">
-      <a href="#home" class="active">Home</a>
-      <a href="#about">About</a>
-      <a href="#how">How It Works</a>
-      <a href="#portals">Contact</a>
+    <nav class="lp-nav-desktop" aria-label="Page sections">
+      <a href="#how">How it works</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#contact">Contact</a>
     </nav>
-    <a class="lp-btn lp-btn-primary lp-login-desktop js-open-login" href="#portals" data-role="student">🔒 Login to Portal</a>
-    <button type="button" class="lp-menu-btn" id="lpMenuBtn" aria-label="Open menu" aria-expanded="false">☰</button>
+    <a class="lp-btn lp-btn-primary lp-login-desktop" href="#portals">Sign in</a>
+    <button type="button" class="lp-menu-btn" id="lpMenuBtn" aria-label="Open menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
   </div>
 </header>
 
@@ -31,227 +33,245 @@
   <div class="lp-drawer-head">
     <a class="lp-brand" href="{{ url_for('auth.landing') }}">
       <img src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="">
-      <span>Faculty Feedback<small>FEEDBACK PORTAL</small></span>
+      <span>Faculty Feedback</span>
     </a>
-    <button type="button" class="lp-menu-btn lp-menu-close" id="lpMenuClose" aria-label="Close menu">✕</button>
+    <button type="button" class="lp-menu-btn lp-menu-close" id="lpMenuClose" aria-label="Close menu">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
   </div>
-  <nav class="lp-drawer-nav">
-    <a href="#home" data-close-drawer><span class="di">🏠</span> Home</a>
-    <a href="#about" data-close-drawer><span class="di">ℹ</span> About</a>
-    <a href="#how" data-close-drawer><span class="di">⚙</span> How It Works</a>
-    <a href="#portals" data-close-drawer><span class="di">📞</span> Contact</a>
+  <nav class="lp-drawer-nav" aria-label="Menu">
+    <a href="#how" data-close-drawer>How it works</a>
+    <a href="#privacy" data-close-drawer>Privacy</a>
+    <a href="#contact" data-close-drawer>Contact</a>
     <hr>
-    <a href="#" class="js-open-login" data-role="student" data-close-drawer><span class="di">👤</span> Student Login <span class="chev">›</span></a>
-    <a href="#" class="js-open-login" data-role="teacher" data-close-drawer><span class="di">📋</span> Faculty Login <span class="chev">›</span></a>
-    <a href="#" class="js-open-login" data-role="hod" data-close-drawer><span class="di">🏛</span> HOD Login <span class="chev">›</span></a>
-    <a href="#" class="js-open-login" data-role="dean" data-close-drawer><span class="di">🧑‍💼</span> Dean Login <span class="chev">›</span></a>
-    <a href="#" class="js-open-login" data-role="admin" data-close-drawer><span class="di">⚙</span> Admin Login <span class="chev">›</span></a>
+    <a href="#" class="js-open-login" data-role="student" data-close-drawer>Student sign in</a>
+    <a href="#" class="js-open-login" data-role="teacher" data-close-drawer>Faculty sign in</a>
+    <a href="#" class="js-open-login" data-role="hod" data-close-drawer>HOD sign in</a>
+    <a href="#" class="js-open-login" data-role="dean" data-close-drawer>Dean sign in</a>
+    <a href="#" class="js-open-login" data-role="admin" data-close-drawer>Admin sign in</a>
   </nav>
 </aside>
 
-<section class="lp-hero" id="home">
-  <div class="lp-hero-inner">
-    <div class="lp-hero-copy">
-      <p class="lp-kicker">ADITYA UNIVERSITY <span class="lp-kicker-line"></span></p>
-      <h1>Empowering<br><span>Faculty Excellence</span></h1>
-      <p class="lp-lead">
-        An anonymous and transparent Faculty Feedback System to foster continuous
-        improvement in teaching, learning and academic growth at Aditya University.
+<main>
+<section class="hero" id="home">
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <h1>Rate your classes.<br>Leave your name<br>out of it.</h1>
+      <p class="hero-lead">
+        Give feedback on each of your subjects and faculty members. Faculty
+        see your ratings and comments, never who wrote them.
       </p>
-      <div class="lp-hero-actions">
-        <a class="lp-btn lp-btn-primary" href="#portals">✈ Go to Feedback Portal</a>
-        <a class="lp-btn lp-btn-outline" href="#about">Learn More →</a>
-      </div>
-
-      <div class="lp-features">
-        <div class="lp-feature">
-          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#1d4ed8" stroke-width="2"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6l8-3z"/><path d="M9 12l2 2 4-4"/></svg>
-          <div><strong>100% Anonymous</strong><span>Your identity is always protected</span></div>
-        </div>
-        <div class="lp-feature">
-          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#1d4ed8" stroke-width="2"><path d="M5 20V10M12 20V4M19 20v-7"/></svg>
-          <div><strong>Data-Driven Improvement</strong><span>Insights for better academics</span></div>
-        </div>
-        <div class="lp-feature">
-          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#1d4ed8" stroke-width="2"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c3 0 6 1.5 6 5.5"/></svg>
-          <div><strong>Stronger Academic Community</strong><span>Together we build a brighter future</span></div>
-        </div>
+      <div class="hero-actions">
+        <a class="lp-btn lp-btn-primary lp-btn-lg js-open-login" href="#portals" data-role="student">Sign in as a student</a>
+        <a class="hero-link" href="#portals">Faculty, HOD, Dean or Admin</a>
       </div>
     </div>
 
-    <div class="lp-hero-visual">
-      <div class="lp-campus-photo" role="img" aria-label="Aditya University campus"></div>
-      <div class="lp-hero-note">
-        <h3>Shaping Futures,<br>Empowering Minds</h3>
-        <p>At Aditya University, we believe in continuous learning, innovation and excellence for a brighter tomorrow.</p>
-        <span class="lp-note-bar"></span>
+    <!-- Interactive sample: an answer sheet that shows what gets saved -->
+    <div class="sheet" id="demo">
+      <p class="sheet-tag">Sample question. Nothing here is saved.</p>
+      <h2 class="sheet-q" id="demoQ">The faculty explains concepts in a way I can follow.</h2>
+      <div class="scale" role="radiogroup" aria-labelledby="demoQ">
+        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Poor"><i></i><span>Poor</span></button>
+        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Average"><i></i><span>Average</span></button>
+        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Good"><i></i><span>Good</span></button>
+        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Very good"><i></i><span>Very good</span></button>
+        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Excellent"><i></i><span>Excellent</span></button>
+      </div>
+      <div class="receipt" aria-live="polite">
+        <p class="receipt-idle" id="receiptIdle">Tap a bubble to see what gets saved.</p>
+        <div class="receipt-body" id="receiptBody" hidden>
+          <div>
+            <h3>Saved with the answer</h3>
+            <p class="receipt-saved">Rating: <strong id="pickLabel">Very good</strong></p>
+          </div>
+          <div>
+            <h3>Never attached</h3>
+            <ul>
+              <li>Your name</li>
+              <li>Your roll number</li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 </section>
 
-<section class="lp-stats">
-  <div class="lp-stats-inner">
-    <div class="lp-stat">
-      <div class="ic ic-orange">👥</div>
-      <div class="num">{{ '{:,}'.format(stats.students) }}{% if stats.students >= 100 %}+{% endif %}</div>
-      <div class="lbl">Students</div>
-    </div>
-    <div class="lp-stat">
-      <div class="ic ic-blue">👤</div>
-      <div class="num">{{ '{:,}'.format(stats.faculty) }}{% if stats.faculty >= 10 %}+{% endif %}</div>
-      <div class="lbl">Faculty Members</div>
-    </div>
-    <div class="lp-stat">
-      <div class="ic ic-green">📘</div>
-      <div class="num">{{ '{:,}'.format(stats.subjects) }}{% if stats.subjects >= 10 %}+{% endif %}</div>
-      <div class="lbl">Subjects</div>
-    </div>
-    <div class="lp-stat">
-      <div class="ic ic-purple">📈</div>
-      <div class="num">{{ stats.completion }}%</div>
-      <div class="lbl">Feedback Completion</div>
-    </div>
+{% if stats.students > 0 %}
+<section class="numbers" aria-label="Feedback at Aditya University">
+  <div class="numbers-inner">
+    <p class="numbers-line">
+      <b>{{ '{:,}'.format(stats.students) }}{% if stats.students >= 100 %}+{% endif %}</b> students give feedback on
+      <b>{{ '{:,}'.format(stats.subjects) }}{% if stats.subjects >= 10 %}+{% endif %}</b> subjects taught by
+      <b>{{ '{:,}'.format(stats.faculty) }}{% if stats.faculty >= 10 %}+{% endif %}</b> faculty members.
+    </p>
+    {% if stats.completion > 0 %}
+    <p class="numbers-sub">{{ stats.completion }}% of feedback requests have been answered so far.</p>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<section class="block block-white" id="how">
+  <div class="block-inner">
+    <h2 class="block-title">What happens after you submit</h2>
+    <ol class="steps">
+      <li>
+        <span class="step-mark" aria-hidden="true">1</span>
+        <h3>Students answer</h3>
+        <p>Every student gets a form for each subject and faculty member, and answers it without a name attached.</p>
+      </li>
+      <li>
+        <span class="step-mark" aria-hidden="true">2</span>
+        <h3>Results are compiled</h3>
+        <p>Ratings and comments are grouped by subject, faculty member and department.</p>
+      </li>
+      <li>
+        <span class="step-mark" aria-hidden="true">3</span>
+        <h3>Faculty see published results</h3>
+        <p>Results reach faculty only after the form is published, so nothing arrives half-counted.</p>
+      </li>
+      <li>
+        <span class="step-mark" aria-hidden="true">4</span>
+        <h3>Departments follow up</h3>
+        <p>HODs and the Dean review results across departments and decide what needs attention.</p>
+      </li>
+    </ol>
   </div>
 </section>
 
-<section class="lp-section" id="about">
-  <div class="lp-section-inner">
-    <p class="lp-eyebrow">WHY IT MATTERS</p>
-    <h2>Why Faculty Feedback Matters</h2>
-    <p class="lp-sub">Your feedback helps us ensure quality teaching, supports academic improvement, and creates a better learning environment for everyone.</p>
-    <div class="lp-grid-4">
-      <article class="lp-card">
-        <div class="ic ic-blue">🎓</div>
-        <h3>Improves Teaching Quality</h3>
-        <p>Helps faculty enhance their teaching methods and course delivery.</p>
-      </article>
-      <article class="lp-card">
-        <div class="ic ic-orange">📊</div>
-        <h3>Strengthens Academic Standards</h3>
-        <p>Supports data-driven decisions for better learning outcomes.</p>
-      </article>
-      <article class="lp-card">
-        <div class="ic ic-green">👥</div>
-        <h3>Encourages Student Engagement</h3>
-        <p>Gives students a voice in shaping their academic experience.</p>
-      </article>
-      <article class="lp-card">
-        <div class="ic ic-purple">💡</div>
-        <h3>Builds a Positive Learning Environment</h3>
-        <p>Creates a more effective, interactive and student-centric campus culture.</p>
-      </article>
+<section class="block block-paper" id="privacy">
+  <div class="block-inner privacy">
+    <div class="privacy-head">
+      <h2 class="block-title">Your answers are stored apart from your name</h2>
+      <p class="block-sub">Three rules the system follows, so that feedback can stay honest.</p>
     </div>
+    <dl class="privacy-list">
+      <div>
+        <dt>Submitted is tracked, answers are not</dt>
+        <dd>The system notes that you finished a form so you are not asked twice. That record is kept separately from what you answered.</dd>
+      </div>
+      <div>
+        <dt>Comments can’t be traced by order</dt>
+        <dd>Comments are not listed in the order they were submitted, so their position never points back to a person.</dd>
+      </div>
+      <div>
+        <dt>Nothing is shared early</dt>
+        <dd>Faculty see results only after the form is published.</dd>
+      </div>
+    </dl>
   </div>
 </section>
 
-<section class="lp-section lp-section-alt" id="portals">
-  <div class="lp-section-inner">
-    <p class="lp-eyebrow">GET STARTED</p>
-    <h2>Select Your Portal</h2>
-    <p class="lp-sub">Choose your role to access the appropriate portal.</p>
-    <div class="lp-portals">
-      <article class="lp-portal">
-        <div class="ic ic-blue">👤</div>
-        <h3>Student Portal</h3>
-        <ul>
-          <li>Give feedback</li>
-          <li>View status</li>
-          <li>Track submissions</li>
-        </ul>
-        <a class="lp-btn lp-btn-primary js-open-login" href="#" data-role="student">Login as Student →</a>
-      </article>
-      <article class="lp-portal">
-        <div class="ic ic-orange">📋</div>
-        <h3>Faculty Portal</h3>
-        <ul>
-          <li>View results</li>
-          <li>Track performance</li>
-          <li>Download reports</li>
-        </ul>
-        <a class="lp-btn lp-btn-faculty js-open-login" href="#" data-role="teacher">Login as Faculty →</a>
-      </article>
-      <article class="lp-portal">
-        <div class="ic ic-green">🏛</div>
-        <h3>HOD Portal</h3>
-        <ul>
-          <li>Manage forms</li>
-          <li>View consolidated results</li>
-          <li>Generate reports</li>
-        </ul>
-        <a class="lp-btn lp-btn-hod js-open-login" href="#" data-role="hod">Login as HOD →</a>
-      </article>
-      <article class="lp-portal">
-        <div class="ic ic-yellow">🧑‍💼</div>
-        <h3>Dean Portal</h3>
-        <ul>
-          <li>View college-wide results</li>
-          <li>Monitor departments</li>
-          <li>Generate insights</li>
-        </ul>
-        <a class="lp-btn lp-btn-dean js-open-login" href="#" data-role="dean">Login as Dean →</a>
-      </article>
-      <article class="lp-portal lp-portal-admin">
-        <div class="ic ic-red">⚙</div>
-        <h3>Admin Portal</h3>
-        <ul>
-          <li>Manage users and data</li>
-          <li>Configure academic settings</li>
-          <li>Monitor system activity</li>
-        </ul>
-        <a class="lp-btn lp-btn-admin js-open-login" href="#" data-role="admin">Login as Admin →</a>
-      </article>
+<section class="block block-white" id="portals">
+  <div class="block-inner portals">
+    <div class="portals-head">
+      <h2 class="block-title">Choose how you’re signing in</h2>
+      <p class="block-sub">Students sign in with a roll number. Faculty, HODs and Deans use an employee code. Admins use an email address.</p>
+    </div>
+    <div class="roles">
+      <a class="role role-student js-open-login" href="#" data-role="student">
+        <span class="role-dot" aria-hidden="true"></span>
+        <span class="role-text"><strong>Student</strong><span>Give feedback, view status and track your submissions.</span></span>
+        <span class="role-go">Sign in</span>
+      </a>
+      <a class="role role-faculty js-open-login" href="#" data-role="teacher">
+        <span class="role-dot" aria-hidden="true"></span>
+        <span class="role-text"><strong>Faculty</strong><span>View published results, track performance and download reports.</span></span>
+        <span class="role-go">Sign in</span>
+      </a>
+      <a class="role role-hod js-open-login" href="#" data-role="hod">
+        <span class="role-dot" aria-hidden="true"></span>
+        <span class="role-text"><strong>HOD</strong><span>Manage forms, view consolidated results and generate reports.</span></span>
+        <span class="role-go">Sign in</span>
+      </a>
+      <a class="role role-dean js-open-login" href="#" data-role="dean">
+        <span class="role-dot" aria-hidden="true"></span>
+        <span class="role-text"><strong>Dean</strong><span>View college-wide results, monitor departments and generate insights.</span></span>
+        <span class="role-go">Sign in</span>
+      </a>
+      <a class="role role-admin js-open-login" href="#" data-role="admin">
+        <span class="role-dot" aria-hidden="true"></span>
+        <span class="role-text"><strong>Admin</strong><span>Manage users and data, configure academic settings and monitor system activity.</span></span>
+        <span class="role-go">Sign in</span>
+      </a>
     </div>
   </div>
 </section>
-
-<section class="lp-section" id="how">
-  <div class="lp-section-inner">
-    <p class="lp-eyebrow">HOW IT WORKS</p>
-    <h2>A Simple Process</h2>
-    <p class="lp-sub">From feedback collection to academic improvement.</p>
-    <div class="lp-steps">
-      <div class="lp-step"><span class="n">1</span><div class="ic">📄</div><h3>Collect Feedback</h3></div>
-      <div class="lp-arrow">→</div>
-      <div class="lp-step"><span class="n">2</span><div class="ic">📊</div><h3>Analyze Data</h3></div>
-      <div class="lp-arrow">→</div>
-      <div class="lp-step"><span class="n">3</span><div class="ic">📑</div><h3>Publish Results</h3></div>
-      <div class="lp-arrow">→</div>
-      <div class="lp-step"><span class="n">4</span><div class="ic">🎯</div><h3>Drive Improvement</h3></div>
-    </div>
-  </div>
-</section>
+</main>
 
 <footer class="lp-footer" id="contact">
   <div class="lp-footer-inner">
-    <div>
-      <div class="lp-brand lp-brand-foot">
-        <img src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="">
-        <span>ADITYA UNIVERSITY</span>
-      </div>
-      <p>Faculty Feedback System<br><small>Transparent · Fair · Continuous Growth</small></p>
+    <div class="lp-foot-brand">
+      <img src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="Aditya University">
+      <p>Faculty Feedback System</p>
+      <p class="lp-foot-tag">Transparent, fair and built for continuous growth.</p>
     </div>
     <div>
       <h4>Contact</h4>
-      <p>📞 +91 63 00 45 90 01<br>
-         ✉ support_tt@adityauniversity.in<br>
-         📍 Surampalem, Kakinada District, Andhra Pradesh</p>
+      <p>+91 63 00 45 90 01<br>
+         support_tt@adityauniversity.in<br>
+         Surampalem, Kakinada District, Andhra Pradesh</p>
     </div>
     <div>
-      <h4>Our Social Media</h4>
+      <h4>Follow Aditya University</h4>
       <p class="lp-social">
-        <a href="https://www.linkedin.com" target="_blank" rel="noopener">in</a>
-        <a href="https://www.youtube.com" target="_blank" rel="noopener">▶</a>
-        <a href="https://www.facebook.com" target="_blank" rel="noopener">f</a>
-        <a href="https://www.instagram.com" target="_blank" rel="noopener">ig</a>
+        <a href="https://www.linkedin.com" target="_blank" rel="noopener">LinkedIn</a>
+        <a href="https://www.youtube.com" target="_blank" rel="noopener">YouTube</a>
+        <a href="https://www.facebook.com" target="_blank" rel="noopener">Facebook</a>
+        <a href="https://www.instagram.com" target="_blank" rel="noopener">Instagram</a>
       </p>
     </div>
   </div>
   <div class="lp-footer-bottom">
-    <span>© 2026 Aditya University. All Rights Reserved.</span>
-    <span>Privacy Policy · Terms of Service · Contact Us</span>
+    <span>© 2026 Aditya University. All rights reserved.</span>
   </div>
 </footer>
+
+<script nonce="{{ csp_nonce }}">
+// Sample answer sheet in the hero: picking a bubble shows what is saved.
+(function () {
+  var sheet = document.getElementById('demo');
+  if (!sheet) return;
+  var bubbles = Array.prototype.slice.call(sheet.querySelectorAll('.bubble'));
+  var idle = document.getElementById('receiptIdle');
+  var body = document.getElementById('receiptBody');
+  var label = document.getElementById('pickLabel');
+  var touched = false;
+
+  function pick(i) {
+    bubbles.forEach(function (b, j) {
+      b.setAttribute('aria-checked', j === i ? 'true' : 'false');
+      b.tabIndex = j === i ? 0 : -1;
+    });
+    label.textContent = bubbles[i].getAttribute('data-label');
+    idle.hidden = true;
+    body.hidden = false;
+  }
+
+  bubbles.forEach(function (b, i) {
+    if (i > 0) b.tabIndex = -1;
+    b.addEventListener('click', function () { touched = true; pick(i); });
+    b.addEventListener('keydown', function (e) {
+      var next = null;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (i + 1) % bubbles.length;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (i + bubbles.length - 1) % bubbles.length;
+      if (next === null) return;
+      e.preventDefault();
+      touched = true;
+      pick(next);
+      bubbles[next].focus();
+    });
+  });
+
+  // One page-load moment: the sheet fills in a sample answer to show what it does.
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!calm) {
+    setTimeout(function () { if (!touched) pick(3); }, 1100);
+  }
+})();
+</script>
 
 <script nonce="{{ csp_nonce }}">
 (function () {
