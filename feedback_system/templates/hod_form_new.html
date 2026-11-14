@@ -26,6 +26,7 @@
   <div id="builder"
        data-save-url="{{ url_for('hod.form_save') }}"
        data-status-url="{{ url_for('hod.form_status', fid=0) }}"
+       data-bulk-publish-url="{{ url_for('hod.forms_publish_selected') }}"
        data-form-id=""
        data-sets-only="1"
        data-scope="{{ preset_scope or 'session' }}"
