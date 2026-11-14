@@ -50,7 +50,11 @@ def _body():
 @role_required('teacher')
 def index():
     user = current_user()
-    return render_template('teacher_second_faculty.html', cards=svc.list_cards(user),
+    tab = 'to-me' if request.args.get('tab') == 'to-me' else 'by-me'
+    mine = svc.assigned_to_me(user)
+    return render_template('teacher_second_faculty.html',
+                           cards=svc.list_cards(user) if tab == 'by-me' else [],
+                           received=mine, tab=tab,
                            setup_flow=request.args.get('setup') == '1')
 
 

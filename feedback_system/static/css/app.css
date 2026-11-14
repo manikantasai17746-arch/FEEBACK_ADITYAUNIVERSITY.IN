@@ -1155,3 +1155,51 @@ body.sf-lock{overflow:hidden}
 @media (prefers-reduced-motion:reduce){.sf-spin{animation:none}}
 html.dark-mode .sf-dialog,html.dark-mode .sf-second,html.dark-mode .sf-emp,html.dark-mode .sf-input{background:#1b2333;color:#e5e9f0}
 html.dark-mode .sf-context{background:#243047}
+
+
+.icon-btn[data-del]{color:#b3261e;border-color:#e6b8b4;background:#fff5f4;font-weight:600;padding:4px 10px}
+.icon-btn[data-del]:hover{background:#b3261e;color:#fff;border-color:#b3261e}
+.flash-info{background:#e8f1ff;border:1px solid #b6d0f7;color:#1c3d7a;padding:10px 14px;border-radius:8px;font-size:14px}
+
+/* Teacher dashboard: which hat the teacher wears for a row (Main / Second / Lab) */
+.role-line { display: flex; flex-wrap: wrap; gap: .3rem .45rem; align-items: center; margin-top: .3rem; }
+.role-badge { display: inline-block; padding: .12rem .55rem; border-radius: 999px; font-size: .72rem; font-weight: 700; }
+.role-main { background: #e0e7ff; color: #3730a3; }
+.role-second { background: #ffedd5; color: #9a3412; }
+.role-lab { background: #ccfbf1; color: #0f766e; }
+.room-chip { display: inline-block; padding: .12rem .5rem; border-radius: 6px; font-size: .72rem;
+  font-weight: 600; background: #f1f5f9; color: #334155; border: 1px solid #e2e8f0; }
+.room-chip-empty { color: #94a3b8; font-weight: 500; }
+.role-note { margin-top: .2rem; font-size: .76rem; }
+.marks-table tbody tr:has(.role-badge.role-second) > td:first-child { box-shadow: inset 4px 0 0 #f97316; }
+.marks-table tbody tr:has(.role-badge.role-lab) > td:first-child { box-shadow: inset 4px 0 0 #14b8a6; }
+.marks-table tbody tr:has(.role-badge.role-main) > td:first-child { box-shadow: inset 4px 0 0 #6366f1; }
+html.dark-mode .role-main { background: #312e81; color: #c7d2fe; }
+html.dark-mode .role-second { background: #7c2d12; color: #fed7aa; }
+html.dark-mode .role-lab { background: #134e4a; color: #99f6e4; }
+html.dark-mode .room-chip { background: #1e293b; color: #cbd5e1; border-color: #334155; }
+
+/* Second Faculty page tabs + "Assigned to me" cards */
+.sf-tabs { display: flex; gap: .4rem; margin: 0 0 1rem; border-bottom: 2px solid var(--line); }
+.sf-tab { padding: .55rem 1rem; font-weight: 600; color: var(--muted); text-decoration: none;
+  border-bottom: 3px solid transparent; margin-bottom: -2px; border-radius: 8px 8px 0 0; }
+.sf-tab:hover { color: var(--au-blue, #1558C0); }
+.sf-tab.is-on { color: var(--au-blue, #1558C0); border-bottom-color: var(--au-orange, #F36C21); }
+.sf-tab-count { display: inline-block; min-width: 1.4rem; padding: 0 .4rem; margin-left: .3rem; text-align: center;
+  font-size: .72rem; border-radius: 999px; background: var(--navy-soft); color: var(--navy-dark); }
+.sf-recv-card { margin-bottom: 1rem; }
+.sf-recv-head { display: flex; align-items: center; gap: .8rem; margin-bottom: .6rem; }
+.sf-recv-head h3 { margin: 0; }
+.sf-recv-head .sf-code { margin-left: auto; }
+html.dark-mode .sf-tab-count { background: #243047; color: #e5e9f0; }
+
+/* Profile page */
+.profile-page { max-width: 1000px; margin: 0 auto; }
+.profile-head { display: flex; align-items: center; gap: 1.1rem; margin-bottom: 1rem; }
+.profile-head h1 { margin: 0 0 .15rem; font-size: 1.4rem; }
+.profile-head .emp-avatar { border-radius: 50%; object-fit: cover; flex: 0 0 auto; }
+.profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+.profile-grid h2 { margin-top: 0; }
+@media (max-width: 780px) { .profile-grid { grid-template-columns: 1fr; } .profile-head { flex-direction: column; align-items: flex-start; } }
+.role-badge, .room-chip { white-space: nowrap; }
+.marks-table td:nth-child(3) { min-width: 200px; }

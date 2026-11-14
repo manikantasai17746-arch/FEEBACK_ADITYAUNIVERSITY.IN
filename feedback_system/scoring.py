@@ -567,6 +567,10 @@ def form_marks(form_id: int, eligible: int, session_ids=None) -> Dict[str, Any]:
                            who responded once it is CLOSED
       obtained           – sum of marks over every answer (2 dp)
       maximum            – 10 * max_students (2 dp)
+      score_pct          – obtained / maximum * 100 (2 dp), None when maximum is 0.
+                           Open form: out of EVERY eligible student, so a lone
+                           response of 9.58 / 720 shows 1.33.  Closed form: out of
+                           the students who responded only.
       rating_breakdown   – list of {label, count, marks_each, total_marks}
       answer_count       – total rating answers across all questions
     """
@@ -603,6 +607,7 @@ def _marks_from_data(form_id: int, eligible: int, data: Dict[str, Any]) -> Dict[
             'max_students': max_students,
             'obtained': 0.0,
             'maximum': maximum,
+            'score_pct': None,
             'rating_breakdown': [],
             'answer_count': 0,
         }
@@ -661,6 +666,7 @@ def _marks_from_data(form_id: int, eligible: int, data: Dict[str, Any]) -> Dict[
         'max_students': max_students,
         'obtained': obtained,
         'maximum': maximum,
+        'score_pct': (round(obtained / maximum * 100.0, 2) if maximum else None),
         'rating_breakdown': breakdown,
         'answer_count': answer_count,
     }

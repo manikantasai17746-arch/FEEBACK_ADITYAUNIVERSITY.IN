@@ -373,6 +373,69 @@ def list_cards(user):
     return cards
 
 
+def assigned_to_me(user):
+    """Colleagues who named ``user`` as their Second Faculty, with the classes.
+
+    Read-only mirror of :func:`list_cards`: ``list_cards`` is "Second Faculty I
+    assigned to my classes", this is "classes where I am the Second Faculty".
+    Only confirmed assignments are shown, grouped by the Main Faculty who made
+    them.  Everything is keyed on the server-side session user.
+    """
+    rows = [dict(r) for r in db.query(
+        """SELECT sfa.id AS assignment_id, sfa.session_id, sfa.room AS sfa_room,
+                  sfa.source, sfa.created_at,
+                  cs.subject_code, cs.subject_name, cs.teacher_user_id AS main_id,
+                  t.code AS section, b.code AS branch, s.number AS semester,
+                  ay.name AS academic_year,
+                  mu.name AS main_name, mu.emp_code AS main_emp_code,
+                  mu.designation AS main_designation,
+                  tss.room AS setup_room, tss.lab_status AS lab_status
+           FROM second_faculty_assignments sfa
+           JOIN class_sessions cs ON cs.id=sfa.session_id AND cs.is_deleted=0
+           JOIN timetables t ON t.id=cs.timetable_id AND t.is_deleted=0
+           JOIN branches b ON b.id=t.branch_id
+           JOIN semesters s ON s.id=t.semester_id
+           LEFT JOIN academic_years ay ON ay.id=t.academic_year_id
+           LEFT JOIN users mu ON mu.id=cs.teacher_user_id
+           LEFT JOIN teacher_subject_settings tss ON tss.session_id=cs.id
+           WHERE sfa.second_teacher_user_id=? AND sfa.status='confirmed'
+             AND COALESCE(sfa.second_emp_code,'')<>''
+           ORDER BY mu.name, cs.subject_name, b.code, t.code, sfa.id""",
+        (user['id'],))]
+    counts = eligible_student_counts([r['session_id'] for r in rows])
+    groups, order = {}, []
+    for r in rows:
+        key = r['main_id'] or 0
+        g = groups.get(key)
+        if g is None:
+            code = r['main_emp_code']
+            g = groups[key] = {
+                'main_name': r['main_name'] or 'Unassigned faculty',
+                'emp_code': code,
+                'designation': r['main_designation'] or 'Faculty',
+                'initials': photos.initials(r['main_name']),
+                'photo_url': ('/employee-photo/' + str(code)) if code else None,
+                'classes': [],
+            }
+            order.append(key)
+        g['classes'].append({
+            'assignment_id': r['assignment_id'],
+            'session_id': r['session_id'],
+            'subject_code': r['subject_code'],
+            'subject_name': r['subject_name'],
+            'section': r['section'],
+            'branch': r['branch'],
+            'semester': r['semester'],
+            'academic_year': r['academic_year'],
+            'room': r['sfa_room'] or r['setup_room'],
+            'eligible_students': counts.get(r['session_id'], 0),
+            'assigned_on': (r['created_at'] or '')[:10],
+        })
+    out = [groups[k] for k in order]
+    return {'groups': out, 'teacher_count': len(out),
+            'class_count': sum(len(g['classes']) for g in out)}
+
+
 def card_for_session(user, session_id):
     for c in list_cards(user):
         if c['session_id'] == int(session_id):

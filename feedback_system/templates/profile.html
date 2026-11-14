@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% import '_photo_macros.html' as ph %}
+{% block title %}Profile — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="profile-page">
+  <section class="card profile-head">
+    {{ ph.avatar(emp_code, current_user.name, 96) }}
+    <div class="profile-id">
+      <div class="eyebrow">My Profile</div>
+      <h1>{{ current_user.name }}</h1>
+      <p class="sub" style="margin:0">
+        {{ current_user.designation or (current_user.role|title) }}
+        {% if emp_code %} · Employee ID {{ emp_code }}{% endif %}
+        {% if department %} · {{ department }}{% endif %}
+      </p>
+      <p class="sub" style="margin:.2rem 0 0">{{ current_user.email or 'No email on file' }}</p>
+    </div>
+  </section>
+
+  <div class="profile-grid">
+    <section class="card" id="profile-photo">
+      <h2>Profile photo</h2>
+      {% if emp_code %}
+      <p class="sub">{{ 'Upload a new photo to replace the current one.' if has_photo
+                         else 'No photo yet. Add one so students and the HOD can recognise you.' }}</p>
+      <form method="post" action="{{ url_for('photos.manage', emp_code=emp_code) }}"
+            enctype="multipart/form-data" id="photoForm" data-max-kb="{{ max_kb }}" autocomplete="off">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="from" value="profile">
+        <input type="hidden" name="next" value="{{ url_for('photos.profile') }}">
+        <div class="field">
+          <label for="photoInput">{{ 'Replace photo' if has_photo else 'Choose a photo' }}</label>
+          <input type="file" id="photoInput" name="photo" accept="image/jpeg,image/png" required>
+          <div class="hint">JPG or PNG, up to {{ max_kb // 1024 if max_kb >= 1024 else max_kb }}{{ ' MB' if max_kb >= 1024 else ' KB' }}.</div>
+        </div>
+        <div id="photoPreviewBox" class="photo-preview" hidden>
+          <p class="sub">Preview — this is how the photo will look:</p>
+          <img id="photoPreview" alt="Selected photo preview" width="140" height="140">
+        </div>
+        <p id="photoError" class="field-error" role="alert" hidden></p>
+        <button class="btn" type="submit" id="photoSubmit" disabled>Save photo</button>
+      </form>
+      {% else %}
+      <p class="sub">Your account has no employee code, so a photo cannot be attached.</p>
+      {% endif %}
+    </section>
+
+    <section class="card" id="profile-password">
+      <h2>Change password</h2>
+      {% if forced_password_change %}
+      <div class="flash flash-warning">You are still using the default password. Please set a new one to continue.</div>
+      {% endif %}
+      <form method="post" action="{{ url_for('auth.change_password') }}" autocomplete="off">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="from" value="profile">
+        <div class="field"><label for="current_password">Current password</label>
+          <input type="password" id="current_password" name="current_password" required></div>
+        <div class="field"><label for="new_password">New password</label>
+          <input type="password" id="new_password" name="new_password" minlength="8" required>
+          <div class="hint">At least 8 characters.</div></div>
+        <div class="field"><label for="confirm_password">Confirm new password</label>
+          <input type="password" id="confirm_password" name="confirm_password" minlength="8" required></div>
+        <button class="btn" type="submit">Update password</button>
+      </form>
+    </section>
+  </div>
+</div>
+<script src="{{ url_for('static', filename='js/photo_upload.js') }}"></script>
+{% endblock %}

@@ -102,6 +102,7 @@
           <th>Feedback Form</th>
           <th>Eligible Students</th>
           <th>Students Responded</th>
+          <th>Not Responded</th>
           <th>Marks / Question</th>
           <th>Obtained Marks</th>
           <th>Max Marks</th>
@@ -112,10 +113,30 @@
       <tbody>
         {% for r in rows %}
         {% set f = r.form %}
+        {% set role = r.get('role') or 'main' %}
         <tr>
           <td>{{ loop.index }}</td>
           <td>{{ f.subject_code or '—' }}</td>
-          <td>{{ f.subject_name or f.title or '—' }}</td>
+          <td>
+            {{ f.subject_name or f.title or '—' }}
+            <div class="role-line">
+              {% if role == 'second' %}
+                <span class="role-badge role-second">👥 Second Faculty</span>
+              {% elif role == 'lab' %}
+                <span class="role-badge role-lab">🧪 Lab Faculty</span>
+              {% else %}
+                <span class="role-badge role-main">🎓 Main Faculty</span>
+              {% endif %}
+              <span class="room-chip{{ ' room-chip-empty' if not r.get('room') }}">
+                {{ 'Lab room' if role == 'lab' else 'Room' }}: {{ r.room or 'not set' }}
+              </span>
+            </div>
+            {% if role == 'second' and r.get('main_name') %}
+            <div class="sub role-note">Main faculty: {{ r.main_name }}{% if r.main_emp_code %} ({{ r.main_emp_code }}){% endif %}</div>
+            {% elif role == 'lab' %}
+            <div class="sub role-note">Lab hours of this class</div>
+            {% endif %}
+          </td>
           <td>{{ r.section or '—' }}</td>
           <td class="form-cell">
             {% if f.id %}
@@ -125,7 +146,6 @@
                   <span class="round-badge">{{ r.round_label }}{% if r.rounds_total and r.rounds_total > 1 %} of {{ r.rounds_total }}{% endif %}</span>
                 {% endif %}
                 {% if r.get('unpublished') %}<span class="pending-badge">Results not published</span>{% endif %}
-                {% if f.category %}<span class="cat-badge">{{ f.category|replace('_', ' ')|title }}</span>{% endif %}
                 {% if r.created_at %}<span class="sub">{{ r.created_at|string|truncate(10, True, '') }}</span>{% endif %}
                 {% if r.response_pct is not none %}<span class="sub">{{ r.response_pct }}% responded</span>{% endif %}
               </div>
@@ -135,6 +155,7 @@
           </td>
           <td>{{ r.eligible }}</td>
           <td>{{ r.responses }}</td>
+          <td>{{ r.not_submitted }}</td>
           {% if r.get('unpublished') %}
           {# Not published: only form name, eligible and responded are shown. #}
           <td class="sub">—</td>
