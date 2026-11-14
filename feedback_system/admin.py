@@ -1571,4 +1571,4 @@ def requirement_delete(rid):
 def requirement_rematch():
     n = services.rematch_requirements()
     flash(f'Linked {n} published form(s) to requirements.', 'success')
-    return redirect(url_for('admin.feedback_requirements'))s
+    return redirect(url_for('admin.feedback_requirements'))
