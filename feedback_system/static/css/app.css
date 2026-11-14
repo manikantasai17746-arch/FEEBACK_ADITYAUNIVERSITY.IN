@@ -1155,3 +1155,7 @@ body.sf-lock{overflow:hidden}
 @media (prefers-reduced-motion:reduce){.sf-spin{animation:none}}
 html.dark-mode .sf-dialog,html.dark-mode .sf-second,html.dark-mode .sf-emp,html.dark-mode .sf-input{background:#1b2333;color:#e5e9f0}
 html.dark-mode .sf-context{background:#243047}
+
+
+.icon-btn[data-del]{color:#b3261e;border-color:#e6b8b4;background:#fff5f4;font-weight:600;padding:4px 10px}
+.icon-btn[data-del]:hover{background:#b3261e;color:#fff;border-color:#b3261e}
