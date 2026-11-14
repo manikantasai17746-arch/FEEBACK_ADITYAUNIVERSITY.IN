@@ -198,6 +198,16 @@ def test_pending_lists_only_non_submitters_roll_numbers(app, pending_setup):
     assert rolls[1] in html and f'>{rolls[0]}<' not in html
 
 
+def test_hod_forms_displays_saved_deadline(app, pending_setup):
+    fid = pending_setup['fid']
+    _sql(app, "UPDATE feedback_forms SET deadline_at='2030-05-01T04:00:00' WHERE id=?",
+         (fid,))
+    html = pending_setup['hod'].get('/hod/forms').get_data(as_text=True)
+    assert 'Pending test' in html
+    assert '01 May 2030' in html
+    assert 'No deadline' not in html
+
+
 def test_pending_pdf_has_rolls_only(app, pending_setup):
     r = pending_setup['hod'].get(
         f"/hod/pending/{pending_setup['fid']}/teacher/{pending_setup['teacher_id']}.pdf")
