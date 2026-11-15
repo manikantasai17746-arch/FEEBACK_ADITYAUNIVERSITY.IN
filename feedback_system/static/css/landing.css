@@ -518,3 +518,31 @@ body.lp-login-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   .role, .role::before, .role-go, .role-arrow { transition: none; }
 }
+
+/* ---------- Portals: role picture under the intro text (follows the hovered row) ---------- */
+.role-stage {
+  position: relative; margin-top: 1.8rem; max-width: 26rem; aspect-ratio: 1 / 1;
+  border-radius: 16px; overflow: hidden; border: 2px solid var(--ink);
+}
+.role-pane {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  opacity: 0; transform: scale(.96); transition: opacity .3s, transform .3s; pointer-events: none;
+}
+.role-pane.on { opacity: 1; transform: none; }
+.role-art {
+  display: block; width: 100%; height: 100%; object-fit: cover;
+  transform: translateY(14px) rotate(-4deg) scale(.9);
+  transition: transform .55s cubic-bezier(.34, 1.56, .64, 1);
+}
+.role-pane.on .role-art { transform: none; }
+.role-tag {
+  position: absolute; left: 12px; bottom: 12px; padding: .15rem .8rem;
+  background: #fff; color: var(--ink); border: 2px solid var(--ink); border-radius: 999px;
+  font: 600 .85rem/1.4 var(--text); box-shadow: 3px 3px 0 var(--ink); transform: rotate(-5deg);
+}
+/* single column or touch screens: no side space and no hover, so hide it */
+@media (max-width: 980px), (hover: none) { .role-stage { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .role-pane, .role-art { transition: none; }
+  .role-art, .role-pane.on .role-art { transform: none; }
+}
