@@ -8,6 +8,18 @@
     <p class="sub" style="margin-bottom:1.2rem">Hi <strong>{{ current_user.name }}</strong>! Enter your
       email (Gmail) address. We will send you a <strong>6-digit code</strong> to confirm it.
       {% if current_user.role == 'student' %}Your feedback stays <strong>anonymous</strong>.{% endif %}</p>
+    {% if sso_providers %}
+    <div class="card" style="margin-bottom:1rem">
+      <p class="sub" style="margin-bottom:.8rem">Fastest option: sign in with the account you use for email. We take the address from your provider, so no code is needed.</p>
+      {% if 'google' in sso_providers %}
+      <a class="btn btn-block" href="{{ url_for('auth.sso_start', provider='google') }}">Continue with Google</a>
+      {% endif %}
+      {% if 'microsoft' in sso_providers %}
+      <a class="btn btn-block" style="margin-top:.6rem" href="{{ url_for('auth.sso_start', provider='microsoft') }}">Continue with Microsoft</a>
+      {% endif %}
+    </div>
+    <p class="sub" style="text-align:center;margin:.4rem 0 1rem">OR use a code instead</p>
+    {% endif %}
     <form method="post" autocomplete="off" class="card">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <input type="hidden" name="next" value="{{ request.args.get('next','') }}">

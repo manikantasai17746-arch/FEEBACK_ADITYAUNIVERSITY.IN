@@ -7,6 +7,9 @@
   <title>Aditya University — Faculty Feedback Portal</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+hod-modules-verification
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/anonymity_card.css') }}">
+
   <style nonce="{{ csp_nonce }}">
 /* How it works: animated feedback story. It sits where the step numbers used to be. */
 .fbs{position:relative;margin:2.4rem 0 1.2rem;height:164px;overflow-x:clip}
@@ -89,6 +92,7 @@
 @media (max-width:520px){.fbs-actor{transform:scale(.78)}}
 @media (prefers-reduced-motion:reduce){.fbs-actor *,.fbs-walker{animation:none!important}.fbs-walker{display:none}.fbs-fH,.fbs-blush,.fbs-fpage,.fbs-chk,.fbs-chk4{opacity:1}.fbs-fN,.fbs-spw{opacity:0}}
   </style>
+ main
 </head>
 <body class="landing-page">
 <header class="lp-header">
@@ -149,6 +153,10 @@
       </div>
     </div>
 
+hod-modules-verification
+    <!-- Sample answer card: folded corner + Aditya University stamp animation (CSS only) -->
+    {% include '_anonymity_card.html' %}
+
     <!-- Interactive sample: an answer sheet that shows what gets saved -->
     <div class="sheet" id="demo">
       <p class="sheet-tag">Sample question. Nothing here is saved.</p>
@@ -194,6 +202,7 @@
       </div>
       <div class="sheet-fold" aria-hidden="true"><i></i></div>
     </div>
+    main
   </div>
 </section>
 
@@ -350,6 +359,8 @@
   </div>
 </footer>
 
+hod-modules-verification
+
 <script nonce="{{ csp_nonce }}">
 // Sample answer sheet in the hero: picking a bubble shows what is saved
 // and stamps the sheet "Anonymous feedback".
@@ -409,6 +420,7 @@
   }
 })();
 </script>
+main
 
 <script nonce="{{ csp_nonce }}">
 (function () {

@@ -1,4 +1,5 @@
 """Authentication routes for all three roles."""
+import hmac
 import os
 import re
 import secrets
@@ -6,7 +7,7 @@ import secrets
 from flask import (Blueprint, current_app, flash, jsonify, redirect,
                    render_template, request, url_for, session)
 
-from . import db, mailer, verification
+from . import db, mailer, sso, verification
 from .security import (audit, clear_login_failures, current_user, hash_password,
                        is_safe_next, login_locked, login_user, logout_user,
                        register_login_failure, role_required, verify_password)
@@ -81,6 +82,7 @@ def _login_attempt(role, username, password, redirect_endpoint):
 # --------------------------------------------------------------------------- #
 _EMAIL_RE = re.compile(r'^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$')
 _SETUP_ENDPOINTS = {'auth.logout', 'auth.setup_email', 'auth.verify_email',
+                    'auth.sso_start', 'auth.sso_callback',
                     'auth.change_password', 'static',
                     'hod.onboarding', 'hod.onboarding_verify',
                     'hod.onboarding_save', 'dean.onboarding',
@@ -181,7 +183,7 @@ def setup_email():
                 flash(f'We sent a 6-digit code to {email}.', 'success')
                 return redirect(url_for('auth.verify_email', next=request.form.get('next') or None))
             flash(problem, 'error')
-    return render_template('setup_email.html')
+    return render_template('setup_email.html', sso_providers=sso.enabled_providers())
 
 
 @bp.route('/setup/email/verify', methods=['GET', 'POST'])
@@ -208,6 +210,75 @@ def verify_email():
             if not verification.pending(user['id'], 'verify_email'):
                 return redirect(url_for('auth.setup_email'))
     return render_template('verify_email.html', email=row['email'])
+
+
+# --------------------------------------------------------------------------- #
+# Google / Microsoft sign-in: verifies the e-mail without sending a code
+# --------------------------------------------------------------------------- #
+def _sso_redirect_uri(provider):
+    return url_for('auth.sso_callback', provider=provider, _external=True)
+
+
+def _store_sso_email(user, email, provider):
+    """Save a provider-verified e-mail on the user. Returns an error message or None."""
+    current = (user.get('email') or '').strip().lower()
+    if current and current != email:
+        return ('This account already has a different email on file. '
+                'Ask the administrator to update it.')
+    taken = db.query('SELECT id FROM users WHERE LOWER(email)=? AND id<>? LIMIT 1',
+                     (email, user['id']), one=True)
+    if taken:
+        return ('That email address is already linked to another account. '
+                'Please contact the administrator.')
+    db.execute('UPDATE users SET email=?, email_verified=1 WHERE id=?', (email, user['id']))
+    verification.discard(user['id'], 'verify_email')
+    audit('user.verify_email', 'users', user['id'], f'Email verified via {provider} sign-in')
+    return None
+
+
+@bp.route('/sso/<provider>/start')
+@role_required('student', 'teacher')
+def sso_start(provider):
+    if provider not in sso.PROVIDERS or not sso.enabled(provider):
+        flash('That sign-in option is not available. You can use the email code instead.', 'error')
+        return redirect(url_for('auth.setup_email'))
+    state = secrets.token_urlsafe(24)
+    nonce = secrets.token_urlsafe(24)
+    user = current_user()
+    session['sso'] = {'provider': provider, 'state': state, 'nonce': nonce, 'uid': user['id']}
+    return redirect(sso.authorize_url(provider, _sso_redirect_uri(provider), state, nonce))
+
+
+@bp.route('/sso/<provider>/callback')
+@role_required('student', 'teacher')
+def sso_callback(provider):
+    pending = session.pop('sso', None) or {}
+    user = current_user()
+    if (provider not in sso.PROVIDERS or pending.get('provider') != provider
+            or pending.get('uid') != user['id']
+            or not hmac.compare_digest(pending.get('state', ''), request.args.get('state', ''))):
+        flash('That sign-in link has expired. Please try again.', 'error')
+        return redirect(url_for('auth.setup_email'))
+    if request.args.get('error'):
+        flash('Sign-in was cancelled. You can try again or use the email code.', 'warning')
+        return redirect(url_for('auth.setup_email'))
+    code = request.args.get('code') or ''
+    if not code:
+        flash('Sign-in did not complete. Please try again.', 'error')
+        return redirect(url_for('auth.setup_email'))
+    try:
+        claims = sso.fetch_claims(provider, code, _sso_redirect_uri(provider))
+        email = sso.verified_email(provider, claims, pending['nonce'],
+                                   sso.client_credentials(provider)[0])
+    except sso.SSOError as exc:
+        flash(str(exc), 'error')
+        return redirect(url_for('auth.setup_email'))
+    problem = _store_sso_email(user, email, provider)
+    if problem:
+        flash(problem, 'error')
+        return redirect(url_for('auth.setup_email'))
+    flash(f'Email confirmed with {provider.title()}: {email}', 'success')
+    return redirect(_home_for(user['role']))
 
 
 # --------------------------------------------------------------------------- #
