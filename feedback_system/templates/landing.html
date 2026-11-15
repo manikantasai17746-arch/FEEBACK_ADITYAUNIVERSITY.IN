@@ -413,6 +413,24 @@
 })();
 </script>
 
+<script nonce="{{ csp_nonce }}">
+// Privacy section: play the entrance once when it scrolls into view.
+// Skipped entirely (content stays visible) without IntersectionObserver or with reduced motion.
+(function () {
+  var box = document.querySelector('#privacy .privacy');
+  if (!box || !('IntersectionObserver' in window)) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  box.classList.add('reveal-ready');
+  void box.offsetWidth; // commit the hidden state so the first reveal transitions
+  var io = new IntersectionObserver(function (entries) {
+    if (!entries.some(function (e) { return e.isIntersecting; })) return;
+    box.classList.add('is-in');
+    io.disconnect(); // once only
+  }, { threshold: 0.2 });
+  io.observe(box);
+})();
+</script>
+
 <!-- Login modal (same page, blurred backdrop) -->
 <div class="lp-login-overlay" id="lpLoginOverlay" hidden>
   <div class="lp-login-backdrop" id="lpLoginBackdrop"></div>
