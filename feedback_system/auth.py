@@ -278,7 +278,7 @@ def sso_callback(provider):
         flash(problem, 'error')
         return redirect(url_for('auth.setup_email'))
     flash(f'Email confirmed with {provider.title()}: {email}', 'success')
-    return redirect(_home_for(user['role']))
+    return redirect(url_for(_home_for(user['role'])))
 
 
 # --------------------------------------------------------------------------- #
