@@ -204,8 +204,14 @@ def test_hod_forms_displays_saved_deadline(app, pending_setup):
          (fid,))
     html = pending_setup['hod'].get('/hod/forms').get_data(as_text=True)
     assert 'Pending test' in html
-    assert '01 May 2030' in html
-    assert 'No deadline' not in html
+    # Scope to this form's row: other forms on the shared page may legitimately
+    # have no deadline.
+    marker = f'/hod/forms/{fid}/deadline'
+    i = html.find(marker)
+    assert i != -1, 'form row with deadline action not found'
+    row = html[html.rfind('<tr', 0, i):html.find('</tr>', i)]
+    assert '01 May 2030' in row
+    assert 'No deadline' not in row
 
 
 def test_pending_pdf_has_rolls_only(app, pending_setup):

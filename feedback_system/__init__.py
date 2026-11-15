@@ -90,6 +90,13 @@ def create_app(config=None):
         SCAN_LOGIN_ONLY_DEFAULT=os.environ.get('SCAN_LOGIN_ONLY_DEFAULT', '1') == '1',
         LOGIN_MAX_ATTEMPTS=int(os.environ.get('LOGIN_MAX_ATTEMPTS', '8')),
         LOGIN_LOCKOUT_SECONDS=int(os.environ.get('LOGIN_LOCKOUT_SECONDS', '300')),
+        # --- student authenticator (TOTP) ----------------------------------
+        # Fernet key(s) that encrypt TOTP secrets at rest. Comma-separated,
+        # newest first, to allow rotation. Deliberately NOT derived from
+        # SECRET_KEY, so rotating SECRET_KEY cannot lock students out.
+        TOTP_ENCRYPTION_KEY=os.environ.get('TOTP_ENCRYPTION_KEY'),
+        OTP_MAX_ATTEMPTS=int(os.environ.get('OTP_MAX_ATTEMPTS', '5')),
+        OTP_LOCKOUT_SECONDS=int(os.environ.get('OTP_LOCKOUT_SECONDS', '900')),
         JSON_SORT_KEYS=False,
         # Let browsers cache CSS/JS/logo so they are not re-fetched (each fetch
         # is a serverless call) on every page.

@@ -33,3 +33,7 @@ For each new approved phase/checkpoint, document:
 11. Next checkpoint and approval status.
 
 Keep old reports as historical evidence. Add a dated follow-up rather than silently rewriting prior reports when later work changes the facts.
+
+## Authenticator (TOTP) 2FA
+
+- Checkpoint 1 (schema and crypto core): `AUTHENTICATOR_CP1_HANDOFF.md`

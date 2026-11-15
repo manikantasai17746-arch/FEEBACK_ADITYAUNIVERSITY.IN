@@ -98,6 +98,15 @@ These results are reported, not independently rerun as part of this documentatio
   verified HTTP 200 under HOD session in earlier run (server-side).
 - Deployment: docs/DEPLOYMENT.md
 
+## 3g. Student Authenticator (TOTP) — Checkpoint 1 (schema and crypto core)
+
+- Status: implemented in working copy; awaiting user's local `pytest` run and approval for Checkpoint 2.
+- Schema: migration **v25** (additive): `student_authenticators`, `student_backup_codes`, `feedback_forms.auth_required` (default 0; existing forms backfilled to 0).
+- Code: `feedback_system/authenticator.py` (service only), `services.save_form` rule (new forms ON, explicit OFF allowed, lock once non-draft).
+- Tests: `tests/test_authenticator_core.py`, 47 cases. Sandbox harness result: 47 passed (stand-in pytest/pyotp; see handoff §8). Full suite and PostgreSQL not run here.
+- Migration 17 is present; an earlier "missing v17" report was incorrect.
+- Handoff: `docs/PHASE_HANDOFFS/AUTHENTICATOR_CP1_HANDOFF.md`.
+
 ## 4. Phase 6 — planned, not implemented
 
 Proposed modules:

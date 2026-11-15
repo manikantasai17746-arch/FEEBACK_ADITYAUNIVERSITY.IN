@@ -52,8 +52,10 @@ def student_client(app):
 def test_migration_v19_applied(app):
     with app.app_context():
         assert schema.MIGRATIONS[-1][0] >= 19
+        # Shared test DB: earlier tests legitimately write rows, so check that the
+        # tables exist (have columns) rather than that they are empty.
         for t in ('employee_photos', 'teacher_subject_settings', 'lab_faculty_assignments'):
-            assert db.query(f'SELECT COUNT(*) c FROM {t}', one=True)['c'] == 0
+            assert {r['name'] for r in db.query(f'PRAGMA table_info({t})')}, t
         cols = {r['name'] for r in db.query('PRAGMA table_info(second_faculty_assignments)')}
         assert {'created_by', 'source'} <= cols
         cols = {r['name'] for r in db.query('PRAGMA table_info(feedback_forms)')}
@@ -72,7 +74,13 @@ def test_v19_translates_to_postgres_cleanly():
 def test_settings_unique_per_session_and_lab_flag_checked(app):
     with app.app_context():
         conn = db.get_db()
-        row = db.query('SELECT id, teacher_user_id FROM class_sessions LIMIT 1', one=True)
+        # Shared test DB: pick a session with no settings row yet (earlier tests
+        # may have inserted one for the first sessions).
+        row = db.query('SELECT cs.id, cs.teacher_user_id FROM class_sessions cs '
+                       'WHERE cs.is_deleted=0 AND NOT EXISTS (SELECT 1 FROM '
+                       'teacher_subject_settings tss WHERE tss.session_id=cs.id) '
+                       'ORDER BY cs.id LIMIT 1', one=True)
+        assert row, 'need a session without a settings row'
         conn.execute('INSERT INTO teacher_subject_settings(session_id, teacher_user_id, lab_available)'
                      ' VALUES(?,?,1)', (row['id'], row['teacher_user_id']))
         with pytest.raises(Exception):
