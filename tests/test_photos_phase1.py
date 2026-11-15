@@ -6,7 +6,7 @@ import pytest
 from PIL import Image
 
 from feedback_system import db, pg, photos, schema
-from helpers import login
+from helpers import login, login_student
 
 
 def _img(fmt='PNG', size=(200, 240), color=(30, 90, 160)):
@@ -43,7 +43,7 @@ def tclient(app, teacher):
 @pytest.fixture()
 def student_client(app):
     c = app.test_client()
-    r = login(c, '/student/login', {'roll': '25B11CS015', 'password': 'student@123'})
+    r = login_student(c, '25B11CS015')
     assert r.status_code == 302
     return c
 

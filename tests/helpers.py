@@ -129,5 +129,33 @@ def question_ids(html):
     return rating_qid, text_qid, (opt_ids[0] if opt_ids else None)
 
 
+# A personal student password for tests. It must never equal the shared default
+# (DEFAULT_STUDENT_PASSWORD), because a student still on the default is held at the
+# change-password page by design and cannot reach the portal.
+TEST_STUDENT_PASSWORD = 'Personal#Student-Pass-1'
+_personal_hash = None
+
+
+def set_student_password(app, roll, password=TEST_STUDENT_PASSWORD, must_change=0):
+    """Give student ``roll`` a known password (default: a personal one) and set the flag.
+
+    Used instead of the shared default so tests reach the student portal the way a
+    student who has already changed their password does.
+    """
+    global _personal_hash
+    from feedback_system.security import hash_password
+    if password == TEST_STUDENT_PASSWORD:
+        if _personal_hash is None:            # scrypt is slow; hash it once per run
+            _personal_hash = hash_password(password)
+        pw_hash = _personal_hash
+    else:
+        pw_hash = hash_password(password)
+    with app.app_context():
+        db.execute("UPDATE users SET password_hash=?, must_change_password=? "
+                   "WHERE role='student' AND username=?", (pw_hash, must_change, roll))
+
+
 def login_student(client, roll):
-    return login(client, '/student/login', {'roll': roll, 'password': 'student@123'})
+    """Log a student in with a personal password (set first), not the shared default."""
+    set_student_password(client.application, roll)
+    return login(client, '/student/login', {'roll': roll, 'password': TEST_STUDENT_PASSWORD})

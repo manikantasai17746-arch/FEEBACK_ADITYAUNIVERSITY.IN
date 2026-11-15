@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlparse
 import pytest
 
 from feedback_system import db, mailer, sso
-from helpers import get_csrf, login
+from helpers import get_csrf, login, login_student
 
 GID = 'google-client-id'
 MID = 'microsoft-client-id'
@@ -40,7 +40,7 @@ def _student(app, offset=0):
 
 
 def _login_student(client, roll):
-    assert login(client, '/student/login', {'roll': roll, 'password': 'student@123'}).status_code == 302
+    assert login_student(client, roll).status_code == 302
 
 
 def _start(client, provider):

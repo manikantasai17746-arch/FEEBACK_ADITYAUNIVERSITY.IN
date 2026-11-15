@@ -6,7 +6,7 @@ import pytest
 
 from feedback_system import db, mailer
 from feedback_system.security import hash_password
-from helpers import get_csrf, login
+from helpers import get_csrf, login, login_student
 
 
 @pytest.fixture()
@@ -55,7 +55,7 @@ def _confirm_email(client, sent, email):
 # ----------------------------------------------------------------------------- email + code
 def test_student_confirms_email_with_code(app, client, sent):
     roll = _student(app)
-    assert login(client, '/student/login', {'roll': roll, 'password': 'student@123'}).status_code == 302
+    assert login_student(client, roll).status_code == 302
     r = client.get('/student/')
     assert r.status_code == 302 and '/setup/email' in r.headers['Location']
 
@@ -78,7 +78,7 @@ def test_student_confirms_email_with_code(app, client, sent):
 
 
 def test_code_expires_and_locks_after_five_wrong_guesses(app, client, sent):
-    login(client, '/student/login', {'roll': _student(app), 'password': 'student@123'})
+    login_student(client, _student(app))
     _post(client, '/setup/email', email='a@gmail.com')
     real = sent[-1]['code']
     bad = '000000' if real != '000000' else '111111'
@@ -95,7 +95,7 @@ def test_code_expires_and_locks_after_five_wrong_guesses(app, client, sent):
 
 
 def test_resend_has_a_cooldown(app, client, sent):
-    login(client, '/student/login', {'roll': _student(app), 'password': 'student@123'})
+    login_student(client, _student(app))
     _post(client, '/setup/email', email='a@gmail.com')
     r = _post(client, '/setup/email/verify', action='resend')
     assert b'wait' in r.data and len(sent) == 1
@@ -107,7 +107,7 @@ def test_resend_has_a_cooldown(app, client, sent):
 
 def test_mail_failure_does_not_save_email(app, client, sent, monkeypatch):
     monkeypatch.setattr(mailer, 'send_email', lambda *a, **k: False)
-    login(client, '/student/login', {'roll': _student(app), 'password': 'student@123'})
+    login_student(client, _student(app))
     r = _post(client, '/setup/email', email='a@gmail.com')
     assert r.status_code == 200 and b'could not send' in r.data
 

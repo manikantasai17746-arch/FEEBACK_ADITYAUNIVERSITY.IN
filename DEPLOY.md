@@ -226,3 +226,21 @@ python scripts/import_excel.py "Semester_IV.xlsx" --semester 4 --year 2025-26
 * **HOD → Pending.** Per teacher, the eligible students who have not submitted (roll numbers only),
   with a PDF preview and a one-click **Email PDF** button (or *Email all*). Read-only: submissions are
   never modified. Emails are only sent while the form is open.
+
+## 10. Student default-password security
+
+- Newly imported student accounts are marked as requiring a password change.
+- Students whose stored password matches the configured
+  `DEFAULT_STUDENT_PASSWORD` are forced to change it at login, even if their
+  `must_change_password` flag was previously cleared.
+- Admin password resets to the shared student default also require the student
+  to choose a personal password at the next login.
+- Students cannot choose the configured shared default through the normal
+  password-change or forgot-password reset flows.
+- Configure a strong `DEFAULT_STUDENT_PASSWORD` before importing students or
+  performing password resets. Keep it secret and never commit it to Git.
+- The reset script replaces existing student and teacher passwords. Verify
+  `DATABASE_URL` / `FEEDBACK_DB` and understand the impact before running it.
+- This protection does not independently verify the identity of the first
+  person who claims an account using shared credentials. Review first-claim
+  and email-binding protections before treating account recovery as complete.

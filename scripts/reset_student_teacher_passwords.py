@@ -22,7 +22,7 @@ def main():
             app.config.get('DEFAULT_TEACHER_PASSWORD'),
             app.config.get('DEFAULT_STUDENT_PASSWORD'))
     print(f'Reset passwords for {teacher_count} teacher and {student_count} student accounts.')
-    print('Teachers will be required to change their password after login.')
+    print('Teachers and students will be required to change their password after login.')
 
 
 if __name__ == '__main__':
