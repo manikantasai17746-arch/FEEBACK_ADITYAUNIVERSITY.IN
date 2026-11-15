@@ -480,3 +480,41 @@ body.lp-login-open { overflow: hidden; }
   .sheet.is-stamped, .sheet.is-stamped .stamp-ring { animation: none; }
   .sheet.is-stamped .stamp { animation: none; opacity: .9; }
 }
+
+/* ---------- Portals: separate Sign in buttons, rail + arrow + focus blur ---------- */
+.role { position: relative; transition: background-color .3s, filter .35s, opacity .35s; }
+.role::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: var(--role); transform: scaleY(0); transform-origin: top;
+  transition: transform .4s cubic-bezier(.22, 1, .36, 1);
+}
+.role:hover, .role:focus-within { background: color-mix(in srgb, var(--role) 7%, transparent); }
+.role:hover::before, .role:focus-within::before { transform: scaleY(1); }
+.role:hover .role-dot, .role:focus-within .role-dot { background: var(--role); }
+.role-go {
+  display: inline-flex; align-items: center; cursor: pointer;
+  font-family: var(--text); line-height: 1.2; color: var(--ink); background: transparent;
+  border: 1.5px solid var(--role);
+  transition: background-color .3s, color .3s, opacity .15s;
+}
+/* no transform on press: it would shrink the row-wide ::after click area */
+.role-go:active { opacity: .85; }
+/* the button's ::after stretches over the whole row, so the row is still one big click target */
+.role-go::after { content: ""; position: absolute; inset: 0; }
+.role-arrow { width: 0; opacity: 0; margin-left: 0; transition: width .3s, opacity .3s, margin .3s; }
+.role:hover .role-go, .role:focus-within .role-go { background: var(--role); color: #fff; }
+.role:hover .role-arrow, .role:focus-within .role-arrow { width: 15px; opacity: 1; margin-left: 6px; }
+/* blur the other rows while one is hovered or focused (hover devices only) */
+@media (hover: hover) {
+  .roles:hover .role:not(:hover) { filter: blur(2.5px); opacity: .45; }
+}
+.roles:has(:focus-visible) .role:not(:focus-within) { filter: blur(2.5px); opacity: .45; }
+@media (max-width: 520px) {
+  /* phones: keep the compact row, the button becomes an invisible full-row tap target */
+  .role .role-go { display: block; position: absolute; inset: 0; width: 100%; padding: 0; border: 0; border-radius: 0; font-size: 0; background: transparent; }
+  .role .role-go::after, .role-arrow { display: none; }
+  .role:hover, .role:focus-within { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .role, .role::before, .role-go, .role-arrow { transition: none; }
+}
