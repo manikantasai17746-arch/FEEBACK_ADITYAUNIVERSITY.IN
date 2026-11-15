@@ -8,33 +8,48 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
   <style nonce="{{ csp_nonce }}">
-/* How it works: animated feedback story. Standalone block, does not touch the steps list. */
-.fbs{position:relative;margin-top:2.5rem;height:150px}
-.fbs-line{position:absolute;left:12.5%;width:75%;top:119px;border-top:2px dashed var(--line,#D3DDEC)}
-.fbs-track{position:absolute;left:12.5%;width:75%;top:100px;height:0;pointer-events:none}
-.fbs-actor{position:absolute;top:-75px;left:0;width:64px;height:96px;margin-left:-32px;overflow:visible}
-.fbs-a2{left:33.333%}.fbs-a3{left:66.667%}.fbs-a4{left:100%}
+/* How it works: animated feedback story. It sits where the step numbers used to be. */
+.fbs{position:relative;margin:2.4rem 0 1.2rem;height:164px;overflow-x:clip}
+.fbs-line{position:absolute;left:12.5%;width:75%;top:131px;border-top:2px dashed var(--line,#D3DDEC)}
+.fbs-track{position:absolute;left:12.5%;width:75%;top:112px;height:0;pointer-events:none}
+.fbs-actor{position:absolute;top:-75px;left:0;width:64px;height:96px;margin-left:-32px;overflow:visible;transform-origin:50% 100%}
+.fbs-a2{left:33.333%}.fbs-a3{left:66.667%}
+.fbs-a4{left:100%;top:-107px;width:104px;height:128px;margin-left:-52px}
 .fbs-actor *{transform-box:fill-box;transform-origin:center}
 .fbs-actor text{font:700 7px var(--text);text-anchor:middle}
+.fbs-actor .fbs-nm{font:700 9px var(--text);fill:#475C7A;letter-spacing:.05em}
 .fbs-walker{position:absolute;left:0;top:-30px;width:0;height:0;animation:fbs-travel 18s infinite}
 .fbs-token{position:absolute;left:-20px;top:-20px;width:40px;height:40px;overflow:visible;filter:drop-shadow(0 3px 4px rgba(7,30,61,.3))}
 .fbs-tokin{animation:fbs-arc 18s infinite}
 .fbs-e1{animation:fbs-e1 18s infinite}.fbs-e2{animation:fbs-e2 18s infinite}
 .fbs-pill{opacity:0}
-.fbs-p1{animation:fbs-p1 18s infinite}.fbs-p2{animation:fbs-p2 18s infinite}.fbs-p4{animation:fbs-p4 18s infinite}
+.fbs-p1{animation:fbs-p1 18s infinite}.fbs-p2{animation:fbs-p2 18s infinite}.fbs-p3{animation:fbs-p3 18s infinite}.fbs-p4{animation:fbs-p4 18s infinite}
 .fbs-scr{animation:fbs-glow .6s ease-in-out infinite}
 .fbs-ring{opacity:0;transform-origin:50% 100%;animation:fbs-ring 18s infinite}
 .fbs-stu{animation:fbs-breathe 3s ease-in-out infinite}
-.fbs-harm{transform-box:view-box!important;transform-origin:22px 42px!important;animation:fbs-stamp 18s infinite}
+/* student: the free hand waves while the feedback is sent */
+.fbs-sw{transform-box:view-box!important;transform-origin:23px 42px!important;animation:fbs-sw 18s infinite}
+/* computer: compiles the results */
+.fbs-pc{animation:fbs-pcpop 18s infinite}
+.fbs-actor .fbs-prog{transform-origin:0 50%;animation:fbs-prog 18s infinite}
 .fbs-hb{transform-origin:50% 100%;animation:fbs-hb 18s infinite}
-.fbs-hb.b2{animation-delay:.12s}.fbs-hb.b3{animation-delay:.24s}
+.fbs-hb.b2{animation-delay:.12s}.fbs-hb.b3{animation-delay:.24s}.fbs-hb.b4{animation-delay:.36s}
+.fbs-spw{opacity:0;animation:fbs-spw 18s infinite}
+.fbs-spin{animation:fbs-spin .7s linear infinite}
+.fbs-chk{opacity:0;animation:fbs-chk 18s infinite}
+/* faculty */
 .fbs-fhop{transform-origin:50% 100%;animation:fbs-hop 18s infinite}
 .fbs-fN{animation:fbs-fN 18s infinite}.fbs-fH,.fbs-blush{opacity:0;animation:fbs-fH 18s infinite}
 .fbs-fpage{opacity:0;animation:fbs-fpage 18s infinite}
 .fbs-sp{opacity:0;animation:fbs-sp 18s infinite}.fbs-sp.s2{animation-delay:.25s}.fbs-sp.s3{animation-delay:.5s}
-.fbs-win{fill:#c9d6ea;animation:fbs-win 18s infinite}
-.fbs-bld{animation:fbs-bpop 18s infinite}
-.fbs-flag{transform-origin:0 50%!important;animation:fbs-wave 1.2s ease-in-out infinite}
+/* HOD and Dean watch the result */
+.fbs-bd{animation:fbs-bpop 18s infinite}
+.fbs-hb4{transform-origin:50% 100%;animation:fbs-hb4 18s infinite}
+.fbs-hb4.b2{animation-delay:.12s}.fbs-hb4.b3{animation-delay:.24s}.fbs-hb4.b4{animation-delay:.36s}
+.fbs-chk4{opacity:0;animation:fbs-chk4 18s infinite}
+.fbs-lk{transform-origin:50% 100%}
+.fbs-lk1{animation:fbs-lk1 18s infinite}.fbs-lk2{animation:fbs-lk2 18s infinite}
+.fbs-pt{transform-box:view-box!important;transform-origin:21px 42px!important;animation:fbs-pt 18s infinite}
 @keyframes fbs-travel{
  0%,4.5%{left:0;opacity:0}
  5%{left:0;opacity:1;animation-timing-function:ease-in-out}
@@ -48,22 +63,31 @@
 @keyframes fbs-e2{0%,30%{opacity:0}30.1%,100%{opacity:1}}
 @keyframes fbs-p1{0%,4%{opacity:0;transform:scale(.4)}6%{opacity:1;transform:scale(1.12)}7.5%,20%{opacity:1;transform:scale(1)}23%,100%{opacity:0}}
 @keyframes fbs-p2{0%,30%{opacity:0;transform:scale(.4)}32%{opacity:1;transform:scale(1.12)}33.5%,41%{opacity:1;transform:scale(1)}44%,100%{opacity:0}}
+@keyframes fbs-p3{0%,56.5%{opacity:0;transform:scale(.4)}58.5%{opacity:1;transform:scale(1.12)}60%,72%{opacity:1;transform:scale(1)}75%,100%{opacity:0}}
 @keyframes fbs-p4{0%,87%{opacity:0;transform:scale(.4)}89%{opacity:1;transform:scale(1.12)}90.5%,97%{opacity:1;transform:scale(1)}99%,100%{opacity:0}}
 @keyframes fbs-glow{0%,100%{fill:#04529B}50%{fill:#5aa0f0}}
 @keyframes fbs-ring{0%,3.5%{opacity:0;transform:scale(.6)}5%{opacity:.9}9%,100%{opacity:0;transform:scale(1.8) translateY(-4px)}}
 @keyframes fbs-breathe{0%,100%{transform:translateY(0)}50%{transform:translateY(-1px)}}
-@keyframes fbs-stamp{0%,29%{transform:rotate(0)}30.5%{transform:rotate(-75deg)}32%,100%{transform:rotate(0)}}
-@keyframes fbs-hb{0%,28%{transform:scaleY(.1)}31%,100%{transform:scaleY(1)}}
+@keyframes fbs-sw{0%,5%{transform:rotate(0)}7%{transform:rotate(130deg)}9%{transform:rotate(108deg)}11%{transform:rotate(130deg)}13%{transform:rotate(108deg)}15%{transform:rotate(130deg)}18%,100%{transform:rotate(0)}}
+@keyframes fbs-pcpop{0%,27.5%,33%,100%{transform:scale(1)}29.5%{transform:scale(1.05)}}
+@keyframes fbs-prog{0%,27.5%{transform:scaleX(0)}31%,96%{transform:scaleX(1)}99%,100%{transform:scaleX(0)}}
+@keyframes fbs-hb{0%,28%{transform:scaleY(.1)}31%,96%{transform:scaleY(1)}99%,100%{transform:scaleY(.1)}}
+@keyframes fbs-spw{0%,27.5%{opacity:0}28.5%,32%{opacity:1}33.5%,100%{opacity:0}}
+@keyframes fbs-spin{to{transform:rotate(360deg)}}
+@keyframes fbs-chk{0%,32%{opacity:0;transform:scale(0)}34%{opacity:1;transform:scale(1.25)}35.5%,96%{opacity:1;transform:scale(1)}99%,100%{opacity:0;transform:scale(1)}}
 @keyframes fbs-hop{0%,57.5%,63.5%,100%{transform:translateY(0)}59%,62%{transform:translateY(-7px)}60.5%{transform:translateY(0)}}
 @keyframes fbs-fN{0%,57.5%{opacity:1}57.6%,100%{opacity:0}}
 @keyframes fbs-fH{0%,57.5%{opacity:0}57.6%,99%{opacity:1}100%{opacity:0}}
 @keyframes fbs-fpage{0%,56%{opacity:0}57%,64%{opacity:1}65%,100%{opacity:0}}
 @keyframes fbs-sp{0%,57.5%{opacity:0;transform:scale(0)}59%{opacity:1;transform:scale(1.4)}66%{opacity:1;transform:scale(1)}70%,100%{opacity:0;transform:scale(0)}}
-@keyframes fbs-win{0%,86%{fill:#c9d6ea}88%,99%{fill:#ffd36b}100%{fill:#c9d6ea}}
-@keyframes fbs-bpop{0%,86%,91%,100%{transform:scale(1)}88%{transform:scale(1.07)}}
-@keyframes fbs-wave{0%,100%{transform:scaleX(.8)}50%{transform:scaleX(1.12)}}
-
-@media (prefers-reduced-motion:reduce){.fbs-actor *,.fbs-walker{animation:none!important}.fbs-walker{display:none}.fbs-fH,.fbs-blush{opacity:1}.fbs-fN{opacity:0}.fbs-win{fill:#ffd36b}}
+@keyframes fbs-bpop{0%,86%,91%,100%{transform:scale(1)}88%{transform:scale(1.04)}}
+@keyframes fbs-hb4{0%,87%{transform:scaleY(.1)}90%,96%{transform:scaleY(1)}99%,100%{transform:scaleY(.1)}}
+@keyframes fbs-chk4{0%,86%{opacity:0;transform:scale(0)}88.5%{opacity:1;transform:scale(1.25)}90%,96%{opacity:1;transform:scale(1)}99%,100%{opacity:0;transform:scale(1)}}
+@keyframes fbs-lk1{0%,86%{transform:rotate(0)}89%,97%{transform:rotate(6deg)}100%{transform:rotate(0)}}
+@keyframes fbs-lk2{0%,86%{transform:rotate(0)}89%,97%{transform:rotate(-6deg)}100%{transform:rotate(0)}}
+@keyframes fbs-pt{0%,87%{transform:rotate(0)}89%{transform:rotate(10deg)}91%{transform:rotate(-4deg)}93%,100%{transform:rotate(0)}}
+@media (max-width:520px){.fbs-actor{transform:scale(.78)}}
+@media (prefers-reduced-motion:reduce){.fbs-actor *,.fbs-walker{animation:none!important}.fbs-walker{display:none}.fbs-fH,.fbs-blush,.fbs-fpage,.fbs-chk,.fbs-chk4{opacity:1}.fbs-fN,.fbs-spw{opacity:0}}
   </style>
 </head>
 <body class="landing-page">
@@ -168,6 +192,7 @@
           <image href="{{ url_for('static', filename='img/aditya-emblem.png') }}" x="72" y="72" width="56" height="58" preserveAspectRatio="xMidYMid meet"/>
         </svg>
       </div>
+      <div class="sheet-fold" aria-hidden="true"><i></i></div>
     </div>
   </div>
 </section>
@@ -190,74 +215,26 @@
 <section class="block block-white" id="how">
   <div class="block-inner">
     <h2 class="block-title">What happens after you submit</h2>
+    <div class="fbs" aria-hidden="true"><div class="fbs-line"></div><div class="fbs-track"><svg class="fbs-actor fbs-a1" viewBox="0 0 64 96" focusable="false"><g class="fbs-stu"><rect x="11" y="38" width="13" height="27" rx="5" fill="#F57025"/><rect x="24" y="64" width="7" height="28" rx="3" fill="#2c3d63"/><rect x="33" y="64" width="7" height="28" rx="3" fill="#34487a"/><ellipse cx="27" cy="93" rx="6" ry="3" fill="#fff" stroke="#c4ccd9"/><ellipse cx="37" cy="93" rx="6" ry="3" fill="#fff" stroke="#c4ccd9"/><rect x="21" y="36" width="22" height="32" rx="8" fill="#8fbaf0" stroke="#5f8fc9"/><path d="M26.5 38L28 60" stroke="#d9611b" stroke-width="2.4" stroke-linecap="round" fill="none"/><g class="fbs-sw"><path d="M23 42L16 57" stroke="#5f8fc9" stroke-width="7.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M23 42L16 57" stroke="#8fbaf0" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="15.5" cy="59.5" r="3.6" fill="#d9a37a"/></g><circle cx="32" cy="24" r="10" fill="#d9a37a"/><path d="M22 22C22 11 42 11 42 22C38 17 26 17 22 22Z" fill="#1b1410"/><circle cx="28" cy="26" r="1.2" fill="#1b1410"/><circle cx="36" cy="26" r="1.2" fill="#1b1410"/><path d="M28.5 30Q32 33 35.5 30" stroke="#8a4f33" stroke-width="1.2" fill="none" stroke-linecap="round"/><path d="M41 42L45 53L38.5 55" stroke="#5f8fc9" stroke-width="7.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M41 42L45 53L38.5 55" stroke="#8fbaf0" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="29" y="44" width="10" height="16" rx="2" fill="#071E3D"/><rect class="fbs-scr" x="30.5" y="46" width="7" height="11" rx="1" fill="#04529B"/><circle cx="39.5" cy="55.5" r="3.4" fill="#d9a37a"/><g class="fbs-ring" fill="none" stroke="#04529B" stroke-width="1.2" stroke-linecap="round"><path d="M30 41Q34 37 38 41"/><path d="M27 38Q34 31 41 38"/></g></g><g transform="translate(38 4)"><g class="fbs-pill fbs-p1"><rect width="26" height="12" rx="6" fill="#1f9d63"/><text x="13" y="8.6" fill="#fff">Sent</text></g></g></svg><svg class="fbs-actor fbs-a2" viewBox="0 0 64 96" focusable="false"><g class="fbs-pc"><rect x="6" y="75" width="5" height="18" rx="1.5" fill="#8a5a3c"/><rect x="53" y="75" width="5" height="18" rx="1.5" fill="#8a5a3c"/><rect x="2" y="70" width="60" height="6" rx="2" fill="#a8744d"/><rect x="27" y="58" width="10" height="9" fill="#9fb3d1"/><rect x="19" y="66" width="26" height="4" rx="2" fill="#9fb3d1"/><rect x="5" y="16" width="54" height="43" rx="4" fill="#071E3D"/><circle cx="52" cy="55.5" r="1.1" fill="#F57025"/><rect x="8" y="19" width="48" height="33" rx="2" fill="#EEF3FB"/><rect x="12" y="23" width="40" height="3" rx="1.5" fill="#c9d6ea"/><rect class="fbs-prog" x="12" y="23" width="40" height="3" rx="1.5" fill="#1f9d63"/><rect class="fbs-hb" x="14" y="38" width="5" height="9" fill="#04529B"/><rect class="fbs-hb b2" x="21" y="31" width="5" height="16" fill="#F57025"/><rect class="fbs-hb b3" x="28" y="35" width="5" height="12" fill="#04529B"/><rect class="fbs-hb b4" x="35" y="28" width="5" height="19" fill="#F57025"/><g class="fbs-spw"><circle class="fbs-spin" cx="47.5" cy="39" r="4.2" fill="none" stroke="#04529B" stroke-width="1.7" stroke-dasharray="14 12" stroke-linecap="round"/></g><g class="fbs-chk"><circle cx="47.5" cy="39" r="5.4" fill="#1f9d63"/><path d="M44.8 39.2l2 2 3.6-4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g></g><g transform="translate(9 0)"><g class="fbs-pill fbs-p2"><rect width="46" height="12" rx="6" fill="#F57025"/><text x="23" y="8.6" fill="#fff">Compiled</text></g></g></svg><svg class="fbs-actor fbs-a3" viewBox="0 0 64 96" focusable="false"><g class="fbs-fhop"><path d="M21 24C19 6 45 6 43 24L44 42H20Z" fill="#1b1410"/><rect x="24" y="64" width="7" height="28" rx="3" fill="#2c3d63"/><rect x="33" y="64" width="7" height="28" rx="3" fill="#2c3d63"/><ellipse cx="27" cy="93" rx="6" ry="3" fill="#3a2a22"/><ellipse cx="37" cy="93" rx="6" ry="3" fill="#3a2a22"/><rect x="20" y="36" width="24" height="32" rx="8" fill="#6c8ebf"/><path d="M23 42L27 58" stroke="#4a6fa3" stroke-width="7.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M23 42L27 58" stroke="#6c8ebf" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M41 42L37 58" stroke="#4a6fa3" stroke-width="7.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M41 42L37 58" stroke="#6c8ebf" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><g class="fbs-fpage"><rect x="24" y="46" width="16" height="19" rx="2" fill="#fff" stroke="#04529B"/><rect x="27" y="57" width="3" height="5" fill="#04529B"/><rect x="31" y="52" width="3" height="10" fill="#F57025"/><rect x="35" y="55" width="3" height="7" fill="#04529B"/></g><circle cx="27" cy="60" r="3.2" fill="#d9a37a"/><circle cx="37" cy="60" r="3.2" fill="#d9a37a"/><circle cx="32" cy="24" r="10" fill="#d9a37a"/><path d="M22 22C22 10 42 10 42 22C37 15 27 15 22 22Z" fill="#1b1410"/><circle cx="28" cy="25.5" r="1.2" fill="#1b1410"/><circle cx="36" cy="25.5" r="1.2" fill="#1b1410"/><path class="fbs-fN" d="M29 30.5H35" stroke="#8a4f33" stroke-width="1.2" stroke-linecap="round"/><path class="fbs-fH" d="M27.5 29Q32 35.5 36.5 29Z" fill="#fff" stroke="#8a4f33" stroke-width="1.1" stroke-linejoin="round"/><circle class="fbs-blush" cx="25" cy="29" r="2" fill="#e8806f" opacity=".4"/><circle class="fbs-blush" cx="39" cy="29" r="2" fill="#e8806f" opacity=".4"/><path class="fbs-sp" transform="translate(12 14)" d="M0 -4L1.2 -1.2L4 0L1.2 1.2L0 4L-1.2 1.2L-4 0L-1.2 -1.2Z" fill="#F57025"/><path class="fbs-sp s2" transform="translate(54 10)" d="M0 -4L1.2 -1.2L4 0L1.2 1.2L0 4L-1.2 1.2L-4 0L-1.2 -1.2Z" fill="#f7b500"/><path class="fbs-sp s3" transform="translate(56 38)" d="M0 -4L1.2 -1.2L4 0L1.2 1.2L0 4L-1.2 1.2L-4 0L-1.2 -1.2Z" fill="#F57025"/></g><g transform="translate(9 -9)"><g class="fbs-pill fbs-p3"><rect width="46" height="12" rx="6" fill="#04529B"/><text x="23" y="8.6" fill="#fff">Published</text></g></g></svg><svg class="fbs-actor fbs-a4" viewBox="0 0 104 128" focusable="false"><g class="fbs-bd"><rect x="16" y="2" width="72" height="38" rx="4" fill="#071E3D"/><rect x="19" y="5" width="66" height="32" rx="2" fill="#EEF3FB"/><rect x="23" y="8" width="26" height="3" rx="1.5" fill="#c9d6ea"/><rect class="fbs-hb4" x="25" y="25" width="8" height="9" fill="#04529B"/><rect class="fbs-hb4 b2" x="36" y="17" width="8" height="17" fill="#F57025"/><rect class="fbs-hb4 b3" x="47" y="22" width="8" height="12" fill="#04529B"/><rect class="fbs-hb4 b4" x="58" y="14" width="8" height="20" fill="#F57025"/><circle cx="76" cy="22" r="6" fill="none" stroke="#c9d6ea" stroke-width="3"/><circle cx="76" cy="22" r="6" fill="none" stroke="#04529B" stroke-width="3" stroke-dasharray="24 14" stroke-dashoffset="9.4"/></g><g class="fbs-chk4"><circle cx="88" cy="4" r="7" fill="#1f9d63"/><path d="M84.4 4.2l2.5 2.5 4.6-5.2" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></g><g transform="translate(-4 32)"><rect x="24" y="64" width="7" height="28" rx="3" fill="#1b2845"/><rect x="33" y="64" width="7" height="28" rx="3" fill="#1b2845"/><ellipse cx="27" cy="93" rx="6" ry="3" fill="#0d1526"/><ellipse cx="37" cy="93" rx="6" ry="3" fill="#0d1526"/><rect x="20" y="36" width="24" height="32" rx="7" fill="#04529B"/><path d="M28 36H36L32 48Z" fill="#fff"/><path d="M32 46L30 58L32 62L34 58Z" fill="#F57025"/><path d="M22 42L17 58" stroke="#033C73" stroke-width="7.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M22 42L17 58" stroke="#04529B" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="16.5" cy="60.5" r="3.4" fill="#c68e63"/><g class="fbs-lk fbs-lk1"><circle cx="32" cy="24" r="10" fill="#c68e63"/><path d="M22 22C22 11 42 11 42 22C38 17 26 17 22 22Z" fill="#2a2a2a"/><circle cx="28" cy="25" r="3.3" fill="none" stroke="#071E3D" stroke-width="1"/><circle cx="36" cy="25" r="3.3" fill="none" stroke="#071E3D" stroke-width="1"/><path d="M31.3 25H32.7" stroke="#071E3D"/><circle cx="28" cy="24.6" r="1" fill="#1b1410"/><circle cx="36" cy="24.6" r="1" fill="#1b1410"/><path d="M28.5 30Q32 32.5 35.5 30" stroke="#7d4530" stroke-width="1.2" fill="none" stroke-linecap="round"/></g><path d="M42 42L46 54" stroke="#033C73" stroke-width="7.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M42 42L46 54" stroke="#04529B" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><rect x="34" y="46" width="16" height="20" rx="2" fill="#071E3D"/><rect x="35.5" y="48" width="13" height="16" rx="1" fill="#EEF3FB"/><rect x="37" y="58" width="3" height="4" fill="#04529B"/><rect x="42" y="52" width="3" height="10" fill="#F57025"/><rect x="46.5" y="55" width="3" height="7" fill="#04529B"/><circle cx="46" cy="55" r="3" fill="#c68e63"/></g><g transform="translate(44 32)"><rect x="24" y="64" width="7" height="28" rx="3" fill="#26304d"/><rect x="33" y="64" width="7" height="28" rx="3" fill="#26304d"/><ellipse cx="27" cy="93" rx="6" ry="3" fill="#0d1526"/><ellipse cx="37" cy="93" rx="6" ry="3" fill="#0d1526"/><rect x="20" y="36" width="24" height="32" rx="7" fill="#2b3454"/><path d="M28 36H36L32 48Z" fill="#fff"/><path d="M32 46L30 58L32 62L34 58Z" fill="#F57025"/><path d="M27 37L32 55L37 37" stroke="#F57025" stroke-width="1.5" fill="none" stroke-linejoin="round"/><rect x="29.5" y="54" width="5" height="7" rx="1" fill="#fff" stroke="#F57025"/><g class="fbs-pt"><path d="M21 42L11 25" stroke="#1c2440" stroke-width="7.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M21 42L11 25" stroke="#2b3454" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="10" cy="22.5" r="3.4" fill="#a96f48"/></g><path d="M43 42L47 58" stroke="#1c2440" stroke-width="7.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/><path d="M43 42L47 58" stroke="#2b3454" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><circle cx="47.5" cy="60.5" r="3.4" fill="#a96f48"/><g class="fbs-lk fbs-lk2"><circle cx="32" cy="24" r="10" fill="#a96f48"/><path d="M22 23C21 11 43 11 42 23C38 18 26 18 22 23Z" fill="#d3d8e0"/><circle cx="28" cy="24.8" r="1.2" fill="#1b1410"/><circle cx="36" cy="24.8" r="1.2" fill="#1b1410"/><path d="M28.5 30Q32 32.5 35.5 30" stroke="#5c3320" stroke-width="1.2" fill="none" stroke-linecap="round"/></g></g><text class="fbs-nm" x="28" y="140">HOD</text><text class="fbs-nm" x="76" y="140">DEAN</text><g transform="translate(30 -15)"><g class="fbs-pill fbs-p4"><rect width="44" height="12" rx="6" fill="#071E3D"/><text x="22" y="8.6" fill="#fff">Follow up</text></g></g></svg><div class="fbs-walker"><svg class="fbs-token" viewBox="0 0 40 40" focusable="false"><g class="fbs-tokin"><g class="fbs-e1"><rect x="5" y="10" width="30" height="21" rx="3" fill="#fff" stroke="#F57025" stroke-width="2"/><path d="M5 12L20 23L35 12" fill="none" stroke="#F57025" stroke-width="2" stroke-linejoin="round"/></g><g class="fbs-e2"><rect x="9" y="5" width="22" height="29" rx="3" fill="#fff" stroke="#04529B" stroke-width="2"/><rect x="13" y="21" width="4" height="8" fill="#04529B"/><rect x="19" y="14" width="4" height="15" fill="#F57025"/><rect x="25" y="18" width="4" height="11" fill="#04529B"/><circle cx="31" cy="7" r="6" fill="#1f9d63"/><path d="M28 7l2 2 3.5-4" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></g></g></svg></div></div></div>
     <ol class="steps">
       <li>
-        <span class="step-mark" aria-hidden="true">1</span>
         <h3>Students answer</h3>
         <p>Every student gets a form for each subject and faculty member, and answers it without a name attached.</p>
       </li>
       <li>
-        <span class="step-mark" aria-hidden="true">2</span>
         <h3>Results are compiled</h3>
         <p>Ratings and comments are grouped by subject, faculty member and department.</p>
       </li>
       <li>
-        <span class="step-mark" aria-hidden="true">3</span>
         <h3>Faculty see published results</h3>
         <p>Results reach faculty only after the form is published, so nothing arrives half-counted.</p>
       </li>
       <li>
-        <span class="step-mark" aria-hidden="true">4</span>
         <h3>Departments follow up</h3>
         <p>HODs and the Dean review results across departments and decide what needs attention.</p>
       </li>
     </ol>
-    <div class="fbs" aria-hidden="true"><div class="fbs-line"></div><div class="fbs-track"><svg class="fbs-actor fbs-a1" viewBox="0 0 64 96" focusable="false"><g class="fbs-stu">
-<rect x="13" y="38" width="10" height="26" rx="4" fill="#F57025"/>
-<rect x="24" y="64" width="7" height="28" rx="3" fill="#2c3d63"/><rect x="33" y="64" width="7" height="28" rx="3" fill="#34487a"/>
-<ellipse cx="27" cy="93" rx="6" ry="3" fill="#fff" stroke="#c4ccd9"/><ellipse cx="37" cy="93" rx="6" ry="3" fill="#fff" stroke="#c4ccd9"/>
-<rect x="21" y="36" width="22" height="32" rx="8" fill="#e9f0fb" stroke="#b9c9e2"/>
-<path d="M24 42L19 58" stroke="#e9f0fb" stroke-width="6" stroke-linecap="round"/><circle cx="19" cy="60" r="3.4" fill="#d9a37a"/>
-<circle cx="32" cy="24" r="10" fill="#d9a37a"/><path d="M22 22C22 11 42 11 42 22C38 17 26 17 22 22Z" fill="#1b1410"/>
-<circle cx="28" cy="26" r="1.2" fill="#1b1410"/><circle cx="36" cy="26" r="1.2" fill="#1b1410"/><path d="M28.5 30Q32 33 35.500 30" stroke="#8a4f33" stroke-width="1.2" fill="none" stroke-linecap="round"/>
-<path d="M41 42L43 54L38 55" stroke="#e9f0fb" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-<rect x="29" y="44" width="10" height="16" rx="2" fill="#071E3D"/><rect class="fbs-scr" x="30.500" y="46" width="7" height="11" rx="1" fill="#04529B"/><circle cx="39" cy="56" r="3" fill="#d9a37a"/>
-<g class="fbs-ring" fill="none" stroke="#04529B" stroke-width="1.2" stroke-linecap="round"><path d="M30 41Q34 37 38 41"/><path d="M27 38Q34 31 41 38"/></g></g>
-<g transform="translate(38 4)"><g class="fbs-pill fbs-p1"><rect width="26" height="12" rx="6" fill="#1f9d63"/><text x="13.0" y="8.6" fill="#fff">Sent</text></g></g></svg><svg class="fbs-actor fbs-a2" viewBox="0 0 64 96" focusable="false">
-<rect x="24" y="64" width="7" height="28" rx="3" fill="#1b2845"/><rect x="33" y="64" width="7" height="28" rx="3" fill="#1b2845"/>
-<ellipse cx="27" cy="93" rx="6" ry="3" fill="#0d1526"/><ellipse cx="37" cy="93" rx="6" ry="3" fill="#0d1526"/>
-<rect x="20" y="36" width="24" height="32" rx="7" fill="#04529B"/><path d="M28 36H36L32 48Z" fill="#fff"/><path d="M32 46L30 58L32 62L34 58Z" fill="#F57025"/>
-<g class="fbs-harm"><path d="M22 42L16 58" stroke="#04529B" stroke-width="6" stroke-linecap="round"/><circle cx="16" cy="60" r="3.4" fill="#c68e63"/></g>
-<circle cx="32" cy="24" r="10" fill="#c68e63"/><path d="M22 22C22 11 42 11 42 22C38 17 26 17 22 22Z" fill="#2a2a2a"/>
-<circle cx="28" cy="25.500" r="3.300" fill="none" stroke="#071E3D" stroke-width="1"/><circle cx="36" cy="25.500" r="3.300" fill="none" stroke="#071E3D" stroke-width="1"/><path d="M31.300 25.500H32.700" stroke="#071E3D"/>
-<circle cx="28" cy="25.500" r="1" fill="#1b1410"/><circle cx="36" cy="25.500" r="1" fill="#1b1410"/><path d="M28.500 30Q32 32.500 35.500 30" stroke="#7d4530" stroke-width="1.200" fill="none" stroke-linecap="round"/>
-<path d="M42 42L46 54" stroke="#04529B" stroke-width="6" stroke-linecap="round"/>
-<rect x="34" y="46" width="16" height="20" rx="2" fill="#071E3D"/><rect x="35.500" y="48" width="13" height="16" rx="1" fill="#EEF3FB"/>
-<rect class="fbs-hb" x="37" y="58" width="3" height="4" fill="#04529B"/><rect class="fbs-hb fbs-b2" x="42" y="52" width="3" height="10" fill="#F57025"/><rect class="fbs-hb fbs-b3" x="46.500" y="55" width="3" height="7" fill="#04529B"/>
-<circle cx="46" cy="55" r="3" fill="#c68e63"/>
-<g transform="translate(30 0)"><g class="fbs-pill fbs-p2"><rect width="36" height="12" rx="6" fill="#F57025"/><text x="18.0" y="8.6" fill="#fff">Published</text></g></g></svg><svg class="fbs-actor fbs-a3" viewBox="0 0 64 96" focusable="false"><g class="fbs-fhop">
-<path d="M21 24C19 6 45 6 43 24L44 42H20Z" fill="#1b1410"/>
-<rect x="24" y="64" width="7" height="28" rx="3" fill="#2c3d63"/><rect x="33" y="64" width="7" height="28" rx="3" fill="#2c3d63"/>
-<ellipse cx="27" cy="93" rx="6" ry="3" fill="#3a2a22"/><ellipse cx="37" cy="93" rx="6" ry="3" fill="#3a2a22"/>
-<rect x="20" y="36" width="24" height="32" rx="8" fill="#6c8ebf"/>
-<path d="M23 42L27 58M41 42L37 58" stroke="#6c8ebf" stroke-width="6" stroke-linecap="round"/>
-<g class="fbs-fpage"><rect x="24" y="46" width="16" height="19" rx="2" fill="#fff" stroke="#04529B"/><rect x="27" y="57" width="3" height="5" fill="#04529B"/><rect x="31" y="52" width="3" height="10" fill="#F57025"/><rect x="35" y="55" width="3" height="7" fill="#04529B"/></g>
-<circle cx="27" cy="60" r="3.2" fill="#d9a37a"/><circle cx="37" cy="60" r="3.2" fill="#d9a37a"/>
-<circle cx="32" cy="24" r="10" fill="#d9a37a"/><path d="M22 22C22 10 42 10 42 22C37 15 27 15 22 22Z" fill="#1b1410"/>
-<circle cx="28" cy="25.500" r="1.200" fill="#1b1410"/><circle cx="36" cy="25.500" r="1.200" fill="#1b1410"/>
-<path class="fbs-fN" d="M29 30.500H35" stroke="#8a4f33" stroke-width="1.200" stroke-linecap="round"/>
-<path class="fbs-fH" d="M27.500 29Q32 35.500 36.500 29Z" fill="#fff" stroke="#8a4f33" stroke-width="1.100" stroke-linejoin="round"/>
-<circle class="fbs-blush" cx="25" cy="29" r="2" fill="#e8806f" opacity=".4"/><circle class="fbs-blush" cx="39" cy="29" r="2" fill="#e8806f" opacity=".4"/>
-<path class="fbs-sp" transform="translate(12 14)" d="M0 -4L1.2 -1.2L4 0L1.2 1.2L0 4L-1.2 1.2L-4 0L-1.2 -1.2Z" fill="#F57025"/><path class="fbs-sp fbs-s2" transform="translate(54 10)" d="M0 -4L1.2 -1.2L4 0L1.2 1.2L0 4L-1.2 1.2L-4 0L-1.2 -1.2Z" fill="#f7b500"/><path class="fbs-sp fbs-s3" transform="translate(56 38)" d="M0 -4L1.2 -1.2L4 0L1.2 1.2L0 4L-1.2 1.2L-4 0L-1.2 -1.2Z" fill="#F57025"/></g></svg><svg class="fbs-actor fbs-a4" viewBox="0 0 64 96" focusable="false"><g class="fbs-bld">
-<path d="M32 30V12" stroke="#071E3D" stroke-width="1.500"/><path class="fbs-flag" d="M32 12L46 16L32 20Z" fill="#F57025"/>
-<path d="M4 50L32 28L60 50Z" fill="#04529B"/><rect x="8" y="50" width="48" height="42" fill="#EEF3FB" stroke="#04529B" stroke-width="2"/>
-<rect class="fbs-win" x="13" y="56" width="10" height="10" rx="1"/><rect class="fbs-win" x="27" y="56" width="10" height="10" rx="1"/><rect class="fbs-win" x="41" y="56" width="10" height="10" rx="1"/>
-<rect class="fbs-win" x="13" y="72" width="10" height="10" rx="1"/><rect class="fbs-win" x="41" y="72" width="10" height="10" rx="1"/>
-<rect x="26" y="74" width="12" height="18" rx="1" fill="#071E3D"/></g>
-<g transform="translate(10 -2)"><g class="fbs-pill fbs-p4"><rect width="44" height="12" rx="6" fill="#04529B"/><text x="22.0" y="8.6" fill="#fff">Follow up</text></g></g></svg><div class="fbs-walker"><svg class="fbs-token" viewBox="0 0 40 40" focusable="false"><g class="fbs-tokin">
-<g class="fbs-e1"><rect x="5" y="10" width="30" height="21" rx="3" fill="#fff" stroke="#F57025" stroke-width="2"/><path d="M5 12L20 23L35 12" fill="none" stroke="#F57025" stroke-width="2" stroke-linejoin="round"/></g>
-<g class="fbs-e2"><rect x="9" y="5" width="22" height="29" rx="3" fill="#fff" stroke="#04529B" stroke-width="2"/><rect x="13" y="21" width="4" height="8" fill="#04529B"/><rect x="19" y="14" width="4" height="15" fill="#F57025"/><rect x="25" y="18" width="4" height="11" fill="#04529B"/><circle cx="31" cy="7" r="6" fill="#1f9d63"/><path d="M28 7l2 2 3.500-4" fill="none" stroke="#fff" stroke-width="1.800" stroke-linecap="round" stroke-linejoin="round"/></g>
-</g></svg></div></div></div>
+
   </div>
 </section>
 
@@ -369,10 +346,22 @@
     label.textContent = bubbles[i].getAttribute('data-label');
     idle.hidden = true;
     body.hidden = false;
-    // Slam the stamp down. Remove and re-add the class so every pick replays it.
+    stamp();
+  }
+
+  // Slam the stamp down. Remove and re-add the class so every call replays it.
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var loop = null;
+  function stamp() {
     sheet.classList.remove('is-stamped');
     void sheet.offsetWidth;
     sheet.classList.add('is-stamped');
+    // Replay the stamp every 5 seconds. A new pick restarts the 5 second count.
+    if (calm) return;
+    clearInterval(loop);
+    loop = setInterval(function () {
+      if (!document.hidden && body.hidden === false) stamp();
+    }, 5000);
   }
 
   bubbles.forEach(function (b, i) {
@@ -391,7 +380,6 @@
   });
 
   // One page-load moment: the sheet fills in a sample answer to show what it does.
-  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (!calm) {
     setTimeout(function () { if (!touched) pick(3); }, 1100);
   }
