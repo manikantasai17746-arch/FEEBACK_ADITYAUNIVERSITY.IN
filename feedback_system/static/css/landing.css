@@ -387,3 +387,47 @@ body.lp-login-open { overflow: hidden; }
 .pw-eye[aria-pressed="true"] .pupil { transform: scale(.55); }
 .pw-eye:hover .lid, .pw-eye.blink .lid { animation: lpBlink .45s ease; }
 @keyframes lpBlink { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.1); } }
+
+/* ---------- Answer sheet: "Anonymous feedback" stamp slams down on a pick ---------- */
+.sheet .stamp {
+  position: absolute; right: 18px; bottom: 14px; width: 112px; height: 112px;
+  pointer-events: none; mix-blend-mode: multiply; transform-origin: 50% 50%;
+  opacity: 0; transform: rotate(-21deg);
+}
+.sheet .stamp svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.sheet .stamp-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 3px solid #0b2f6b; opacity: 0;
+}
+/* keep the receipt text clear of the stamp */
+.sheet .receipt-body { grid-template-columns: 1fr 1fr 104px; }
+
+.sheet.is-stamped .stamp { animation: stamp-slam .6s cubic-bezier(.2, .8, .25, 1) forwards; }
+.sheet.is-stamped .stamp-ring { animation: stamp-ripple .7s ease-out .22s forwards; }
+.sheet.is-stamped { animation: sheet-thud .5s ease-out .2s; }
+
+@keyframes stamp-slam {
+  0%   { opacity: 0;   transform: translate(-26px, -64px) scale(2.3) rotate(-40deg); }
+  55%  { opacity: 1;   transform: translate(0, 0) scale(.92) rotate(-24deg); }
+  75%  { opacity: .95; transform: translate(0, 0) scale(1.05) rotate(-21deg); }
+  100% { opacity: .9;  transform: translate(0, 0) scale(1) rotate(-21deg); }
+}
+@keyframes stamp-ripple {
+  0%   { opacity: .55; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.5); }
+}
+@keyframes sheet-thud {
+  0%, 100% { transform: none; }
+  30% { transform: translateY(4px); }
+  60% { transform: translateY(-2px); }
+}
+
+@media (max-width: 520px) {
+  .sheet .stamp { width: 84px; height: 84px; right: 10px; bottom: 10px; }
+  .sheet .receipt-body { grid-template-columns: 1fr 1fr; }
+  .sheet .receipt { padding-bottom: 3.4rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet.is-stamped, .sheet.is-stamped .stamp-ring { animation: none; }
+  .sheet.is-stamped .stamp { animation: none; opacity: .9; }
+}
