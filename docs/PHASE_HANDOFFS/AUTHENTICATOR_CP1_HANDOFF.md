@@ -124,3 +124,27 @@ Enrollment (Checkpoint 2) must:
 3. Refuse enrollment from ID-card scan-login sessions.
 4. Send a notification to the student's registered email after successful enrollment.
 5. Never use email alone as an authenticator reset mechanism. Recovery is backup codes or an audited Admin reset.
+
+## 14. Checkpoint 1.2 (M2: atomic lockout counter)
+
+- **Root cause:** `security.register_login_failure` read the row, computed the next count in
+  Python, then wrote it back. Concurrent failures overwrote each other, so attempts could
+  exceed the limit. Separately, the OTP path checked the lock, verified the code, and only then
+  recorded the failure, so requests that arrived together could all pass the check.
+- **Fix:** the counter is now a few single-statement operations (`security._SQL_*`): ensure the
+  row, reset an expired window, `fail_count = fail_count + 1`, lock at the threshold. Increments
+  are evaluated by the database on the current row. The OTP path calls
+  `security.reserve_login_attempt` before any code is checked. Each attempt is counted when it is
+  made while the account is unlocked; attempts refused during a lockout are not counted, so they
+  cannot extend it. At most `OTP_MAX_ATTEMPTS` attempts are allowed per window.
+- **Policy unchanged:** 5 failures in 15 minutes lock for 15 minutes; success clears the count.
+  Password-login behaviour is unchanged apart from the atomic counting.
+- **SQLite and PostgreSQL:** the SQL uses only `ON CONFLICT ... DO NOTHING`, conditional single
+  updates, and `?` placeholders, which the project's wrapper converts to `%s`. A test translates
+  every counter statement with `pg.to_postgres`. On PostgreSQL, the `UPDATE ... fail_count+1`
+  re-reads the latest row version after waiting for the row lock. PostgreSQL execution was not run.
+- **Limitation:** under heavy concurrency an attempt can be refused although it could have been
+  allowed (conservative), but never allowed beyond the limit. When the database is unreachable, the
+  existing per-instance in-memory fallback applies, as before.
+- **Tests:** `tests/test_login_lockout_atomic.py` (16 tests, real threads). Mutation checks: a
+  non-atomic increment fails 2 concurrency tests; a reservation that counts nothing fails 6 tests.

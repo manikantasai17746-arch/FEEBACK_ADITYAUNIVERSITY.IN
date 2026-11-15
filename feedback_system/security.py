@@ -332,38 +332,90 @@ def login_locked(key):
         return _mem_locked(key)
 
 
-def register_login_failure(key, max_attempts, lock_seconds, window_seconds=900):
-    """Count a failed login. Old failures stop counting after ``window_seconds``."""
+# Atomic lockout counter (M2).  Every statement below is a single database
+# operation, so concurrent requests cannot overwrite each other's increments:
+# ``fail_count = fail_count + 1`` is evaluated by the database on the current row
+# (SQLite serialises writers; PostgreSQL re-evaluates the UPDATE on the latest row
+# after waiting for the row lock).  Only SQL that runs on both databases is used.
+_SQL_ENSURE_ROW = ('INSERT INTO login_attempts(attempt_key, fail_count, first_ts, until_ts) '
+                   'VALUES(?,0,?,0) ON CONFLICT(attempt_key) DO NOTHING')
+_SQL_RESET_EXPIRED = ('UPDATE login_attempts SET fail_count=0, first_ts=?, until_ts=0 '
+                      'WHERE attempt_key=? AND until_ts <= ? AND ? - first_ts > ?')
+_SQL_INCREMENT = 'UPDATE login_attempts SET fail_count=fail_count+1 WHERE attempt_key=?'
+# Reservation variant: counts only while the key is not locked, so attempts refused during
+# a lockout are not counted and cannot extend it.
+_SQL_INCREMENT_UNLOCKED = ('UPDATE login_attempts SET fail_count=fail_count+1 '
+                           'WHERE attempt_key=? AND until_ts <= ?')
+_SQL_READ = 'SELECT fail_count, until_ts FROM login_attempts WHERE attempt_key=?'
+_SQL_LOCK = ('UPDATE login_attempts SET fail_count=0, first_ts=?, until_ts=? '
+             'WHERE attempt_key=? AND fail_count >= ?')
+
+
+def _count_attempt(key, max_attempts, lock_seconds, window_seconds, respect_lock=False):
+    """Count one attempt atomically. Returns (count, until, now), or None.
+
+    ``count`` and ``until`` are read just after this attempt's increment and before
+    any lock is applied, so the caller can tell whether the attempt was within the
+    limit.  If the count has reached ``max_attempts`` the key is locked for
+    ``lock_seconds`` and the count is reset, as before.
+
+    With ``respect_lock`` (reservations) an attempt made while the key is locked is
+    not counted at all and None is returned.  Without it (password flows) every
+    failure is counted, as it always was.
+    """
     now = int(_now())
     k = _db_key(key)
+    db.execute(_SQL_ENSURE_ROW, (k, now))
+    db.execute(_SQL_RESET_EXPIRED, (now, k, now, now, window_seconds))
+    if respect_lock:
+        if db.execute(_SQL_INCREMENT_UNLOCKED, (k, now)).rowcount != 1:
+            return None                 # locked: refused, and not counted
+    else:
+        db.execute(_SQL_INCREMENT, (k,))
+    row = db.query(_SQL_READ, (k,), one=True)
+    count, until = int(row['fail_count']), int(row['until_ts'])
+    if count >= max_attempts:
+        db.execute(_SQL_LOCK, (now, now + lock_seconds, k, max_attempts))
+    if secrets.randbelow(50) == 0:      # occasional cleanup keeps the table small
+        db.execute('DELETE FROM login_attempts WHERE until_ts < ? AND first_ts < ?',
+                   (now, now - 4 * window_seconds))
+    return count, until, now
+
+
+def register_login_failure(key, max_attempts, lock_seconds, window_seconds=900):
+    """Count a failed login (password flows). Behaviour is unchanged from before M2:
+    failures older than ``window_seconds`` stop counting, and reaching
+    ``max_attempts`` locks the key for ``lock_seconds``. Only the counting is atomic."""
     try:
-        row = db.query('SELECT fail_count, first_ts, until_ts FROM login_attempts '
-                       'WHERE attempt_key=?', (k,), one=True)
-        if row is None or (int(row['until_ts']) <= now
-                           and now - int(row['first_ts']) > window_seconds):
-            count, first, until = 1, now, 0
-        else:
-            count, first, until = int(row['fail_count']) + 1, int(row['first_ts']), int(row['until_ts'])
-        if count >= max_attempts:
-            until, count, first = now + lock_seconds, 0, now
-        if row is None:
-            try:
-                db.execute('INSERT INTO login_attempts(attempt_key, fail_count, first_ts, until_ts) '
-                           'VALUES(?,?,?,?)', (k, count, first, until))
-            except Exception:
-                # Two simultaneous failures created the row first: update instead.
-                db.get_db().rollback()
-                db.execute('UPDATE login_attempts SET fail_count=?, first_ts=?, until_ts=? '
-                           'WHERE attempt_key=?', (count, first, until, k))
-        else:
-            db.execute('UPDATE login_attempts SET fail_count=?, first_ts=?, until_ts=? '
-                       'WHERE attempt_key=?', (count, first, until, k))
-        if secrets.randbelow(50) == 0:      # occasional cleanup keeps the table small
-            db.execute('DELETE FROM login_attempts WHERE until_ts < ? AND first_ts < ?',
-                       (now, now - 4 * window_seconds))
+        _count_attempt(key, max_attempts, lock_seconds, window_seconds)
     except Exception:
         logger.warning('login_attempts write failed; using in-memory lockout', exc_info=True)
         _mem_register(key, max_attempts, lock_seconds, window_seconds)
+
+
+def reserve_login_attempt(key, max_attempts, lock_seconds, window_seconds=900):
+    """Reserve one attempt BEFORE its code is checked. True if it may proceed.
+
+    Used by the OTP path.  Requests that arrive together each reserve an attempt
+    first, so no more than ``max_attempts`` attempts are allowed per window, however
+    many arrive at once.  An attempt is refused if the key is already locked, or if
+    its count is past the limit.  Under heavy concurrency an attempt can be refused
+    when it could have been allowed (the count it reads may already include later
+    attempts); it is never allowed beyond the limit.
+    """
+    try:
+        result = _count_attempt(key, max_attempts, lock_seconds, window_seconds,
+                                respect_lock=True)
+        if result is None:
+            return False
+        count, until, now = result
+        return until <= now and count <= max_attempts
+    except Exception:
+        logger.warning('login_attempts write failed; using in-memory lockout', exc_info=True)
+        if _mem_locked(key):
+            return False
+        _mem_register(key, max_attempts, lock_seconds, window_seconds)
+        return True
 
 
 def clear_login_failures(key):

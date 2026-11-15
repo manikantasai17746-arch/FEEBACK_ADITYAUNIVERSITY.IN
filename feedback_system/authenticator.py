@@ -25,7 +25,7 @@ from flask import current_app
 
 from . import db
 from .security import (clear_login_failures, hash_password, login_locked,
-                       register_login_failure, verify_password)
+                       reserve_login_attempt, verify_password)
 
 TOTP_STEP_SECONDS = 30
 TOTP_DRIFT_STEPS = 1                 # accept previous, current and next step
@@ -190,16 +190,15 @@ def confirm_enrollment(user_id, code, now=None):
     The confirming time step is recorded as used, so the same code cannot be
     replayed at login straight after setup. Rate limited (see body).
     """
-    # M1: same DB-backed lockout as verify_second_factor. A locked account is refused
-    # before any code is checked; each wrong code is counted; success clears the count.
-    if otp_locked_seconds(user_id):
-        return False
+    # M1/M2: same reserve-before-verify lockout as verify_second_factor. A missing or
+    # non-pending row is refused before anything is counted.
     row = _row(user_id)
     if row is None or row['status'] != 'pending':
         return False
+    if not reserve_otp_attempt(user_id):
+        return False
     step = verify_totp(decrypt_secret(row['secret_enc']), code, last_step=None, now=now)
     if step is None:
-        record_otp_failure(user_id)
         return False
     stamp = _now_iso()
     cur = db.execute(
@@ -272,11 +271,16 @@ def otp_locked_seconds(user_id):
     return login_locked(_otp_key(user_id))
 
 
-def record_otp_failure(user_id):
-    register_login_failure(_otp_key(user_id),
-                           int(current_app.config.get('OTP_MAX_ATTEMPTS', 5)),
-                           int(current_app.config.get('OTP_LOCKOUT_SECONDS', 900)),
-                           window_seconds=FAILURE_WINDOW_SECONDS)
+def reserve_otp_attempt(user_id):
+    """Reserve one second-factor attempt before its code is checked (M2).
+
+    Every attempt counts when it is made, so concurrent attempts cannot exceed the
+    limit. A successful attempt clears the count (clear_otp_failures).
+    """
+    return reserve_login_attempt(_otp_key(user_id),
+                                 int(current_app.config.get('OTP_MAX_ATTEMPTS', 5)),
+                                 int(current_app.config.get('OTP_LOCKOUT_SECONDS', 900)),
+                                 window_seconds=FAILURE_WINDOW_SECONDS)
 
 
 def clear_otp_failures(user_id):
@@ -290,14 +294,17 @@ def verify_second_factor(user_id, code, now=None):
     """Check a TOTP or backup code for an enrolled student. Returns (ok, reason).
 
     Reasons: ``totp`` / ``backup`` (success), ``locked``, ``not_enrolled``,
-    ``invalid``.  Order: rate limit, then TOTP with replay protection, then
-    backup code.  Every failure counts toward the lockout.
+    ``invalid``.  Order (M2): not-enrolled is checked first and is not counted;
+    then the attempt is RESERVED (which refuses if the account is locked or the
+    limit is used up); only then is the code checked (TOTP with replay protection,
+    then backup code).  A success clears the count; every other attempt stays
+    counted.
     """
-    if otp_locked_seconds(user_id):
-        return False, 'locked'
     row = _row(user_id)
     if row is None or row['status'] != 'active':
         return False, 'not_enrolled'
+    if not reserve_otp_attempt(user_id):
+        return False, 'locked'
     text = str(code or '').strip()
     step = verify_totp(decrypt_secret(row['secret_enc']), text,
                        last_step=row['last_step'], now=now)
@@ -308,5 +315,4 @@ def verify_second_factor(user_id, code, now=None):
     elif len(_normalise_code(text)) == BACKUP_CODE_LENGTH and consume_backup_code(user_id, text):
         clear_otp_failures(user_id)
         return True, 'backup'
-    record_otp_failure(user_id)
     return False, 'invalid'
