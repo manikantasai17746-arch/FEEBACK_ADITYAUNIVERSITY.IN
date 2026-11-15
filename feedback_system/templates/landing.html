@@ -152,6 +152,22 @@
           </div>
         </div>
       </div>
+      <div class="stamp" aria-hidden="true">
+        <div class="stamp-ring"></div>
+        <svg viewBox="0 0 200 200" focusable="false">
+          <defs>
+            <path id="stTop" d="M28,100 a72,72 0 0,1 144,0"/>
+            <path id="stBot" d="M20,100 a80,80 0 0,0 160,0"/>
+          </defs>
+          <circle cx="100" cy="100" r="94" fill="none" stroke="#0b2f6b" stroke-width="5"/>
+          <circle cx="100" cy="100" r="86" fill="none" stroke="#0b2f6b" stroke-width="1.5"/>
+          <circle cx="100" cy="100" r="52" fill="#fff" stroke="#f26f21" stroke-width="3"/>
+          <text font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="15" letter-spacing="1.6" fill="#0b2f6b"><textPath href="#stTop" startOffset="50%" text-anchor="middle">ADITYA UNIVERSITY</textPath></text>
+          <text font-family="Arial,sans-serif" font-weight="800" font-size="11" letter-spacing="1.8" fill="#f26f21"><textPath href="#stBot" startOffset="50%" text-anchor="middle">ANONYMOUS FEEDBACK</textPath></text>
+          <text x="12" y="106" font-size="13" fill="#0b2f6b">&#9733;</text><text x="176" y="106" font-size="13" fill="#0b2f6b">&#9733;</text>
+          <image href="{{ url_for('static', filename='img/aditya-emblem.png') }}" x="72" y="72" width="56" height="58" preserveAspectRatio="xMidYMid meet"/>
+        </svg>
+      </div>
     </div>
   </div>
 </section>
@@ -334,7 +350,8 @@
 </footer>
 
 <script nonce="{{ csp_nonce }}">
-// Sample answer sheet in the hero: picking a bubble shows what is saved.
+// Sample answer sheet in the hero: picking a bubble shows what is saved
+// and stamps the sheet "Anonymous feedback".
 (function () {
   var sheet = document.getElementById('demo');
   if (!sheet) return;
@@ -352,6 +369,10 @@
     label.textContent = bubbles[i].getAttribute('data-label');
     idle.hidden = true;
     body.hidden = false;
+    // Slam the stamp down. Remove and re-add the class so every pick replays it.
+    sheet.classList.remove('is-stamped');
+    void sheet.offsetWidth;
+    sheet.classList.add('is-stamped');
   }
 
   bubbles.forEach(function (b, i) {
