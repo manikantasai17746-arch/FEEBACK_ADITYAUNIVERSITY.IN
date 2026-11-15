@@ -123,9 +123,25 @@ body.lp-menu-open .lp-drawer {
 
 /* The answer sheet: the one memorable element */
 .sheet {
-  position: relative; background: #fff; border: 1px solid var(--line); border-radius: 10px;
-  padding: 1.7rem 1.6rem 1.5rem 2.8rem;
-  box-shadow: 0 1px 0 var(--line), 0 28px 50px -30px rgba(7,30,61,.4);
+  --cut: 54px;
+  position: relative; isolation: isolate;
+  padding: calc(1.7rem + 1px) calc(1.6rem + 1px) calc(1.5rem + 1px) calc(2.8rem + 1px);
+  filter: drop-shadow(0 1px 0 rgba(7,30,61,.06)) drop-shadow(0 22px 22px rgba(7,30,61,.2));
+}
+/* paper with the top-right corner cut off, folded over by .sheet-fold */
+.sheet::after {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: #fff; border: 1px solid var(--line); border-radius: 10px;
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%);
+}
+.sheet-fold {
+  position: absolute; top: 0; right: 0; width: var(--cut); height: var(--cut);
+  filter: drop-shadow(-3px 4px 3px rgba(7,30,61,.28)); pointer-events: none;
+}
+.sheet-fold i {
+  display: block; width: 100%; height: 100%;
+  background: linear-gradient(135deg, #aebcd6 0%, #eef2f9 62%);
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
 }
 /* OMR timing marks down the left edge */
 .sheet::before {
@@ -182,26 +198,14 @@ body.lp-menu-open .lp-drawer {
 .block-title { margin: 0 0 .8rem; font: 700 clamp(1.8rem, 3.2vw, 2.6rem)/1.1 var(--display); letter-spacing: -.025em; text-wrap: balance; }
 .block-sub { margin: 0; max-width: 32rem; color: var(--muted); font-size: 1.08rem; }
 
-/* ---------- How it works (a real sequence, so it is numbered) ---------- */
+/* ---------- How it works (the animation above the steps replaces the step numbers) ---------- */
 .steps {
-  list-style: none; margin: 3rem 0 0; padding: 0;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 2rem;
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
 }
-.steps li { position: relative; padding-top: 3.4rem; }
-.step-mark {
-  position: absolute; top: 0; left: 0; z-index: 1;
-  width: 40px; height: 40px; border-radius: 50%;
-  display: grid; place-items: center;
-  background: var(--orange); border: 2px solid var(--ink);
-  font: 700 1rem/1 var(--display); color: var(--ink);
-}
-.steps li::after {
-  content: ""; position: absolute; top: 19px; left: 48px; right: -1.6rem;
-  border-top: 2px dashed var(--line);
-}
-.steps li:last-child::after { display: none; }
+.steps li { position: relative; padding: 0 1rem; text-align: center; }
 .steps h3 { margin: 0 0 .4rem; font: 650 1.2rem/1.25 var(--display); letter-spacing: -.01em; }
-.steps p { margin: 0; color: var(--muted); max-width: 17rem; }
+.steps p { margin: 0 auto; color: var(--muted); max-width: 17rem; }
 
 /* ---------- Privacy ---------- */
 .privacy { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 4rem; align-items: start; }
@@ -209,6 +213,52 @@ body.lp-menu-open .lp-drawer {
 .privacy-list > div { padding-left: 1.4rem; border-left: 4px solid var(--blue); }
 .privacy-list dt { font: 650 1.2rem/1.3 var(--display); letter-spacing: -.01em; margin-bottom: .35rem; }
 .privacy-list dd { margin: 0; color: var(--muted); max-width: 34rem; }
+
+/* Privacy entrance (plays once). The script adds .reveal-ready, then .is-in when the
+   section scrolls into view. Without the script, or with reduced motion, none of this
+   applies and the section renders exactly as above. Only opacity and transform animate,
+   so layout never shifts. The accent line is drawn by ::before in the same 4px spot as
+   the border, which turns transparent while the line grows. */
+@media (prefers-reduced-motion: no-preference) {
+  .privacy.reveal-ready {
+    --ease: cubic-bezier(.22, 1, .36, 1);
+    --dur: .95s;
+  }
+  /* hidden start state: applied instantly (no transition on this side) */
+  .privacy.reveal-ready .privacy-head h2,
+  .privacy.reveal-ready .privacy-head p,
+  .privacy.reveal-ready .privacy-list dt,
+  .privacy.reveal-ready .privacy-list dd { opacity: 0; transform: translateY(14px); }
+
+  .privacy.reveal-ready .privacy-list > div { position: relative; border-left-color: transparent; }
+  .privacy.reveal-ready .privacy-list > div::before {
+    content: ""; position: absolute; left: -4px; top: 0; bottom: 0; width: 4px;
+    background: var(--blue); transform: scaleY(0); transform-origin: top;
+  }
+  .privacy.reveal-ready .privacy-list > div:nth-child(1) { --d: .4s; }
+  .privacy.reveal-ready .privacy-list > div:nth-child(2) { --d: .65s; }
+  .privacy.reveal-ready .privacy-list > div:nth-child(3) { --d: .9s; }
+
+  /* revealed state: carries the transitions, so they only play on the way in */
+  .privacy.reveal-ready.is-in .privacy-head h2,
+  .privacy.reveal-ready.is-in .privacy-head p,
+  .privacy.reveal-ready.is-in .privacy-list dt,
+  .privacy.reveal-ready.is-in .privacy-list dd {
+    opacity: 1; transform: none;
+    transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .privacy.reveal-ready.is-in .privacy-head p { transition-delay: .2s; }
+  .privacy.reveal-ready.is-in .privacy-list > div::before {
+    transform: none; transition: transform var(--dur) var(--ease) var(--d);
+  }
+  .privacy.reveal-ready.is-in .privacy-list dt { transition-delay: calc(var(--d) + .15s); }
+  .privacy.reveal-ready.is-in .privacy-list dd { transition-delay: calc(var(--d) + .3s); }
+}
+@media print {
+  .privacy.reveal-ready .privacy-head h2, .privacy.reveal-ready .privacy-head p,
+  .privacy.reveal-ready .privacy-list dt, .privacy.reveal-ready .privacy-list dd { opacity: 1; transform: none; }
+  .privacy.reveal-ready .privacy-list > div::before { transform: none; }
+}
 
 /* ---------- Portals ---------- */
 .portals { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 4rem; align-items: start; }
@@ -260,10 +310,9 @@ body.lp-menu-open .lp-drawer {
   .hero-inner { grid-template-columns: 1fr; gap: 3rem; padding: 3rem 1.25rem 3.5rem; }
   .privacy, .portals { grid-template-columns: 1fr; gap: 2rem; }
   .portals-head { position: static; }
-  .steps { grid-template-columns: 1fr; gap: 0; margin-top: 2.2rem; }
-  .steps li { padding: 0 0 2rem 4rem; min-height: 40px; }
-  .steps li::after { top: 40px; bottom: 0; left: 19px; right: auto; border-top: 0; border-left: 2px dashed var(--line); }
-  .steps p { max-width: none; }
+  .steps { grid-template-columns: 1fr; margin-top: 1.4rem; }
+  .steps li { padding: 0 0 1.6rem; text-align: left; }
+  .steps p { margin: 0; max-width: none; }
   .lp-footer-inner { grid-template-columns: 1fr; gap: 2rem; }
 }
 @media (max-width: 760px) {
@@ -274,7 +323,7 @@ body.lp-menu-open .lp-drawer {
   .numbers-inner { padding: 3rem 1.25rem; }
 }
 @media (max-width: 520px) {
-  .sheet { padding: 1.4rem 1rem 1.2rem 2.2rem; }
+  .sheet { --cut: 42px; padding: 1.4rem 1rem 1.2rem 2.2rem; }
   .sheet::before { left: 11px; width: 7px; }
   .sheet-q { font-size: 1.2rem; }
   .bubble i { width: 36px; height: 36px; }
@@ -387,3 +436,117 @@ body.lp-login-open { overflow: hidden; }
 .pw-eye[aria-pressed="true"] .pupil { transform: scale(.55); }
 .pw-eye:hover .lid, .pw-eye.blink .lid { animation: lpBlink .45s ease; }
 @keyframes lpBlink { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.1); } }
+
+/* ---------- Answer sheet: "Anonymous feedback" stamp slams down on a pick ---------- */
+.sheet .stamp {
+  position: absolute; right: 18px; bottom: 14px; width: 112px; height: 112px;
+  pointer-events: none; mix-blend-mode: multiply; transform-origin: 50% 50%;
+  opacity: 0; transform: rotate(-21deg);
+}
+.sheet .stamp svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.sheet .stamp-ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  border: 3px solid #0b2f6b; opacity: 0;
+}
+/* keep the receipt text clear of the stamp */
+.sheet .receipt-body { grid-template-columns: 1fr 1fr 104px; }
+
+.sheet.is-stamped .stamp { animation: stamp-slam .6s cubic-bezier(.2, .8, .25, 1) forwards; }
+.sheet.is-stamped .stamp-ring { animation: stamp-ripple .7s ease-out .22s forwards; }
+.sheet.is-stamped { animation: sheet-thud .5s ease-out .2s; }
+
+@keyframes stamp-slam {
+  0%   { opacity: 0;   transform: translate(-26px, -64px) scale(2.3) rotate(-40deg); }
+  55%  { opacity: 1;   transform: translate(0, 0) scale(.92) rotate(-24deg); }
+  75%  { opacity: .95; transform: translate(0, 0) scale(1.05) rotate(-21deg); }
+  100% { opacity: .9;  transform: translate(0, 0) scale(1) rotate(-21deg); }
+}
+@keyframes stamp-ripple {
+  0%   { opacity: .55; transform: scale(1); }
+  100% { opacity: 0;   transform: scale(1.5); }
+}
+@keyframes sheet-thud {
+  0%, 100% { transform: none; }
+  30% { transform: translateY(4px); }
+  60% { transform: translateY(-2px); }
+}
+
+@media (max-width: 520px) {
+  .sheet .stamp { width: 84px; height: 84px; right: 10px; bottom: 10px; }
+  .sheet .receipt-body { grid-template-columns: 1fr 1fr; }
+  .sheet .receipt { padding-bottom: 3.4rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet.is-stamped, .sheet.is-stamped .stamp-ring { animation: none; }
+  .sheet.is-stamped .stamp { animation: none; opacity: .9; }
+}
+
+/* ---------- Portals: separate Sign in buttons, rail + arrow + focus blur ---------- */
+.role { position: relative; transition: background-color .3s, filter .35s, opacity .35s; }
+.role::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+  background: var(--role); transform: scaleY(0); transform-origin: top;
+  transition: transform .4s cubic-bezier(.22, 1, .36, 1);
+}
+.role:hover, .role:focus-within { background: color-mix(in srgb, var(--role) 7%, transparent); }
+.role:hover::before, .role:focus-within::before { transform: scaleY(1); }
+.role:hover .role-dot, .role:focus-within .role-dot { background: var(--role); }
+.role-go {
+  display: inline-flex; align-items: center; cursor: pointer;
+  font-family: var(--text); line-height: 1.2; color: var(--ink); background: transparent;
+  border: 1.5px solid var(--role);
+  transition: background-color .3s, color .3s, opacity .15s;
+}
+/* no transform on press: it would shrink the row-wide ::after click area */
+.role-go:active { opacity: .85; }
+/* the button's ::after stretches over the whole row, so the row is still one big click target */
+.role-go::after { content: ""; position: absolute; inset: 0; }
+.role-arrow { width: 0; opacity: 0; margin-left: 0; transition: width .3s, opacity .3s, margin .3s; }
+.role:hover .role-go, .role:focus-within .role-go { background: var(--role); color: #fff; }
+.role:hover .role-arrow, .role:focus-within .role-arrow { width: 15px; opacity: 1; margin-left: 6px; }
+/* blur the other rows while one is hovered or focused (hover devices only) */
+@media (hover: hover) {
+  .roles:hover .role:not(:hover) { filter: blur(2.5px); opacity: .45; }
+}
+.roles:has(:focus-visible) .role:not(:focus-within) { filter: blur(2.5px); opacity: .45; }
+@media (max-width: 520px) {
+  /* phones: keep the compact row, the button becomes an invisible full-row tap target */
+  .role .role-go { display: block; position: absolute; inset: 0; width: 100%; padding: 0; border: 0; border-radius: 0; font-size: 0; background: transparent; }
+  .role .role-go::after, .role-arrow { display: none; }
+  .role:hover, .role:focus-within { background: transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .role, .role::before, .role-go, .role-arrow { transition: none; }
+}
+
+/* ---------- Portals: role picture under the intro text (follows the hovered row) ---------- */
+.role-stage {
+  position: relative; margin-top: 1.8rem; max-width: 26rem; aspect-ratio: 1 / 1;
+  border-radius: 16px; overflow: hidden; border: 2px solid var(--ink);
+}
+.role-pane {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  opacity: 0; transform: scale(.96); transition: opacity .3s, transform .3s; pointer-events: none;
+}
+.role-pane.on { opacity: 1; transform: none; }
+.role-art {
+  display: block; width: 100%; height: 100%; object-fit: cover;
+  transform: translateY(14px) rotate(-4deg) scale(.9);
+  transition: transform .55s cubic-bezier(.34, 1.56, .64, 1);
+}
+.role-pane.on .role-art { transform: none; }
+.role-tag {
+  position: absolute; left: 12px; bottom: 12px; padding: .15rem .8rem;
+  background: #fff; color: var(--ink); border: 2px solid var(--ink); border-radius: 999px;
+  font: 600 .85rem/1.4 var(--text); box-shadow: 3px 3px 0 var(--ink); transform: rotate(-5deg);
+}
+/* single column or touch screens: no side space and no hover, so hide it */
+@media (max-width: 980px), (hover: none) { .role-stage { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .role-pane, .role-art { transition: none; }
+  .role-art, .role-pane.on .role-art { transform: none; }
+}
+
+/* While the ID scanner is open, step our layers out of its way */
+body.lp-scanning .lp-login-overlay { visibility: hidden; }
+body.lp-scanning .lp-header, body.lp-scanning .lp-drawer, body.lp-scanning .lp-drawer-backdrop { z-index: 0; }
