@@ -222,7 +222,7 @@ body.lp-menu-open .lp-drawer {
 @media (prefers-reduced-motion: no-preference) {
   .privacy.reveal-ready {
     --ease: cubic-bezier(.22, 1, .36, 1);
-    --dur: .65s;
+    --dur: .95s;
   }
   /* hidden start state: applied instantly (no transition on this side) */
   .privacy.reveal-ready .privacy-head h2,
@@ -235,9 +235,9 @@ body.lp-menu-open .lp-drawer {
     content: ""; position: absolute; left: -4px; top: 0; bottom: 0; width: 4px;
     background: var(--blue); transform: scaleY(0); transform-origin: top;
   }
-  .privacy.reveal-ready .privacy-list > div:nth-child(1) { --d: .25s; }
-  .privacy.reveal-ready .privacy-list > div:nth-child(2) { --d: .4s; }
-  .privacy.reveal-ready .privacy-list > div:nth-child(3) { --d: .55s; }
+  .privacy.reveal-ready .privacy-list > div:nth-child(1) { --d: .4s; }
+  .privacy.reveal-ready .privacy-list > div:nth-child(2) { --d: .65s; }
+  .privacy.reveal-ready .privacy-list > div:nth-child(3) { --d: .9s; }
 
   /* revealed state: carries the transitions, so they only play on the way in */
   .privacy.reveal-ready.is-in .privacy-head h2,
@@ -247,12 +247,12 @@ body.lp-menu-open .lp-drawer {
     opacity: 1; transform: none;
     transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
   }
-  .privacy.reveal-ready.is-in .privacy-head p { transition-delay: .12s; }
+  .privacy.reveal-ready.is-in .privacy-head p { transition-delay: .2s; }
   .privacy.reveal-ready.is-in .privacy-list > div::before {
     transform: none; transition: transform var(--dur) var(--ease) var(--d);
   }
-  .privacy.reveal-ready.is-in .privacy-list dt { transition-delay: calc(var(--d) + .1s); }
-  .privacy.reveal-ready.is-in .privacy-list dd { transition-delay: calc(var(--d) + .2s); }
+  .privacy.reveal-ready.is-in .privacy-list dt { transition-delay: calc(var(--d) + .15s); }
+  .privacy.reveal-ready.is-in .privacy-list dd { transition-delay: calc(var(--d) + .3s); }
 }
 @media print {
   .privacy.reveal-ready .privacy-head h2, .privacy.reveal-ready .privacy-head p,
