@@ -214,6 +214,52 @@ body.lp-menu-open .lp-drawer {
 .privacy-list dt { font: 650 1.2rem/1.3 var(--display); letter-spacing: -.01em; margin-bottom: .35rem; }
 .privacy-list dd { margin: 0; color: var(--muted); max-width: 34rem; }
 
+/* Privacy entrance (plays once). The script adds .reveal-ready, then .is-in when the
+   section scrolls into view. Without the script, or with reduced motion, none of this
+   applies and the section renders exactly as above. Only opacity and transform animate,
+   so layout never shifts. The accent line is drawn by ::before in the same 4px spot as
+   the border, which turns transparent while the line grows. */
+@media (prefers-reduced-motion: no-preference) {
+  .privacy.reveal-ready {
+    --ease: cubic-bezier(.22, 1, .36, 1);
+    --dur: .65s;
+  }
+  /* hidden start state: applied instantly (no transition on this side) */
+  .privacy.reveal-ready .privacy-head h2,
+  .privacy.reveal-ready .privacy-head p,
+  .privacy.reveal-ready .privacy-list dt,
+  .privacy.reveal-ready .privacy-list dd { opacity: 0; transform: translateY(14px); }
+
+  .privacy.reveal-ready .privacy-list > div { position: relative; border-left-color: transparent; }
+  .privacy.reveal-ready .privacy-list > div::before {
+    content: ""; position: absolute; left: -4px; top: 0; bottom: 0; width: 4px;
+    background: var(--blue); transform: scaleY(0); transform-origin: top;
+  }
+  .privacy.reveal-ready .privacy-list > div:nth-child(1) { --d: .25s; }
+  .privacy.reveal-ready .privacy-list > div:nth-child(2) { --d: .4s; }
+  .privacy.reveal-ready .privacy-list > div:nth-child(3) { --d: .55s; }
+
+  /* revealed state: carries the transitions, so they only play on the way in */
+  .privacy.reveal-ready.is-in .privacy-head h2,
+  .privacy.reveal-ready.is-in .privacy-head p,
+  .privacy.reveal-ready.is-in .privacy-list dt,
+  .privacy.reveal-ready.is-in .privacy-list dd {
+    opacity: 1; transform: none;
+    transition: opacity var(--dur) var(--ease), transform var(--dur) var(--ease);
+  }
+  .privacy.reveal-ready.is-in .privacy-head p { transition-delay: .12s; }
+  .privacy.reveal-ready.is-in .privacy-list > div::before {
+    transform: none; transition: transform var(--dur) var(--ease) var(--d);
+  }
+  .privacy.reveal-ready.is-in .privacy-list dt { transition-delay: calc(var(--d) + .1s); }
+  .privacy.reveal-ready.is-in .privacy-list dd { transition-delay: calc(var(--d) + .2s); }
+}
+@media print {
+  .privacy.reveal-ready .privacy-head h2, .privacy.reveal-ready .privacy-head p,
+  .privacy.reveal-ready .privacy-list dt, .privacy.reveal-ready .privacy-list dd { opacity: 1; transform: none; }
+  .privacy.reveal-ready .privacy-list > div::before { transform: none; }
+}
+
 /* ---------- Portals ---------- */
 .portals { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 4rem; align-items: start; }
 .portals-head { position: sticky; top: 100px; }
