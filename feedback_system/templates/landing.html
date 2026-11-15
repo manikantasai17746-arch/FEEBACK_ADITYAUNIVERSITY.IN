@@ -268,31 +268,31 @@
       <p class="block-sub">Students sign in with a roll number. Faculty, HODs and Deans use an employee code. Admins use an email address.</p>
     </div>
     <div class="roles">
-      <a class="role role-student js-open-login" href="#" data-role="student">
+      <div class="role role-student">
         <span class="role-dot" aria-hidden="true"></span>
         <span class="role-text"><strong>Student</strong><span>Give feedback, view status and track your submissions.</span></span>
-        <span class="role-go">Sign in</span>
-      </a>
-      <a class="role role-faculty js-open-login" href="#" data-role="teacher">
+        <button type="button" class="role-go js-open-login" data-role="student" aria-label="Sign in as Student">Sign in<svg class="role-arrow" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+      <div class="role role-faculty">
         <span class="role-dot" aria-hidden="true"></span>
         <span class="role-text"><strong>Faculty</strong><span>View published results, track performance and download reports.</span></span>
-        <span class="role-go">Sign in</span>
-      </a>
-      <a class="role role-hod js-open-login" href="#" data-role="hod">
+        <button type="button" class="role-go js-open-login" data-role="teacher" aria-label="Sign in as Faculty">Sign in<svg class="role-arrow" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+      <div class="role role-hod">
         <span class="role-dot" aria-hidden="true"></span>
         <span class="role-text"><strong>HOD</strong><span>Manage forms, view consolidated results and generate reports.</span></span>
-        <span class="role-go">Sign in</span>
-      </a>
-      <a class="role role-dean js-open-login" href="#" data-role="dean">
+        <button type="button" class="role-go js-open-login" data-role="hod" aria-label="Sign in as HOD">Sign in<svg class="role-arrow" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+      <div class="role role-dean">
         <span class="role-dot" aria-hidden="true"></span>
         <span class="role-text"><strong>Dean</strong><span>View college-wide results, monitor departments and generate insights.</span></span>
-        <span class="role-go">Sign in</span>
-      </a>
-      <a class="role role-admin js-open-login" href="#" data-role="admin">
+        <button type="button" class="role-go js-open-login" data-role="dean" aria-label="Sign in as Dean">Sign in<svg class="role-arrow" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
+      <div class="role role-admin">
         <span class="role-dot" aria-hidden="true"></span>
         <span class="role-text"><strong>Admin</strong><span>Manage users and data, configure academic settings and monitor system activity.</span></span>
-        <span class="role-go">Sign in</span>
-      </a>
+        <button type="button" class="role-go js-open-login" data-role="admin" aria-label="Sign in as Admin">Sign in<svg class="role-arrow" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      </div>
     </div>
   </div>
 </section>
