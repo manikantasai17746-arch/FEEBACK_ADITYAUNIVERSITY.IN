@@ -123,9 +123,25 @@ body.lp-menu-open .lp-drawer {
 
 /* The answer sheet: the one memorable element */
 .sheet {
-  position: relative; background: #fff; border: 1px solid var(--line); border-radius: 10px;
-  padding: 1.7rem 1.6rem 1.5rem 2.8rem;
-  box-shadow: 0 1px 0 var(--line), 0 28px 50px -30px rgba(7,30,61,.4);
+  --cut: 54px;
+  position: relative; isolation: isolate;
+  padding: calc(1.7rem + 1px) calc(1.6rem + 1px) calc(1.5rem + 1px) calc(2.8rem + 1px);
+  filter: drop-shadow(0 1px 0 rgba(7,30,61,.06)) drop-shadow(0 22px 22px rgba(7,30,61,.2));
+}
+/* paper with the top-right corner cut off, folded over by .sheet-fold */
+.sheet::after {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: #fff; border: 1px solid var(--line); border-radius: 10px;
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%);
+}
+.sheet-fold {
+  position: absolute; top: 0; right: 0; width: var(--cut); height: var(--cut);
+  filter: drop-shadow(-3px 4px 3px rgba(7,30,61,.28)); pointer-events: none;
+}
+.sheet-fold i {
+  display: block; width: 100%; height: 100%;
+  background: linear-gradient(135deg, #aebcd6 0%, #eef2f9 62%);
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
 }
 /* OMR timing marks down the left edge */
 .sheet::before {
@@ -182,26 +198,14 @@ body.lp-menu-open .lp-drawer {
 .block-title { margin: 0 0 .8rem; font: 700 clamp(1.8rem, 3.2vw, 2.6rem)/1.1 var(--display); letter-spacing: -.025em; text-wrap: balance; }
 .block-sub { margin: 0; max-width: 32rem; color: var(--muted); font-size: 1.08rem; }
 
-/* ---------- How it works (a real sequence, so it is numbered) ---------- */
+/* ---------- How it works (the animation above the steps replaces the step numbers) ---------- */
 .steps {
-  list-style: none; margin: 3rem 0 0; padding: 0;
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 2rem;
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 0;
 }
-.steps li { position: relative; padding-top: 3.4rem; }
-.step-mark {
-  position: absolute; top: 0; left: 0; z-index: 1;
-  width: 40px; height: 40px; border-radius: 50%;
-  display: grid; place-items: center;
-  background: var(--orange); border: 2px solid var(--ink);
-  font: 700 1rem/1 var(--display); color: var(--ink);
-}
-.steps li::after {
-  content: ""; position: absolute; top: 19px; left: 48px; right: -1.6rem;
-  border-top: 2px dashed var(--line);
-}
-.steps li:last-child::after { display: none; }
+.steps li { position: relative; padding: 0 1rem; text-align: center; }
 .steps h3 { margin: 0 0 .4rem; font: 650 1.2rem/1.25 var(--display); letter-spacing: -.01em; }
-.steps p { margin: 0; color: var(--muted); max-width: 17rem; }
+.steps p { margin: 0 auto; color: var(--muted); max-width: 17rem; }
 
 /* ---------- Privacy ---------- */
 .privacy { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 4rem; align-items: start; }
@@ -260,10 +264,9 @@ body.lp-menu-open .lp-drawer {
   .hero-inner { grid-template-columns: 1fr; gap: 3rem; padding: 3rem 1.25rem 3.5rem; }
   .privacy, .portals { grid-template-columns: 1fr; gap: 2rem; }
   .portals-head { position: static; }
-  .steps { grid-template-columns: 1fr; gap: 0; margin-top: 2.2rem; }
-  .steps li { padding: 0 0 2rem 4rem; min-height: 40px; }
-  .steps li::after { top: 40px; bottom: 0; left: 19px; right: auto; border-top: 0; border-left: 2px dashed var(--line); }
-  .steps p { max-width: none; }
+  .steps { grid-template-columns: 1fr; margin-top: 1.4rem; }
+  .steps li { padding: 0 0 1.6rem; text-align: left; }
+  .steps p { margin: 0; max-width: none; }
   .lp-footer-inner { grid-template-columns: 1fr; gap: 2rem; }
 }
 @media (max-width: 760px) {
@@ -274,7 +277,7 @@ body.lp-menu-open .lp-drawer {
   .numbers-inner { padding: 3rem 1.25rem; }
 }
 @media (max-width: 520px) {
-  .sheet { padding: 1.4rem 1rem 1.2rem 2.2rem; }
+  .sheet { --cut: 42px; padding: 1.4rem 1rem 1.2rem 2.2rem; }
   .sheet::before { left: 11px; width: 7px; }
   .sheet-q { font-size: 1.2rem; }
   .bubble i { width: 36px; height: 36px; }
