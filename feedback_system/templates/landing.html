@@ -678,7 +678,10 @@
   async function scanInto(fieldId, okId) {
     if (typeof openIdCardScanner !== 'function') return;
     var code;
+    // Hide the login modal (and lower the header) while the scanner is open so nothing covers it.
+    document.body.classList.add('lp-scanning');
     try { code = await openIdCardScanner(); } catch (e) { return; }
+    finally { document.body.classList.remove('lp-scanning'); }
     if (!code) return;
     var f = document.getElementById(fieldId);
     var ok = document.getElementById(okId);
