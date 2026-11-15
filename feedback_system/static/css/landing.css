@@ -546,3 +546,7 @@ body.lp-login-open { overflow: hidden; }
   .role-pane, .role-art { transition: none; }
   .role-art, .role-pane.on .role-art { transform: none; }
 }
+
+/* While the ID scanner is open, step our layers out of its way */
+body.lp-scanning .lp-login-overlay { visibility: hidden; }
+body.lp-scanning .lp-header, body.lp-scanning .lp-drawer, body.lp-scanning .lp-drawer-backdrop { z-index: 0; }
