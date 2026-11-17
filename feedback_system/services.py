@@ -524,6 +524,23 @@ def parse_auth_required(value):
     raise ValueError('auth_required must be 0 or 1')
 
 
+def auth_setting_problem(form_id, value):
+    """An error message if saving ``value`` would change a locked setting, else None.
+
+    Raises ValueError for an unrecognised value. A new form (no id) is never locked.
+    """
+    parsed = parse_auth_required(value)
+    if parsed is None or not form_id:
+        return None
+    row = db.query('SELECT status, auth_required, published_at FROM feedback_forms WHERE id=?',
+                   (form_id,), one=True)
+    if row is None or int(row['auth_required'] or 0) == parsed:
+        return None
+    if row['status'] != 'draft' or row['published_at']:
+        return 'Authentication Required is locked because this form has been published.'
+    return None
+
+
 def save_form(payload, questions, admin_id, form_id=None, session_ids=None):
     """Create or update a form and replace its questions.
 
@@ -2099,7 +2116,8 @@ def bulk_preview(filters, title_pattern=None):
             'to_create': len(to_create), 'sample': sample}
 
 
-def bulk_create_forms(filters, questions, title_pattern, status, admin_id, deadline_at=None):
+def bulk_create_forms(filters, questions, title_pattern, status, admin_id, deadline_at=None,
+                      auth_required=None):
     """Create one draft (or open) form per matching session for this round.
 
     A session is skipped only if it already has a form with the SAME title, so
@@ -2114,6 +2132,7 @@ def bulk_create_forms(filters, questions, title_pattern, status, admin_id, deadl
             skipped += 1
             continue
         payload = {
+            'auth_required': auth_required,
             'title': format_bulk_title(title_pattern, s),
             'instructions': 'Your responses are anonymous.',
             'academic_year_id': s['year_id'], 'semester_id': s['semester_id'],
