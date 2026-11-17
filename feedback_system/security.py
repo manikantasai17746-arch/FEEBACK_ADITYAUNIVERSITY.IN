@@ -7,7 +7,7 @@ import secrets
 import threading
 import time
 
-from flask import g, jsonify, redirect, request, session, url_for, abort
+from flask import abort, current_app, g, jsonify, redirect, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import db
@@ -43,6 +43,111 @@ def verify_password(stored_hash, plain):
         return check_password_hash(stored_hash, plain)
     except Exception:
         return False
+
+
+# --------------------------------------------------------------------------- #
+# Shared default student password (C1.1)
+#
+# Every imported student starts on one shared, publicly guessable password
+# (config ``DEFAULT_STUDENT_PASSWORD``).  A student still on it has NOT proved
+# they own the account, so they must replace it before using the portal.  The
+# value is never hard-coded here and never logged; detection works on the stored
+# hash, so it does not depend on the ``must_change_password`` column being right.
+# --------------------------------------------------------------------------- #
+_DEFAULT_MATCH_CACHE = {}
+_DEFAULT_MATCH_CACHE_MAX = 20000
+_DEFAULT_MATCH_LOCK = threading.Lock()
+
+
+def configured_student_default():
+    """The configured shared student password, or None when it is not usable.
+
+    "Not usable" = no app context, missing, not a string, or blank. Callers treat
+    None as "no default can be recognised" rather than guessing one.
+    """
+    try:
+        value = current_app.config.get('DEFAULT_STUDENT_PASSWORD')
+    except RuntimeError:              # called outside an application context
+        return None
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value
+
+
+def is_student_default_password(plain):
+    """True when the plaintext ``plain`` is the configured shared student password.
+
+    Used on a password a student is about to choose. Constant-time comparison.
+    """
+    default = configured_student_default()
+    if default is None or not isinstance(plain, str):
+        return False
+    return secrets.compare_digest(plain.encode('utf-8'), default.encode('utf-8'))
+
+
+def password_hash_matches_student_default(stored_hash):
+    """True when ``stored_hash`` verifies against the configured shared password.
+
+    Uses the normal password verifier (no plaintext comparison). Missing/blank/
+    malformed hashes and an unusable configuration all give False.
+
+    Verifying scrypt costs ~80 ms, so the answer is cached. The cache key is a
+    digest of BOTH the stored hash and the configured default, which makes the
+    cached value a pure function of its inputs: changing the configuration, or a
+    student changing their password, simply produces a different key. Neither the
+    hash nor the password is stored in the clear or logged.
+    """
+    default = configured_student_default()
+    if default is None or not stored_hash or not isinstance(stored_hash, str):
+        return False
+    key = hashlib.sha256(
+        stored_hash.encode('utf-8') + b'\x00' + default.encode('utf-8')).hexdigest()
+    cached = _DEFAULT_MATCH_CACHE.get(key)
+    if cached is not None:
+        return cached
+    result = bool(verify_password(stored_hash, default))
+    with _DEFAULT_MATCH_LOCK:
+        if len(_DEFAULT_MATCH_CACHE) >= _DEFAULT_MATCH_CACHE_MAX:
+            _DEFAULT_MATCH_CACHE.clear()          # bounded memory; just recomputes
+        _DEFAULT_MATCH_CACHE[key] = result
+    return result
+
+
+def student_has_default_password(user_id):
+    """True when ``user_id`` is a STUDENT whose stored hash is the shared default.
+
+    False for unknown users, non-students (teachers/HOD/Dean/admin are never
+    judged against the student default), users without a hash, and when the
+    default is not configured.
+    """
+    if not user_id:
+        return False
+    row = db.query('SELECT role, password_hash FROM users WHERE id=?', (user_id,), one=True)
+    if not row or row['role'] != 'student':
+        return False
+    return password_hash_matches_student_default(row['password_hash'])
+
+
+def student_password_change_required(user):
+    """Decide whether ``user`` (a current_user() dict) must change their password.
+
+    Students: yes when the ``must_change_password`` flag is set OR their stored
+    password is still the shared default. The flag alone is not trusted because
+    imported accounts can carry 0 with the default hash. When the default is
+    detected the flag is persisted, so the account stays forced even if the
+    configured default is later changed. Any other role: always False here (their
+    own rules live elsewhere).
+    """
+    if not user or user.get('role') != 'student':
+        return False
+    if user.get('must_change_password'):
+        return True
+    if not student_has_default_password(user.get('id')):
+        return False
+    db.execute("UPDATE users SET must_change_password=1 "
+               "WHERE id=? AND role='student' AND must_change_password=0", (user['id'],))
+    user['must_change_password'] = 1
+    return True
 
 
 # --------------------------------------------------------------------------- #
@@ -332,38 +437,90 @@ def login_locked(key):
         return _mem_locked(key)
 
 
-def register_login_failure(key, max_attempts, lock_seconds, window_seconds=900):
-    """Count a failed login. Old failures stop counting after ``window_seconds``."""
+# Atomic lockout counter (M2).  Every statement below is a single database
+# operation, so concurrent requests cannot overwrite each other's increments:
+# ``fail_count = fail_count + 1`` is evaluated by the database on the current row
+# (SQLite serialises writers; PostgreSQL re-evaluates the UPDATE on the latest row
+# after waiting for the row lock).  Only SQL that runs on both databases is used.
+_SQL_ENSURE_ROW = ('INSERT INTO login_attempts(attempt_key, fail_count, first_ts, until_ts) '
+                   'VALUES(?,0,?,0) ON CONFLICT(attempt_key) DO NOTHING')
+_SQL_RESET_EXPIRED = ('UPDATE login_attempts SET fail_count=0, first_ts=?, until_ts=0 '
+                      'WHERE attempt_key=? AND until_ts <= ? AND ? - first_ts > ?')
+_SQL_INCREMENT = 'UPDATE login_attempts SET fail_count=fail_count+1 WHERE attempt_key=?'
+# Reservation variant: counts only while the key is not locked, so attempts refused during
+# a lockout are not counted and cannot extend it.
+_SQL_INCREMENT_UNLOCKED = ('UPDATE login_attempts SET fail_count=fail_count+1 '
+                           'WHERE attempt_key=? AND until_ts <= ?')
+_SQL_READ = 'SELECT fail_count, until_ts FROM login_attempts WHERE attempt_key=?'
+_SQL_LOCK = ('UPDATE login_attempts SET fail_count=0, first_ts=?, until_ts=? '
+             'WHERE attempt_key=? AND fail_count >= ?')
+
+
+def _count_attempt(key, max_attempts, lock_seconds, window_seconds, respect_lock=False):
+    """Count one attempt atomically. Returns (count, until, now), or None.
+
+    ``count`` and ``until`` are read just after this attempt's increment and before
+    any lock is applied, so the caller can tell whether the attempt was within the
+    limit.  If the count has reached ``max_attempts`` the key is locked for
+    ``lock_seconds`` and the count is reset, as before.
+
+    With ``respect_lock`` (reservations) an attempt made while the key is locked is
+    not counted at all and None is returned.  Without it (password flows) every
+    failure is counted, as it always was.
+    """
     now = int(_now())
     k = _db_key(key)
+    db.execute(_SQL_ENSURE_ROW, (k, now))
+    db.execute(_SQL_RESET_EXPIRED, (now, k, now, now, window_seconds))
+    if respect_lock:
+        if db.execute(_SQL_INCREMENT_UNLOCKED, (k, now)).rowcount != 1:
+            return None                 # locked: refused, and not counted
+    else:
+        db.execute(_SQL_INCREMENT, (k,))
+    row = db.query(_SQL_READ, (k,), one=True)
+    count, until = int(row['fail_count']), int(row['until_ts'])
+    if count >= max_attempts:
+        db.execute(_SQL_LOCK, (now, now + lock_seconds, k, max_attempts))
+    if secrets.randbelow(50) == 0:      # occasional cleanup keeps the table small
+        db.execute('DELETE FROM login_attempts WHERE until_ts < ? AND first_ts < ?',
+                   (now, now - 4 * window_seconds))
+    return count, until, now
+
+
+def register_login_failure(key, max_attempts, lock_seconds, window_seconds=900):
+    """Count a failed login (password flows). Behaviour is unchanged from before M2:
+    failures older than ``window_seconds`` stop counting, and reaching
+    ``max_attempts`` locks the key for ``lock_seconds``. Only the counting is atomic."""
     try:
-        row = db.query('SELECT fail_count, first_ts, until_ts FROM login_attempts '
-                       'WHERE attempt_key=?', (k,), one=True)
-        if row is None or (int(row['until_ts']) <= now
-                           and now - int(row['first_ts']) > window_seconds):
-            count, first, until = 1, now, 0
-        else:
-            count, first, until = int(row['fail_count']) + 1, int(row['first_ts']), int(row['until_ts'])
-        if count >= max_attempts:
-            until, count, first = now + lock_seconds, 0, now
-        if row is None:
-            try:
-                db.execute('INSERT INTO login_attempts(attempt_key, fail_count, first_ts, until_ts) '
-                           'VALUES(?,?,?,?)', (k, count, first, until))
-            except Exception:
-                # Two simultaneous failures created the row first: update instead.
-                db.get_db().rollback()
-                db.execute('UPDATE login_attempts SET fail_count=?, first_ts=?, until_ts=? '
-                           'WHERE attempt_key=?', (count, first, until, k))
-        else:
-            db.execute('UPDATE login_attempts SET fail_count=?, first_ts=?, until_ts=? '
-                       'WHERE attempt_key=?', (count, first, until, k))
-        if secrets.randbelow(50) == 0:      # occasional cleanup keeps the table small
-            db.execute('DELETE FROM login_attempts WHERE until_ts < ? AND first_ts < ?',
-                       (now, now - 4 * window_seconds))
+        _count_attempt(key, max_attempts, lock_seconds, window_seconds)
     except Exception:
         logger.warning('login_attempts write failed; using in-memory lockout', exc_info=True)
         _mem_register(key, max_attempts, lock_seconds, window_seconds)
+
+
+def reserve_login_attempt(key, max_attempts, lock_seconds, window_seconds=900):
+    """Reserve one attempt BEFORE its code is checked. True if it may proceed.
+
+    Used by the OTP path.  Requests that arrive together each reserve an attempt
+    first, so no more than ``max_attempts`` attempts are allowed per window, however
+    many arrive at once.  An attempt is refused if the key is already locked, or if
+    its count is past the limit.  Under heavy concurrency an attempt can be refused
+    when it could have been allowed (the count it reads may already include later
+    attempts); it is never allowed beyond the limit.
+    """
+    try:
+        result = _count_attempt(key, max_attempts, lock_seconds, window_seconds,
+                                respect_lock=True)
+        if result is None:
+            return False
+        count, until, now = result
+        return until <= now and count <= max_attempts
+    except Exception:
+        logger.warning('login_attempts write failed; using in-memory lockout', exc_info=True)
+        if _mem_locked(key):
+            return False
+        _mem_register(key, max_attempts, lock_seconds, window_seconds)
+        return True
 
 
 def clear_login_failures(key):

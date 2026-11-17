@@ -9,8 +9,10 @@ from flask import (Blueprint, current_app, flash, jsonify, redirect,
 
 from . import db, mailer, sso, verification
 from .security import (audit, clear_login_failures, current_user, hash_password,
-                       is_safe_next, login_locked, login_user, logout_user,
-                       register_login_failure, role_required, verify_password)
+                       is_safe_next, is_student_default_password, login_locked,
+                       login_user, logout_user, password_hash_matches_student_default,
+                       register_login_failure, role_required,
+                       student_password_change_required, verify_password)
 
 bp = Blueprint('auth', __name__)
 
@@ -133,8 +135,14 @@ def _enforce_account_setup():
             return redirect(url_for('auth.setup_photo'))
         return None
 
+    # Students on the shared default password must replace it. This looks at the
+    # stored hash, not only the flag: imported accounts can hold the default with
+    # must_change_password=0, and scan login never proves a personal password.
+    if user['role'] == 'student':
+        if student_password_change_required(user):
+            return redirect(url_for('auth.change_password'))
     # Password change is always enforced for any other role that has the flag.
-    if user.get('must_change_password'):
+    elif user.get('must_change_password'):
         return redirect(url_for('auth.change_password'))
 
     # Student email setup (existing behaviour, gated by config).
@@ -470,6 +478,8 @@ def admin_forgot_password():
 # Forgot password (code sent to the verified e-mail on file)
 # --------------------------------------------------------------------------- #
 _RESET_ROLES = {'student': 'Roll number', 'teacher': 'Employee code'}
+_STUDENT_DEFAULT_REJECTED = ('That is the shared default password that every student starts with. '
+                             'Please choose a personal password that only you know.')
 
 
 def _normalise_ident(role, ident):
@@ -533,6 +543,8 @@ def reset_password():
                 flash('The new passwords do not match.', 'error')
             elif role == 'teacher' and new == current_app.config['DEFAULT_TEACHER_PASSWORD']:
                 flash('Please choose a new password — not the default one.', 'error')
+            elif role == 'student' and is_student_default_password(new):
+                flash(_STUDENT_DEFAULT_REJECTED, 'error')
             elif not user or not verification.check(user['id'], 'reset_password',
                                                     request.form.get('code')):
                 flash('That code is not correct or has expired.', 'error')
@@ -651,9 +663,11 @@ def scan_login():
         return jsonify(ok=False, fallback=True,
                        message='This ID card was not found. Type your roll number instead.')
     if (current_app.config.get('SCAN_LOGIN_ONLY_DEFAULT', True)
-            and not verify_password(user['password_hash'],
-                                    current_app.config['DEFAULT_STUDENT_PASSWORD'])):
+            and not password_hash_matches_student_default(user['password_hash'])):
         # Personal password set: scanning only fills the roll number.
+        # (A scan is not proof of a personal password. A student who is still on the
+        # default is let in here but is then held at the change-password page by the
+        # account-setup gate, which re-checks the stored hash on every request.)
         return jsonify(ok=False, fallback=True, roll=user['username'])
     clear_login_failures(key)
     login_user(user)
@@ -780,6 +794,8 @@ def change_password():
             flash('The new passwords do not match.', 'error')
         elif user['role'] == 'teacher' and new == current_app.config['DEFAULT_TEACHER_PASSWORD']:
             flash('Please choose a new password — not the default one.', 'error')
+        elif user['role'] == 'student' and is_student_default_password(new):
+            flash(_STUDENT_DEFAULT_REJECTED, 'error')
         else:
             db.execute('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?',
                        (hash_password(new), user['id']))
@@ -790,4 +806,5 @@ def change_password():
             return redirect(url_for(home))
         if from_profile:
             return redirect(url_for('photos.profile'))
-    return render_template('change_password.html')
+    return render_template('change_password.html',
+                           forced_student_change=student_password_change_required(user))

@@ -758,4 +758,30 @@ MIGRATIONS = [
         "CREATE INDEX IF NOT EXISTS ix_submissions_form_cat ON submissions(form_id, category)",
         "CREATE INDEX IF NOT EXISTS ix_fresp_group ON feedback_responses(form_id, response_group)",
     ]),
+    # ------------------------------------------------------------------ v25
+    # Student authenticator (TOTP) 2FA, Checkpoint 1: encrypted secret store,
+    # the last-accepted time step (replay protection), hashed single-use backup
+    # codes, and the per-form "Authentication Required" flag.  Purely additive.
+    # Existing forms are backfilled to 0 (OFF) so their behaviour is unchanged.
+    # The column default is also 0; new forms are set to 1 explicitly by
+    # services.save_form, never by relying on this default.
+    (25, "Student authenticator (TOTP): secrets, backup codes, per-form auth flag", [
+        """CREATE TABLE IF NOT EXISTS student_authenticators(
+            user_id INTEGER PRIMARY KEY REFERENCES users(id),
+            secret_enc TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending'
+                CHECK(status IN ('pending','active')),
+            last_step INTEGER,
+            enrolled_at TEXT,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+        """CREATE TABLE IF NOT EXISTS student_backup_codes(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            code_hash TEXT NOT NULL,
+            used_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+        "CREATE INDEX IF NOT EXISTS ix_backup_codes_user ON student_backup_codes(user_id)",
+        "ALTER TABLE feedback_forms ADD COLUMN auth_required INTEGER NOT NULL DEFAULT 0",
+        "UPDATE feedback_forms SET auth_required=0 WHERE auth_required IS NULL",
+    ]),
 ]

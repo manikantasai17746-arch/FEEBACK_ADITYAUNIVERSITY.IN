@@ -502,6 +502,45 @@ DEFAULT_INSTRUCTIONS = (
     "You can submit this form only once.")
 
 
+class AuthSettingLocked(Exception):
+    """'Authentication Required' cannot change once a form has been published."""
+
+
+def parse_auth_required(value):
+    """Normalise the form's auth setting. None means "not specified".
+
+    Strict: any other value raises ValueError, so a typo can never silently
+    turn protection off.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return 1 if value else 0
+    text = str(value).strip().lower()
+    if text in ('1', 'true', 'on', 'yes'):
+        return 1
+    if text in ('0', 'false', 'off', 'no'):
+        return 0
+    raise ValueError('auth_required must be 0 or 1')
+
+
+def auth_setting_problem(form_id, value):
+    """An error message if saving ``value`` would change a locked setting, else None.
+
+    Raises ValueError for an unrecognised value. A new form (no id) is never locked.
+    """
+    parsed = parse_auth_required(value)
+    if parsed is None or not form_id:
+        return None
+    row = db.query('SELECT status, auth_required, published_at FROM feedback_forms WHERE id=?',
+                   (form_id,), one=True)
+    if row is None or int(row['auth_required'] or 0) == parsed:
+        return None
+    if row['status'] != 'draft' or row['published_at']:
+        return 'Authentication Required is locked because this form has been published.'
+    return None
+
+
 def save_form(payload, questions, admin_id, form_id=None, session_ids=None):
     """Create or update a form and replace its questions.
 
@@ -553,11 +592,33 @@ def save_form(payload, questions, admin_id, form_id=None, session_ids=None):
             fields['second_faculty_assignment_id'] = int(sfa_id) if sfa_id else None
         except (TypeError, ValueError):
             fields['second_faculty_assignment_id'] = None
+    # Authentication Required (student authenticator).  Set explicitly here on
+    # every creation path, so the rule does not depend on the column default.
+    # New forms default to ON; an explicit OFF must be chosen by Admin/HOD.
+    requested_auth = parse_auth_required(payload.get('auth_required'))
     if form_id:
+        if requested_auth is not None:
+            current = db.query('SELECT auth_required FROM feedback_forms WHERE id=?',
+                               (form_id,), one=True)
+            if current is not None and requested_auth != int(current['auth_required'] or 0):
+                # Lock (H1 + M3).  The change is written only while the form has never
+                # been published.  ``published_at`` is sticky: it survives a revert to
+                # draft, so a form that was ever published keeps its setting.  The
+                # check and the write are one UPDATE, so a publish that commits first
+                # makes rowcount 0 and the change is refused.
+                cur = conn.execute(
+                    'UPDATE feedback_forms SET auth_required=?, updated_at=? '
+                    "WHERE id=? AND status='draft' AND published_at IS NULL",
+                    (requested_auth, now, form_id))
+                if cur.rowcount != 1:
+                    conn.rollback()
+                    raise AuthSettingLocked(
+                        'Authentication Required is locked because this form has been published.')
         sets = ', '.join(f'{k}=?' for k in fields)
         conn.execute(f'UPDATE feedback_forms SET {sets}, updated_at=? WHERE id=?',
                      (*fields.values(), now, form_id))
     else:
+        fields['auth_required'] = 1 if requested_auth is None else requested_auth
         cols = ', '.join(fields)
         qs = ', '.join('?' for _ in fields)
         form_id = db.insert_id(
@@ -2055,7 +2116,8 @@ def bulk_preview(filters, title_pattern=None):
             'to_create': len(to_create), 'sample': sample}
 
 
-def bulk_create_forms(filters, questions, title_pattern, status, admin_id, deadline_at=None):
+def bulk_create_forms(filters, questions, title_pattern, status, admin_id, deadline_at=None,
+                      auth_required=None):
     """Create one draft (or open) form per matching session for this round.
 
     A session is skipped only if it already has a form with the SAME title, so
@@ -2070,6 +2132,7 @@ def bulk_create_forms(filters, questions, title_pattern, status, admin_id, deadl
             skipped += 1
             continue
         payload = {
+            'auth_required': auth_required,
             'title': format_bulk_title(title_pattern, s),
             'instructions': 'Your responses are anonymous.',
             'academic_year_id': s['year_id'], 'semester_id': s['semester_id'],

@@ -11,7 +11,7 @@ from PIL import Image
 
 from feedback_system import db, mailer, schema
 from feedback_system.security import hash_password
-from helpers import get_csrf, login
+from helpers import get_csrf, login, login_student
 
 
 def _png(size=(200, 240)):
@@ -210,7 +210,7 @@ def test_photo_step_requires_csrf(app, client, box):
 
 
 def test_other_roles_cannot_use_the_teacher_photo_step(app, client):
-    r = login(client, '/student/login', {'roll': '25B11CS015', 'password': 'student@123'})
+    r = login_student(client, '25B11CS015')
     assert r.status_code == 302
     r = client.get('/setup/photo')
     assert r.status_code in (302, 403) and '/setup/photo' not in _loc(r)
