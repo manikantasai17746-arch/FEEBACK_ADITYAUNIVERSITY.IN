@@ -111,9 +111,22 @@ def describe(form, groups, keep, moves, unresolved):
               f"and stay on form #{form['id']}")
 
 
+AUTH_COLUMN = 'auth_required'
+
+
+def copied_form_columns(form_columns):
+    """Columns copied into each NEW form.
+
+    ``auth_required`` is never inherited from the source form: every copy is
+    written with 1 (Authentication Required ON), so a legacy OFF form cannot
+    spread OFF to new forms.  It is listed last so its value is always set.
+    """
+    return [c for c in form_columns if c not in ('id', AUTH_COLUMN)] + [AUTH_COLUMN]
+
+
 def apply_form(conn, form, groups, keep, moves):
     old_id = form['id']
-    cols = [c for c in form if c != 'id']
+    cols = copied_form_columns(list(form))
     q_rows = [dict(r) for r in db.query(
         "SELECT * FROM form_questions WHERE form_id=? ORDER BY position, id", (old_id,))]
     opt_rows = {q['id']: [dict(o) for o in db.query(
@@ -136,6 +149,7 @@ def apply_form(conn, form, groups, keep, moves):
             continue
         vals = dict(form)
         vals.pop('id')
+        vals[AUTH_COLUMN] = 1
         vals['session_id'] = g['sessions'][0]
         vals['snapshot_teacher'] = g['name']
         vals['snapshot_period'] = g['period']

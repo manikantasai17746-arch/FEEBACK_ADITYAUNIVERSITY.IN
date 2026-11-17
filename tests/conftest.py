@@ -31,6 +31,8 @@ def app():
         # The first-login gate is exercised in tests/test_account_setup.py; the
         # rest of the suite logs in as many users and skips it.
         'REQUIRE_ACCOUNT_SETUP': False,
+        # TEST-ONLY Fernet key for the student authenticator. Not a secret.
+        'TOTP_ENCRYPTION_KEY': 'slFqyvDkoDYXvVZAqiTyPsKcY1ekJ684A0nVc5i4JME=',
     })
     yield application
 

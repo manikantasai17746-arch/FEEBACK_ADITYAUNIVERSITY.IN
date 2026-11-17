@@ -166,6 +166,11 @@ def reset_password(uid):
         pw = current_app.config['DEFAULT_TEACHER_PASSWORD']
     else:
         pw = current_app.config['DEFAULT_STUDENT_PASSWORD']
+    if not isinstance(pw, str) or not pw.strip():
+        # Never hash a missing/blank default: that would leave an empty-password account.
+        flash('The default password is not configured, so the password was not reset.', 'error')
+        return redirect(request.referrer or url_for('admin.dashboard'))
+    # must_change_password=1 makes the user replace the shared default on next login.
     db.execute('UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?',
                (hash_password(pw), uid))
     audit('user.reset_password', 'users', uid, f'Reset {target["role"]} password')

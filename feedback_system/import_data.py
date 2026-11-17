@@ -119,8 +119,9 @@ def reset_student_teacher_passwords(conn, teacher_password, student_password):
         conn.execute(
             "UPDATE users SET password_hash=?, must_change_password=1 WHERE role='teacher'",
             (teacher_hash,))
+        # Students are put back on the shared default, so they must change it again.
         conn.execute(
-            "UPDATE users SET password_hash=? WHERE role='student'",
+            "UPDATE users SET password_hash=?, must_change_password=1 WHERE role='student'",
             (student_hash,))
         conn.commit()
     except Exception:
@@ -384,9 +385,13 @@ def import_timetable(app, semester_number=3, academic_year=None, progress=print,
     # 3d. student users
     student_hash = generate_password_hash(app.config['DEFAULT_STUDENT_PASSWORD'])
     students = sorted({roll for (*_, roll) in raw})
+    # New students start on the shared default password, so they are flagged to
+    # change it. (The login gate also checks the hash itself, so older imports whose
+    # flag is 0 are still caught.)
     conn.executemany(
-        """INSERT OR IGNORE INTO users(role, username, name, roll, password_hash)
-           VALUES('student', ?, ?, ?, ?)""",
+        """INSERT OR IGNORE INTO users(role, username, name, roll, password_hash,
+                                       must_change_password)
+           VALUES('student', ?, ?, ?, ?, 1)""",
         [(roll, roll, roll, student_hash) for roll in students])
     student_id = {row[0]: row[1] for row in
                   conn.execute("SELECT roll, id FROM users WHERE role='student'")}

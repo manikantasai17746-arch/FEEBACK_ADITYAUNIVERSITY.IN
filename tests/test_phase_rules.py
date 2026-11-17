@@ -31,7 +31,13 @@ def test_phase_from_title():
 
 def test_same_phase_blocked_on_single_shared_section(app):
     with app.app_context():
-        a, b, c = _sessions(3, 0)
+        # Shared test DB: use sessions with no existing Phase 1 form, so forms from
+        # earlier tests cannot block this test's own assertions.
+        a, b, c = [r['id'] for r in db.query(
+            'SELECT cs.id FROM class_sessions cs WHERE cs.is_deleted=0 AND NOT EXISTS ('
+            'SELECT 1 FROM form_sessions fs JOIN feedback_forms f ON f.id=fs.form_id '
+            'WHERE fs.session_id=cs.id AND f.phase=\'phase1\' AND f.is_deleted=0) '
+            'ORDER BY cs.id LIMIT 3')]
         _form([a, b], 'phase1')
         # shares only session b with the existing Phase 1 -> blocked
         assert services.phase_rule_errors('phase1', [b, c])
