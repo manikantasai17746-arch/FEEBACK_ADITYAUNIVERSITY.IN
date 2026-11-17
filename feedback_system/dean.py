@@ -421,10 +421,10 @@ def onboarding():
     row = db.query(
         'SELECT email, email_verified, onboarding_complete FROM users WHERE id=?',
         (user['id'],), one=True)
-    if row and row.get('onboarding_complete'):
+    if row and row['onboarding_complete']:
         return redirect(url_for('dean.dashboard'))
 
-    email_verified = bool(row and row.get('email_verified'))
+    email_verified = bool(row and row['email_verified'])
     step = request.args.get('step', 'email' if not email_verified else 'hods')
     staging = _session.get('dean_onboard_staging') or []  # list of hod_user_ids
 

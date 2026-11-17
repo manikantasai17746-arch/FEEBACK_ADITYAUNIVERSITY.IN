@@ -1,13 +1,14 @@
 """Security utilities: password hashing, CSRF, RBAC, rate limiting, audit log."""
 import functools
 import hashlib
+import hmac
 import logging
 import os
 import secrets
 import threading
 import time
 
-from flask import abort, current_app, g, jsonify, redirect, request, session, url_for
+from flask import current_app, g, jsonify, redirect, request, session, url_for, abort
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import db
@@ -46,108 +47,40 @@ def verify_password(stored_hash, plain):
 
 
 # --------------------------------------------------------------------------- #
-# Shared default student password (C1.1)
-#
-# Every imported student starts on one shared, publicly guessable password
-# (config ``DEFAULT_STUDENT_PASSWORD``).  A student still on it has NOT proved
-# they own the account, so they must replace it before using the portal.  The
-# value is never hard-coded here and never logged; detection works on the stored
-# hash, so it does not depend on the ``must_change_password`` column being right.
+# Shared default password for students (C1.1)
 # --------------------------------------------------------------------------- #
-_DEFAULT_MATCH_CACHE = {}
-_DEFAULT_MATCH_CACHE_MAX = 20000
-_DEFAULT_MATCH_LOCK = threading.Lock()
+def student_default_passwords():
+    """The configured shared default(s) for students, non-empty strings only.
 
-
-def configured_student_default():
-    """The configured shared student password, or None when it is not usable.
-
-    "Not usable" = no app context, missing, not a string, or blank. Callers treat
-    None as "no default can be recognised" rather than guessing one.
+    ``DEFAULT_STUDENT_PASSWORD`` plus ``PREVIOUS_DEFAULT_STUDENT_PASSWORDS`` (a list
+    from the environment), so accounts still on an earlier default stay detected
+    after the default is changed. Nothing is hard-coded here.
     """
-    try:
-        value = current_app.config.get('DEFAULT_STUDENT_PASSWORD')
-    except RuntimeError:              # called outside an application context
-        return None
-    if not isinstance(value, str) or not value.strip():
-        return None
-    return value
+    cfg = current_app.config
+    values = [cfg.get('DEFAULT_STUDENT_PASSWORD')]
+    values += list(cfg.get('PREVIOUS_DEFAULT_STUDENT_PASSWORDS') or [])
+    return [v for v in values if isinstance(v, str) and v]
 
 
-def is_student_default_password(plain):
-    """True when the plaintext ``plain`` is the configured shared student password.
+def is_default_student_hash(password_hash):
+    """True if a stored student password hash matches a configured shared default.
 
-    Used on a password a student is about to choose. Constant-time comparison.
+    Checked against the hash itself, because ``must_change_password`` is not a
+    reliable signal (students are created with the default and the flag at 0).
+    The hash is never logged.
     """
-    default = configured_student_default()
-    if default is None or not isinstance(plain, str):
+    if not password_hash:
         return False
-    return secrets.compare_digest(plain.encode('utf-8'), default.encode('utf-8'))
+    return any(verify_password(password_hash, candidate)
+               for candidate in student_default_passwords())
 
 
-def password_hash_matches_student_default(stored_hash):
-    """True when ``stored_hash`` verifies against the configured shared password.
-
-    Uses the normal password verifier (no plaintext comparison). Missing/blank/
-    malformed hashes and an unusable configuration all give False.
-
-    Verifying scrypt costs ~80 ms, so the answer is cached. The cache key is a
-    digest of BOTH the stored hash and the configured default, which makes the
-    cached value a pure function of its inputs: changing the configuration, or a
-    student changing their password, simply produces a different key. Neither the
-    hash nor the password is stored in the clear or logged.
-    """
-    default = configured_student_default()
-    if default is None or not stored_hash or not isinstance(stored_hash, str):
+def is_default_student_password(plain):
+    """True if a plaintext candidate equals a configured shared default (constant time)."""
+    if not isinstance(plain, str) or not plain:
         return False
-    key = hashlib.sha256(
-        stored_hash.encode('utf-8') + b'\x00' + default.encode('utf-8')).hexdigest()
-    cached = _DEFAULT_MATCH_CACHE.get(key)
-    if cached is not None:
-        return cached
-    result = bool(verify_password(stored_hash, default))
-    with _DEFAULT_MATCH_LOCK:
-        if len(_DEFAULT_MATCH_CACHE) >= _DEFAULT_MATCH_CACHE_MAX:
-            _DEFAULT_MATCH_CACHE.clear()          # bounded memory; just recomputes
-        _DEFAULT_MATCH_CACHE[key] = result
-    return result
-
-
-def student_has_default_password(user_id):
-    """True when ``user_id`` is a STUDENT whose stored hash is the shared default.
-
-    False for unknown users, non-students (teachers/HOD/Dean/admin are never
-    judged against the student default), users without a hash, and when the
-    default is not configured.
-    """
-    if not user_id:
-        return False
-    row = db.query('SELECT role, password_hash FROM users WHERE id=?', (user_id,), one=True)
-    if not row or row['role'] != 'student':
-        return False
-    return password_hash_matches_student_default(row['password_hash'])
-
-
-def student_password_change_required(user):
-    """Decide whether ``user`` (a current_user() dict) must change their password.
-
-    Students: yes when the ``must_change_password`` flag is set OR their stored
-    password is still the shared default. The flag alone is not trusted because
-    imported accounts can carry 0 with the default hash. When the default is
-    detected the flag is persisted, so the account stays forced even if the
-    configured default is later changed. Any other role: always False here (their
-    own rules live elsewhere).
-    """
-    if not user or user.get('role') != 'student':
-        return False
-    if user.get('must_change_password'):
-        return True
-    if not student_has_default_password(user.get('id')):
-        return False
-    db.execute("UPDATE users SET must_change_password=1 "
-               "WHERE id=? AND role='student' AND must_change_password=0", (user['id'],))
-    user['must_change_password'] = 1
-    return True
+    return any(hmac.compare_digest(plain.encode('utf-8'), c.encode('utf-8'))
+               for c in student_default_passwords())
 
 
 # --------------------------------------------------------------------------- #

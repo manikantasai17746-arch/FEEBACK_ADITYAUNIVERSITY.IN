@@ -4,7 +4,7 @@ import pytest
 from feedback_system import db, mailer, services
 from feedback_system.security import hash_password
 
-from helpers import (find_session, future_deadline, get_csrf, login, login_student,
+from helpers import (find_session, future_deadline, get_csrf, login, login_student, give_feedback_code,
                      make_form, publish_form, question_ids, submit_feedback, token_from)
 
 
@@ -67,6 +67,7 @@ def test_expired_form_closes_and_rejects_submissions(admin, app, client):
 
     c = app.test_client()
     login_student(c, rolls[0])
+    give_feedback_code(c)
     html = c.get(f'/student/form/{fid}').get_data(as_text=True)
     rq, tq, oid = question_ids(html)
 
@@ -181,6 +182,7 @@ def test_pending_lists_only_non_submitters_roll_numbers(app, pending_setup):
     rolls = __import__('helpers').eligible_rolls(app, sid)
     c = app.test_client()
     login_student(c, rolls[0])
+    give_feedback_code(c)
     rq, tq, oid = question_ids(c.get(f'/student/form/{fid}').get_data(as_text=True))
     submit_feedback(c, fid, rq, tq, oid)
 

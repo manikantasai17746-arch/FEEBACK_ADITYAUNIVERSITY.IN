@@ -26,6 +26,7 @@ import re
 import smtplib
 import ssl
 from email.message import EmailMessage
+from datetime import datetime
 
 log = logging.getLogger(__name__)
 
@@ -142,6 +143,9 @@ def code_email(code, purpose, minutes):
     if purpose == 'reset_password':
         subject = 'Your password reset code'
         lead = 'Use this code to reset your Faculty Feedback password:'
+    elif purpose == 'setup_authenticator':
+        subject = 'Set up your authenticator app'
+        lead = 'Use this code to set up the authenticator app for your feedback account:'
     else:
         subject = 'Confirm your email address'
         lead = 'Use this code to confirm your email address:'
@@ -249,3 +253,25 @@ def account_removed_email(role, name, emp_id):
             f'contact the administrator.</p>'
             f'<p>Best wishes,<br>Aditya University - Faculty Feedback System</p></div>')
     return subject, text, html
+
+
+def authenticator_notice(to, name, action):
+    """Tell a student their authenticator app was set up ('added') or reset ('reset').
+
+    The message never contains a secret, a setup key or a code. Returns True only if
+    the mail was accepted for sending.
+    """
+    if not to:
+        return False
+    when = datetime.utcnow().strftime('%d %b %Y, %H:%M UTC')
+    hello = f"Hello {name or 'student'},"
+    if action == 'added':
+        subject = 'An authenticator app was set up on your feedback account'
+        body = f'An authenticator app was set up for your feedback account on {when}.'
+    else:
+        subject = 'The authenticator app on your feedback account was reset'
+        body = (f'The authenticator app on your feedback account was reset by the administrator on '
+                f'{when}. You will set up a new one at your next login.')
+    text = (f'{hello}\n\n{body}\n\n'
+            'If this was not you, contact the administrator straight away.\n')
+    return bool(send_email(to, subject, text))

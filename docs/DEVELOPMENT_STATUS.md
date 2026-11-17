@@ -10,14 +10,14 @@
 - Phases 3, 4, and 5B have handoff/verification documentation in the repository.
 - Phase 6 is in planning / Checkpoint 0 review. No Phase 6 application implementation was started in the inspected baseline.
 - Invalid login submissions from the landing-page role modal now re-render the landing page, reopen the selected modal, preserve non-secret identifiers, and show all flashed messages in that modal. No schema change.
-- Focused verification: `pytest -q tests/test_app.py -k 'invalid_landing_modal_login or admin_login_rejects_bad_credentials or admin_login_success'` â€” 7 passed.
+- Focused verification: `pytest -q tests/test_app.py -k 'invalid_landing_modal_login or admin_login_rejects_bad_credentials or admin_login_success'` — 7 passed.
 - Teacher Assignment Setup now includes a read-only, teacher-scoped eligible-student preview with search and pagination beside each editable room field. It reads active `session_students` records only and does not change room, assignment, student, or feedback data.
-- Preview verification: focused assignment setup tests â€” 4 passed; JavaScript syntax check passed. The browser UI module was not runnable in this environment because its Playwright/Chromium dependency was unavailable.
+- Preview verification: focused assignment setup tests — 4 passed; JavaScript syntax check passed. The browser UI module was not runnable in this environment because its Playwright/Chromium dependency was unavailable.
 - The documentation branch was created from the observed `main` commit. Before merging, check whether `main` has advanced.
 
 ## 2. Completed phase evidence
 
-### Phase 3 â€” Teacher Assignment Setup
+### Phase 3 — Teacher Assignment Setup
 Source: `PHASE_3_HANDOFF.md`.
 - Teacher setup wizard for subjects/sections, room configuration, lab availability, review/save.
 - Reuses `teacher_subject_settings`; migration v21 adds `lab_status` and index.
@@ -25,7 +25,7 @@ Source: `PHASE_3_HANDOFF.md`.
 - Handoff reports 51 service tests and 5 browser/UI tests passed in that phase.
 - Historical full-suite comparison: untouched ZIP 187 passed, 11 failed, 12 errors; modified tree 243 passed, 11 failed, 12 errors, with same failing/erroring set.
 
-### Phase 4 â€” Second Faculty Assignment
+### Phase 4 — Second Faculty Assignment
 Source: `feedback_system/PHASE_4_HANDOFF.md`.
 - Audited and extended existing Second Faculty module.
 - Assignment is per session and identified by assignment row ID.
@@ -34,7 +34,7 @@ Source: `feedback_system/PHASE_4_HANDOFF.md`.
 - Handoff reports 52 unittest tests passed and a Chromium smoke check at 1280px and 375px.
 - Handoff says pytest/full suite and several HOD/Admin/UI checks were not run in that phase.
 
-### Phase 5B â€” Feedback categories and safety verification
+### Phase 5B — Feedback categories and safety verification
 Source: `feedback_system/PHASE_5B_VERIFICATION_REPORT.md`.
 - Verifies Main, Second, and Lab ownership and availability matrix.
 - Uses shared category scope/eligibility and publication snapshot.
@@ -54,7 +54,7 @@ Baseline fixes were tests-only (password-change gate, HOD onboarding seed, share
 
 Handoffs: `docs/PHASE_HANDOFFS/TEST_BASELINE_HANDOFF.md`, `docs/PHASE_HANDOFFS/MODULE_A_MAIN_FEEDBACK_HANDOFF.md`.
 
-## 3c. Module C â€” Lab Feedback + HOD nav (2026-11-13)
+## 3c. Module C — Lab Feedback + HOD nav (2026-11-13)
 
 - Lab module on `hod_feedback` blueprint; only Lab Available sessions.
 - HOD nav redesign + Overview category counts.
@@ -84,7 +84,7 @@ The latest Checkpoint 0 inspection report supplied during planning reports:
 
 The Checkpoint 0 report says 12 failures/errors appear around login requests returning 302 where tests expect 200/403, including `test_app.py`, `test_multi_round.py`, `test_teacher_scoping.py`, `test_hod_dean_second_faculty.py`, and `test_photos_phase1.py`. It suspects first-login/onboarding redirects but explicitly has **not confirmed the root cause**.
 
-It also reports a stale assertion in `test_assignment_setup_phase3.py::test_migration_v21â€¦`: the test expects schema version 21 while current schema is reported as v24.
+It also reports a stale assertion in `test_assignment_setup_phase3.py::test_migration_v21…`: the test expects schema version 21 while current schema is reported as v24.
 
 These results are reported, not independently rerun as part of this documentation task. Do not call the failures harmless. Re-run and investigate before claiming a current baseline.
 
@@ -93,21 +93,21 @@ These results are reported, not independently rerun as part of this documentatio
 - Full suite re-run after Overview assertion fix (accepts "Overview" on HOD home).
 - Behavioral checks: same person main+second, multi-assignment second employee,
   main submission does not touch second, duplicate prevention, role gates, anonymity view.
-- Migration on populated DB copy: v24 â†’ v24, **no data loss**.
+- Migration on populated DB copy: v24 → v24, **no data loss**.
 - Browser: HOD login rendered at mobile (~375) and desktop (~1280); module routes
   verified HTTP 200 under HOD session in earlier run (server-side).
 - Deployment: docs/DEPLOYMENT.md
 
-## 3g. Student Authenticator (TOTP) â€” Checkpoint 1 (schema and crypto core)
+## 3g. Student Authenticator (TOTP) — Checkpoint 1 (schema and crypto core)
 
 - Status: implemented in working copy; awaiting user's local `pytest` run and approval for Checkpoint 2.
 - Schema: migration **v25** (additive): `student_authenticators`, `student_backup_codes`, `feedback_forms.auth_required` (default 0; existing forms backfilled to 0).
 - Code: `feedback_system/authenticator.py` (service only), `services.save_form` rule (new forms ON, explicit OFF allowed, lock once non-draft).
-- Tests: `tests/test_authenticator_core.py`, 47 cases. Sandbox harness result: 47 passed (stand-in pytest/pyotp; see handoff Â§8). Full suite and PostgreSQL not run here.
+- Tests: `tests/test_authenticator_core.py`, 47 cases. Sandbox harness result: 47 passed (stand-in pytest/pyotp; see handoff §8). Full suite and PostgreSQL not run here.
 - Migration 17 is present; an earlier "missing v17" report was incorrect.
 - Handoff: `docs/PHASE_HANDOFFS/AUTHENTICATOR_CP1_HANDOFF.md`.
 
-## 4. Phase 6 â€” planned, not implemented
+## 4. Phase 6 — planned, not implemented
 
 Proposed modules:
 1. Main Faculty Feedback.
@@ -152,37 +152,25 @@ The Phase 6 Checkpoint 0 report says no source files were changed. It proposed a
 
 After each approved checkpoint/phase, update actual commit/branch, implemented files/routes/schema changes, exact tests and results, known failures and confirmed/unconfirmed causes, migration/deployment notes, approvals, and next checkpoint. Never replace an old test result without recording command, environment, and date.
 
-## 3h. Student shared-default password enforcement â€” C1.1 (2026-11-15)
+## Authenticator and feedback code (C1.1 to Final)
 
-- Students whose stored password matches the configured `DEFAULT_STUDENT_PASSWORD`
-  are forced to change it, even if `must_change_password` was previously 0.
-- Detection is student-role-only and uses password-hash verification. A bounded
-  cache avoids repeatedly verifying the same stored hash.
-- New student imports and bulk student password resets set
-  `must_change_password=1`.
-- Admin student password resets also require a password change at next login.
-- Students cannot choose the configured shared default through the normal
-  change-password or forgot-password reset flows.
-- The change-password page explains the requirement without revealing the
-  configured password.
-- Existing personal-password student accounts retain normal login behavior.
-- Teacher and admin password-change behavior remains unchanged.
-- Test helpers now use a personal student password to avoid bypassing the
-  intended account-setup gate in unrelated tests.
-- Tests: `tests/test_student_default_password.py` â€” 31 passed.
-- Full local pytest suite â€” passed on 2026-11-15 after applying C1.1.
-- Git review: 10 modified files and 1 new test file; `git diff --check`
-  showed no whitespace errors (only line-ending warnings).
+Completed, each as a separate patch with focused tests:
 
-### Remaining security considerations
+- C1 / C1.1 / C1.2: encrypted TOTP secrets, replay protection, backup codes, atomic lockout counter, H1/H2/M1/M3 fixes.
+- C1.1 default password: detection from the stored hash; students cannot choose the shared default (change or reset); accounts on it must change before protected pages.
+- Step A: a confirmed student e-mail is locked; only an administrator can clear it.
+- Step B: authenticator setup after the e-mail step, proved by a code e-mailed to the registered address; secret shown only with that proof, never stored in the session.
+- Step C: the authenticator code is required before a form marked "Authentication Required" can be opened or submitted; verified for the login session only.
+- Step D: the choice is on the admin builder, the admin bulk screen, the HOD builder and the HOD category screens; default ON; locked once published.
+- Step E: administrator reset of a student's authenticator; e-mail notices when an app is set up or reset (no secret or code in any notice).
+- Final: decode errors fail closed; digest-keyed cipher cache; concurrent first-time enrollment; missing-key warning; default-on tests for bulk creation, `create_forms_for_session`, and the legacy HOD save.
 
-- First-claim risk remains: a person who knows a student's roll number and
-  the shared default password may be able to sign in first and change the password.
-- Email setup remains accessible to a student who is still forced to change
-  the shared default. Review email ownership/binding protections separately.
-- `SCAN_LOGIN_ONLY_DEFAULT=0` retains its existing behavior; scan-login policy
-  was not changed by C1.1.
-- These items are not claimed as resolved by this checkpoint.
+Known limits (not yet closed):
 
-- Status: implementation and local tests completed; documentation update pending
-  verification and commit.
+- A student still on the shared default can be taken over by anyone who knows it. Only rejecting the default at login closes this; that is not implemented.
+- Google or Microsoft sign-in does not count as proof for authenticator setup; the e-mailed code does.
+- Pending setups never expire (needs a migration).
+- Admins can clear a student's e-mail but not a teacher's.
+- Verified state lasts for the login session (logout, a new login, 30 minutes idle, or 8 hours).
+
+Verification status: each patch was applied to a clean repository with `git apply` and checked with `git diff --check`. The sandbox runner does not run pytest, so the full suite must be run on the developer's machine. PostgreSQL migration execution is not verified.

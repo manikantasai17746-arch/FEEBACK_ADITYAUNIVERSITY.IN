@@ -1,19 +1,21 @@
 """Authentication routes for all three roles."""
 import hmac
+import logging
 import os
 import re
 import secrets
+import time
 
 from flask import (Blueprint, current_app, flash, jsonify, redirect,
                    render_template, request, url_for, session)
 
-from . import db, mailer, sso, verification
+from . import authenticator, db, mailer, sso, verification
 from .security import (audit, clear_login_failures, current_user, hash_password,
-                       is_safe_next, is_student_default_password, login_locked,
-                       login_user, logout_user, password_hash_matches_student_default,
-                       register_login_failure, role_required,
-                       student_password_change_required, verify_password)
+                       is_safe_next, login_locked, login_user, logout_user,
+                       register_login_failure, role_required, verify_password,
+                       is_default_student_hash, is_default_student_password)
 
+logger = logging.getLogger(__name__)
 bp = Blueprint('auth', __name__)
 
 
@@ -71,6 +73,10 @@ def _login_attempt(role, username, password, redirect_endpoint):
             still_default = password == current_app.config['DEFAULT_TEACHER_PASSWORD']
             db.execute('UPDATE users SET must_change_password=? WHERE id=?',
                        (1 if still_default else 0, user['id']))
+        if role == 'student' and is_default_student_hash(user['password_hash']):
+            # C1.1: a student still on the shared default must set a personal password
+            # before any protected page. Detected from the stored hash, not the flag.
+            db.execute('UPDATE users SET must_change_password=1 WHERE id=?', (user['id'],))
         login_user(user)
         return redirect(_safe_next(redirect_endpoint))
     register_login_failure(key, current_app.config['LOGIN_MAX_ATTEMPTS'],
@@ -91,7 +97,10 @@ _SETUP_ENDPOINTS = {'auth.logout', 'auth.setup_email', 'auth.verify_email',
                     'dean.onboarding_verify', 'dean.onboarding_save',
                     'auth.admin_setup_emails', 'auth.admin_setup_emails_verify',
                     # Phase 2: teacher photo step (+ the image it displays)
-                    'auth.setup_photo', 'photos.serve'}
+                    'auth.setup_photo', 'photos.serve',
+                    # Step B: authenticator setup (student, after the e-mail step)
+                    'auth.setup_authenticator', 'auth.setup_authenticator_verify',
+                    'auth.setup_authenticator_confirm'}
 
 
 def _home_for(role):
@@ -135,14 +144,8 @@ def _enforce_account_setup():
             return redirect(url_for('auth.setup_photo'))
         return None
 
-    # Students on the shared default password must replace it. This looks at the
-    # stored hash, not only the flag: imported accounts can hold the default with
-    # must_change_password=0, and scan login never proves a personal password.
-    if user['role'] == 'student':
-        if student_password_change_required(user):
-            return redirect(url_for('auth.change_password'))
     # Password change is always enforced for any other role that has the flag.
-    elif user.get('must_change_password'):
+    if user.get('must_change_password'):
         return redirect(url_for('auth.change_password'))
 
     # Student email setup (existing behaviour, gated by config).
@@ -150,6 +153,11 @@ def _enforce_account_setup():
         if not (user.get('email') or '').strip():
             return redirect(url_for('auth.setup_email', next=request.full_path.rstrip('?')
                                     if request.method == 'GET' else None))
+
+    # Step B: a student must link an authenticator app after the e-mail step.
+    if (role == 'student' and current_app.config.get('REQUIRE_ACCOUNT_SETUP', True)
+            and not authenticator.is_active(user['id'])):
+        return redirect(url_for('auth.setup_authenticator'))
 
     # HOD / Dean first-login onboarding (email verify + scope claim).
     if role in ('hod', 'dean'):
@@ -181,7 +189,11 @@ def setup_email():
     user = current_user()
     if (user.get('email') or '').strip() and request.method == 'GET':
         return redirect(url_for(_home_for(user['role'])))
-    if request.method == 'POST':
+    if request.method == 'POST' and (user.get('email') or '').strip():
+        # Step A: a confirmed email is locked. Only an administrator can clear it.
+        flash('Your email is already confirmed. Ask an administrator if it must be changed.',
+              'error')
+    elif request.method == 'POST':
         email = (request.form.get('email') or '').strip().lower()
         if not _EMAIL_RE.match(email) or len(email) > 254:
             flash('Please enter a valid email address, e.g. name@gmail.com.', 'error')
@@ -209,8 +221,16 @@ def verify_email():
         else:
             email = verification.check(user['id'], 'verify_email', request.form.get('code'))
             if email:
-                db.execute('UPDATE users SET email=?, email_verified=1 WHERE id=?',
-                           (email, user['id']))
+                # Step A: write only if the email is still empty, so a code sent before
+                # the email was confirmed cannot replace it.
+                cur = db.execute(
+                    "UPDATE users SET email=?, email_verified=1 "
+                    "WHERE id=? AND (email IS NULL OR TRIM(email)='')",
+                    (email, user['id']))
+                if cur.rowcount != 1:
+                    flash('Your email is already confirmed. Ask an administrator if it must be changed.',
+                          'error')
+                    return redirect(url_for('auth.setup_email'))
                 audit('user.verify_email', 'users', user['id'], 'Email verified at first login')
                 flash('Email confirmed. Thank you!', 'success')
                 return redirect(_safe_next(_home_for(user['role'])))
@@ -218,6 +238,128 @@ def verify_email():
             if not verification.pending(user['id'], 'verify_email'):
                 return redirect(url_for('auth.setup_email'))
     return render_template('verify_email.html', email=row['email'])
+
+
+# --------------------------------------------------------------------------- #
+# Step B: authenticator app setup (students, after the e-mail step)
+# --------------------------------------------------------------------------- #
+AUTH_SETUP_PURPOSE = 'setup_authenticator'
+AUTH_SETUP_PROOF_SECONDS = 15 * 60      # time allowed after the emailed code is confirmed
+
+
+def _setup_proof_valid():
+    return int(session.get('auth_setup_until') or 0) > int(time.time())
+
+
+def _qr_svg(uri):
+    """QR code as inline SVG (segno). None if it cannot be drawn.
+
+    The manual setup key is always shown, so a missing library or an unexpected
+    rendering error degrades to the key alone instead of breaking the page.
+    """
+    try:
+        import segno
+        return segno.make(uri, error='m').svg_inline(scale=4, border=2)
+    except Exception:
+        logger.warning('QR code could not be rendered; showing the setup key only',
+                       exc_info=True)
+        return None
+
+
+def _notify_authenticator(user, action):
+    """Best-effort notice to the registered e-mail. A failure is audited, never raised."""
+    try:
+        sent = mailer.authenticator_notice(user.get('email'), user.get('name'), action)
+    except Exception:
+        sent = False
+    if not sent:
+        audit('user.authenticator_notice_not_sent', 'users', user['id'],
+              f'Authenticator notice ({action}) was not sent')
+
+
+def _grouped(secret):
+    return ' '.join(secret[i:i + 4] for i in range(0, len(secret), 4))
+
+
+@bp.route('/setup/authenticator', methods=['GET', 'POST'])
+@role_required('student')
+def setup_authenticator():
+    user = current_user()
+    email = (user.get('email') or '').strip()
+    if not email:
+        return redirect(url_for('auth.setup_email'))
+    if authenticator.is_active(user['id']):
+        return redirect(url_for(_home_for('student')))
+    if request.method == 'POST' and request.form.get('action') == 'send':
+        ok, problem = _send_code(user['id'], AUTH_SETUP_PURPOSE, email)
+        if ok:
+            flash(f'We sent a 6-digit code to {email}.', 'success')
+            return redirect(url_for('auth.setup_authenticator_verify'))
+        flash(problem, 'error')
+    if not _setup_proof_valid():
+        return render_template('setup_authenticator.html', stage='send', email=email)
+    try:
+        secret = authenticator.pending_secret(user['id']) or authenticator.begin_enrollment(user['id'])
+    except authenticator.AuthenticatorConfigError:
+        flash('Authenticator setup is not available yet. Please contact the administrator.', 'error')
+        return render_template('setup_authenticator.html', stage='send', email=email)
+    uri = authenticator.provisioning_uri(secret, account=user['username'])
+    return render_template('setup_authenticator.html', stage='scan', email=email,
+                           uri=uri, qr=_qr_svg(uri), secret_display=_grouped(secret))
+
+
+@bp.route('/setup/authenticator/verify', methods=['GET', 'POST'])
+@role_required('student')
+def setup_authenticator_verify():
+    user = current_user()
+    email = (user.get('email') or '').strip()
+    row = verification.pending(user['id'], AUTH_SETUP_PURPOSE)
+    if not email or not row:
+        flash('That code has expired. Please ask for a new one.', 'warning')
+        return redirect(url_for('auth.setup_authenticator'))
+    if request.method == 'POST':
+        if request.form.get('action') == 'resend':
+            ok, problem = _send_code(user['id'], AUTH_SETUP_PURPOSE, email)
+            flash('A new code has been sent.' if ok else problem, 'success' if ok else 'error')
+        else:
+            confirmed = verification.check(user['id'], AUTH_SETUP_PURPOSE, request.form.get('code'))
+            if confirmed:
+                # Proof of email control for a short time only. Stored in the signed session;
+                # the TOTP secret itself never goes in the session.
+                session['auth_setup_until'] = int(time.time()) + AUTH_SETUP_PROOF_SECONDS
+                return redirect(url_for('auth.setup_authenticator'))
+            flash('That code is not correct or has expired.', 'error')
+            if not verification.pending(user['id'], AUTH_SETUP_PURPOSE):
+                return redirect(url_for('auth.setup_authenticator'))
+    return render_template('setup_authenticator_verify.html', email=email)
+
+
+@bp.route('/setup/authenticator/confirm', methods=['POST'])
+@role_required('student')
+def setup_authenticator_confirm():
+    user = current_user()
+    if not _setup_proof_valid():
+        flash('Please confirm your email again to continue the authenticator setup.', 'error')
+        return redirect(url_for('auth.setup_authenticator'))
+    code = (request.form.get('code') or '').strip()
+    try:
+        ok = authenticator.confirm_enrollment(user['id'], code)
+    except authenticator.AuthenticatorConfigError:
+        flash('Authenticator setup is not available yet. Please contact the administrator.', 'error')
+        return redirect(url_for('auth.setup_authenticator'))
+    if ok:
+        session.pop('auth_setup_until', None)
+        audit('user.authenticator_enrolled', 'users', user['id'], 'Authenticator app set up')
+        _notify_authenticator(user, 'added')
+        flash('Your authenticator app is set up. You will enter its code when you give feedback.',
+              'success')
+        return redirect(url_for(_home_for('student')))
+    locked = authenticator.otp_locked_seconds(user['id'])
+    if locked:
+        flash(f'Too many incorrect codes. Try again in {max(1, locked // 60)} minutes.', 'error')
+    else:
+        flash('That code is not correct. Check the app and try again.', 'error')
+    return redirect(url_for('auth.setup_authenticator'))
 
 
 # --------------------------------------------------------------------------- #
@@ -478,8 +620,6 @@ def admin_forgot_password():
 # Forgot password (code sent to the verified e-mail on file)
 # --------------------------------------------------------------------------- #
 _RESET_ROLES = {'student': 'Roll number', 'teacher': 'Employee code'}
-_STUDENT_DEFAULT_REJECTED = ('That is the shared default password that every student starts with. '
-                             'Please choose a personal password that only you know.')
 
 
 def _normalise_ident(role, ident):
@@ -543,8 +683,8 @@ def reset_password():
                 flash('The new passwords do not match.', 'error')
             elif role == 'teacher' and new == current_app.config['DEFAULT_TEACHER_PASSWORD']:
                 flash('Please choose a new password — not the default one.', 'error')
-            elif role == 'student' and is_student_default_password(new):
-                flash(_STUDENT_DEFAULT_REJECTED, 'error')
+            elif role == 'student' and is_default_student_password(new):
+                flash('Please choose a new password — not the default one.', 'error')
             elif not user or not verification.check(user['id'], 'reset_password',
                                                     request.form.get('code')):
                 flash('That code is not correct or has expired.', 'error')
@@ -663,13 +803,13 @@ def scan_login():
         return jsonify(ok=False, fallback=True,
                        message='This ID card was not found. Type your roll number instead.')
     if (current_app.config.get('SCAN_LOGIN_ONLY_DEFAULT', True)
-            and not password_hash_matches_student_default(user['password_hash'])):
+            and not is_default_student_hash(user['password_hash'])):
         # Personal password set: scanning only fills the roll number.
-        # (A scan is not proof of a personal password. A student who is still on the
-        # default is let in here but is then held at the change-password page by the
-        # account-setup gate, which re-checks the stored hash on every request.)
         return jsonify(ok=False, fallback=True, roll=user['username'])
     clear_login_failures(key)
+    if is_default_student_hash(user['password_hash']):
+        # C1.1: same rule as password login (see _login_attempt).
+        db.execute('UPDATE users SET must_change_password=1 WHERE id=?', (user['id'],))
     login_user(user)
     audit('user.scan_login', 'users', user['id'], 'Student logged in by ID-card scan')
     flash('Welcome back!', 'success')
@@ -794,8 +934,8 @@ def change_password():
             flash('The new passwords do not match.', 'error')
         elif user['role'] == 'teacher' and new == current_app.config['DEFAULT_TEACHER_PASSWORD']:
             flash('Please choose a new password — not the default one.', 'error')
-        elif user['role'] == 'student' and is_student_default_password(new):
-            flash(_STUDENT_DEFAULT_REJECTED, 'error')
+        elif user['role'] == 'student' and is_default_student_password(new):
+            flash('Please choose a new password — not the default one.', 'error')
         else:
             db.execute('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?',
                        (hash_password(new), user['id']))
@@ -806,5 +946,4 @@ def change_password():
             return redirect(url_for(home))
         if from_profile:
             return redirect(url_for('photos.profile'))
-    return render_template('change_password.html',
-                           forced_student_change=student_password_change_required(user))
+    return render_template('change_password.html')

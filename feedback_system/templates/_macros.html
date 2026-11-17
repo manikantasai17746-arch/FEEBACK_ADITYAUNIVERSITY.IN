@@ -53,3 +53,16 @@
   </details>
   {% endif %}
 {% endmacro %}
+
+
+{% macro auth_required_field(form=None) -%}
+{% set locked = form is not none and (form.status != 'draft' or form.published_at) %}
+<div class="field" id="auth-required-field">
+  <label class="opt" style="display:block">
+    <input type="checkbox" id="auth_required" name="auth_required" value="1"
+      {% if form is none or form.auth_required %}checked{% endif %}
+      {% if locked %}disabled{% endif %}>
+    Require the authenticator-app code before students open or submit this feedback</label>
+  <div class="hint">{% if locked %}Locked: this form has been published, so this setting can no longer change.{% else %}On by default. Students enter the 6-digit code from their authenticator app before they open or submit this form. Turn it off only for a form that must stay open without a code.{% endif %}</div>
+</div>
+{%- endmacro %}

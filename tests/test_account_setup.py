@@ -72,7 +72,9 @@ def test_student_confirms_email_with_code(app, client, sent):
     assert wrong.status_code == 200 and b'not correct' in wrong.data
     ok = _post(client, '/setup/email/verify', code=sent[-1]['code'])
     assert ok.status_code == 302
-    assert client.get('/student/').status_code == 200
+    # Step B: after the e-mail step the next step is the authenticator app setup.
+    r = client.get('/student/')
+    assert r.status_code == 302 and '/setup/authenticator' in r.headers['Location']
     with app.app_context():
         assert db.query('SELECT email FROM users WHERE roll=?', (roll,), one=True)['email'] == 'kid@gmail.com'
 

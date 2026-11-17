@@ -16,7 +16,7 @@ import pytest
 from feedback_system import assignment_setup as setup
 from feedback_system import create_app, db, pg, schema
 from feedback_system.security import hash_password
-from helpers import get_csrf, login, make_form, publish_form
+from helpers import get_csrf, login, make_form, publish_form, give_feedback_code
 
 PW = 'pass12345'
 
@@ -615,6 +615,7 @@ def test_t28_existing_feedback_forms_remain_accessible(app, world, client_factor
     fid = make_form(admin, world['ads_a'], title='Phase3 regression form')
     publish_form(admin, fid)
     stu = client_factory(); login_student(stu, 'S1')
+    give_feedback_code(stu)
     r = stu.get(f'/student/form/{fid}')
     assert r.status_code == 200 and b'Phase3 regression form' in r.data
 

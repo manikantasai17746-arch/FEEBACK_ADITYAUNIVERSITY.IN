@@ -1,8 +1,8 @@
 """Student dashboard and feedback submission."""
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
-from . import db, services
-from .security import current_user, role_required
+from . import authenticator, db, services
+from .security import audit, current_user, is_safe_next, role_required
 
 bp = Blueprint('student', __name__, url_prefix='/student')
 
@@ -52,6 +52,50 @@ def dashboard():
                            total=len(forms), year=_year_from_semester(ctx['semester'] if ctx else None))
 
 
+# --------------------------------------------------------------------------- #
+# Step C: authenticator code before feedback forms marked "Authentication Required"
+# --------------------------------------------------------------------------- #
+# The verified state lives in the signed session. It lasts for this login session only:
+# logout, a new login, the idle timeout (30 min) or the session maximum (8 h) clear it.
+FEEDBACK_CODE_KEY = 'feedback_code_ok'
+
+
+def _feedback_gate(user, form_id):
+    """A redirect if this form needs the authenticator code and it has not been given."""
+    row = db.query('SELECT auth_required FROM feedback_forms WHERE id=?', (form_id,), one=True)
+    if not row or not row['auth_required'] or session.get(FEEDBACK_CODE_KEY):
+        return None
+    if not authenticator.is_active(user['id']):
+        flash('Set up your authenticator app before giving this feedback.', 'warning')
+        return redirect(url_for('auth.setup_authenticator'))
+    return redirect(url_for('student.verify_code', next=url_for('student.view_form', form_id=form_id)))
+
+
+@bp.route('/verify-code', methods=['GET', 'POST'])
+@role_required('student')
+def verify_code():
+    """Ask for the current code from the student's authenticator app."""
+    user = current_user()
+    nxt = request.values.get('next') or url_for('student.dashboard')
+    if not is_safe_next(nxt):
+        nxt = url_for('student.dashboard')
+    if not authenticator.is_active(user['id']):
+        return redirect(url_for('auth.setup_authenticator'))
+    if request.method == 'POST':
+        ok, reason = authenticator.verify_second_factor(user['id'], request.form.get('code'))
+        if ok:
+            session[FEEDBACK_CODE_KEY] = True
+            # Recorded without any form, so the audit trail does not link a student to feedback.
+            audit('user.feedback_code_verified', 'users', user['id'],
+                  'Authenticator code accepted for feedback')
+            return redirect(nxt)
+        if reason == 'locked':
+            flash('Too many incorrect codes. Please wait a few minutes and try again.', 'error')
+        else:
+            flash('That code is not correct. Check your authenticator app and try again.', 'error')
+    return render_template('feedback_verify.html', user=user, next=nxt)
+
+
 @bp.route('/form/<int:form_id>')
 @role_required('student')
 def view_form(form_id):
@@ -60,6 +104,9 @@ def view_form(form_id):
     if not form:
         flash('That feedback form is not available to you.', 'error')
         return redirect(url_for('student.dashboard'))
+    gate = _feedback_gate(user, form_id)
+    if gate:
+        return gate
     questions = services.form_questions(form_id)
     already = db.query('SELECT * FROM submissions WHERE form_id=? AND student_user_id=?',
                        (form_id, user['id']), one=True)
@@ -71,6 +118,9 @@ def view_form(form_id):
 @role_required('student')
 def submit(form_id):
     user = current_user()
+    gate = _feedback_gate(user, form_id)
+    if gate:
+        return gate
     ok, message = services.submit_feedback(user['id'], form_id, request.form)
     if ok:
         flash(message, 'success')

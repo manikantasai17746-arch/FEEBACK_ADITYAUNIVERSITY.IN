@@ -8,7 +8,7 @@ from datetime import datetime
 from flask import (Blueprint, abort, current_app, flash, jsonify, redirect,
                    render_template, request, session, url_for, Response)
 
-from . import category_forms, db, mailer, services, verification
+from . import authenticator, category_forms, db, mailer, services, verification
 from .feedback_categories import ScopeError
 from .security import current_user, hash_password, role_required, audit
 
@@ -155,6 +155,45 @@ def student_detail(uid):
                            student=student, sessions=sessions, forms=forms)
 
 
+@bp.route('/students/<int:uid>/clear-email', methods=['POST'])
+@admin_only
+def clear_student_email(uid):
+    """Step A: the only way to change a confirmed student email. The student may then
+    set one again, once, which locks it again."""
+    target = db.query("SELECT * FROM users WHERE id=? AND role='student'", (uid,), one=True)
+    if not target:
+        abort(404)
+    db.execute('UPDATE users SET email=NULL, email_verified=0 WHERE id=?', (uid,))
+    audit('user.clear_email', 'users', uid, 'Administrator cleared the confirmed student email')
+    flash(f'The confirmed email for {target["name"]} was cleared. They can set a new one at '
+          f'their next login.', 'success')
+    return redirect(request.referrer or url_for('admin.students'))
+
+
+@bp.route('/students/<int:uid>/reset-authenticator', methods=['POST'])
+@admin_only
+def reset_student_authenticator(uid):
+    """Step E: remove a student's authenticator (for a lost phone). The student sets up a
+    new one after confirming their e-mail. The student is told by e-mail."""
+    target = db.query("SELECT * FROM users WHERE id=? AND role='student'", (uid,), one=True)
+    if not target:
+        abort(404)
+    removed = authenticator.remove_authenticator(uid)
+    audit('user.authenticator_reset', 'users', uid,
+          'Administrator reset the student authenticator' if removed
+          else 'Administrator reset a student authenticator (none was set up)')
+    try:
+        sent = mailer.authenticator_notice(target['email'], target['name'], 'reset')
+    except Exception:
+        sent = False
+    if not sent:
+        audit('user.authenticator_notice_not_sent', 'users', uid,
+              'Authenticator reset notice was not sent')
+    flash(f'The authenticator for {target["name"]} was reset. They will set up a new one at '
+          f'their next login.', 'success')
+    return redirect(request.referrer or url_for('admin.students'))
+
+
 @bp.route('/users/<int:uid>/reset-password', methods=['POST'])
 @admin_only
 def reset_password(uid):
@@ -166,11 +205,6 @@ def reset_password(uid):
         pw = current_app.config['DEFAULT_TEACHER_PASSWORD']
     else:
         pw = current_app.config['DEFAULT_STUDENT_PASSWORD']
-    if not isinstance(pw, str) or not pw.strip():
-        # Never hash a missing/blank default: that would leave an empty-password account.
-        flash('The default password is not configured, so the password was not reset.', 'error')
-        return redirect(request.referrer or url_for('admin.dashboard'))
-    # must_change_password=1 makes the user replace the shared default on next login.
     db.execute('UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?',
                (hash_password(pw), uid))
     audit('user.reset_password', 'users', uid, f'Reset {target["role"]} password')
@@ -258,6 +292,7 @@ def form_save():
         scope = 'session'
     payload = {
         'title': data.get('title'),
+        'auth_required': data.get('auth_required'),
         'instructions': data.get('instructions'),
         'academic_year_id': _int(data.get('academic_year_id')),
         'semester_id': _int(data.get('semester_id')),
@@ -275,6 +310,12 @@ def form_save():
     if deadline_err:
         return jsonify(ok=False, errors=[deadline_err]), 400
     payload['deadline_at'] = deadline_at
+    try:
+        auth_problem = services.auth_setting_problem(existing_id, data.get('auth_required'))
+    except ValueError as exc:
+        return jsonify(ok=False, errors=[str(exc)]), 400
+    if auth_problem:
+        return jsonify(ok=False, errors=[auth_problem]), 409
     if existing_id and services.form_has_submissions(existing_id):
         return jsonify(ok=False, errors=[
             'This form already has student responses, so its questions and target cannot be '
@@ -531,8 +572,13 @@ def bulk_create():
     err = services.deadline_error(deadline_at)
     if err:
         return jsonify(ok=False, errors=[err]), 400
+    try:
+        auth_required = services.parse_auth_required(data.get('auth_required'))
+    except ValueError as exc:
+        return jsonify(ok=False, errors=[str(exc)]), 400
     result = services.bulk_create_forms(filters, questions, data.get('title_pattern'),
-                                        status, current_user()['id'], deadline_at=deadline_at)
+                                        status, current_user()['id'], deadline_at=deadline_at,
+                                        auth_required=auth_required)
     return jsonify(ok=True, **result)
 
 

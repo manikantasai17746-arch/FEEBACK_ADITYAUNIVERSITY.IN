@@ -1,46 +1,47 @@
-{% extends 'base.html' %}
+{% extends 'student_base.html' %}
 {% block title %}Notifications — Faculty Feedback{% endblock %}
 {% block body %}
-<div class="container page">
-  <div class="page-header">
-    <h1>Notifications {% if unread %}<span class="badge badge-warn">{{ unread }} unread</span>{% endif %}</h1>
-    <nav class="subnav">
-      <a href="{{ url_for('student.dashboard') }}">Dashboard</a>
-      <a href="{{ url_for('student.notifications') }}" class="active">Notifications</a>
-      <a href="{{ url_for('auth.logout') }}">Logout</a>
-    </nav>
-  </div>
+<div class="fb-wrap" style="padding-top: clamp(32px, 6cqw, 56px); padding-bottom: 24px;">
+  <p class="fb-eyebrow">Inbox</p>
+  <h1 class="fb-h1">Notifications{% if unread %} <span class="fb-nbadge" style="vertical-align:middle;font-size:14px;min-width:28px;height:28px">{{ unread }}</span>{% endif %}</h1>
+  <p class="fb-lead">Deadlines, new forms and announcements appear here.</p>
+</div>
 
-  {% if rows %}
-  <div class="btn-row" style="margin-bottom:1rem">
-    <form method="post" action="{{ url_for('student.notifications_read_all') }}">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <button class="btn btn-ghost btn-sm" type="submit">Mark all as read</button>
-    </form>
-  </div>
-  <div class="card">
-    <ul class="notif-list">
+<main class="fb-main">
+  <section class="fb-card">
+    {% if rows %}
+    <div style="display:flex;flex-wrap:wrap;justify-content:flex-end;margin-bottom:16px">
+      <form method="post" action="{{ url_for('student.notifications_read_all') }}">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <button class="fb-ghostbtn" type="submit" style="padding:10px 18px;font-size:13px">Mark all as read</button>
+      </form>
+    </div>
+    <ul class="fb-inbox-list">
       {% for n in rows %}
-      <li class="notif-item {% if not n.is_read %}unread{% endif %}">
-        <div class="notif-kind">{{ n.kind }}</div>
-        <div class="notif-body">
+      <li class="fb-inbox-item{% if not n.is_read %} unread{% endif %}">
+        <span class="fb-inbox-kind">{{ n.kind }}</span>
+        <div class="fb-inbox-body">
           <strong>{{ n.title }}</strong>
           <p>{{ n.body }}</p>
-          <span class="muted">{{ n.created_at }}</span>
-          {% if n.link %}<a href="{{ n.link }}">Open</a>{% endif %}
+          <div class="fb-inbox-meta">{{ n.created_at }}</div>
         </div>
-        {% if not n.is_read %}
-        <form method="post" action="{{ url_for('student.notification_read', nid=n.id) }}">
-          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-          <button class="btn btn-ghost btn-sm" type="submit">Mark read</button>
-        </form>
-        {% endif %}
+        <div class="fb-inbox-actions">
+          {% if n.link %}
+          <a class="fb-view" href="{{ n.link }}">Open</a>
+          {% endif %}
+          {% if not n.is_read %}
+          <form method="post" action="{{ url_for('student.notification_read', nid=n.id) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="fb-ghostbtn" type="submit" style="padding:6px 14px;font-size:13px">Mark read</button>
+          </form>
+          {% endif %}
+        </div>
       </li>
       {% endfor %}
     </ul>
-  </div>
-  {% else %}
-  <div class="card"><p class="muted">No notifications yet. Deadlines, new forms and announcements will appear here.</p></div>
-  {% endif %}
-</div>
+    {% else %}
+    <div class="fb-empty">No notifications yet. Deadlines, new forms and announcements will appear here.</div>
+    {% endif %}
+  </section>
+</main>
 {% endblock %}

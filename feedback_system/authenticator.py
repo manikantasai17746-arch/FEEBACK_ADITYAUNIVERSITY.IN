@@ -14,10 +14,11 @@ are returned from ``begin_enrollment`` so the enrollment step (Checkpoint 2) can
 display them once.
 """
 import re
+import hashlib
 import secrets
+import threading
 import time
 from datetime import datetime
-from functools import lru_cache
 
 import pyotp
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
@@ -52,16 +53,36 @@ class AuthenticatorStateError(AuthenticatorError):
 # --------------------------------------------------------------------------- #
 # Encryption at rest
 # --------------------------------------------------------------------------- #
-@lru_cache(maxsize=4)
+_CIPHER_CACHE = {}
+_CIPHER_CACHE_LOCK = threading.Lock()
+_CIPHER_CACHE_MAX = 4
+
+
 def _cipher_for(raw):
+    """Return the MultiFernet for a key string.
+
+    Cached by the SHA-256 of the key string, so the raw key is never a cache key. The
+    Fernet objects still hold derived key material for the life of the process; that
+    cannot be avoided for encryption. The cache is bounded and cleared when it fills.
+    """
     if not raw:
         raise AuthenticatorConfigError('TOTP_ENCRYPTION_KEY is not set.')
+    digest = hashlib.sha256(str(raw).encode('utf-8')).hexdigest()
+    with _CIPHER_CACHE_LOCK:
+        cached = _CIPHER_CACHE.get(digest)
+    if cached is not None:
+        return cached
     keys = [k.strip() for k in str(raw).split(',') if k.strip()]
     try:
-        return MultiFernet([Fernet(k) for k in keys])
+        cipher = MultiFernet([Fernet(k) for k in keys])
     except (ValueError, TypeError):
         # Never include the key material in the message.
         raise AuthenticatorConfigError('TOTP_ENCRYPTION_KEY is not a valid Fernet key.') from None
+    with _CIPHER_CACHE_LOCK:
+        if len(_CIPHER_CACHE) >= _CIPHER_CACHE_MAX:
+            _CIPHER_CACHE.clear()
+        _CIPHER_CACHE[digest] = cipher
+    return cipher
 
 
 def _cipher():
@@ -77,7 +98,7 @@ def decrypt_secret(token):
     """Decrypt a stored secret. Fails closed: never returns a guess or a partial value."""
     try:
         return _cipher().decrypt(token.encode('ascii')).decode('ascii')
-    except InvalidToken:
+    except (InvalidToken, UnicodeError):
         raise AuthenticatorConfigError(
             'Stored authenticator secret cannot be decrypted with the configured key.') from None
 
@@ -86,7 +107,7 @@ def reencrypt_secret(token):
     """Re-encrypt a stored token under the newest key (used during key rotation)."""
     try:
         return _cipher().rotate(token.encode('ascii')).decode('ascii')
-    except InvalidToken:
+    except (InvalidToken, UnicodeError):
         raise AuthenticatorConfigError(
             'Stored authenticator secret cannot be decrypted with the configured key.') from None
 
@@ -160,28 +181,51 @@ def is_active(user_id):
     return bool(row and row['status'] == 'active')
 
 
+def _update_pending(user_id, token, now):
+    cur = db.execute(
+        "UPDATE student_authenticators SET secret_enc=?, status='pending', last_step=NULL, "
+        "enrolled_at=NULL, updated_at=? WHERE user_id=? AND status<>'active'",
+        (token, now, user_id))
+    return cur.rowcount == 1
+
+
 def begin_enrollment(user_id):
     """Create or replace a PENDING secret for an account with no active authenticator.
 
-    Returns the plaintext secret once, for display during enrollment. Only the
-    encrypted form is stored. Refuses to replace an active authenticator, because
-    that requires proof of the current device (handled in Checkpoint 2).
+    Returns the plaintext secret once, for display during setup. Only the encrypted form
+    is stored. Refuses to replace an active authenticator (AuthenticatorStateError).
+
+    Two first-time requests can race to insert. The loser's insert fails, the transaction
+    is rolled back, and the loser retries as an update. Any other insert failure is
+    re-raised unchanged.
     """
     secret = new_secret()
     token = encrypt_secret(secret)
     now = _now_iso()
-    row = _row(user_id)
-    if row is None:
+    if _update_pending(user_id, token, now):
+        return secret
+    try:
         db.execute("INSERT INTO student_authenticators(user_id, secret_enc, status, updated_at) "
                    "VALUES(?,?,'pending',?)", (user_id, token, now))
-    else:
-        cur = db.execute(
-            "UPDATE student_authenticators SET secret_enc=?, status='pending', last_step=NULL, "
-            "enrolled_at=NULL, updated_at=? WHERE user_id=? AND status<>'active'",
-            (token, now, user_id))
-        if cur.rowcount != 1:
+    except Exception:
+        db.get_db().rollback()
+        if _update_pending(user_id, token, now):
+            return secret
+        if is_active(user_id):
             raise AuthenticatorStateError('An authenticator is already active for this account.')
+        raise
     return secret
+
+
+def pending_secret(user_id):
+    """The plaintext secret of a PENDING enrollment, for display during setup only.
+
+    Callers must check the setup proof first. Returns None if nothing is pending.
+    """
+    row = _row(user_id)
+    if row is None or row['status'] != 'pending':
+        return None
+    return decrypt_secret(row['secret_enc'])
 
 
 def confirm_enrollment(user_id, code, now=None):
@@ -316,3 +360,20 @@ def verify_second_factor(user_id, code, now=None):
         clear_otp_failures(user_id)
         return True, 'backup'
     return False, 'invalid'
+
+
+def remove_authenticator(user_id):
+    """Admin reset: delete the student's authenticator (active or pending) and backup codes.
+
+    The student sets up again through the e-mail-proof setup. Returns True if one existed.
+    """
+    conn = db.get_db()
+    try:
+        conn.execute('DELETE FROM student_backup_codes WHERE user_id=?', (user_id,))
+        cur = conn.execute('DELETE FROM student_authenticators WHERE user_id=?', (user_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    clear_otp_failures(user_id)
+    return cur.rowcount > 0
