@@ -1,4 +1,4 @@
-"""HOD portal — department-scoped form management and results."""
+﻿"""HOD portal — department-scoped form management and results."""
 import json
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    url_for)
@@ -950,7 +950,7 @@ def api_sessions():
             (timetable_id,), one=True)
         if not tt or tt['branch_id'] not in allowed:
             continue
-        prefix = f"{tt['code']} · " if len(tt_ids) > 1 else ''
+        prefix = f"{tt['code']} Â· " if len(tt_ids) > 1 else ''
         for r in services.sessions_for_timetable(timetable_id):
             out.append({
                 'id': r['id'], 'subject_code': r['subject_code'],
@@ -1738,7 +1738,7 @@ def second_faculty():
 @bp.route('/onboarding', methods=['GET', 'POST'])
 @role_required('hod')
 def onboarding():
-    """Multi-step HOD onboarding: email verify → claim exclusive allocations."""
+    """Multi-step HOD onboarding: email verify â†’ claim exclusive allocations."""
     from . import verification, mailer
     from .security import allocation_owner, hod_allocation_keys
 
@@ -1746,10 +1746,10 @@ def onboarding():
     row = db.query(
         'SELECT email, email_verified, onboarding_complete FROM users WHERE id=?',
         (user['id'],), one=True)
-    if row and row.get('onboarding_complete'):
+    if row and row['onboarding_complete']:
         return redirect(url_for('hod.dashboard'))
 
-    email_verified = bool(row and row.get('email_verified'))
+    email_verified = bool(row and row['email_verified'])
     step = request.args.get('step', 'email' if not email_verified else 'scopes')
 
     years = db.query('SELECT id, name, is_active FROM academic_years ORDER BY name DESC')

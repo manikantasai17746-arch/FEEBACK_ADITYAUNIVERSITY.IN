@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}Set up your authenticator app — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="eyebrow">Step 2 of 2 · Authenticator app</div>
+    <h2>Set up your authenticator app</h2>
+    {% if stage == 'send' %}
+    <p class="sub" style="margin-bottom:1.2rem">To give feedback you will enter a 6-digit code from an
+      authenticator app on your phone (Google Authenticator, Microsoft Authenticator or similar).
+      First we confirm it is you: we will email a code to <strong>{{ email }}</strong>.</p>
+    <form method="post" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="send">
+      <button class="btn btn-block" type="submit">Email me a code</button>
+    </form>
+    {% else %}
+    <p class="sub" style="margin-bottom:1rem">1. Open your authenticator app and add an account.<br>
+      2. Scan the QR code, or type the setup key by hand.<br>
+      3. Enter the 6-digit code the app shows.</p>
+    {% if qr %}
+    <div class="card" style="text-align:center;margin-bottom:1rem">{{ qr|safe }}</div>
+    {% endif %}
+    <div class="card" style="margin-bottom:1rem">
+      <div class="sub">Setup key</div>
+      <code id="setup-key" style="font-size:1.1rem;letter-spacing:.12em">{{ secret_display }}</code>
+      <p style="margin-top:.6rem"><a href="{{ uri }}">Open in an authenticator app on this device</a></p>
+    </div>
+    <form method="post" action="{{ url_for('auth.setup_authenticator_confirm') }}" autocomplete="off" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="code">Code from the app</label>
+        <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+               placeholder="123456" autocomplete="one-time-code" required
+               style="font-size:1.4rem;letter-spacing:.35em;text-align:center">
+      </div>
+      <button class="btn btn-block" type="submit">Finish setup</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

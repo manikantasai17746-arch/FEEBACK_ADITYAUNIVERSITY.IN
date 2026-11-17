@@ -124,6 +124,14 @@ def _category_of(form):
 # --------------------------------------------------------------------------- #
 # Create / update (drafts only)
 # --------------------------------------------------------------------------- #
+def _payload_with_auth(sc, auth_required, *args):
+    """_payload plus the Authentication Required setting (None = default)."""
+    p = _payload(sc, *args)
+    if auth_required is not None:
+        p['auth_required'] = auth_required
+    return p
+
+
 def _payload(sc, title, instructions, deadline_at):
     p = dict(
         title=title, instructions=instructions, category=sc['category'],
@@ -150,7 +158,7 @@ def _check_questions(questions):
 
 
 def create_form(actor, category, assignment_id, title, questions, instructions='',
-                deadline_at=None):
+                deadline_at=None, auth_required=None):
     """Create a DRAFT form for one assignment.  Returns the new form id."""
     sc = resolve_scope(category, assignment_id)
     _require_actor(actor, sc)
@@ -158,7 +166,8 @@ def create_form(actor, category, assignment_id, title, questions, instructions='
     if conflicting_forms(sc['category'], sc['assignment_id'], phase=None):
         raise ScopeError('duplicate_form',
                          'A draft or open form already exists for this assignment.', 409)
-    form_id = services.save_form(_payload(sc, title, instructions, deadline_at), questions,
+    form_id = services.save_form(_payload_with_auth(sc, auth_required, title, instructions,
+                                                    deadline_at), questions,
                                  actor['id'], session_ids=[sc['session_id']])
     audit('form.category_created', 'feedback_forms', form_id,
           f'{sc["category"]} form for assignment {sc["assignment_id"]}', actor=actor)
@@ -166,7 +175,7 @@ def create_form(actor, category, assignment_id, title, questions, instructions='
 
 
 def update_draft(actor, form_id, title=None, questions=None, instructions=None,
-                 deadline_at=None, category=None, assignment_id=None):
+                 deadline_at=None, category=None, assignment_id=None, auth_required=None):
     """Edit a draft.  Category and assignment are immutable (a different
     category/assignment must be a NEW form); questions are locked after publish."""
     form = _load_form(form_id)
@@ -187,7 +196,7 @@ def update_draft(actor, form_id, title=None, questions=None, instructions=None,
     qs = questions if questions is not None else _existing_questions(form_id)
     _check_questions(qs)
     services.save_form(
-        _payload(sc, title if title is not None else form['title'],
+        _payload_with_auth(sc, auth_required, title if title is not None else form['title'],
                  instructions if instructions is not None else form['instructions'],
                  deadline_at if deadline_at is not None else form['deadline_at']),
         qs, actor['id'], form_id=form_id, session_ids=[sc['session_id']])

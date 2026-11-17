@@ -1,4 +1,5 @@
 """Application factory and configuration for the Faculty Feedback System."""
+import logging
 import os
 import secrets
 
@@ -80,6 +81,9 @@ def create_app(config=None):
         ADMIN_PASSWORD=os.environ.get('ADMIN_PASSWORD'),
         DEFAULT_TEACHER_PASSWORD=os.environ.get('DEFAULT_TEACHER_PASSWORD', 'teacher@123'),
         DEFAULT_STUDENT_PASSWORD=os.environ.get('DEFAULT_STUDENT_PASSWORD', 'student@123'),
+        # Earlier shared defaults that are still detected (comma-separated, no commas inside a value).
+        PREVIOUS_DEFAULT_STUDENT_PASSWORDS=[p for p in os.environ.get(
+            'PREVIOUS_DEFAULT_STUDENT_PASSWORDS', '').split(',') if p],
         AUTO_IMPORT=os.environ.get('AUTO_IMPORT', '1') == '1',
         # --- misc ----------------------------------------------------------
         MAX_CONTENT_LENGTH=int(os.environ.get('MAX_UPLOAD_MB', '10')) * 1024 * 1024,
@@ -105,6 +109,16 @@ def create_app(config=None):
 
     if config:
         app.config.update(config)
+    if not app.config.get('TOTP_ENCRYPTION_KEY'):
+        # Logs the fact only, never a key value. Authenticator setup fails closed.
+        logging.getLogger(__name__).warning(
+            'TOTP_ENCRYPTION_KEY is not set: student authenticator setup is unavailable. '
+            'Set it before students are asked to set up an authenticator app.')
+    if not app.config.get('DEFAULT_STUDENT_PASSWORD'):
+        # Without it, shared-default detection cannot match anything. Logs the fact only.
+        logging.getLogger(__name__).warning(
+            'DEFAULT_STUDENT_PASSWORD is empty: shared-default detection for students is '
+            'disabled. Set it to the value used when student accounts were created.')
 
     # Templates/static live inside the package.
     app.template_folder = os.path.join(os.path.dirname(__file__), 'templates')

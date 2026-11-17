@@ -32,6 +32,16 @@
               <input type="hidden" name="role" value="student">
               <button class="btn btn-ghost btn-sm" type="submit">Reset password</button>
             </form>
+            <form method="post" action="{{ url_for('admin.clear_student_email', uid=s.id) }}"
+                  onsubmit="return confirm('Clear this student\'s confirmed email? They can set a new one once.')">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button class="btn btn-ghost btn-sm" type="submit">Clear email</button>
+            </form>
+            <form method="post" action="{{ url_for('admin.reset_student_authenticator', uid=s.id) }}"
+                  onsubmit="return confirm('Reset this student\'s authenticator app? They will set up a new one at their next login.')">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button class="btn btn-ghost btn-sm" type="submit">Reset authenticator</button>
+            </form>
           </td>
         </tr>
         {% else %}<tr><td colspan="6">No students match your search.</td></tr>{% endfor %}

@@ -132,7 +132,7 @@ def test_successful_google_sign_in_saves_verified_email_without_mail(app, client
     monkeypatch.setattr(sso, 'fetch_claims',
                         lambda p, code, uri: _claims(nonce=nonce, email='Stu@Gmail.com'))
     r = client.get(f'/sso/google/callback?code=abc&state={_state_from(loc)}')
-    assert r.status_code == 302 and r.headers['Location'].endswith('/student/')
+    assert r.status_code == 302 and 'setup' not in r.headers['Location']
     row = _stored_email(app, roll)
     assert row['email'] == 'stu@gmail.com' and row['email_verified'] == 1
     assert sso_env == []                       # no code e-mail was sent

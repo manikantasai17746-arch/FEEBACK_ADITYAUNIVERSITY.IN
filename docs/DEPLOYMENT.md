@@ -59,3 +59,32 @@ git revert HEAD   # or checkout previous commit
 - Main, Second, and Lab forms stay separate (category column + separate eligibility).
 - Student answers remain anonymous; eligible names only in HOD preview.
 - PDF reports reuse `reports.build_category_results_pdf` and HOD scope filters.
+
+## Student authenticator (TOTP) and feedback code
+
+New environment variables (set them in the production environment, never in the repository):
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `TOTP_ENCRYPTION_KEY` | Yes, before any student is asked to set up an app | Fernet key(s) that encrypt TOTP secrets at rest. Comma-separated, newest first, to allow rotation. Not derived from `SECRET_KEY`. Without it, setup fails closed and a warning is logged at start-up. |
+| `DEFAULT_STUDENT_PASSWORD` | Yes | The shared default that student accounts were created with (default `student@123`). Accounts still on it must change it before any protected page. Empty disables this detection; a warning is logged. |
+| `PREVIOUS_DEFAULT_STUDENT_PASSWORDS` | If the default was ever changed | Comma-separated older defaults, still detected. Values must not contain commas. |
+| `OTP_MAX_ATTEMPTS` | No (default 5) | Wrong codes allowed in a 15-minute window before the account is locked. |
+| `OTP_LOCKOUT_SECONDS` | No (default 900) | Length of the lock. |
+
+Generate a key with:
+
+    python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+
+Install the new dependencies from `requirements.txt` (`cryptography`, `pyotp`, `segno`). `segno` draws the QR code; without it the page still shows the setup key.
+
+Database: migration v25 runs automatically at start-up. It only adds tables and a column; existing forms are set to "Authentication Required" OFF.
+
+Rollout checklist:
+
+1. Set `TOTP_ENCRYPTION_KEY` and confirm `DEFAULT_STUDENT_PASSWORD` matches the accounts' default.
+2. Start the app and confirm no "TOTP_ENCRYPTION_KEY is not set" warning in the log.
+3. Tell students that after their next login they will confirm their e-mail and set up an authenticator app.
+4. New forms require the code by default. Admins and HODs can untick the box while creating a form; a form cannot be changed once it is published.
+5. Admins can reset a student's authenticator (for example, a lost phone) from the student list. The student is e-mailed and sets up again.
+6. Sessions open before the update keep working until they log out or expire. Changing `SECRET_KEY` ends all sessions at once if that is wanted.

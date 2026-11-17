@@ -5,7 +5,7 @@ import pytest
 
 from feedback_system import db, services
 
-from helpers import (eligible_rolls, find_session, get_csrf, login, login_student,
+from helpers import (eligible_rolls, find_session, get_csrf, login, login_student, give_feedback_code,
                      login_teacher, future_deadline, make_form, publish_form,
                      question_ids, set_status, submit_feedback, token_from)
 
@@ -151,8 +151,10 @@ def test_draft_is_hidden_from_students(admin, app):
     c = app.test_client()
     roll = eligible_rolls(app, sid)[0]
     login_student(c, roll)
+    give_feedback_code(c)
     html = c.get(f'/student/form/{form_id}').get_data(as_text=True)
     # draft form should not be reachable
+    give_feedback_code(c)
     assert c.get(f'/student/form/{form_id}').status_code == 302
 
 
@@ -167,6 +169,7 @@ def test_student_submits_feedback(admin, app):
 
     c = app.test_client()
     login_student(c, roll)
+    give_feedback_code(c)
     html = c.get(f'/student/form/{form_id}').get_data(as_text=True)
     assert 'How well does the teacher explain?' in html
     rating_qid, text_qid, opt_id = question_ids(html)
@@ -186,10 +189,12 @@ def test_duplicate_submission_blocked(admin, app):
     roll = eligible_rolls(app, sid)[0]
     c = app.test_client()
     login_student(c, roll)
+    give_feedback_code(c)
     html = c.get(f'/student/form/{form_id}').get_data(as_text=True)
     rating_qid, text_qid, opt_id = question_ids(html)
     submit_feedback(c, form_id, rating_qid, text_qid, opt_id)
     # second attempt
+    give_feedback_code(c)
     html2 = c.get(f'/student/form/{form_id}').get_data(as_text=True)
     assert 'already submitted' in html2.lower()
     submit_feedback(c, form_id, rating_qid, text_qid, opt_id)
@@ -203,6 +208,7 @@ def test_required_question_validation(admin, app):
     roll = eligible_rolls(app, sid)[0]
     c = app.test_client()
     login_student(c, roll)
+    give_feedback_code(c)
     html = c.get(f'/student/form/{form_id}').get_data(as_text=True)
     tok = get_csrf(html)
     # submit without answering the required rating question
@@ -220,6 +226,7 @@ def test_closed_form_rejects_submission(admin, app):
     roll = eligible_rolls(app, sid)[0]
     c = app.test_client()
     login_student(c, roll)
+    give_feedback_code(c)
     html = c.get(f'/student/form/{form_id}').get_data(as_text=True)
     assert 'no longer accepting' in html.lower()
     tok = get_csrf(html)
@@ -239,6 +246,7 @@ def test_ineligible_student_cannot_see_or_submit(app, admin):
             WHERE ss.session_id=?) LIMIT 1""", (sid,), one=True)['roll'])
     c = app.test_client()
     login_student(c, other)
+    give_feedback_code(c)
     r = c.get(f'/student/form/{form_id}')
     assert r.status_code == 302  # not available to them
     assert response_count(app, form_id) == 0
@@ -262,6 +270,7 @@ def test_feedback_is_isolated_per_class_period(admin, app):
 
     c = app.test_client()
     login_student(c, roll)
+    give_feedback_code(c)
     html = c.get(f'/student/form/{f_adsa}').get_data(as_text=True)
     rq, tq, oid = question_ids(html)
     submit_feedback(c, f_adsa, rq, tq, oid, 'Great ADSA class')
@@ -291,6 +300,7 @@ def test_tracking_counts_are_correct(admin, client, app):
     for roll in students[:2]:
         c = app.test_client()
         login_student(c, roll)
+        give_feedback_code(c)
         html = c.get(f'/student/form/{form_id}').get_data(as_text=True)
         rq, tq, oid = question_ids(html)
         submit_feedback(c, form_id, rq, tq, oid)
@@ -333,6 +343,7 @@ def test_teacher_sees_published_results_and_stays_anonymous(admin, app):
     roll = students[0]
     c = app.test_client()
     login_student(c, roll)
+    give_feedback_code(c)
     html = c.get(f'/student/form/{form_id}').get_data(as_text=True)
     rq, tq, oid = question_ids(html)
     submit_feedback(c, form_id, rq, tq, oid, 'The lectures are clear.')
@@ -399,6 +410,7 @@ def test_published_form_questions_cannot_be_rewritten(admin, app):
     roll = eligible_rolls(app, sid)[0]
     c = app.test_client()
     login_student(c, roll)
+    give_feedback_code(c)
     html = c.get(f'/student/form/{form_id}').get_data(as_text=True)
     rq, tq, oid = question_ids(html)
     submit_feedback(c, form_id, rq, tq, oid)
@@ -419,6 +431,7 @@ def test_soft_delete_preserves_history(admin, app, monkeypatch):
     roll = eligible_rolls(app, sid)[0]
     c = app.test_client()
     login_student(c, roll)
+    give_feedback_code(c)
     html = c.get(f'/student/form/{form_id}').get_data(as_text=True)
     rq, tq, oid = question_ids(html)
     submit_feedback(c, form_id, rq, tq, oid)

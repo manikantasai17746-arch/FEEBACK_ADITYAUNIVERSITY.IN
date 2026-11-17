@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_macros.html' import auth_required_field %}
 {% import '_macros.html' as m %}
 {% block title %}{{ 'Edit' if form else 'New' }} feedback form — Admin{% endblock %}
 {% block body %}
@@ -81,6 +82,7 @@
     <div class="field"><label for="title">Feedback form title</label>
       <input type="text" id="title" maxlength="200"
              value="{{ form.title if form else '' }}" placeholder="e.g. Mid-semester teaching feedback"></div>
+    {{ auth_required_field(form) }}
     <div class="field"><label for="deadline_at">Feedback deadline <span class="req">*</span></label>
       <input type="datetime-local" id="deadline_at" required
              value="{{ form.deadline_at|deadline_input if form else '' }}">

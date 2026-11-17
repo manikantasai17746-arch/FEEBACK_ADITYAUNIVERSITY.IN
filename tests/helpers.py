@@ -104,8 +104,20 @@ def set_status(admin_client, form_id, status):
                              data={'_csrf': tok, 'status': status})
 
 
+def give_feedback_code(client):
+    """Step C test shortcut: mark this login session as having given the authenticator code.
+
+    The real code check is covered by tests/test_feedback_gate_stepc.py. Here only the
+    session flag is set, because a real code can be used once per 30-second window and
+    the suite logs students in many times.
+    """
+    with client.session_transaction() as sess:
+        sess['feedback_code_ok'] = True
+
+
 def submit_feedback(client, form_id, rating_qid, text_qid, option_id, text='Nice class'):
     """Submit via the real student HTTP flow, returning the response."""
+    give_feedback_code(client)
     html = client.get(f'/student/form/{form_id}').get_data(as_text=True)
     tok = get_csrf(html)
     data = {'_csrf': tok}
@@ -129,33 +141,20 @@ def question_ids(html):
     return rating_qid, text_qid, (opt_ids[0] if opt_ids else None)
 
 
-# A personal student password for tests. It must never equal the shared default
-# (DEFAULT_STUDENT_PASSWORD), because a student still on the default is held at the
-# change-password page by design and cannot reach the portal.
-TEST_STUDENT_PASSWORD = 'Personal#Student-Pass-1'
-_personal_hash = None
+# C1.1: students created at import keep the shared default, which now forces a password
+# change before any protected page. Tests use a personal password unless they test the default.
+STUDENT_PERSONAL_PASSWORD = 'Personal-test-pass1'
 
 
-def set_student_password(app, roll, password=TEST_STUDENT_PASSWORD, must_change=0):
-    """Give student ``roll`` a known password (default: a personal one) and set the flag.
-
-    Used instead of the shared default so tests reach the student portal the way a
-    student who has already changed their password does.
-    """
-    global _personal_hash
+def ensure_personal_student_password(app, roll):
+    """Give a test student a personal password (and clear the forced-change flag)."""
     from feedback_system.security import hash_password
-    if password == TEST_STUDENT_PASSWORD:
-        if _personal_hash is None:            # scrypt is slow; hash it once per run
-            _personal_hash = hash_password(password)
-        pw_hash = _personal_hash
-    else:
-        pw_hash = hash_password(password)
     with app.app_context():
-        db.execute("UPDATE users SET password_hash=?, must_change_password=? "
-                   "WHERE role='student' AND username=?", (pw_hash, must_change, roll))
+        db.execute("UPDATE users SET password_hash=?, must_change_password=0 "
+                   "WHERE role='student' AND username=?",
+                   (hash_password(STUDENT_PERSONAL_PASSWORD), roll))
 
 
 def login_student(client, roll):
-    """Log a student in with a personal password (set first), not the shared default."""
-    set_student_password(client.application, roll)
-    return login(client, '/student/login', {'roll': roll, 'password': TEST_STUDENT_PASSWORD})
+    ensure_personal_student_password(client.application, roll)
+    return login(client, '/student/login', {'roll': roll, 'password': STUDENT_PERSONAL_PASSWORD})
