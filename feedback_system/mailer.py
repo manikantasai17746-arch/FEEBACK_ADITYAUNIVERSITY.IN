@@ -303,6 +303,12 @@ _SECURITY_EVENTS = {
                                   'account were removed on {when} using a code sent to this '
                                   'email, and the password was changed. You will set up a new '
                                   'authenticator at your next sign-in.'),
+    'lost_device_reset_signin': ('Your authenticator was removed after a Microsoft/Google sign-in',
+                                 'The authenticator app and all backup codes on your feedback '
+                                 'account were removed on {when} after you confirmed your email '
+                                 'with a Microsoft or Google sign-in, and the password was '
+                                 'changed. You will set up a new authenticator at your next '
+                                 'sign-in.'),
     'backup_codes_regenerated': ('New backup codes were created for your feedback account',
                                  'A new set of backup codes was created for your feedback '
                                  'account on {when}. Your older codes no longer work.'),
