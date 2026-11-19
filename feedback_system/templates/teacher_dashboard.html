@@ -170,7 +170,7 @@
           <td>{{ r.max_marks if r.max_marks is not none else '—' }}</td>
           <td>
             {% if r.score is not none %}
-              <span class="score-pill">{{ '%.2f'|format(r.score) }}</span>
+              <span class="score-pill {{ 'sc-red' if r.score < 75 else 'sc-yellow' if r.score < 80 else 'sc-lgreen' if r.score < 85 else 'sc-green' }}">{{ '%.2f'|format(r.score) }}</span>
             {% else %}—{% endif %}
           </td>
           <td>

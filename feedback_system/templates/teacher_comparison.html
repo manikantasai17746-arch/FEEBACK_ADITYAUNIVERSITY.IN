@@ -204,7 +204,7 @@
             </td>
             <td>{{ r.date_label }}</td>
             <td>{{ r.responses }}</td>
-            <td><span class="score-pill">{{ '%.2f'|format(r.score) }}</span></td>
+            <td><span class="score-pill {{ 'sc-red' if r.score < 75 else 'sc-yellow' if r.score < 80 else 'sc-lgreen' if r.score < 85 else 'sc-green' }}">{{ '%.2f'|format(r.score) }}</span></td>
             <td>
               {% if r.step_change is not none %}
                 <span class="{% if r.step_change > 0 %}up{% elif r.step_change < 0 %}down{% endif %}">
@@ -352,7 +352,7 @@
             <td class="wrap"><a href="{{ url_for('teacher.results', form_id=r.form_id, section=s.timetable_id) }}">{{ r.title }}</a></td>
             <td>{{ r.date_label }}</td>
             <td>{{ r.responses }}</td>
-            <td><span class="score-pill">{{ '%.2f'|format(r.score) }}</span></td>
+            <td><span class="score-pill {{ 'sc-red' if r.score < 75 else 'sc-yellow' if r.score < 80 else 'sc-lgreen' if r.score < 85 else 'sc-green' }}">{{ '%.2f'|format(r.score) }}</span></td>
           </tr>
           {% endfor %}
         </tbody>

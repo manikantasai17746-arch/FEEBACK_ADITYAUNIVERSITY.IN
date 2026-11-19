@@ -361,3 +361,18 @@ body.role-teacher .perf-welcome a.btn.btn-ghost,
 html.dark-mode body.role-teacher .perf-welcome a.btn.btn-ghost { background: var(--tt-blue); color: #fff; border: 0; padding: .65rem 1.2rem; font-size: .95rem; }
 body.role-teacher .perf-welcome a.btn.btn-ghost:hover,
 html.dark-mode body.role-teacher .perf-welcome a.btn.btn-ghost:hover { background: var(--tt-blue-deep); color: #fff; }
+
+/* ---------- score colour bands: <75 red, 75-<80 yellow, 80-<85 light green, 85+ green ---------- */
+body.role-teacher { --sc-red: #C0362C; --sc-red-bg: #FBE3E0; --sc-red-fg: #9B2A22;
+  --sc-yellow: #E0A800; --sc-yellow-bg: #FBF0C8; --sc-yellow-fg: #7A5600;
+  --sc-lgreen: #84C441; --sc-lgreen-bg: #E5F4D2; --sc-lgreen-fg: #3C6E12;
+  --sc-green: #137A55; --sc-green-bg: #DDF3E9; --sc-green-fg: #0E6144; }
+html.dark-mode body.role-teacher { --sc-red: #F2796E; --sc-red-bg: #3F1C1A; --sc-red-fg: #F2796E;
+  --sc-yellow: #F0C040; --sc-yellow-bg: #3A2D10; --sc-yellow-fg: #F0C040;
+  --sc-lgreen: #A5DC6B; --sc-lgreen-bg: #243A12; --sc-lgreen-fg: #A5DC6B;
+  --sc-green: #4CC796; --sc-green-bg: #12382C; --sc-green-fg: #4CC796; }
+body.role-teacher .sc-red { --sc: var(--sc-red); --sc-bg: var(--sc-red-bg); --sc-fg: var(--sc-red-fg); }
+body.role-teacher .sc-yellow { --sc: var(--sc-yellow); --sc-bg: var(--sc-yellow-bg); --sc-fg: var(--sc-yellow-fg); }
+body.role-teacher .sc-lgreen { --sc: var(--sc-lgreen); --sc-bg: var(--sc-lgreen-bg); --sc-fg: var(--sc-lgreen-fg); }
+body.role-teacher .sc-green { --sc: var(--sc-green); --sc-bg: var(--sc-green-bg); --sc-fg: var(--sc-green-fg); }
+body.role-teacher .score-pill[class*="sc-"], body.role-teacher .perf-label[class*="sc-"] { background: var(--sc-bg); color: var(--sc-fg); }

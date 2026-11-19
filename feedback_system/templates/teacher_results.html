@@ -142,7 +142,7 @@
   <div class="chart-card" style="text-align:center">
     <h3>Performance Score</h3>
     {% set pct = (row.score or 0) %}
-    <div class="score-ring" style="--pct: {{ pct * 3.6 }}deg; background: conic-gradient(var(--tt-ok, #22c55e) {{ pct }}%, var(--tt-line, #e2e8f0) 0);">
+    <div class="score-ring {{ 'sc-red' if pct < 75 else 'sc-yellow' if pct < 80 else 'sc-lgreen' if pct < 85 else 'sc-green' }}" style="--pct: {{ pct * 3.6 }}deg; background: conic-gradient(var(--sc, #22c55e) {{ pct }}%, var(--tt-line, #e2e8f0) 0);">
       <div class="inner">
         <div class="big">{% if row.score is not none %}{{ '%.2f'|format(row.score) }}{% else %}—{% endif %}</div>
         <div class="sub">/ 100</div>
@@ -151,13 +151,10 @@
     <div style="margin-top:.75rem">
       <div class="sub">Total Marks: {{ obtained_total }} / {{ max_marks_total or '—' }}</div>
       {% if row.score is not none %}
-        {% if row.score >= 80 %}
-        <span class="perf-label">Good Performance</span>
-        {% elif row.score >= 60 %}
-        <span class="perf-label" style="background:var(--tt-warn-bg,#fef3c7);color:var(--tt-warn,#92400e)">Average Performance</span>
-        {% else %}
-        <span class="perf-label" style="background:var(--tt-bad-bg,#fee2e2);color:var(--tt-bad,#991b1b)">Needs Improvement</span>
-        {% endif %}
+        {% if row.score >= 85 %}<span class="perf-label sc-green">Excellent Performance</span>
+        {% elif row.score >= 80 %}<span class="perf-label sc-lgreen">Good Performance</span>
+        {% elif row.score >= 75 %}<span class="perf-label sc-yellow">Average Performance</span>
+        {% else %}<span class="perf-label sc-red">Needs Improvement</span>{% endif %}
       {% endif %}
     </div>
   </div>
