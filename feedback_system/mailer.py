@@ -143,6 +143,10 @@ def code_email(code, purpose, minutes):
     if purpose == 'reset_password':
         subject = 'Your password reset code'
         lead = 'Use this code to reset your Faculty Feedback password:'
+    elif purpose in ('admin_lost_1', 'admin_lost_2'):
+        subject = 'Administrator authenticator recovery code'
+        lead = ('Someone asked to remove the authenticator on the administrator account. '
+                'Use this code only if it was you:')
     elif purpose == 'setup_authenticator':
         subject = 'Set up your authenticator app'
         lead = 'Use this code to set up the authenticator app for your feedback account:'
@@ -274,4 +278,46 @@ def authenticator_notice(to, name, action):
                 f'{when}. You will set up a new one at your next login.')
     text = (f'{hello}\n\n{body}\n\n'
             'If this was not you, contact the administrator straight away.\n')
+    return bool(send_email(to, subject, text))
+
+
+_SECURITY_EVENTS = {
+    'password_reset': ('Your feedback account password was changed',
+                       'The password for your feedback account was changed on {when} using '
+                       'your authenticator app.'),
+    'backup_code_used': ('A backup code was used on your feedback account',
+                         'A backup code was used on your feedback account on {when}. Your '
+                         'authenticator app is still set up, and you have fewer backup codes '
+                         'left.'),
+    'lost_device_reset': ('Your authenticator was removed after a lost-device recovery',
+                          'A lost-device recovery was completed on your feedback account on '
+                          '{when}. The old authenticator and all remaining backup codes were '
+                          'removed, and you will set up a new authenticator at your next '
+                          'sign-in.'),
+    'backup_codes_regenerated': ('New backup codes were created for your feedback account',
+                                 'A new set of backup codes was created for your feedback '
+                                 'account on {when}. Your older codes no longer work.'),
+    'authenticator_reset': ('The authenticator on your feedback account was reset',
+                            'The authenticator app on your feedback account was reset by an '
+                            'administrator on {when}. You will set up a new one at your next '
+                            'sign-in.'),
+}
+
+
+def security_notice(to, name, event):
+    """Notify an account holder of a security event (any role). Notification only.
+
+    ``event`` is one of ``password_reset``, ``backup_code_used`` (authenticator stays),
+    ``lost_device_reset`` (authenticator removed), ``backup_codes_regenerated`` or
+    ``authenticator_reset`` (administrator reset).  The message never contains a
+    password, secret, setup key, link or code.  Returns True only if the mail was accepted
+    for sending; an unknown event or empty address returns False and sends nothing.
+    """
+    if not to or event not in _SECURITY_EVENTS:
+        return False
+    subject, body = _SECURITY_EVENTS[event]
+    when = datetime.utcnow().strftime('%d %b %Y, %H:%M UTC')
+    text = (f"Hello {name or 'there'},\n\n{body.format(when=when)}\n\n"
+            'If this was not you, contact the administrator straight away.\n\n'
+            '- Aditya University - Faculty Feedback System\n')
     return bool(send_email(to, subject, text))

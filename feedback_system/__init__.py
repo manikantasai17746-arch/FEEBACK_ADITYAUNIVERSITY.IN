@@ -84,6 +84,9 @@ def create_app(config=None):
         # Earlier shared defaults that are still detected (comma-separated, no commas inside a value).
         PREVIOUS_DEFAULT_STUDENT_PASSWORDS=[p for p in os.environ.get(
             'PREVIOUS_DEFAULT_STUDENT_PASSWORDS', '').split(',') if p],
+        # Students confirm their e-mail with the college address <roll>@<this domain>.
+        # Empty disables the restriction (any address is then accepted, as before).
+        STUDENT_EMAIL_DOMAIN=os.environ.get('STUDENT_EMAIL_DOMAIN', 'adityauniversity.in'),
         AUTO_IMPORT=os.environ.get('AUTO_IMPORT', '1') == '1',
         # --- misc ----------------------------------------------------------
         MAX_CONTENT_LENGTH=int(os.environ.get('MAX_UPLOAD_MB', '10')) * 1024 * 1024,
@@ -101,6 +104,15 @@ def create_app(config=None):
         TOTP_ENCRYPTION_KEY=os.environ.get('TOTP_ENCRYPTION_KEY'),
         OTP_MAX_ATTEMPTS=int(os.environ.get('OTP_MAX_ATTEMPTS', '5')),
         OTP_LOCKOUT_SECONDS=int(os.environ.get('OTP_LOCKOUT_SECONDS', '900')),
+        # Which roles must enrol an authenticator, and the date each becomes mandatory.
+        # Default: students only (the behaviour before the all-roles upgrade). Example:
+        #   AUTHENTICATOR_ENFORCE_ROLES=student,teacher,hod,dean
+        #   AUTHENTICATOR_GRACE_UNTIL=teacher=2026-12-31,hod=2026-12-31,dean=2026-12-31
+        # Admin enforcement is refused until the Admin recovery procedure exists.
+        AUTHENTICATOR_ENFORCE_ROLES=os.environ.get('AUTHENTICATOR_ENFORCE_ROLES', 'student'),
+        AUTHENTICATOR_GRACE_UNTIL=os.environ.get('AUTHENTICATOR_GRACE_UNTIL', ''),
+        # Per-IP cap on lost-device recovery requests (per 15 minutes) before a lockout.
+        LOST_DEVICE_IP_MAX_ATTEMPTS=int(os.environ.get('LOST_DEVICE_IP_MAX_ATTEMPTS', '10')),
         JSON_SORT_KEYS=False,
         # Let browsers cache CSS/JS/logo so they are not re-fetched (each fetch
         # is a serverless call) on every page.
@@ -114,6 +126,12 @@ def create_app(config=None):
         logging.getLogger(__name__).warning(
             'TOTP_ENCRYPTION_KEY is not set: student authenticator setup is unavailable. '
             'Set it before students are asked to set up an authenticator app.')
+    from .authenticator import ADMIN_ENFORCEMENT_ALLOWED, _parse_roles
+    if ('admin' in _parse_roles(app.config.get('AUTHENTICATOR_ENFORCE_ROLES'))
+            and not ADMIN_ENFORCEMENT_ALLOWED):
+        logging.getLogger(__name__).warning(
+            'AUTHENTICATOR_ENFORCE_ROLES lists admin, but Admin enforcement is disabled until '
+            'the Admin recovery procedure is implemented. Admins can still enrol voluntarily.')
     if not app.config.get('DEFAULT_STUDENT_PASSWORD'):
         # Without it, shared-default detection cannot match anything. Logs the fact only.
         logging.getLogger(__name__).warning(
@@ -169,6 +187,8 @@ def create_app(config=None):
     from .photos import bp as photos_bp
     from .second_faculty import bp as second_faculty_bp
     from .hod_feedback import bp as hod_feedback_bp
+    from .account_security import bp as account_security_bp
+    from .lost_device import bp as lost_device_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
@@ -179,6 +199,8 @@ def create_app(config=None):
     app.register_blueprint(photos_bp)
     app.register_blueprint(second_faculty_bp)
     app.register_blueprint(hod_feedback_bp)
+    app.register_blueprint(account_security_bp)
+    app.register_blueprint(lost_device_bp)
 
     @app.route('/favicon.ico')
     def favicon():

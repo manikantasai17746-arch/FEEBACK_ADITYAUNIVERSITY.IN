@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}Your backup codes — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="eyebrow">{{ 'Authenticator is ready' if reason == 'enrolled' else 'New backup codes' }}</div>
+    <h2>Save your backup codes now</h2>
+    <p class="sub" style="margin-bottom:1rem"><strong>This is the only time they are shown.</strong>
+      Each code works once. If you lose your phone, a backup code lets you recover your account.
+      {% if reason == 'regenerated' %}Your older codes no longer work.{% endif %}</p>
+    <div class="card" style="margin-bottom:1rem">
+      <ul id="backup-codes" style="list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem;font-family:monospace;font-size:1.05rem;letter-spacing:.08em">
+        {% for c in codes %}<li>{{ c }}</li>{% endfor %}
+      </ul>
+    </div>
+    <p class="sub">Write them down or store them in a password manager — not on the same phone as your authenticator app.
+      Do not share them or e-mail them to yourself.</p>
+    <a class="btn btn-block" href="{{ continue_url }}">I have saved my codes</a>
+  </div>
+</div>
+{% endblock %}

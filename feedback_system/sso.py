@@ -57,6 +57,22 @@ def enabled_providers():
     return [p for p in PROVIDERS if enabled(p)]
 
 
+def student_microsoft_ready():
+    """Microsoft sign-in for students needs the college tenant GUID.
+
+    Without it the multi-tenant endpoint would accept an e-mail claim from any Azure
+    tenant, which proves nothing about who the student is.
+    """
+    return enabled(MICROSOFT) and _is_tenant_guid(_microsoft_tenant())
+
+
+def providers_for(role):
+    """Sign-in options offered to a role. Students: college Microsoft account only."""
+    if role == 'student':
+        return [MICROSOFT] if student_microsoft_ready() else []
+    return enabled_providers()
+
+
 def _microsoft_tenant():
     return _cfg('MICROSOFT_TENANT_ID') or 'common'
 

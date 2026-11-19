@@ -38,6 +38,11 @@ def _student(app):
         return db.query("SELECT roll FROM users WHERE role='student' LIMIT 1", one=True)['roll']
 
 
+def _college(app, roll=None):
+    """The one address a student may confirm: <roll>@<college domain>, lower case."""
+    return f"{(roll or _student(app)).lower()}@{app.config['STUDENT_EMAIL_DOMAIN']}"
+
+
 def _post(client, path, **data):
     return client.post(path, data={**data, '_csrf': get_csrf(client.get(path).get_data(as_text=True))})
 
@@ -60,10 +65,11 @@ def test_student_confirms_email_with_code(app, client, sent):
     assert r.status_code == 302 and '/setup/email' in r.headers['Location']
 
     assert _post(client, '/setup/email', email='nope').status_code == 200      # invalid format
+    assert _post(client, '/setup/email', email='kid@gmail.com').status_code == 200   # not the college email
     assert sent == []
-    r = _post(client, '/setup/email', email='Kid@Gmail.com')
+    r = _post(client, '/setup/email', email=_college(app, roll).upper())      # any letter case
     assert r.status_code == 302 and '/setup/email/verify' in r.headers['Location']
-    assert sent[-1]['to'] == 'kid@gmail.com' and sent[-1]['code']
+    assert sent[-1]['to'] == _college(app, roll) and sent[-1]['code']
     with app.app_context():   # not saved until confirmed
         assert not db.query('SELECT email FROM users WHERE roll=?', (roll,), one=True)['email']
     assert client.get('/student/').status_code == 302
@@ -75,13 +81,16 @@ def test_student_confirms_email_with_code(app, client, sent):
     # Step B: after the e-mail step the next step is the authenticator app setup.
     r = client.get('/student/')
     assert r.status_code == 302 and '/setup/authenticator' in r.headers['Location']
+    # The mailbox was just proved, so the QR code is shown at once (no second code, no password).
+    page = client.get('/setup/authenticator').get_data(as_text=True)
+    assert 'setup-key' in page and 'otpauth://totp/' in page
     with app.app_context():
-        assert db.query('SELECT email FROM users WHERE roll=?', (roll,), one=True)['email'] == 'kid@gmail.com'
+        assert db.query('SELECT email FROM users WHERE roll=?', (roll,), one=True)['email'] == _college(app, roll)
 
 
 def test_code_expires_and_locks_after_five_wrong_guesses(app, client, sent):
     login_student(client, _student(app))
-    _post(client, '/setup/email', email='a@gmail.com')
+    _post(client, '/setup/email', email=_college(app))
     real = sent[-1]['code']
     bad = '000000' if real != '000000' else '111111'
     for _ in range(5):
@@ -90,7 +99,7 @@ def test_code_expires_and_locks_after_five_wrong_guesses(app, client, sent):
     assert r.status_code == 302 and '/setup/email' in r.headers['Location']
     with app.app_context():
         db.execute('DELETE FROM email_codes')
-    _post(client, '/setup/email', email='a@gmail.com')
+    _post(client, '/setup/email', email=_college(app))
     with app.app_context():
         db.execute('UPDATE email_codes SET expires_ts=?', (int(time.time()) - 1,))
     assert client.get('/setup/email/verify').status_code == 302   # expired
@@ -98,7 +107,7 @@ def test_code_expires_and_locks_after_five_wrong_guesses(app, client, sent):
 
 def test_resend_has_a_cooldown(app, client, sent):
     login_student(client, _student(app))
-    _post(client, '/setup/email', email='a@gmail.com')
+    _post(client, '/setup/email', email=_college(app))
     r = _post(client, '/setup/email/verify', action='resend')
     assert b'wait' in r.data and len(sent) == 1
     with app.app_context():
@@ -110,7 +119,7 @@ def test_resend_has_a_cooldown(app, client, sent):
 def test_mail_failure_does_not_save_email(app, client, sent, monkeypatch):
     monkeypatch.setattr(mailer, 'send_email', lambda *a, **k: False)
     login_student(client, _student(app))
-    r = _post(client, '/setup/email', email='a@gmail.com')
+    r = _post(client, '/setup/email', email=_college(app))
     assert r.status_code == 200 and b'could not send' in r.data
 
 

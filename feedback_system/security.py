@@ -83,6 +83,18 @@ def is_default_student_password(plain):
                for c in student_default_passwords())
 
 
+def student_college_email(roll):
+    """The college address a student must use: ``<roll lower-cased>@<STUDENT_EMAIL_DOMAIN>``.
+
+    None when the domain is not configured (the restriction is then off) or no roll is known.
+    """
+    domain = (current_app.config.get('STUDENT_EMAIL_DOMAIN') or '').strip().lower().lstrip('@')
+    roll = (roll or '').strip().lower()
+    if not domain or not roll:
+        return None
+    return f'{roll}@{domain}'
+
+
 # --------------------------------------------------------------------------- #
 # Sessions / current user
 # --------------------------------------------------------------------------- #

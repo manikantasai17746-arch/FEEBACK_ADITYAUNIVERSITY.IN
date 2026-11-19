@@ -37,3 +37,7 @@ Keep old reports as historical evidence. Add a dated follow-up rather than silen
 ## Authenticator (TOTP) 2FA
 
 - Checkpoint 1 (schema and crypto core): `AUTHENTICATOR_CP1_HANDOFF.md`
+- Recovery service layer (all-roles upgrade, Checkpoint 1): `AUTHENTICATOR_CP1_HANDOFF.md` §15
+- Enrollment for all five roles (all-roles upgrade, Checkpoint 2): `AUTHENTICATOR_CP1_HANDOFF.md` §16
+- Lost-device recovery (all-roles upgrade, Checkpoint 3): `AUTHENTICATOR_CP1_HANDOFF.md` §17
+- Design and operations guide (secret, backup codes, recovery, roles, configuration): `../AUTHENTICATOR_RECOVERY.md`

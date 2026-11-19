@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% block title %}Administrator authenticator recovery — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="eyebrow">Administrator · Lost authenticator</div>
+    <h2>Verify your two recovery e-mails</h2>
+    <p class="sub" style="margin-bottom:1.2rem">Enter the <strong>two recovery e-mails</strong> registered on the
+      administrator account. A <strong>different</strong> 6-digit code is sent to <strong>each</strong> address.
+      You will need both codes. This removes your old authenticator and backup codes; you then set up a new one.</p>
+    <form method="post" autocomplete="off" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field"><label for="email1">Registered recovery e-mail 1</label>
+        <input type="email" id="email1" name="email1" required autofocus></div>
+      <div class="field"><label for="email2">Registered recovery e-mail 2</label>
+        <input type="email" id="email2" name="email2" required></div>
+      <button class="btn btn-block" type="submit">Send codes</button>
+    </form>
+    <p class="sub mt"><a href="{{ url_for('auth.admin_login') }}">← Back to admin login</a></p>
+  </div>
+</div>
+{% endblock %}

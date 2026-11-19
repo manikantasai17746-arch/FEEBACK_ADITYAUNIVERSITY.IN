@@ -14,7 +14,7 @@ import pyotp
 import pytest
 
 from feedback_system import authenticator, db, mailer
-from helpers import login, login_student
+from helpers import STUDENT_PERSONAL_PASSWORD, login, login_student
 
 ROLL = '25B11CS016'            # a student no other test depends on
 
@@ -84,7 +84,14 @@ def _secret(app, uid):
         return authenticator.pending_secret(uid)
 
 
+def _pw(client):
+    return _post(client, '/setup/authenticator', action='password',
+                 password=STUDENT_PERSONAL_PASSWORD)
+
+
 def _send_and_confirm_email(client, sent):
+    # All-roles upgrade: the password is re-entered first, then the e-mailed code (students).
+    _post(client, '/setup/authenticator', action='password', password=STUDENT_PERSONAL_PASSWORD)
     _post(client, '/setup/authenticator', action='send')
     code = sent[-1]['code']
     return _post(client, '/setup/authenticator/verify', code=code)
@@ -122,6 +129,9 @@ def test_send_step_emails_a_code_and_shows_no_secret(app, client, student, sent,
     _set_email(app, student)
     assert login_student(client, ROLL).status_code == 302
     r = client.get('/setup/authenticator')
+    assert r.status_code == 200 and b'Current password' in r.data and b'setup-key' not in r.data
+    _pw(client)
+    r = client.get('/setup/authenticator')
     assert r.status_code == 200 and b'Email me a code' in r.data
     r = _post(client, '/setup/authenticator', action='send')
     assert r.status_code == 302 and 'verify' in r.headers['Location']
@@ -133,6 +143,7 @@ def test_send_step_emails_a_code_and_shows_no_secret(app, client, student, sent,
 def test_wrong_email_code_gives_no_setup_access(app, client, student, sent, setup_on):
     _set_email(app, student)
     assert login_student(client, ROLL).status_code == 302
+    _pw(client)
     _post(client, '/setup/authenticator', action='send')
     real = sent[-1]['code']
     wrong = '000000' if real != '000000' else '111111'
@@ -146,6 +157,7 @@ def test_mail_failure_gives_no_setup_access(app, client, student, monkeypatch, s
     monkeypatch.setattr(mailer, 'send_email', lambda *a, **k: False)
     _set_email(app, student)
     assert login_student(client, ROLL).status_code == 302
+    _pw(client)
     r = _post(client, '/setup/authenticator', action='send', )
     assert b'could not send' in r.data
     with client.session_transaction() as sess:
@@ -176,7 +188,7 @@ def test_correct_app_code_activates_and_opens_the_portal(app, client, student, s
     client.get('/setup/authenticator')
     code = pyotp.TOTP(_secret(app, student)).now()
     r = _post(client, '/setup/authenticator/confirm', code=code)
-    assert r.status_code == 302
+    assert r.status_code == 200 and b'backup-codes' in r.data      # the one-time codes page
     with app.app_context():
         assert authenticator.is_active(student)
     assert client.get('/student/').status_code == 200
@@ -224,10 +236,9 @@ def test_logout_closes_the_setup_proof(app, client, student, sent, setup_on):
 # --------------------------------------------------------------------------- #
 # Teachers and the QR code
 # --------------------------------------------------------------------------- #
-def test_teacher_cannot_use_the_student_setup_page(app, client, teacher, setup_on):
+def test_a_guest_cannot_open_the_setup_page(client):
     r = client.get('/setup/authenticator')
-    assert r.status_code in (302, 403)
-    assert b'setup-key' not in r.data
+    assert r.status_code == 302 and 'login' in r.headers['Location']
 
 
 def test_key_is_shown_even_when_the_qr_library_is_missing(app, client, student, sent, setup_on):
