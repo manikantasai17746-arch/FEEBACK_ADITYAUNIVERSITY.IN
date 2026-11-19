@@ -113,6 +113,14 @@ def create_app(config=None):
         AUTHENTICATOR_GRACE_UNTIL=os.environ.get('AUTHENTICATOR_GRACE_UNTIL', ''),
         # Per-IP cap on lost-device recovery requests (per 15 minutes) before a lockout.
         LOST_DEVICE_IP_MAX_ATTEMPTS=int(os.environ.get('LOST_DEVICE_IP_MAX_ATTEMPTS', '10')),
+        # Lost-device recovery lock (Student/Teacher/HOD/Dean; never Admin): this many wrong
+        # recovery codes within the window lock recovery (not sign-in) for the lock time.
+        RECOVERY_MAX_ATTEMPTS=int(os.environ.get('RECOVERY_MAX_ATTEMPTS', '5')),
+        RECOVERY_LOCK_SECONDS=int(os.environ.get('RECOVERY_LOCK_SECONDS', '7200')),
+        RECOVERY_FAILURE_WINDOW_SECONDS=int(os.environ.get('RECOVERY_FAILURE_WINDOW_SECONDS', '900')),
+        RECOVERY_IP_START_MAX=int(os.environ.get('RECOVERY_IP_START_MAX', '10')),
+        RECOVERY_IP_CODE_MAX=int(os.environ.get('RECOVERY_IP_CODE_MAX', '15')),
+        RECOVERY_MAIL_MAX=int(os.environ.get('RECOVERY_MAIL_MAX', '3')),
         JSON_SORT_KEYS=False,
         # Let browsers cache CSS/JS/logo so they are not re-fetched (each fetch
         # is a serverless call) on every page.

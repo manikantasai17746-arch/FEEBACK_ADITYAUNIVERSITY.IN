@@ -143,6 +143,14 @@ Owner decisions: authenticator code first, then backup code, then (Checkpoint B,
 **Not done (Checkpoint B):** no phone and no backup codes, using Microsoft sign-in or emailed code to remove the authenticator, then new password, new QR, confirm code, new backup codes. This reverses the Checkpoint 1 rule "never email alone as an authenticator reset" for non-admin roles; needs the owner's approval of the design first.
 **Deploy:** no migration, no new environment variable.
 
+## 3l. Lost-device recovery, Checkpoint B1: recovery lock engine (2026-11-19)
+
+Engine only; no route uses it yet (B2 wires the new e-mail-code flow and the existing `/lost-phone` page, B3 adds Microsoft/Google, B4 docs and regression).
+**Done:** `feedback_system/recovery_lock.py`. 5 wrong recovery codes within 15 minutes lock lost-device recovery for 2 hours (`reclock:<id>` in `login_attempts`), auto-unlock by time. Student/Teacher/HOD/Dean only; every function is a no-op for Admin. Separate keys, so sign-in, the sign-in authenticator check and forgot-password (Checkpoint A) are never blocked. Audit: `user.recovery_locked` (at the 5th wrong code), `user.recovery_blocked` (first refused attempt of a lock), `user.recovery_unlocked` (written lazily on the next attempt after expiry, with the expiry time; there is no background job). IP caps `recstart-ip` (10/15 min) and `reccode-ip` (15/h); per-account e-mail cap `recmail` (3/h).
+**Settings (all optional):** `RECOVERY_MAX_ATTEMPTS=5`, `RECOVERY_LOCK_SECONDS=7200`, `RECOVERY_FAILURE_WINDOW_SECONDS=900`, `RECOVERY_IP_START_MAX=10`, `RECOVERY_IP_CODE_MAX=15`, `RECOVERY_MAIL_MAX=3`.
+**Known trade-off:** someone who knows an ID can lock that account's lost-device recovery for 2 hours (never its login); per-IP caps limit this.
+**Tests:** `tests/test_recovery_lock_b1.py`. **Deploy:** no migration; settings optional.
+
 ## 4. Phase 6 — planned, not implemented
 
 Proposed modules:
