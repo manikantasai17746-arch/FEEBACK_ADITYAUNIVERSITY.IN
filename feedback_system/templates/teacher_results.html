@@ -55,7 +55,7 @@
   </div>
 </div>
 
-<p class="sub" style="margin:1rem 0;padding:.75rem 1rem;background:#f0f9ff;border-radius:10px;border:1px solid #bae6fd">
+<p class="sub tt-note">
   Each student gives 10 marks in total. This form has {{ question_count or row.question_count or 'N' }} questions,
   so each is worth {{ '%.2f'|format(marks_per_question or row.marks_per_question or 0) }} marks.
   {% if row.form_marks and row.form_marks.closed %}Form closed: Maximum = 10 × students who responded ({{ row.form_marks.max_students }} → {{ max_marks_total }}); students who did not respond are not counted.
@@ -85,7 +85,7 @@
   <div class="chart-card">
     <h3>Feedback Rating Distribution</h3>
     {% if distribution and dist_total %}
-    {% set colors = ['#3b82f6','#22c55e','#eab308','#f97316','#ef4444','#94a3b8'] %}
+    {% set colors = ['var(--tt-r1,#3b82f6)','var(--tt-r2,#22c55e)','var(--tt-r3,#eab308)','var(--tt-r4,#f97316)','var(--tt-r5,#ef4444)','#94a3b8'] %}
     <ul class="pie-legend">
       {% for d in distribution %}
       <li>
@@ -128,7 +128,7 @@
         {% else %}
         <tr><td colspan="4" class="sub">No data</td></tr>
         {% endfor %}
-        <tr style="font-weight:700;background:#f0f7ff">
+        <tr class="tt-total" style="font-weight:700">
           <td>Total</td>
           <td colspan="2">
             {{ answer_count or dist_total or 0 }} answers from {{ students_count or responses }} student{% if (students_count or responses) != 1 %}s{% endif %}
@@ -142,7 +142,7 @@
   <div class="chart-card" style="text-align:center">
     <h3>Performance Score</h3>
     {% set pct = (row.score or 0) %}
-    <div class="score-ring" style="--pct: {{ pct * 3.6 }}deg; background: conic-gradient(#22c55e {{ pct }}%, #e2e8f0 0);">
+    <div class="score-ring" style="--pct: {{ pct * 3.6 }}deg; background: conic-gradient(var(--tt-ok, #22c55e) {{ pct }}%, var(--tt-line, #e2e8f0) 0);">
       <div class="inner">
         <div class="big">{% if row.score is not none %}{{ '%.2f'|format(row.score) }}{% else %}—{% endif %}</div>
         <div class="sub">/ 100</div>
@@ -154,9 +154,9 @@
         {% if row.score >= 80 %}
         <span class="perf-label">Good Performance</span>
         {% elif row.score >= 60 %}
-        <span class="perf-label" style="background:#fef3c7;color:#92400e">Average Performance</span>
+        <span class="perf-label" style="background:var(--tt-warn-bg,#fef3c7);color:var(--tt-warn,#92400e)">Average Performance</span>
         {% else %}
-        <span class="perf-label" style="background:#fee2e2;color:#991b1b">Needs Improvement</span>
+        <span class="perf-label" style="background:var(--tt-bad-bg,#fee2e2);color:var(--tt-bad,#991b1b)">Needs Improvement</span>
         {% endif %}
       {% endif %}
     </div>
@@ -175,7 +175,7 @@
       <div class="rb-row">
         <span>{{ o.label }}</span>
         <div class="rb-track">
-          {% set colors = ['#3b82f6','#22c55e','#eab308','#f97316','#ef4444'] %}
+          {% set colors = ['var(--tt-r1,#3b82f6)','var(--tt-r2,#22c55e)','var(--tt-r3,#eab308)','var(--tt-r4,#f97316)','var(--tt-r5,#ef4444)'] %}
           <div class="rb-fill" style="width:{{ o.pct }}%;background:{{ colors[loop.index0 % 5] }}"></div>
         </div>
         <span>{{ o.count }} ({{ o.pct }}%)</span>

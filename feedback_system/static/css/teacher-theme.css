@@ -1,0 +1,337 @@
+/* Teacher portal theme. Loaded only when the signed-in role is teacher (see base.html),
+   so Student, HOD, Dean and Admin pages are not affected. Every rule is scoped to
+   body.role-teacher. It matches the public landing page (landing.css): Bricolage Grotesque
+   and Instrument Sans, brand blue + orange on cool paper and navy, pill buttons,
+   OMR answer-sheet details. Dark mode reuses the existing html.dark-mode switch. */
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("../fonts/bricolage-grotesque-latin-wght-normal.woff2") format("woff2");
+  font-weight: 200 800; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("../fonts/instrument-sans-latin-wght-normal.woff2") format("woff2");
+  font-weight: 400 700; font-style: normal; font-display: swap;
+}
+
+body.role-teacher {
+  --tt-ink: #071E3D; --tt-muted: #475C7A; --tt-line: #D3DDEC;
+  --tt-blue: #04529B; --tt-blue-deep: #033C73; --tt-link: #04529B; --tt-orange: #F57025;
+  --tt-bg: #FFFFFF; --tt-paper: #F3F6FB; --tt-card: #FFFFFF; --tt-navy: #071E3D;
+  --tt-head: rgba(255,255,255,.94); --tt-field: #B9C7DD; --tt-hover: #E3EAF6;
+  --tt-ok: #137A55; --tt-ok-bg: #DDF3E9; --tt-warn: #8A5A12; --tt-warn-bg: #FBEFD5;
+  --tt-bad: #C0362C; --tt-bad-bg: #FBE3E0; --tt-blue-bg: #DCE9F8; --tt-orange-bg: #FFE5D4;
+  --tt-r1: #04529B; --tt-r2: #137A55; --tt-r3: #D9A21B; --tt-r4: #F57025; --tt-r5: #C0362C;
+  --tt-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --tt-text: "Instrument Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* re-point the app tokens so untouched rules in app.css pick up the new palette */
+  --navy: var(--tt-ink); --navy-dark: var(--tt-ink); --navy-soft: var(--tt-paper);
+  --accent: var(--tt-blue); --ink: var(--tt-ink); --muted: var(--tt-muted); --line: var(--tt-line);
+  --bg: var(--tt-bg); --card: var(--tt-card); --ok: var(--tt-ok); --err: var(--tt-bad);
+  --radius: 14px; --shadow: none;
+  background: var(--tt-bg); color: var(--tt-ink);
+  font-family: var(--tt-text); font-size: 1rem; line-height: 1.6;
+}
+html.dark-mode body.role-teacher {
+  --tt-ink: #E8EEF8; --tt-muted: #9DB0CC; --tt-line: #223A5C;
+  --tt-blue: #3B82D6; --tt-blue-deep: #2F73C4; --tt-link: #7DB4F5; --tt-orange: #F77F3A;
+  --tt-bg: #08162B; --tt-paper: #0C2038; --tt-card: #0F2744; --tt-navy: #050F20;
+  --tt-head: rgba(8,22,43,.94); --tt-field: #35517A; --tt-hover: #17304F;
+  --tt-ok: #4CC796; --tt-ok-bg: #12382C; --tt-warn: #E8B54E; --tt-warn-bg: #3A2D10;
+  --tt-bad: #F2796E; --tt-bad-bg: #3F1C1A; --tt-blue-bg: #14355C; --tt-orange-bg: #44250F;
+  --tt-r1: #5AA0F0; --tt-r2: #4CC796; --tt-r3: #E8B54E; --tt-r4: #F77F3A; --tt-r5: #F2796E;
+}
+
+/* ---------- base ---------- */
+body.role-teacher a { color: var(--tt-link); }
+body.role-teacher h1, body.role-teacher h2, body.role-teacher h3, body.role-teacher h4 {
+  font-family: var(--tt-display); color: var(--tt-ink); letter-spacing: -.02em; text-wrap: balance;
+}
+body.role-teacher h1 { font-weight: 700; font-size: clamp(1.9rem, 4vw, 3rem); line-height: 1.06; letter-spacing: -.03em; }
+body.role-teacher h2 { font-weight: 700; font-size: clamp(1.3rem, 2.4vw, 1.75rem); line-height: 1.15; }
+body.role-teacher h3 { font-weight: 650; font-size: 1.12rem; }
+body.role-teacher .sub, body.role-teacher .muted, body.role-teacher .hint { color: var(--tt-muted); font-size: .92rem; }
+body.role-teacher .eyebrow { color: var(--tt-muted); font-weight: 700; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; }
+body.role-teacher :focus-visible { outline: 3px solid var(--tt-link); outline-offset: 3px; }
+body.role-teacher .container { max-width: 1180px; margin: 0 auto; padding: 0 16px 56px; }
+body.role-teacher .flashes { padding-top: 16px; }
+body.role-teacher .card, body.role-teacher .chart-card {
+  background: var(--tt-card); border: 1px solid var(--tt-line); border-radius: 14px; box-shadow: none; color: var(--tt-ink);
+}
+body.role-teacher .card { padding: 1.3rem; }
+
+/* ---------- header ---------- */
+body.role-teacher .topbar { background: var(--tt-head); backdrop-filter: blur(10px); color: var(--tt-ink); border-bottom: 1px solid var(--tt-line); box-shadow: none; }
+body.role-teacher .topbar-inner { max-width: 1180px; padding: .65rem 16px; }
+body.role-teacher .brand { color: var(--tt-ink); gap: .7rem; }
+body.role-teacher .brand-logo { height: 34px; width: auto; }
+body.role-teacher .brand-text { font: 700 1.05rem/1 var(--tt-display); letter-spacing: -.01em; color: var(--tt-ink); padding-left: .7rem; border-left: 2px solid var(--tt-line); display: flex; flex-direction: column; gap: 3px; }
+body.role-teacher .brand-text small { font: 600 .68rem/1 var(--tt-text); letter-spacing: .08em; text-transform: uppercase; color: var(--tt-orange); }
+body.role-teacher .topnav { gap: .25rem; }
+body.role-teacher .topnav > a:not(.nav-user) { color: var(--tt-muted); font-weight: 600; font-size: .92rem; padding: .5rem .9rem; border-radius: 999px; }
+body.role-teacher .topnav > a:not(.nav-user):hover { background: var(--tt-paper); color: var(--tt-link); text-decoration: none; }
+body.role-teacher .topnav > a.active { background: var(--tt-ink); color: var(--tt-bg); }
+body.role-teacher .topnav > a.active:hover { background: var(--tt-ink); color: var(--tt-bg); }
+body.role-teacher .nav-toggle { border-color: var(--tt-line); color: var(--tt-ink); }
+body.role-teacher .a11y-bar { display: inline-flex; align-items: center; gap: .35rem; margin: 0 .4rem; }
+body.role-teacher .a11y-bar button { border: 1.5px solid var(--tt-line); background: var(--tt-card); color: var(--tt-ink); border-radius: 999px; height: 38px; min-width: 38px; padding: 0 .7rem; font: 600 .85rem var(--tt-text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+body.role-teacher .a11y-bar button:hover { border-color: var(--tt-ink); background: var(--tt-paper); }
+body.role-teacher .theme-toggle { width: 38px; padding: 0 !important; }
+body.role-teacher .theme-toggle .moon { display: none; }
+html.dark-mode body.role-teacher .theme-toggle .sun { display: none; }
+html.dark-mode body.role-teacher .theme-toggle .moon { display: inline-flex; }
+body.role-teacher .theme-toggle span { display: inline-flex; }
+body.role-teacher .nav-user { background: var(--tt-card); color: var(--tt-ink) !important; border: 1.5px solid var(--tt-line); border-radius: 999px; font-weight: 600; font-size: .88rem; padding: .45rem 1rem; }
+body.role-teacher .nav-user:hover { border-color: var(--tt-bad); color: var(--tt-bad) !important; text-decoration: none; }
+@media (max-width: 900px) {
+  body.role-teacher .topnav { background: var(--tt-card); border: 1px solid var(--tt-line); border-radius: 14px; padding: .5rem; }
+  body.role-teacher .topnav > a:not(.nav-user) { border-radius: 10px; }
+}
+
+/* ---------- buttons ---------- */
+body.role-teacher .btn { background: var(--tt-blue); color: #fff; border: 0; border-radius: 999px; padding: .65rem 1.2rem; font: 600 .95rem/1.2 var(--tt-text); box-shadow: none; transition: background-color .15s, color .15s; }
+body.role-teacher .btn:hover { background: var(--tt-blue-deep); color: #fff; text-decoration: none; }
+body.role-teacher .btn-sm { padding: .4rem .9rem; font-size: .85rem; }
+body.role-teacher .btn-ghost, body.role-teacher .btn-back, body.role-teacher .btn-outline { background: transparent; color: var(--tt-ink); border: 1.5px solid var(--tt-ink); box-shadow: none; }
+body.role-teacher .btn-ghost:hover, body.role-teacher .btn-back:hover, body.role-teacher .btn-outline:hover { background: var(--tt-ink); color: var(--tt-bg); }
+body.role-teacher .btn-accent { background: var(--tt-orange); }
+body.role-teacher .btn-accent:hover { background: #d95e18; color: #fff; }
+body.role-teacher .btn-ok { background: var(--tt-ok); color: #fff; }
+body.role-teacher .btn-ok:hover { filter: brightness(.9); background: var(--tt-ok); }
+body.role-teacher .btn.is-disabled, body.role-teacher .btn[disabled] { opacity: .45; }
+
+/* ---------- forms ---------- */
+body.role-teacher label, body.role-teacher .field-label { color: var(--tt-muted); font-size: .8rem; font-weight: 600; }
+body.role-teacher select, body.role-teacher input[type=text], body.role-teacher input[type=search],
+body.role-teacher input[type=password], body.role-teacher textarea {
+  background: var(--tt-card); color: var(--tt-ink); border: 1.5px solid var(--tt-field); border-radius: 10px; padding: .55rem .8rem; font: 1rem var(--tt-text);
+}
+body.role-teacher select:focus, body.role-teacher input:focus, body.role-teacher textarea:focus {
+  outline: none; border-color: var(--tt-link); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tt-link) 25%, transparent);
+}
+
+/* ---------- full-bleed page heads and bands ---------- */
+body.role-teacher .perf-welcome, body.role-teacher .imp-header, body.role-teacher .sf-pagehead, body.role-teacher .tas-head {
+  background: var(--tt-paper); box-shadow: 0 0 0 100vmax var(--tt-paper); clip-path: inset(0 -100vmax);
+  padding: 2.4rem 0 2.2rem; margin: 0; border-bottom: 1px solid var(--tt-line);
+}
+body.role-teacher .perf-welcome { align-items: flex-end; }
+body.role-teacher .perf-welcome h1 { margin: 0 0 .5rem; }
+body.role-teacher .perf-welcome .sub { font-size: 1.02rem; }
+body.role-teacher .perf-filters { gap: .8rem; }
+body.role-teacher .perf-filters select { min-width: 150px; }
+body.role-teacher .imp-header { margin-bottom: 0; }
+body.role-teacher .imp-title { font-size: clamp(1.9rem, 4vw, 3rem); font-family: var(--tt-display); letter-spacing: -.03em; line-height: 1.06; }
+body.role-teacher .imp-title-icon { display: none; }
+body.role-teacher .sf-pagehead { margin-bottom: 0; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; align-items: flex-end; }
+body.role-teacher .tas-head { margin-bottom: 0; align-items: flex-end; }
+body.role-teacher .tas-head h1, body.role-teacher .sf-pagehead h1 { margin: 0 0 .4rem; }
+
+/* numbers band: the tiles become one navy strip with big orange figures */
+body.role-teacher .perf-tiles, body.role-teacher .imp-tiles {
+  background: var(--tt-navy); box-shadow: 0 0 0 100vmax var(--tt-navy); clip-path: inset(0 -100vmax);
+  margin: 0 0 2.2rem; padding: 2rem 0; gap: 1.2rem 2rem; grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 900px) { body.role-teacher .perf-tiles, body.role-teacher .imp-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { body.role-teacher .perf-tiles, body.role-teacher .imp-tiles { grid-template-columns: 1fr; } }
+body.role-teacher .perf-tile, body.role-teacher .imp-tile { background: none; border: 0; box-shadow: none; padding: 0; border-radius: 0; display: block; }
+body.role-teacher .perf-tile .ic, body.role-teacher .imp-tile-ic { display: none; }
+body.role-teacher .perf-tile .num, body.role-teacher .imp-tile-num { font: 700 clamp(1.7rem, 3.2vw, 2.5rem)/1.1 var(--tt-display); letter-spacing: -.02em; color: var(--tt-orange); font-variant-numeric: tabular-nums; }
+body.role-teacher .perf-tile .lbl, body.role-teacher .imp-tile-lbl { color: rgba(255,255,255,.82); font-size: .9rem; margin-top: .15rem; }
+body.role-teacher .imp-filters { margin: 1.4rem 0 1rem; }
+body.role-teacher .imp-info { background: transparent; border: 1.5px dashed var(--tt-line); border-radius: 12px; color: var(--tt-muted); }
+body.role-teacher .imp-info-icon { background: var(--tt-blue); }
+body.role-teacher .imp-page { max-width: none; }
+
+/* ---------- tables ---------- */
+body.role-teacher .marks-table, body.role-teacher table.data, body.role-teacher .data-table { font-size: .92rem; }
+body.role-teacher .marks-table th, body.role-teacher .data th, body.role-teacher .data-table th {
+  background: transparent; color: var(--tt-muted); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  border-bottom: 2px solid var(--tt-ink); padding: .7rem .8rem; white-space: nowrap;
+}
+body.role-teacher .marks-table td, body.role-teacher .data td, body.role-teacher .data-table td { border-bottom: 1px solid var(--tt-line); padding: .85rem .8rem; color: var(--tt-ink); background: transparent; }
+body.role-teacher .marks-table tbody tr:hover td, body.role-teacher .data tbody tr:hover td { background: var(--tt-paper); }
+html.dark-mode body.role-teacher .data th { background: transparent; color: var(--tt-muted); }
+body.role-teacher .form-title-line { color: var(--tt-ink); }
+body.role-teacher .role-badge { border-radius: 999px; font-weight: 600; font-size: .74rem; padding: .12rem .6rem; border: 1.5px solid var(--tt-line); }
+body.role-teacher .role-main { background: var(--tt-blue-bg); color: var(--tt-link); border-color: var(--tt-blue); }
+body.role-teacher .role-second { background: var(--tt-ok-bg); color: var(--tt-ok); border-color: var(--tt-ok); }
+body.role-teacher .role-lab { background: var(--tt-warn-bg); color: var(--tt-warn); border-color: var(--tt-r3); }
+body.role-teacher .room-chip { border-radius: 999px; font-weight: 600; font-size: .74rem; border: 1.5px solid var(--tt-line); background: var(--tt-card); color: var(--tt-muted); }
+body.role-teacher .round-badge, body.role-teacher .cat-badge { background: transparent; color: var(--tt-ink); border: 1.5px solid var(--tt-ink); }
+body.role-teacher .pending-badge { background: var(--tt-warn-bg); color: var(--tt-warn); border: 1.5px solid var(--tt-r3); }
+body.role-teacher .score-pill { background: var(--tt-ok-bg); color: var(--tt-ok); min-width: 4.2rem; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* ---------- result detail: teacher card as an answer sheet ---------- */
+body.role-teacher .teacher-card {
+  position: relative; background: var(--tt-card); border: 1px solid var(--tt-line); border-radius: 10px; box-shadow: none;
+  padding: 1.5rem 1.5rem 1.4rem 2.8rem; gap: 1.6rem; align-items: center;
+  clip-path: polygon(0 0, calc(100% - 46px) 0, 100% 46px, 100% 100%, 0 100%);
+}
+body.role-teacher .teacher-card::before { content: ""; position: absolute; left: 13px; top: 18px; bottom: 18px; width: 9px; background: repeating-linear-gradient(to bottom, var(--tt-ink) 0 9px, transparent 9px 21px); }
+body.role-teacher .teacher-card::after { content: ""; position: absolute; top: 0; right: 0; width: 46px; height: 46px; background: linear-gradient(135deg, #aebcd6 0%, #eef2f9 62%); clip-path: polygon(0 0, 100% 100%, 0 100%); }
+body.role-teacher .teacher-card .photo, body.role-teacher .teacher-card .photo-fallback { border: 3px solid var(--tt-ink); border-radius: 50%; }
+body.role-teacher .teacher-card .photo-fallback { background: var(--tt-orange); color: #fff; font-family: var(--tt-display); }
+body.role-teacher .teacher-card .meta h2 { color: var(--tt-ink); font-size: 1.4rem; }
+body.role-teacher .teacher-card .meta .desig, body.role-teacher .teacher-card .meta .line { color: var(--tt-muted); }
+body.role-teacher .mini-stats { gap: .8rem 1.4rem; padding-right: 2.2rem; }
+body.role-teacher .mini-stat { background: none; border: 0; padding: 0; min-width: 0; text-align: left; }
+body.role-teacher .mini-stat .n { font: 700 1.7rem/1.1 var(--tt-display); letter-spacing: -.02em; color: var(--tt-ink); font-variant-numeric: tabular-nums; }
+body.role-teacher .mini-stat .l { color: var(--tt-muted); font-size: .74rem; line-height: 1.3; }
+body.role-teacher .subject-detail-head h1 { font-size: clamp(1.5rem, 3vw, 2.2rem); }
+body.role-teacher .tt-note { margin: 1.2rem 0; padding: .9rem 1.1rem; border-left: 4px solid var(--tt-blue); background: var(--tt-paper); border-radius: 0 10px 10px 0; color: var(--tt-muted); font-size: .94rem; border-top: 0; border-right: 0; border-bottom: 0; }
+body.role-teacher .detail-grid { gap: 1.1rem; }
+body.role-teacher .chart-card { padding: 1.3rem; }
+body.role-teacher .chart-card h3 { color: var(--tt-ink); font-size: 1.1rem; margin-bottom: 1rem; }
+body.role-teacher .bar-chart { border-bottom: 2px solid var(--tt-ink); height: 170px; }
+body.role-teacher .bar-chart .cnt { color: var(--tt-ink); }
+body.role-teacher .bar-chart .nm { color: var(--tt-muted); }
+body.role-teacher .bar-chart .bar { border-radius: 6px 6px 0 0; }
+body.role-teacher .bar-chart .bar.c5 { background: var(--tt-r1); }
+body.role-teacher .bar-chart .bar.c4 { background: var(--tt-r2); }
+body.role-teacher .bar-chart .bar.c3 { background: var(--tt-r3); }
+body.role-teacher .bar-chart .bar.c2 { background: var(--tt-r4); }
+body.role-teacher .bar-chart .bar.c1 { background: var(--tt-r5); }
+body.role-teacher .pie-legend i { border: 2px solid var(--tt-ink); }
+body.role-teacher .rb-track { background: var(--tt-paper); border: 1px solid var(--tt-line); }
+body.role-teacher .tt-total td { font-weight: 700; background: var(--tt-paper); }
+body.role-teacher .score-ring { border: 3px solid var(--tt-ink); }
+body.role-teacher .score-ring::after { background: var(--tt-card); border: 3px solid var(--tt-ink); }
+body.role-teacher .score-ring .inner .big { color: var(--tt-ink); font-family: var(--tt-display); }
+body.role-teacher .score-ring .inner .sub { color: var(--tt-muted); }
+body.role-teacher .perf-label { background: var(--tt-ok-bg); color: var(--tt-ok); }
+body.role-teacher .suggestion { background: var(--tt-paper); border-left: 4px solid var(--tt-orange); border-radius: 0 10px 10px 0; color: var(--tt-ink); }
+body.role-teacher .back, body.role-teacher .btn-back { font-weight: 600; }
+
+/* ---------- improvement ---------- */
+body.role-teacher .imp-subject { padding: 1.3rem 1.4rem; }
+body.role-teacher .imp-code { background: var(--tt-ink); color: var(--tt-bg); border-radius: 999px; }
+body.role-teacher .imp-name { font-family: var(--tt-display); color: var(--tt-ink); font-size: 1.15rem; }
+body.role-teacher .imp-section { background: transparent; border: 1.5px solid var(--tt-line); border-radius: 999px; color: var(--tt-muted); }
+body.role-teacher .imp-badge.rounds { background: transparent; color: var(--tt-ink); border: 1.5px solid var(--tt-ink); }
+body.role-teacher .imp-badge.band { background: var(--tt-ok-bg); color: var(--tt-ok); }
+body.role-teacher .imp-net { font-family: var(--tt-display); }
+body.role-teacher .imp-chart-wrap { background: transparent; border: 0; padding: 0; }
+body.role-teacher .imp-chart line[stroke="#e5eaf2"] { stroke: var(--tt-line); }
+body.role-teacher .imp-chart polyline { stroke: var(--tt-blue); }
+body.role-teacher .imp-chart circle { fill: var(--tt-blue); stroke: var(--tt-card); }
+body.role-teacher .imp-chart-label { fill: var(--tt-muted); }
+body.role-teacher .imp-chart-score { fill: var(--tt-ink); }
+body.role-teacher .imp-side-card { background: transparent; border: 2px solid var(--tt-ink); border-radius: 12px; text-align: left; padding: .8rem 1rem; }
+body.role-teacher .imp-side-card.highlight { background: var(--tt-orange-bg); border-color: var(--tt-ink); }
+body.role-teacher .imp-side-lbl { color: var(--tt-muted); text-transform: none; letter-spacing: 0; }
+body.role-teacher .imp-side-score { font-family: var(--tt-display); color: var(--tt-ink); font-size: 1.9rem; }
+body.role-teacher .imp-side-delta { font-family: var(--tt-display); font-size: 1.2rem; }
+body.role-teacher .imp-side-meta { background: transparent; border: 0; padding: 0; }
+body.role-teacher .imp-side-meta > div { border-bottom: 1px dotted var(--tt-line); }
+body.role-teacher .imp-side-meta .v { color: var(--tt-ink); }
+body.role-teacher .imp-criteria { border-top: 2px dashed var(--tt-line); }
+body.role-teacher .crit-bar.a, body.role-teacher .bar-legend .bar-a { background: var(--tt-line); }
+body.role-teacher .crit-bar.b, body.role-teacher .bar-legend .bar-b { background: var(--tt-blue); }
+body.role-teacher .crit-tag.up { background: var(--tt-ok-bg); color: var(--tt-ok); }
+body.role-teacher .crit-tag.down { background: var(--tt-bad-bg); color: var(--tt-bad); }
+body.role-teacher .imp-single-msg { background: transparent; border: 1.5px dashed var(--tt-line); }
+body.role-teacher .imp-criteria-toggle summary { color: var(--tt-link); }
+
+/* ---------- second faculty ---------- */
+body.role-teacher .sf-tabs { gap: 4px; background: var(--tt-paper); border: 1px solid var(--tt-line); border-radius: 12px; padding: 4px; display: inline-flex; margin: 1.4rem 0; }
+body.role-teacher .sf-tab { border: 0; border-radius: 9px; margin: 0; padding: .5rem 1.1rem; color: var(--tt-muted); }
+body.role-teacher .sf-tab:hover { color: var(--tt-link); text-decoration: none; }
+body.role-teacher .sf-tab.is-on { background: var(--tt-blue); color: #fff; }
+body.role-teacher .sf-tab-count { background: var(--tt-orange); color: #fff; }
+body.role-teacher .sf-code { background: transparent; border: 1.5px solid var(--tt-ink); color: var(--tt-ink); }
+body.role-teacher .sf-facts dt, body.role-teacher .sf-k { color: var(--tt-muted); }
+body.role-teacher .sf-second, body.role-teacher .sf-emp, body.role-teacher .sf-box { background: var(--tt-card); border: 1.5px solid var(--tt-line); border-radius: 12px; }
+body.role-teacher .sf-tag { background: var(--tt-paper); color: var(--tt-muted); }
+body.role-teacher .sf-avatar { background: var(--tt-blue); border: 2px solid var(--tt-ink); }
+body.role-teacher .sf-modal { background: rgba(7,30,61,.55); backdrop-filter: blur(8px); }
+body.role-teacher .sf-dialog { background: var(--tt-card); color: var(--tt-ink); border-radius: 16px; }
+body.role-teacher .sf-dialog-head { border-bottom: 1px solid var(--tt-line); }
+body.role-teacher .sf-x { color: var(--tt-ink); }
+body.role-teacher .sf-steps li { border-bottom: 3px solid var(--tt-line); }
+body.role-teacher .sf-steps li.is-on { color: var(--tt-ink); border-color: var(--tt-orange); }
+body.role-teacher .sf-steps li.is-done { color: var(--tt-ok); border-color: var(--tt-ok); }
+body.role-teacher .sf-context { background: var(--tt-paper); }
+body.role-teacher .sf-input { background: var(--tt-card); color: var(--tt-ink); border-color: var(--tt-field); border-radius: 10px; }
+body.role-teacher .sf-tablewrap { border-color: var(--tt-line); }
+body.role-teacher .sf-banner-info { background: var(--tt-blue-bg); border-color: var(--tt-blue); color: var(--tt-link); }
+body.role-teacher .sf-banner-warn { background: var(--tt-warn-bg); border-color: var(--tt-r3); color: var(--tt-warn); }
+body.role-teacher .sf-banner-error { background: var(--tt-bad-bg); border-color: var(--tt-bad); color: var(--tt-bad); }
+
+/* ---------- assignment setup ---------- */
+body.role-teacher .tas { max-width: none; }
+body.role-teacher .tas-status.is-complete { background: var(--tt-ok-bg); color: var(--tt-ok); }
+body.role-teacher .tas-status.is-pending { background: var(--tt-warn-bg); color: var(--tt-warn); }
+body.role-teacher .tas-steps { margin-top: 1.6rem; }
+body.role-teacher .tas-step { background: var(--tt-card); border: 1.5px solid var(--tt-line); border-radius: 12px; color: var(--tt-muted); font-weight: 600; }
+body.role-teacher .tas-step b { background: var(--tt-card); color: var(--tt-ink); border: 2px solid var(--tt-ink); }
+body.role-teacher .tas-step.is-active { border-color: var(--tt-ink); color: var(--tt-ink); box-shadow: 3px 3px 0 var(--tt-ink); }
+body.role-teacher .tas-step.is-active b { background: var(--tt-orange); color: #fff; }
+body.role-teacher .tas-step.is-done b { background: var(--tt-ok); border-color: var(--tt-ok); color: #fff; }
+body.role-teacher .tas-subject { overflow: hidden; padding: 0; }
+body.role-teacher .tas-subject > summary, body.role-teacher .tas-subject-head { background: var(--tt-paper); }
+body.role-teacher .tas-subject-name { color: var(--tt-ink); font-family: var(--tt-display); font-size: 1.08rem; }
+body.role-teacher .tas-code { background: transparent; border: 1.5px solid var(--tt-ink); color: var(--tt-ink); border-radius: 999px; }
+body.role-teacher .tas-chip { background: transparent; border: 1.5px solid var(--tt-line); color: var(--tt-muted); }
+body.role-teacher .tas-room { background: var(--tt-card); color: var(--tt-ink); border: 1.5px solid var(--tt-field); border-radius: 10px; }
+body.role-teacher .tas-room-assigned, body.role-teacher .tas-room-assigned b { color: var(--tt-muted); }
+/* lab choice: OMR bubbles */
+body.role-teacher .tas-radio { flex: 0 1 auto; }
+body.role-teacher .tas-radio span { justify-content: flex-start; gap: .55rem; min-height: 44px; padding: .3rem .3rem; border: 0; background: none; color: var(--tt-ink); }
+body.role-teacher .tas-radio span::before { content: ""; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--tt-ink); background: var(--tt-card); flex: none; transition: background-color .18s, transform .18s; }
+body.role-teacher .tas-radio:hover span::before { background: var(--tt-orange-bg); }
+body.role-teacher .tas-radio input:checked + span, body.role-teacher .tas-radio input[value=none]:checked + span { background: none; color: var(--tt-ink); border: 0; }
+body.role-teacher .tas-radio input:checked + span::before { background: var(--tt-orange); transform: scale(1.06); }
+body.role-teacher .tas-radio input:focus-visible + span { outline: 3px solid var(--tt-link); outline-offset: 3px; }
+body.role-teacher .tas-lock { color: var(--tt-warn); }
+body.role-teacher .tas-stat { background: var(--tt-card); border: 1px solid var(--tt-line); box-shadow: none; }
+body.role-teacher .tas-stat b { color: var(--tt-ink); font-family: var(--tt-display); }
+body.role-teacher .tas-rev-head { background: var(--tt-paper); }
+body.role-teacher .tas-pill.lab { background: var(--tt-blue-bg); color: var(--tt-link); }
+body.role-teacher .tas-pill.none { background: var(--tt-paper); color: var(--tt-muted); }
+body.role-teacher .tas-pill.pending { background: var(--tt-warn-bg); color: var(--tt-warn); }
+body.role-teacher .tas-modal-box, body.role-teacher .tas-preview-box { background: var(--tt-card); color: var(--tt-ink); border-radius: 16px; }
+body.role-teacher .tas-preview-head h3, body.role-teacher .tas-preview-summary b, body.role-teacher .tas-preview-table td:first-child { color: var(--tt-ink); }
+body.role-teacher .tas-preview-close { background: var(--tt-paper); color: var(--tt-ink); }
+body.role-teacher .tas-alert.ok { background: var(--tt-ok-bg); border-color: var(--tt-ok); color: var(--tt-ok); }
+body.role-teacher .tas-alert.err { background: var(--tt-bad-bg); border-color: var(--tt-bad); color: var(--tt-bad); }
+body.role-teacher .tas-alert.warn { background: var(--tt-warn-bg); border-color: var(--tt-r3); color: var(--tt-warn); }
+
+@media (max-width: 760px) {
+  body.role-teacher .teacher-card { padding-left: 2.4rem; }
+  body.role-teacher .mini-stats { padding-right: 0; }
+  body.role-teacher .perf-welcome, body.role-teacher .imp-header, body.role-teacher .sf-pagehead, body.role-teacher .tas-head { padding: 1.8rem 0 1.6rem; }
+}
+@media (prefers-reduced-motion: reduce) { body.role-teacher * { transition: none !important; animation: none !important; } }
+
+/* ---------- refinements from the first render ---------- */
+body.role-teacher .topbar-inner { max-width: 1280px; gap: .6rem; }
+body.role-teacher .brand-text { white-space: nowrap; }
+body.role-teacher .brand-text small { display: none; }
+body.role-teacher .topnav { flex-wrap: nowrap; }
+body.role-teacher .topnav > a:not(.nav-user) { padding: .45rem .7rem; font-size: .88rem; white-space: nowrap; }
+body.role-teacher .nav-user { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
+@media (max-width: 1100px) { body.role-teacher .topnav { flex-wrap: wrap; } }
+html.dark-mode body.role-teacher .topnav { background: transparent; }
+@media (max-width: 900px) { html.dark-mode body.role-teacher .topnav { background: var(--tt-card); } }
+html.dark-mode body.role-teacher .btn-ghost, html.dark-mode body.role-teacher .btn-back, html.dark-mode body.role-teacher .btn-outline { color: var(--tt-ink); }
+html.dark-mode body.role-teacher .btn-ghost:hover, html.dark-mode body.role-teacher .btn-back:hover { color: var(--tt-bg); }
+html.dark-mode body.role-teacher .nav-user, html.dark-mode body.role-teacher .a11y-bar button { background: var(--tt-card); color: var(--tt-ink) !important; }
+/* role stripe on the first cell of each performance row */
+body.role-teacher .marks-table tbody tr:has(.role-badge.role-main) > td:first-child { box-shadow: inset 4px 0 0 var(--tt-blue); }
+body.role-teacher .marks-table tbody tr:has(.role-badge.role-second) > td:first-child { box-shadow: inset 4px 0 0 var(--tt-ok); }
+body.role-teacher .marks-table tbody tr:has(.role-badge.role-lab) > td:first-child { box-shadow: inset 4px 0 0 var(--tt-r3); }
+body.role-teacher .subject-detail-head { margin-top: 1.2rem; }
+body.role-teacher .card > h2:first-child { margin-bottom: 1rem; }
+
+/* ---------- second round of fixes ---------- */
+body.role-teacher .imp-info { display: block; padding: .85rem 1.1rem; line-height: 1.6; font-size: .94rem; }
+body.role-teacher .imp-info-icon { display: inline-flex; margin-right: .55rem; vertical-align: middle; }
+body.role-teacher .imp-chart-wrap { overflow: visible; padding: 1.1rem 1.4rem .6rem 0; }
+body.role-teacher .imp-chart-label { font-size: 9.5px; }
+body.role-teacher .empty { background: transparent; border: 1.5px dashed var(--tt-line); border-radius: 12px; color: var(--tt-muted); }
+body.role-teacher .suggestion + .suggestion { margin-top: .6rem; }
+body.role-teacher .imp-chart { overflow: visible; }
+body.role-teacher .imp-chart-wrap { padding: 1.4rem 2.2rem .6rem .4rem; }
+body.role-teacher .perf-welcome, body.role-teacher .imp-header { border-bottom: 0; }
