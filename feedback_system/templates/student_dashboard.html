@@ -2,16 +2,20 @@
 {% import '_macros.html' as m %}
 {% block title %}My Feedback — Faculty Feedback{% endblock %}
 {% block body %}
-<h1>My Feedback</h1>
+<div class="stu-head">
+  <p class="eyebrow">Student dashboard</p>
+  <h1>My Feedback</h1>
+  <p class="lead">Give feedback on each of your subjects and faculty members. Your answers stay anonymous.</p>
 {% if ctx %}
-  <p class="sub">
-    {{ current_user.roll }} ·
-    Year {{ year }} (Semester {{ ctx.semester }}) ·
-    {{ ctx.branch }}{% if ctx.branch_name and ctx.branch_name != ctx.branch %} — {{ ctx.branch_name }}{% endif %} ·
-    Timetable <strong>{{ ctx.timetable }}</strong> ·
-    Academic year {{ ctx.academic_year }}
-  </p>
+  <div class="stu-chips">
+    <span class="stu-chip roll">{{ current_user.roll }}</span>
+    <span class="stu-chip">Year {{ year }} (Semester {{ ctx.semester }})</span>
+    <span class="stu-chip">{{ ctx.branch }}{% if ctx.branch_name and ctx.branch_name != ctx.branch %} — {{ ctx.branch_name }}{% endif %}</span>
+    <span class="stu-chip">Timetable <b>{{ ctx.timetable }}</b></span>
+    <span class="stu-chip">Academic year {{ ctx.academic_year }}</span>
+  </div>
 {% endif %}
+</div>
 
 <div class="tiles mb">
   <div class="tile"><div class="num">{{ pending|length }}</div><div class="lbl">Pending</div></div>
@@ -25,14 +29,9 @@
 </div>
 {% endif %}
 
-{# One panel per feedback category; each has its OWN Pending / Submitted / Closed. #}
+{# One list only: the kind of feedback (main / lab / second) is never shown to students. #}
 {% for sec in sections %}
-<div class="card" id="cat-{{ sec.key }}" data-category="{{ sec.key }}">
-  <h2>{{ sec.label }}</h2>
-  {% if sec.hint %}<p class="sub">{{ sec.hint }}</p>{% endif %}
-  <p class="sub"><strong>Pending:</strong> {{ sec.pending|length }} ·
-    <strong>Submitted:</strong> {{ sec.submitted|length }} ·
-    <strong>Closed:</strong> {{ sec.closed|length }}</p>
+<div class="card" id="student-feedback">
 
   <h3>Pending feedback</h3>
   {% if sec.pending %}
@@ -46,12 +45,16 @@
           <p class="sub">{{ f.subject_code }} · {{ f.teacher_name }}<br>
             {{ f.timetable }} · Semester {{ f.semester }} · {{ f.title }}</p>
           {% if f.deadline_at %}<p class="sub"><strong>Closes:</strong> {{ f.deadline_at|deadline }}</p>{% endif %}
+          {% if f.locked %}
+          <span class="btn btn-ghost btn-sm" aria-disabled="true" style="opacity:.6;cursor:not-allowed">Locked: finish the earlier feedback first</span>
+          {% else %}
           <a class="btn btn-accent btn-sm" href="{{ url_for('student.view_form', form_id=f.id) }}">Give feedback →</a>
+          {% endif %}
         </div>
       {% endfor %}
     </div>
   {% else %}
-    <p class="sub">Nothing pending in this category.</p>
+    <p class="sub">Nothing pending.</p>
   {% endif %}
 
   {% if sec.submitted %}
