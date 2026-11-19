@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Choose a new password — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="eyebrow">Lost device recovery</div>
+    <h2>Choose a new password</h2>
+    <p class="sub" style="margin-bottom:1.2rem">Your {{ provider }} sign-in confirmed it is you, <strong>{{ ident }}</strong>.
+      Choose a new password to remove your old authenticator app and all backup codes. Next time you sign in you will
+      set up a new app and enter its code to confirm it. This page expires in 10 minutes.</p>
+    <form method="post" autocomplete="off" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field"><label for="new_password">New password</label>
+        <input type="password" id="new_password" name="new_password" minlength="8" autocomplete="new-password" required autofocus>
+        <div class="hint">At least 8 characters.</div></div>
+      <div class="field"><label for="confirm_password">Confirm new password</label>
+        <input type="password" id="confirm_password" name="confirm_password" minlength="8" autocomplete="new-password" required></div>
+      <button class="btn btn-block" type="submit">Remove old authenticator</button>
+    </form>
+    <p class="sub mt"><a href="{{ url_for('lost_device.lost_phone_no_codes') }}">Start over</a></p>
+  </div>
+</div>
+{% endblock %}

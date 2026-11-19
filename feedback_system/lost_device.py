@@ -6,6 +6,9 @@
   (Checkpoint B2): an e-mailed 6-digit code to the confirmed address, a new password, then
   the same atomic removal. The 2-hour recovery lock (``recovery_lock``) covers this page and
   the backup-code page above.
+* ``/lost-phone/sso/<provider>/start|callback`` + ``/lost-phone/sso/finish``  (Checkpoint B3)
+  the same recovery, but the mailbox is proved with a Microsoft (college tenant) or Google
+  sign-in instead of an e-mailed code (free, no mail cost). Works before login.
 * ``/admin/lost-authenticator``  Admin: both registered recovery e-mails, a code to each,
   and both codes must be right in one submission.
 
@@ -15,13 +18,15 @@ straight to authenticator setup. Nothing is removed on any failure. Every failur
 same message so the pages cannot be used to find out which accounts exist or which have an
 authenticator. Normal password reset (``auth.forgot_password`` and friends) is untouched.
 """
+import hmac
 import logging
+import secrets
 import time
 
 from flask import (Blueprint, current_app, flash, redirect, render_template, request, session,
                    url_for)
 
-from . import authenticator, db, mailer, recovery_lock, verification
+from . import authenticator, db, mailer, recovery_lock, sso, verification
 from .security import (audit, clear_login_failures, hash_password, is_default_student_password,
                        reserve_login_attempt, verify_password)
 
@@ -184,22 +189,79 @@ def _send_mailbox_code(user):
     return ok
 
 
+def _providers():
+    """[(provider, roles it is offered to)] for the start page buttons."""
+    out = []
+    for p in sso.PROVIDERS:
+        roles = [r for r in ROLES if p in sso.recovery_providers_for(r)]
+        if roles:
+            out.append((p, ','.join(roles)))
+    return sorted(out, key=lambda x: x[0] != sso.MICROSOFT)
+
+
+def _password_problem(role, new, confirm):
+    """The first problem with a new password (same rules everywhere), or None."""
+    if len(new) < 8:
+        return 'New password must be at least 8 characters.'
+    if new != confirm:
+        return 'The new passwords do not match.'
+    if ((role == 'teacher' and new == current_app.config['DEFAULT_TEACHER_PASSWORD'])
+            or (role == 'student' and is_default_student_password(new))):
+        return 'Please choose a new password, not the default one.'
+    return None
+
+
+def _finish_recovery(user, new, method):
+    """The shared last step once a mailbox is proved (e-mailed code or Microsoft/Google).
+
+    Removes the authenticator and all backup codes atomically, changes the password, e-mails
+    a notice and writes the audit entry. Returns None on success, else a user-facing message
+    (nothing was changed in that case).
+    """
+    uid = user['id']
+    try:
+        removed = authenticator.apply_lost_device_reset(uid)
+    except authenticator.AuthenticatorConfigError:
+        logger.error('Lost-device recovery failed: the encryption key is not usable')
+        return 'Recovery is not available right now. Please contact the administrator.'
+    if not removed:
+        return CODE_FAIL
+    db.execute('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?',
+               (hash_password(new), uid))
+    for key in ('recov', 'recov_sso', 'recov_proof'):
+        session.pop(key, None)
+    audit('user.lost_device_recovery', 'users', uid,
+          f'Lost-device recovery by {method}: authenticator and backup codes removed, '
+          'password changed; new setup required', actor=user)
+    event = 'lost_device_reset_mailbox' if method == 'e-mailed code' else 'lost_device_reset_signin'
+    _notify([user['email']], user['name'], event, uid)
+    return None
+
+
+RECOVERY_DONE = ('Recovery complete. Sign in with your new password, then set up a new '
+                 'authenticator app and enter its code to confirm it. You will get new backup '
+                 'codes.')
+
+
 @bp.route('/lost-phone/no-codes', methods=['GET', 'POST'])
 def lost_phone_no_codes():
     from .auth import _normalise_ident
     role = (request.form.get('role') or request.args.get('role') or 'student')
     role = role if role in ROLES else 'student'
     if request.method != 'POST':
-        return render_template('lost_phone_mailbox.html', roles=ROLES, role=role, ident='')
+        return render_template('lost_phone_mailbox.html', roles=ROLES, role=role, ident='',
+                               providers=_providers())
     ident = _normalise_ident(role, request.form.get('ident'))
     if not ident:
         flash('Please enter your ID.', 'error')
-        return render_template('lost_phone_mailbox.html', roles=ROLES, role=role, ident='')
+        return render_template('lost_phone_mailbox.html', roles=ROLES, role=role, ident='',
+                               providers=_providers())
     if not recovery_lock.ip_start_allowed():
         audit('user.lost_device_recovery_failed', None, None,
               'Blocked: too many recovery starts from one address', actor=_SYSTEM)
         flash('Too many attempts. Please try again later.', 'error')
-        return render_template('lost_phone_mailbox.html', roles=ROLES, role=role, ident=ident)
+        return render_template('lost_phone_mailbox.html', roles=ROLES, role=role, ident=ident,
+                               providers=_providers())
     user = _recovery_user(role, ident)
     if user:
         _send_mailbox_code(user)
@@ -239,13 +301,9 @@ def lost_phone_no_codes_verify():
     new = request.form.get('new_password') or ''
     confirm = request.form.get('confirm_password') or ''
     # Password rules are checked first and do not count as a wrong code.
-    if len(new) < 8:
-        return fail('New password must be at least 8 characters.')
-    if new != confirm:
-        return fail('The new passwords do not match.')
-    if ((role == 'teacher' and new == current_app.config['DEFAULT_TEACHER_PASSWORD'])
-            or (role == 'student' and is_default_student_password(new))):
-        return fail('Please choose a new password, not the default one.')
+    problem = _password_problem(role, new, confirm)
+    if problem:
+        return fail(problem)
 
     if not recovery_lock.ip_code_allowed():
         audit('user.lost_device_recovery_failed', None, None,
@@ -265,23 +323,145 @@ def lost_phone_no_codes_verify():
               actor=_SYSTEM)
         return fail()
     recovery_lock.record_success(user)
+    problem = _finish_recovery(user, new, 'e-mailed code')
+    if problem:
+        return fail(problem)
+    flash(RECOVERY_DONE, 'success')
+    return redirect(url_for(_LOGIN[role]))
+
+
+# --------------------------------------------------------------------------- #
+# The same recovery, proved with a Microsoft / Google sign-in (Checkpoint B3)
+# --------------------------------------------------------------------------- #
+SSO_STATE_SECONDS = 10 * 60
+SSO_FAIL = 'We could not confirm that sign-in matches your account. Please try again or use the emailed code.'
+
+
+def _sso_redirect_uri(provider):
+    return url_for('lost_device.lost_phone_sso_callback', provider=provider, _external=True)
+
+
+def _sso_proof():
+    """The signed-session proof that a sign-in matched the account, or None (expired/bad)."""
+    p = session.get('recov_proof')
+    if (not isinstance(p, dict) or not isinstance(p.get('uid'), int)
+            or p.get('role') not in ROLES or not isinstance(p.get('exp'), int)
+            or p['exp'] <= int(time.time())):
+        session.pop('recov_proof', None)
+        return None
+    return p
+
+
+def _back_to_start(message, category='error'):
+    flash(message, category)
+    return redirect(url_for('lost_device.lost_phone_no_codes'))
+
+
+@bp.route('/lost-phone/sso/<provider>/start', methods=['POST'])
+def lost_phone_sso_start(provider):
+    from .auth import _normalise_ident
+    role = request.form.get('role')
+    role = role if role in ROLES else 'student'
+    ident = _normalise_ident(role, request.form.get('ident'))
+    if provider not in sso.recovery_providers_for(role):
+        return _back_to_start('That sign-in option is not available. Use the emailed code instead.')
+    if not ident:
+        return _back_to_start('Please enter your ID.')
+    if not recovery_lock.ip_start_allowed():
+        audit('user.lost_device_recovery_failed', None, None,
+              'Blocked: too many recovery starts from one address', actor=_SYSTEM)
+        return _back_to_start('Too many attempts. Please try again later.')
+    # Always go to the provider, even for an unknown ID or a locked account: the answer is
+    # decided only after sign-in, so nothing here reveals which accounts exist.
+    state, nonce = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
+    session['recov_sso'] = {'provider': provider, 'state': state, 'nonce': nonce, 'role': role,
+                            'ident': ident, 'exp': int(time.time()) + SSO_STATE_SECONDS}
+    session.pop('recov_proof', None)
+    return redirect(sso.authorize_url(provider, _sso_redirect_uri(provider), state, nonce))
+
+
+@bp.route('/lost-phone/sso/<provider>/callback')
+def lost_phone_sso_callback(provider):
+    pending = session.pop('recov_sso', None)
+    pending = pending if isinstance(pending, dict) else {}
+    role, ident = pending.get('role'), pending.get('ident')
+    if (provider not in sso.PROVIDERS or pending.get('provider') != provider
+            or role not in ROLES or not isinstance(ident, str)
+            or not isinstance(pending.get('exp'), int) or pending['exp'] <= int(time.time())
+            or provider not in sso.recovery_providers_for(role)
+            or not hmac.compare_digest(str(pending.get('state', '')),
+                                       request.args.get('state', ''))):
+        return _back_to_start('That sign-in link has expired. Please start again.')
+    if request.args.get('error'):
+        return _back_to_start('Sign-in was cancelled. You can try again or use the emailed code.',
+                              'warning')
+    code = request.args.get('code') or ''
+    if not code:
+        return _back_to_start('Sign-in did not complete. Please try again.')
+    if not recovery_lock.ip_code_allowed():
+        audit('user.lost_device_recovery_failed', None, None,
+              'Blocked: too many sign-in attempts from one address', actor=_SYSTEM)
+        return _back_to_start('Too many attempts. Please try again later.')
     try:
-        removed = authenticator.apply_lost_device_reset(uid)
-    except authenticator.AuthenticatorConfigError:
-        logger.error('Lost-device recovery failed: the encryption key is not usable')
-        return fail('Recovery is not available right now. Please contact the administrator.')
-    if not removed:
-        return fail()
-    db.execute('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?',
-               (hash_password(new), uid))
-    session.pop('recov', None)
-    audit('user.lost_device_recovery', 'users', uid,
-          'Lost-device recovery by e-mailed code: authenticator and backup codes removed, '
-          'password changed; new setup required', actor=user)
-    _notify([user['email']], user['name'], 'lost_device_reset_mailbox', uid)
-    flash('Recovery complete. Sign in with your new password, then set up a new '
-          'authenticator app and enter its code to confirm it. You will get new backup codes.',
-          'success')
+        claims = sso.fetch_claims(provider, code, _sso_redirect_uri(provider))
+        email = sso.verified_email(provider, claims, pending.get('nonce'),
+                                   sso.client_credentials(provider)[0])
+    except sso.SSOError as exc:
+        return _back_to_start(str(exc))
+    user = _recovery_user(role, ident)
+    if not user:
+        return _back_to_start(SSO_FAIL)
+    uid = user['id']
+    if recovery_lock.begin_attempt(user) == 'locked':
+        audit('user.lost_device_recovery_failed', 'users', uid, 'Blocked: recovery is locked',
+              actor=_SYSTEM)
+        return _back_to_start(SSO_FAIL)
+    on_file = (user.get('email') or '').strip().lower()
+    college = None
+    if role == 'student':
+        from .security import student_college_email
+        college = student_college_email(user.get('roll') or user.get('username'))
+    if not on_file or email != on_file or (college and email != college):
+        recovery_lock.record_failure(user)
+        audit('user.lost_device_recovery_failed', 'users', uid,
+              f'Failed: {provider} sign-in did not match the account', actor=_SYSTEM)
+        return _back_to_start(SSO_FAIL)
+    recovery_lock.record_success(user)
+    session['recov_proof'] = {'uid': uid, 'role': role, 'ident': ident, 'method': provider,
+                              'exp': int(time.time()) + SSO_STATE_SECONDS}
+    audit('user.lost_device_sso_verified', 'users', uid,
+          f'Mailbox proved with {provider} sign-in (no phone, no backup codes)', actor=_SYSTEM)
+    return redirect(url_for('lost_device.lost_phone_sso_finish'))
+
+
+@bp.route('/lost-phone/sso/finish', methods=['GET', 'POST'])
+def lost_phone_sso_finish():
+    proof = _sso_proof()
+    if not proof:
+        return _back_to_start('That page has expired. Please start again.', 'warning')
+    role, method = proof['role'], proof['method']
+
+    def page():
+        return render_template('lost_phone_sso_finish.html', ident=proof['ident'],
+                               provider=method.title())
+
+    if request.method != 'POST':
+        return page()
+    new = request.form.get('new_password') or ''
+    problem = _password_problem(role, new, request.form.get('confirm_password') or '')
+    if problem:                                   # the proof stays valid: just try again
+        flash(problem, 'error')
+        return page()
+    user = _recovery_user(role, proof['ident'])
+    if (not user or user['id'] != proof['uid']
+            or recovery_lock.locked_seconds(user)):
+        session.pop('recov_proof', None)
+        return _back_to_start(SSO_FAIL)
+    session.pop('recov_proof', None)              # one use only
+    problem = _finish_recovery(user, new, f'{method.title()} sign-in')
+    if problem:
+        return _back_to_start(problem)
+    flash(RECOVERY_DONE, 'success')
     return redirect(url_for(_LOGIN[role]))
 
 

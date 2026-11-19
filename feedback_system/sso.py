@@ -73,6 +73,25 @@ def providers_for(role):
     return enabled_providers()
 
 
+RECOVERY_ROLES = ('student', 'teacher', 'hod', 'dean')
+
+
+def recovery_providers_for(role):
+    """Sign-in options for lost-device recovery (Student/Teacher/HOD/Dean; never Admin).
+
+    Stricter than :func:`providers_for`: Microsoft is offered to EVERY role only when the
+    college tenant GUID is configured (otherwise a token from any Azure tenant could carry
+    any e-mail). Google is for staff only, when enabled; ``verified_email`` still requires
+    ``email_verified`` and the optional hosted domain. Students: college Microsoft only.
+    """
+    if role not in RECOVERY_ROLES:
+        return []
+    out = [MICROSOFT] if student_microsoft_ready() else []
+    if role != 'student' and enabled(GOOGLE):
+        out.append(GOOGLE)
+    return out
+
+
 def _microsoft_tenant():
     return _cfg('MICROSOFT_TENANT_ID') or 'common'
 
