@@ -335,3 +335,23 @@ body.role-teacher .suggestion + .suggestion { margin-top: .6rem; }
 body.role-teacher .imp-chart { overflow: visible; }
 body.role-teacher .imp-chart-wrap { padding: 1.4rem 2.2rem .6rem .4rem; }
 body.role-teacher .perf-welcome, body.role-teacher .imp-header { border-bottom: 0; }
+
+/* ---------- performance table: fit the page width, scroll only on narrow screens ---------- */
+body.role-teacher .perf-table-wrap { overflow-x: visible; }
+body.role-teacher .perf-table-wrap .marks-table { font-size: .85rem; }
+body.role-teacher .perf-table-wrap .marks-table th { white-space: normal; line-height: 1.25; padding: .7rem .4rem; font-size: .66rem; letter-spacing: .03em; }
+body.role-teacher .perf-table-wrap .marks-table td { padding: .8rem .4rem; }
+body.role-teacher .perf-table-wrap .marks-table .btn { white-space: nowrap; padding: .4rem .7rem; font-size: .8rem; }
+body.role-teacher .perf-table-wrap .role-badge, body.role-teacher .perf-table-wrap .room-chip, body.role-teacher .perf-table-wrap .round-badge, body.role-teacher .perf-table-wrap .pending-badge { font-size: .7rem; padding: .08rem .5rem; }
+body.role-teacher .perf-table-wrap .score-pill { min-width: 3.6rem; padding: .15rem .5rem; }
+body.role-teacher .perf-table-wrap .form-meta { gap: .25rem .5rem; font-size: .75rem; }
+@media (max-width: 1250px) {
+  body.role-teacher .perf-table-wrap { overflow-x: auto; }
+  body.role-teacher .perf-table-wrap .marks-table { min-width: 1060px; }
+}
+body.role-teacher .container { max-width: 1320px; }
+body.role-teacher .card:has(> .perf-table-wrap) { padding: 1.1rem .6rem .8rem; }
+body.role-teacher .card:has(> .perf-table-wrap) > h2 { padding-left: .6rem; }
+body.role-teacher .perf-table-wrap .marks-table th { padding: .7rem .3rem; }
+body.role-teacher .perf-table-wrap .marks-table td { padding: .8rem .3rem; }
+body.role-teacher .perf-table-wrap .marks-table .btn { padding: .35rem .6rem; font-size: .78rem; }
