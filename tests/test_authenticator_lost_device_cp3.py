@@ -355,14 +355,16 @@ def test_csrf_is_required(app, client, acct, sent):
 
 
 @pytest.mark.parametrize('acct', ['student'], indirect=True)
-def test_normal_password_reset_is_unchanged_and_keeps_the_authenticator(app, client, acct, sent):
-    _, codes = _enrolled(client, app, acct, sent)
+def test_normal_password_reset_keeps_the_authenticator(app, client, acct, sent):
+    """Forgot-password now takes an app code (no e-mail) and still keeps the authenticator."""
+    import pyotp
+    secret, _ = _enrolled(client, app, acct, sent)
     sent.clear()
     anon = app.test_client()
     _post(anon, '/forgot-password', role='student', ident=acct['ident'])
-    emailed = [m for m in sent if m['code']][-1]['code']          # the e-mail code, as before
-    r = _post(anon, '/forgot-password/reset', code=emailed, new_password='Brand-new-pass-9',
-              confirm_password='Brand-new-pass-9')
+    assert sent == []                                   # no e-mail for an enrolled account
+    r = _post(anon, '/forgot-password/reset', code=pyotp.TOTP(secret).at(time.time() + 30),
+              new_password='Brand-new-pass-9', confirm_password='Brand-new-pass-9')
     assert r.status_code == 302
     row, remaining, _ = _state(app, acct['uid'])
     assert row['status'] == 'active' and remaining == 10

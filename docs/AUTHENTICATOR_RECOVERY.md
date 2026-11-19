@@ -50,7 +50,7 @@ A backup code is accepted at sign-in as well as in recovery. Using one in either
 
 ## 3. Normal password reset (forgotten password)
 
-**Flow [Deferred: the owner chose to keep the existing e-mail-code reset unchanged in Checkpoint 3]:** the user gives their registered username or e-mail plus a TOTP code **or** an unused backup code. No e-mail code and no reset link are sent. After the check succeeds, the route sets a short-lived, single-use "verified" marker and only then accepts a new password under the existing password rules.
+**Flow [Implemented 2026-11-19 for accounts with an active authenticator; others keep the e-mail code]:** the user gives their registered username or e-mail plus a TOTP code **or** an unused backup code. No e-mail code and no reset link are sent. After the check succeeds, the route sets a short-lived, single-use "verified" marker and only then accepts a new password under the existing password rules.
 
 **What exists now:** `verify_recovery_code(user_id, code)` returns `(ok, reason)`.
 

@@ -780,7 +780,13 @@ def admin_forgot_password():
 # --------------------------------------------------------------------------- #
 # Forgot password (code sent to the verified e-mail on file)
 # --------------------------------------------------------------------------- #
-_RESET_ROLES = {'student': 'Roll number', 'teacher': 'Employee code'}
+_RESET_ROLES = {'student': 'Roll number', 'teacher': 'Employee code',
+                'hod': 'Employee code', 'dean': 'Employee code'}
+_RESET_LOGIN = {'admin': 'auth.admin_login', 'teacher': 'auth.teacher_login',
+                'hod': 'auth.hod_login', 'dean': 'auth.dean_login'}
+_RESET_INFO = ('Enter the 6-digit code from your authenticator app (or one of your backup codes). '
+               'If you have not set up an authenticator app yet, a 6-digit code was emailed to '
+               'your confirmed email instead.')
 
 
 def _normalise_ident(role, ident):
@@ -800,7 +806,10 @@ def forgot_password():
         else:
             user = _existing_user(ident, role)
             email = ((user['email'] if user else '') or '').strip()
-            if user and email:
+            # A user with an active authenticator proves themselves with an app code or a
+            # backup code, so no email is sent (saves mail cost). Everyone else keeps the
+            # emailed-code reset. The browser is told the same thing either way.
+            if user and email and not authenticator.is_active(user['id']):
                 ok, problem = _send_code(user['id'], 'reset_password', email)
                 if not ok and 'wait' in problem:
                     flash(problem, 'error')
@@ -808,12 +817,31 @@ def forgot_password():
                                            role=role, ident=ident)
             session['reset_who'] = [role, ident]
             # Same answer whether or not the account exists (no user enumeration).
-            flash('If that account has a confirmed email, a 6-digit code has been sent to it.', 'info')
+            flash(_RESET_INFO, 'info')
             return redirect(url_for('auth.reset_password'))
     if request.args.get('role') == 'admin':
         return redirect(url_for('auth.admin_forgot_password'))
     return render_template('forgot_password.html', roles=_RESET_ROLES,
                            role=request.args.get('role', 'student'), ident='')
+
+
+def _check_reset_code(user, role, code):
+    """Check the code for a forgotten-password reset. Returns 'totp', 'backup', 'email' or None.
+
+    An account with an active authenticator is checked against an app code or an unused
+    backup code (rate limited, never removes the authenticator). Any other account uses the
+    emailed code. The admin keeps the emailed-code flow (separate two-email recovery).
+    """
+    if not user:
+        return None
+    if role != 'admin' and authenticator.is_active(user['id']):
+        try:
+            ok, reason = authenticator.verify_recovery_code(user['id'], code)
+        except authenticator.AuthenticatorConfigError:
+            logger.error('Authenticator secret could not be decrypted for user %s', user['id'])
+            return None
+        return reason if ok else None
+    return 'email' if verification.check(user['id'], 'reset_password', code) else None
 
 
 @bp.route('/forgot-password/reset', methods=['GET', 'POST'])
@@ -830,11 +858,12 @@ def reset_password():
                 email = secrets.choice(pair) if len(pair) == 2 else ''
             else:
                 email = ((user['email'] if user else '') or '').strip()
-            if user and email:
+            if user and email and (role == 'admin' or not authenticator.is_active(user['id'])):
                 ok, problem = _send_code(user['id'], 'reset_password', email)
                 flash('A new code has been sent.' if ok else problem, 'success' if ok else 'error')
             else:
-                flash('If that account has a confirmed email, a new code has been sent.', 'info')
+                flash('If your account uses an emailed code, a new one has been sent. '
+                      'Authenticator codes come from your app.', 'info')
         else:
             new = request.form.get('new_password') or ''
             confirm = request.form.get('confirm_password') or ''
@@ -846,17 +875,21 @@ def reset_password():
                 flash('Please choose a new password — not the default one.', 'error')
             elif role == 'student' and is_default_student_password(new):
                 flash('Please choose a new password — not the default one.', 'error')
-            elif not user or not verification.check(user['id'], 'reset_password',
-                                                    request.form.get('code')):
-                flash('That code is not correct or has expired.', 'error')
             else:
-                db.execute('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?',
-                           (hash_password(new), user['id']))
-                audit('user.forgot_password_reset', 'users', user['id'], 'Password reset via email code')
-                session.pop('reset_who', None)
-                flash('Your password has been reset. Please log in.', 'success')
-                return redirect(url_for({'admin': 'auth.admin_login',
-                                         'teacher': 'auth.teacher_login'}.get(role, 'auth.student_login')))
+                how = _check_reset_code(user, role, request.form.get('code'))
+                if not how:
+                    # One message for every failure (wrong, used, expired, locked, unknown ID).
+                    flash('That code is not correct or has expired.', 'error')
+                else:
+                    db.execute('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?',
+                               (hash_password(new), user['id']))
+                    audit('user.forgot_password_reset', 'users', user['id'],
+                          {'email': 'Password reset via email code',
+                           'totp': 'Password reset via authenticator app code',
+                           'backup': 'Password reset via backup code'}[how])
+                    session.pop('reset_who', None)
+                    flash('Your password has been reset. Please log in.', 'success')
+                    return redirect(url_for(_RESET_LOGIN.get(role, 'auth.student_login')))
     return render_template('reset_password.html', role=role,
                            ident='the administrator account' if role == 'admin' else ident)
 

@@ -134,6 +134,15 @@ These results are reported, not independently rerun as part of this documentatio
 - Pending / not implemented: session invalidation and migration v26 (not written, not approved; schema is v25); Admin enforcement (`ADMIN_ENFORCEMENT_ALLOWED=False`, owner decision); authenticator-based password reset; admin reset of teacher/HOD/Dean authenticators (Checkpoint 4). PostgreSQL and a live mail server not tested.
 - Handoff: `docs/PHASE_HANDOFFS/AUTHENTICATOR_CP1_HANDOFF.md` §17.
 
+## 3k. Forgot password with authenticator, Checkpoint A (2026-11-19)
+
+Owner decisions: authenticator code first, then backup code, then (Checkpoint B, not built yet) a college-mailbox proof to reset a lost authenticator; roles = Student, Teacher, HOD, Dean (not admin); mailbox proof = Microsoft sign-in first, emailed code as fallback.
+
+**Done (Checkpoint A):** `/forgot-password` and `/forgot-password/reset` (`auth.py`, `_check_reset_code`). An account with an ACTIVE authenticator resets its password with an app code or an unused backup code; no email is sent and the authenticator and other codes stay (uses `verify_recovery_code`, key `otpreset:<id>`, replay-safe). Accounts without one keep the emailed 6-digit code. Same page and message for unknown, enrolled and not-enrolled IDs; one error message for every failure including lockout. HOD and Dean added to the page and "Forgot password?" links added to their login pages. Admin unchanged.
+**Tests:** `tests/test_forgot_password_authenticator.py` (new); `test_normal_password_reset_keeps_the_authenticator` in `test_authenticator_lost_device_cp3.py` rewritten (it expected an emailed code for an enrolled student). Full suite: 742 passed.
+**Not done (Checkpoint B):** no phone and no backup codes, using Microsoft sign-in or emailed code to remove the authenticator, then new password, new QR, confirm code, new backup codes. This reverses the Checkpoint 1 rule "never email alone as an authenticator reset" for non-admin roles; needs the owner's approval of the design first.
+**Deploy:** no migration, no new environment variable.
+
 ## 4. Phase 6 — planned, not implemented
 
 Proposed modules:

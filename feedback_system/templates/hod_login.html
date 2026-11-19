@@ -24,6 +24,8 @@
         <input type="password" id="password" name="password" required>
       </div>
       <button class="btn btn-block" type="submit">Log In</button>
+      <p style="margin-top:.9rem;text-align:center;font-size:.85rem">
+        <a href="{{ url_for('auth.forgot_password', role='hod') }}">Forgot password?</a></p>
     </form>
   </div>
 </div>
