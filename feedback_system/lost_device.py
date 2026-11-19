@@ -2,6 +2,10 @@
 
 * ``/lost-phone``  Student, Teacher, HOD, Dean: ID + current password + ONE unused backup
   code, in a single request (no session state to tamper with).
+* ``/lost-phone/no-codes``  Student, Teacher, HOD, Dean with NO phone and NO backup codes
+  (Checkpoint B2): an e-mailed 6-digit code to the confirmed address, a new password, then
+  the same atomic removal. The 2-hour recovery lock (``recovery_lock``) covers this page and
+  the backup-code page above.
 * ``/admin/lost-authenticator``  Admin: both registered recovery e-mails, a code to each,
   and both codes must be right in one submission.
 
@@ -17,9 +21,9 @@ import time
 from flask import (Blueprint, current_app, flash, redirect, render_template, request, session,
                    url_for)
 
-from . import authenticator, db, mailer, verification
-from .security import (audit, clear_login_failures, hash_password, reserve_login_attempt,
-                       verify_password)
+from . import authenticator, db, mailer, recovery_lock, verification
+from .security import (audit, clear_login_failures, hash_password, is_default_student_password,
+                       reserve_login_attempt, verify_password)
 
 logger = logging.getLogger(__name__)
 bp = Blueprint('lost_device', __name__)
@@ -107,15 +111,27 @@ def lost_phone():
         audit('user.lost_device_recovery_failed', 'users', uid, 'Failed: wrong password',
               actor=_SYSTEM)
         return fail()
+    # Checkpoint B: code guesses are limited per IP, and 5 wrong codes lock recovery for
+    # 2 hours (sign-in is never affected).
+    if not recovery_lock.ip_code_allowed():
+        audit('user.lost_device_recovery_failed', 'users', uid,
+              'Blocked: too many code guesses from one address', actor=_SYSTEM)
+        return fail('Too many attempts. Please try again later.')
+    if recovery_lock.begin_attempt(user) == 'locked':
+        audit('user.lost_device_recovery_failed', 'users', uid,
+              'Blocked: recovery is locked', actor=_SYSTEM)
+        return fail()
     try:
         ok, reason = authenticator.recover_lost_device(uid, code, reserve=False)
     except authenticator.AuthenticatorConfigError:
         logger.error('Lost-device recovery failed: the encryption key is not usable')
         return fail('Recovery is not available right now. Please contact the administrator.')
     if not ok:
+        recovery_lock.record_failure(user)
         audit('user.lost_device_recovery_failed', 'users', uid, f'Failed: {reason}',
               actor=_SYSTEM)
         return fail()
+    recovery_lock.record_success(user)
     clear_login_failures(f'lostphone-ip:{request.remote_addr}')
     audit('user.lost_device_recovery', 'users', uid,
           'Lost-device recovery: authenticator and backup codes removed; new setup required',
@@ -124,6 +140,149 @@ def lost_phone():
     flash('Recovery complete. Your old authenticator and backup codes were removed. '
           'Sign in with your password and set up a new authenticator app.', 'success')
     return redirect(url_for(_LOGIN[user['role']]))
+
+
+# --------------------------------------------------------------------------- #
+# Student / Teacher / HOD / Dean with no phone and no backup codes (Checkpoint B2)
+# --------------------------------------------------------------------------- #
+MAILBOX_PURPOSE = 'lost_device'
+MAILBOX_STATE_SECONDS = 10 * 60
+CODE_FAIL = 'That code is not correct or has expired.'
+MAILBOX_INFO = ('If that account has an authenticator app and a confirmed email, we sent a '
+                '6-digit code to it. Enter the code and choose a new password.')
+
+
+def _mailbox_state():
+    """The signed-session record of who is recovering (role + ID only), or None."""
+    st = session.get('recov')
+    if (not isinstance(st, dict) or st.get('role') not in ROLES
+            or not isinstance(st.get('ident'), str) or not isinstance(st.get('exp'), int)
+            or st['exp'] <= int(time.time())):
+        session.pop('recov', None)
+        return None
+    return st
+
+
+def _recovery_user(role, ident):
+    """The account if it exists AND has an active authenticator (else None)."""
+    from .auth import _existing_user
+    user = _existing_user(ident, role) if ident else None
+    return dict(user) if user and authenticator.is_active(user['id']) else None
+
+
+def _send_mailbox_code(user):
+    """E-mail a recovery code if every limit allows it. Silent otherwise (the browser is
+    told the same thing either way). Returns True if a code was sent."""
+    from .auth import _send_code
+    email = (user.get('email') or '').strip()
+    if not email or recovery_lock.locked_seconds(user) or not recovery_lock.mail_allowed(user):
+        return False
+    ok, _problem = _send_code(user['id'], MAILBOX_PURPOSE, email)
+    if ok:
+        audit('user.lost_device_mailbox_requested', 'users', user['id'],
+              'Recovery code e-mailed (no phone, no backup codes)', actor=_SYSTEM)
+    return ok
+
+
+@bp.route('/lost-phone/no-codes', methods=['GET', 'POST'])
+def lost_phone_no_codes():
+    from .auth import _normalise_ident
+    role = (request.form.get('role') or request.args.get('role') or 'student')
+    role = role if role in ROLES else 'student'
+    if request.method != 'POST':
+        return render_template('lost_phone_mailbox.html', roles=ROLES, role=role, ident='')
+    ident = _normalise_ident(role, request.form.get('ident'))
+    if not ident:
+        flash('Please enter your ID.', 'error')
+        return render_template('lost_phone_mailbox.html', roles=ROLES, role=role, ident='')
+    if not recovery_lock.ip_start_allowed():
+        audit('user.lost_device_recovery_failed', None, None,
+              'Blocked: too many recovery starts from one address', actor=_SYSTEM)
+        flash('Too many attempts. Please try again later.', 'error')
+        return render_template('lost_phone_mailbox.html', roles=ROLES, role=role, ident=ident)
+    user = _recovery_user(role, ident)
+    if user:
+        _send_mailbox_code(user)
+    # The same answer for an unknown ID, an account with no authenticator, a locked
+    # account and a real one.
+    session['recov'] = {'role': role, 'ident': ident,
+                        'exp': int(time.time()) + MAILBOX_STATE_SECONDS}
+    flash(MAILBOX_INFO, 'info')
+    return redirect(url_for('lost_device.lost_phone_no_codes_verify'))
+
+
+@bp.route('/lost-phone/no-codes/verify', methods=['GET', 'POST'])
+def lost_phone_no_codes_verify():
+    st = _mailbox_state()
+    if not st:
+        flash('That page has expired. Please start again.', 'warning')
+        return redirect(url_for('lost_device.lost_phone_no_codes'))
+    role, ident = st['role'], st['ident']
+
+    def page():
+        return render_template('lost_phone_mailbox_verify.html', role=role, ident=ident)
+
+    def fail(message=CODE_FAIL):
+        flash(message, 'error')
+        return page()
+
+    if request.method != 'POST':
+        return page()
+    if request.form.get('action') == 'resend':
+        user = _recovery_user(role, ident)
+        if user and recovery_lock.ip_start_allowed():
+            _send_mailbox_code(user)
+        flash('If a code can be sent, a new one is on its way. You can ask once a minute.',
+              'info')
+        return page()
+
+    new = request.form.get('new_password') or ''
+    confirm = request.form.get('confirm_password') or ''
+    # Password rules are checked first and do not count as a wrong code.
+    if len(new) < 8:
+        return fail('New password must be at least 8 characters.')
+    if new != confirm:
+        return fail('The new passwords do not match.')
+    if ((role == 'teacher' and new == current_app.config['DEFAULT_TEACHER_PASSWORD'])
+            or (role == 'student' and is_default_student_password(new))):
+        return fail('Please choose a new password, not the default one.')
+
+    if not recovery_lock.ip_code_allowed():
+        audit('user.lost_device_recovery_failed', None, None,
+              'Blocked: too many code guesses from one address', actor=_SYSTEM)
+        return fail('Too many attempts. Please try again later.')
+    user = _recovery_user(role, ident)
+    if not user:
+        return fail()
+    uid = user['id']
+    if recovery_lock.begin_attempt(user) == 'locked':
+        audit('user.lost_device_recovery_failed', 'users', uid, 'Blocked: recovery is locked',
+              actor=_SYSTEM)
+        return fail()
+    if not verification.check(uid, MAILBOX_PURPOSE, request.form.get('code')):
+        recovery_lock.record_failure(user)
+        audit('user.lost_device_recovery_failed', 'users', uid, 'Failed: wrong e-mailed code',
+              actor=_SYSTEM)
+        return fail()
+    recovery_lock.record_success(user)
+    try:
+        removed = authenticator.apply_lost_device_reset(uid)
+    except authenticator.AuthenticatorConfigError:
+        logger.error('Lost-device recovery failed: the encryption key is not usable')
+        return fail('Recovery is not available right now. Please contact the administrator.')
+    if not removed:
+        return fail()
+    db.execute('UPDATE users SET password_hash=?, must_change_password=0 WHERE id=?',
+               (hash_password(new), uid))
+    session.pop('recov', None)
+    audit('user.lost_device_recovery', 'users', uid,
+          'Lost-device recovery by e-mailed code: authenticator and backup codes removed, '
+          'password changed; new setup required', actor=user)
+    _notify([user['email']], user['name'], 'lost_device_reset_mailbox', uid)
+    flash('Recovery complete. Sign in with your new password, then set up a new '
+          'authenticator app and enter its code to confirm it. You will get new backup codes.',
+          'success')
+    return redirect(url_for(_LOGIN[role]))
 
 
 # --------------------------------------------------------------------------- #

@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}No phone, no backup codes — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="eyebrow">Lost device recovery</div>
+    <h2>No phone and no backup codes</h2>
+    <p class="sub" style="margin-bottom:1.2rem">We will email a <strong>6-digit code</strong> to the email address you
+      confirmed when you first logged in. Enter it with a <strong>new password</strong> to remove your old authenticator
+      app. Next time you sign in you will set up a new app and enter its code to confirm it.</p>
+    <form method="post" autocomplete="off" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="role">I am a</label>
+        <select id="role" name="role">
+          {% for key, label in roles.items() %}
+          <option value="{{ key }}" {{ 'selected' if role == key }}>{{ key|capitalize if key in ('student','teacher') else key|upper }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="ident">Your ID (roll number or employee code)</label>
+        <input type="text" id="ident" name="ident" value="{{ ident }}" required autofocus>
+      </div>
+      <button class="btn btn-block" type="submit">Email me a code</button>
+    </form>
+    <p class="sub mt">Have a backup code? <a href="{{ url_for('lost_device.lost_phone') }}">Use it instead</a>.
+      Still stuck? Ask an administrator to reset your authenticator.</p>
+    <p class="sub"><a href="{{ url_for('auth.student_login') }}">← Back to login</a></p>
+  </div>
+</div>
+{% endblock %}

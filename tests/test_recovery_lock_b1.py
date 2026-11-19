@@ -227,10 +227,11 @@ def test_at_most_three_recovery_e_mails_per_hour_per_account(app, acct, clock):
         assert rl.mail_allowed(u) is True
 
 
-def test_nothing_is_wired_into_existing_pages_yet(app, client):
-    """B1 is the engine only: no existing route imports it, so behaviour is unchanged."""
+def test_only_the_recovery_pages_use_the_lock(app):
+    """The lock covers lost-device recovery only (wired in B2). Sign-in, forgot-password
+    (Checkpoint A, auth.py), the authenticator service and admin recovery never touch it."""
     import pathlib
     root = pathlib.Path(app.root_path)
-    users = [p.name for p in root.glob('*.py')
-             if p.name != 'recovery_lock.py' and 'recovery_lock' in p.read_text()]
-    assert users == []
+    users = sorted(p.name for p in root.glob('*.py')
+                   if p.name != 'recovery_lock.py' and 'recovery_lock' in p.read_text())
+    assert users == ['lost_device.py']

@@ -151,6 +151,11 @@ Engine only; no route uses it yet (B2 wires the new e-mail-code flow and the exi
 **Known trade-off:** someone who knows an ID can lock that account's lost-device recovery for 2 hours (never its login); per-IP caps limit this.
 **Tests:** `tests/test_recovery_lock_b1.py`. **Deploy:** no migration; settings optional.
 
+## 3m. Lost-device recovery, Checkpoint B2: no phone and no backup codes, e-mailed code (2026-11-19)
+
+**Done:** `/lost-phone/no-codes` and `/lost-phone/no-codes/verify` in `lost_device.py` for Student, Teacher, HOD, Dean (Admin excluded and unchanged). An e-mailed 6-digit code goes to the confirmed address only if the account exists, has an ACTIVE authenticator, is not recovery-locked and is under the 3-per-hour mail cap; the browser sees the same page either way. Code + new password in one submit; on the right code the authenticator and all backup codes are removed atomically (`apply_lost_device_reset`), the password is changed, a notice e-mail is sent (`lost_device_reset_mailbox`), and the next sign-in is forced into authenticator setup, which asks for the confirming code and issues 10 new backup codes. Wrong e-mailed codes count toward the 2-hour recovery lock (B1). The existing `/lost-phone` backup-code page now also uses the lock and the per-IP code limit (wrong passwords there do not count toward the 2-hour lock). Checkpoint A files are unchanged. Admin recovery is unchanged.
+**Tests:** `tests/test_lost_device_mailbox_b2.py` (new); `test_recovery_lock_b1.py` updated (only `lost_device.py` may use the lock). **Deploy:** no migration, no new environment variable. **Next:** B3 Microsoft/Google sign-in recovery.
+
 ## 4. Phase 6 — planned, not implemented
 
 Proposed modules:

@@ -147,6 +147,10 @@ def code_email(code, purpose, minutes):
         subject = 'Administrator authenticator recovery code'
         lead = ('Someone asked to remove the authenticator on the administrator account. '
                 'Use this code only if it was you:')
+    elif purpose == 'lost_device':
+        subject = 'Authenticator recovery code'
+        lead = ('Someone asked to remove the authenticator app on your feedback account '
+                '(no phone, no backup codes). Use this code only if it was you:')
     elif purpose == 'setup_authenticator':
         subject = 'Set up your authenticator app'
         lead = 'Use this code to set up the authenticator app for your feedback account:'
@@ -294,6 +298,11 @@ _SECURITY_EVENTS = {
                           '{when}. The old authenticator and all remaining backup codes were '
                           'removed, and you will set up a new authenticator at your next '
                           'sign-in.'),
+    'lost_device_reset_mailbox': ('Your authenticator was removed using an emailed code',
+                                  'The authenticator app and all backup codes on your feedback '
+                                  'account were removed on {when} using a code sent to this '
+                                  'email, and the password was changed. You will set up a new '
+                                  'authenticator at your next sign-in.'),
     'backup_codes_regenerated': ('New backup codes were created for your feedback account',
                                  'A new set of backup codes was created for your feedback '
                                  'account on {when}. Your older codes no longer work.'),

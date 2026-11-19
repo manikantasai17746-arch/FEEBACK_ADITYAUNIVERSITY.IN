@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}Enter code — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="eyebrow">Lost device recovery</div>
+    <h2>Enter code &amp; new password</h2>
+    <p class="sub" style="margin-bottom:1.2rem">Recovering <strong>{{ ident }}</strong>. The 6-digit code we emailed
+      expires in 10 minutes. This removes your old authenticator app and all backup codes.</p>
+    <form method="post" autocomplete="off" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="code">6-digit code from your email</label>
+        <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+               placeholder="123456" autocomplete="one-time-code" required autofocus
+               style="font-size:1.4rem;letter-spacing:.35em;text-align:center">
+      </div>
+      <div class="field"><label for="new_password">New password</label>
+        <input type="password" id="new_password" name="new_password" minlength="8" autocomplete="new-password" required>
+        <div class="hint">At least 8 characters.</div></div>
+      <div class="field"><label for="confirm_password">Confirm new password</label>
+        <input type="password" id="confirm_password" name="confirm_password" minlength="8" autocomplete="new-password" required></div>
+      <button class="btn btn-block" type="submit">Remove old authenticator</button>
+    </form>
+    <form method="post" style="margin-top:.8rem;display:flex;gap:.6rem;flex-wrap:wrap">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="resend">
+      <button class="btn btn-ghost btn-sm" type="submit">Resend code</button>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('lost_device.lost_phone_no_codes') }}">Start over</a>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -34,7 +34,7 @@
       </div>
       <button class="btn btn-block" type="submit">Remove old authenticator</button>
     </form>
-    <p class="sub mt">No backup codes either? Ask an administrator to reset your authenticator.
+    <p class="sub mt">No backup codes either? <a href="{{ url_for('lost_device.lost_phone_no_codes') }}">Recover with a code emailed to you</a>, or ask an administrator.
       Administrators: <a href="{{ url_for('lost_device.admin_lost_authenticator') }}">recover with your two e-mails</a>.</p>
     <p class="sub"><a href="{{ url_for('auth.student_login') }}">← Back to login</a></p>
   </div>
