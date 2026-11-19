@@ -67,8 +67,13 @@ New environment variables (set them in the production environment, never in the 
 | Variable | Required | Purpose |
 |---|---|---|
 | `TOTP_ENCRYPTION_KEY` | Yes, before any student is asked to set up an app | Fernet key(s) that encrypt TOTP secrets at rest. Comma-separated, newest first, to allow rotation. Not derived from `SECRET_KEY`. Without it, setup fails closed and a warning is logged at start-up. |
-| `DEFAULT_STUDENT_PASSWORD` | Yes | The shared default that student accounts were created with (default `student@123`). Accounts still on it must change it before any protected page. Empty disables this detection; a warning is logged. |
+| `DEFAULT_STUDENT_PASSWORD` | Yes | The shared default that student accounts were created with. Set it to the value your accounts actually use; the built-in fallback is in `feedback_system/__init__.py` and is deliberately not repeated here. Accounts still on it must change it before any protected page. Empty disables this detection; a warning is logged. |
 | `PREVIOUS_DEFAULT_STUDENT_PASSWORDS` | If the default was ever changed | Comma-separated older defaults, still detected. Values must not contain commas. |
+| `STUDENT_EMAIL_DOMAIN` | No (default `adityauniversity.in`) | Students confirm their e-mail as `<roll>@<this domain>` only. Empty switches the rule off. |
+| `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` / `MICROSOFT_TENANT_ID` | For "Continue with Microsoft" | Azure app registration; redirect URI `https://<site>/sso/microsoft/callback`. Students get Microsoft only when `MICROSOFT_TENANT_ID` is the college tenant GUID (not `common`). |
+| `AUTHENTICATOR_ENFORCE_ROLES` | No (default `student`) | Comma list of roles that must set up an authenticator, e.g. `student,teacher,hod,dean`. `admin` is ignored (with a start-up warning) until the Admin recovery procedure is implemented. Non-student roles are never forced while `TOTP_ENCRYPTION_KEY` is unset. |
+| `LOST_DEVICE_IP_MAX_ATTEMPTS` | No (default 10) | Lost-device recovery requests allowed per address per 15 minutes before a lockout. Raise it if many users share one address. |
+| `AUTHENTICATOR_GRACE_UNTIL` | No | `role=YYYY-MM-DD` pairs, e.g. `teacher=2026-12-31,hod=2026-12-31`. Before the date the role only sees a reminder; from the date it must enrol at sign-in. |
 | `OTP_MAX_ATTEMPTS` | No (default 5) | Wrong codes allowed in a 15-minute window before the account is locked. |
 | `OTP_LOCKOUT_SECONDS` | No (default 900) | Length of the lock. |
 
@@ -88,3 +93,14 @@ Rollout checklist:
 4. New forms require the code by default. Admins and HODs can untick the box while creating a form; a form cannot be changed once it is published.
 5. Admins can reset a student's authenticator (for example, a lost phone) from the student list. The student is e-mailed and sets up again.
 6. Sessions open before the update keep working until they log out or expire. Changing `SECRET_KEY` ends all sessions at once if that is wanted.
+
+### Recovery precautions (authenticator all-roles upgrade, Checkpoint 1)
+
+Checkpoints 1 and 2 need **no migration** (schema stays v25). Checkpoint 2 adds the two optional variables above; with their defaults only students are forced to enrol, as before. To roll out to staff, list the roles in `AUTHENTICATOR_ENFORCE_ROLES` with a grace date, announce it, and confirm `TOTP_ENCRYPTION_KEY` is set. Do not enforce Admin (it is refused until Admin recovery exists). See `docs/AUTHENTICATOR_RECOVERY.md` §7–8. In short:
+
+- Keep `TOTP_ENCRYPTION_KEY` in the secret manager with a backup. Losing it makes stored authenticator secrets unreadable; affected users then need an administrator reset and re-enrollment.
+- Password recovery attempts have their own lockout (`otpreset:`), separate from sign-in. `OTP_MAX_ATTEMPTS` and `OTP_LOCKOUT_SECONDS` apply to both.
+- **Pending (not implemented):** session invalidation. Resetting a password or authenticator does not sign out sessions already open elsewhere (idle limit 30 minutes, maximum 8 hours). Rotating `SECRET_KEY` ends all sessions at once. Fixing this needs migration **v26** (session epoch), which is **not written and not approved**; the schema remains v25.
+- **Pending (not implemented):** a supported way to recover an Admin who has lost the authenticator. Do not enforce authenticators for the Admin role until it exists. See `docs/AUTHENTICATOR_RECOVERY.md` §5.
+- Test on PostgreSQL before relying on the new code in production; Checkpoint 1 tests ran on SQLite only.
+

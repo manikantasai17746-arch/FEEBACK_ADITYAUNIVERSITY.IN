@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Account security — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card" style="max-width:34rem">
+    <div class="eyebrow">Account security</div>
+    <h2>Authenticator app</h2>
+
+    {% if active %}
+    <p class="sub" style="margin-bottom:1rem">Your authenticator app is <strong>set up</strong>.</p>
+    <div class="card" style="margin-bottom:1rem">
+      <div class="sub">Unused backup codes</div>
+      <div id="backup-count" style="font-size:1.6rem;font-weight:700">{{ remaining }} of {{ total }}</div>
+      {% if remaining <= 2 %}
+      <p class="sub" style="margin:.4rem 0 0;color:var(--danger,#B3261E)">You are running low. Create a new set below.</p>
+      {% endif %}
+    </div>
+    <form method="post" action="{{ url_for('account_security.regenerate_backup_codes') }}" autocomplete="off" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <h3 style="margin-top:0">Create new backup codes</h3>
+      <p class="sub">This replaces all your current codes. Enter the 6-digit code from your authenticator app to confirm.</p>
+      <div class="field">
+        <label for="code">Code from the app</label>
+        <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+               placeholder="123456" autocomplete="one-time-code" required
+               style="font-size:1.4rem;letter-spacing:.35em;text-align:center">
+      </div>
+      <button class="btn btn-block" type="submit"{% if locked %} disabled{% endif %}>Create new backup codes</button>
+      {% if locked %}<p class="sub">Too many incorrect codes. Try again in {{ [1, locked // 60]|max }} minutes.</p>{% endif %}
+    </form>
+    <p class="sub" style="margin-top:1rem">Lost your phone? Sign out and use
+      <a href="{{ url_for('lost_device.lost_phone') }}">Lost device recovery</a> with a backup code, or ask an administrator. Changing your password does not remove this authenticator.</p>
+    {% else %}
+    <p class="sub" style="margin-bottom:1rem">You have <strong>not</strong> set up an authenticator app yet.
+      It lets you reset a forgotten password without e-mail codes.</p>
+    {% if state == 'required' %}
+    <p class="sub"><strong>This is required for your role.</strong></p>
+    {% elif state == 'grace' %}
+    <p class="sub">It becomes required for your role on <strong>{{ until.strftime('%d %b %Y') }}</strong>.</p>
+    {% endif %}
+    {% if key_ready or role == 'student' %}
+    <a class="btn btn-block" href="{{ url_for('auth.setup_authenticator') }}">Set up authenticator app</a>
+    {% else %}
+    <p class="sub">Authenticator setup is not available yet. Please contact the administrator.</p>
+    {% endif %}
+    {% endif %}
+
+    {% if admin_enforcement_disabled %}
+    <p class="sub" style="margin-top:1rem">Administrator note: recovery for a lost administrator authenticator is not
+      available yet, so enrolment is optional for administrators. Keep your backup codes somewhere safe.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

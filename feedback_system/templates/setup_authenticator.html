@@ -3,16 +3,38 @@
 {% block body %}
 <div class="auth-page">
   <div class="auth-card">
-    <div class="eyebrow">Step 2 of 2 · Authenticator app</div>
+    <div class="eyebrow">{{ 'Step 2 of 2 · ' if role == 'student' else '' }}Authenticator app</div>
     <h2>Set up your authenticator app</h2>
-    {% if stage == 'send' %}
+    {% if stage == 'password' %}
+    <p class="sub" style="margin-bottom:1.2rem">Google Authenticator or Microsoft Authenticator will give you a
+      6-digit code. Before we show your setup key, please confirm it is you by typing your current password.</p>
+    <form method="post" class="card" autocomplete="off">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <input type="hidden" name="action" value="password">
+      <div class="field">
+        <label for="password">Current password</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn btn-block" type="submit">Continue</button>
+    </form>
+    {% if not mandatory %}<p style="margin-top:1rem"><a href="{{ home_url }}">Not now</a></p>{% endif %}
+    {% elif stage == 'unavailable' %}
+    <p class="sub">Authenticator setup is not available yet. Please contact the administrator.</p>
+    {% if not mandatory %}<p><a href="{{ home_url }}">Back</a></p>{% endif %}
+    {% elif stage == 'send' %}
     <p class="sub" style="margin-bottom:1.2rem">To give feedback you will enter a 6-digit code from an
       authenticator app on your phone (Google Authenticator, Microsoft Authenticator or similar).
       First we confirm it is you: we will email a code to <strong>{{ email }}</strong>.</p>
+    {% if microsoft_ok %}
+    <div class="card" style="margin-bottom:1rem">
+      <a class="btn btn-block" href="{{ url_for('auth.sso_start', provider='microsoft') }}">Continue with Microsoft</a>
+      <p class="sub" style="margin-top:.8rem;font-size:.9rem">Sign in as <strong>{{ email }}</strong>; no code is needed.</p>
+    </div>
+    {% endif %}
     <form method="post" class="card">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <input type="hidden" name="action" value="send">
-      <button class="btn btn-block" type="submit">Email me a code</button>
+      <button class="btn btn-block" type="submit">{{ 'Try another way: email me a code' if microsoft_ok else 'Email me a code' }}</button>
     </form>
     {% else %}
     <p class="sub" style="margin-bottom:1rem">1. Open your authenticator app and add an account.<br>

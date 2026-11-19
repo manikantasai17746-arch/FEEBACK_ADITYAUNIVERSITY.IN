@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}I lost my phone — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="eyebrow">Lost device recovery</div>
+    <h2>I lost my phone</h2>
+    <p class="sub" style="margin-bottom:1.2rem">Use one of your <strong>backup codes</strong> to remove your old
+      authenticator app. You will set up a new one the next time you sign in. This is not a password reset:
+      you still need your current password. Forgot your password? Reset it first, then come back here.</p>
+    <form method="post" autocomplete="off" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field">
+        <label for="role">I am a</label>
+        <select id="role" name="role">
+          {% for key, label in roles.items() %}
+          <option value="{{ key }}" {{ 'selected' if role == key }}>{{ key|capitalize if key in ('student','teacher') else key|upper }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="field">
+        <label for="ident">Your ID (roll number or employee code)</label>
+        <input type="text" id="ident" name="ident" value="{{ ident }}" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Current password</label>
+        <input type="password" id="password" name="password" autocomplete="current-password" required>
+      </div>
+      <div class="field">
+        <label for="code">One backup code</label>
+        <input type="text" id="code" name="code" placeholder="xxxx-xxxx-xxxx" autocomplete="off" required
+               style="font-family:monospace;letter-spacing:.08em">
+        <div class="hint">Each code works once. Used codes and app codes are not accepted here.</div>
+      </div>
+      <button class="btn btn-block" type="submit">Remove old authenticator</button>
+    </form>
+    <p class="sub mt">No backup codes either? <a href="{{ url_for('lost_device.lost_phone_no_codes') }}">Recover with a code emailed to you</a>, or ask an administrator.
+      Administrators: <a href="{{ url_for('lost_device.admin_lost_authenticator') }}">recover with your two e-mails</a>.</p>
+    <p class="sub"><a href="{{ url_for('auth.student_login') }}">← Back to login</a></p>
+  </div>
+</div>
+{% endblock %}

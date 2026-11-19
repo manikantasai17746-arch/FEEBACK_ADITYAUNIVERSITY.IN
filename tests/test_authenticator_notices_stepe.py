@@ -14,7 +14,7 @@ import pyotp
 import pytest
 
 from feedback_system import authenticator, db, mailer
-from helpers import login_student
+from helpers import STUDENT_PERSONAL_PASSWORD, login_student
 
 ROLL = '25B11CS016'            # a student no other test depends on
 
@@ -162,6 +162,8 @@ def test_setting_up_an_app_sends_a_notice_without_the_secret(app, client, studen
     _set_email(app, student)
     assert login_student(client, ROLL).status_code == 302
     tok = _token(client)
+    client.post('/setup/authenticator', data={'_csrf': tok, 'action': 'password',
+                                              'password': STUDENT_PERSONAL_PASSWORD})
     client.post('/setup/authenticator', data={'_csrf': tok, 'action': 'send'})
     code = [m for m in sent if 'set up' in m['subject'].lower() and m.get('to')][-1]
     emailed = re.search(r'\b(\d{6})\b', code['text']).group(1)
@@ -172,7 +174,7 @@ def test_setting_up_an_app_sends_a_notice_without_the_secret(app, client, studen
     assert secret
     app_code = pyotp.TOTP(secret).now()
     r = client.post('/setup/authenticator/confirm', data={'_csrf': tok, 'code': app_code})
-    assert r.status_code == 302
+    assert r.status_code == 200          # one-time backup-codes page (all-roles upgrade)
     with app.app_context():
         assert authenticator.is_active(student)
     added = [m for m in sent if 'set up on your feedback account' in m['subject']]

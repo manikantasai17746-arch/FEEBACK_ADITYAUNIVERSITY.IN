@@ -86,8 +86,9 @@ python app.py                            # -> http://localhost:5000
 
 Admin credentials must be set with `ADMIN_EMAIL` and `ADMIN_PASSWORD` in the
 environment (for local development, in `.env`) before initializing a fresh
-database; there is no built-in admin login. Teacher login uses emp-code / `teacher@123`;
-student roll number / `student@123`.
+database; there is no built-in admin login. Teachers sign in with their employee code and
+students with their roll number, using the seeded passwords configured by
+`DEFAULT_TEACHER_PASSWORD` / `DEFAULT_STUDENT_PASSWORD` (not repeated here).
 
 ---
 

@@ -32,13 +32,15 @@ On the very first run the app:
 > connection string and the app uses PostgreSQL automatically — see
 > **[DEPLOY.md](DEPLOY.md)** for the step-by-step guide.
 
-### Default logins
+### Logins
 
-| Role    | URL              | Identifier             | Password (default)       |
-|---------|------------------|------------------------|--------------------------|
-| Student | `/`              | Roll number, e.g. `25B11CS015` | `student@123`    |
-| Teacher | `/teacher/login` | Employee code, e.g. `6817`     | `teacher@123`    |
-| Admin   | `/admin/login`   | `admin@college.edu`            | `admin123`       |
+| Role    | URL              | Identifier             | Password |
+|---------|------------------|------------------------|----------|
+| Student | `/`              | Roll number, e.g. `25B11CS015` | Set by the administrator (see `DEFAULT_STUDENT_PASSWORD`) |
+| Teacher | `/teacher/login` | Employee code, e.g. `6817`     | Set by the administrator (see `DEFAULT_TEACHER_PASSWORD`) |
+| Admin   | `/admin/login`   | The `ADMIN_EMAIL` you configured | The `ADMIN_PASSWORD` you configured |
+
+Default passwords are intentionally not written in this document. Their built-in fallbacks are in `feedback_system/__init__.py`; always set your own values in the environment.
 
 **Change every default password in production.** Students/teachers can change
 their own password at `/change-password`; admins can reset any account from
@@ -61,10 +63,10 @@ core business requirement.
 | `DATABASE_URL` | *(unset)* | **Supabase/PostgreSQL** connection string; when set, Postgres is used instead of SQLite |
 | `FEEDBACK_DB` | `./feedback.db` | SQLite database path (used when `DATABASE_URL` is unset) |
 | `FEEDBACK_XLSX` | `./III_semester_...xlsx` | Timetable workbook |
-| `ADMIN_EMAIL` | `admin@college.edu` | Bootstrap admin login |
-| `ADMIN_PASSWORD` | `admin123` | Bootstrap admin password |
-| `DEFAULT_TEACHER_PASSWORD` | `teacher@123` | Seeded teacher password |
-| `DEFAULT_STUDENT_PASSWORD` | `student@123` | Seeded student password |
+| `ADMIN_EMAIL` | (set it) | Bootstrap admin login |
+| `ADMIN_PASSWORD` | (set it) | Bootstrap admin password |
+| `DEFAULT_TEACHER_PASSWORD` | (set it) | Seeded teacher password |
+| `DEFAULT_STUDENT_PASSWORD` | (set it) | Seeded student password |
 | `ACADEMIC_YEAR` | `2025-26` | Academic year label for the import |
 | `SESSION_COOKIE_SECURE` | `0` | Set to `1` behind HTTPS |
 | `AUTO_IMPORT` | `1` | Import the workbook when the DB is empty (`0` in production) |
@@ -255,8 +257,10 @@ PostgreSQL grammar via `pglast`).
   (409) so historical answers are never orphaned; create a new form instead.
 * The legacy `feedback` table is retained for backward compatibility but the new
   form/answer tables are the operational source of truth.
-#   F E E D B A C K - A D I T Y A _ U N I V E R S I T Y  
- #   F E E D B A C K - A D I T Y A _ U N I V E R S I T Y  
+#   F E E D B A C K - A D I T Y A _ U N I V E R S I T Y 
+ 
+ #   F E E D B A C K - A D I T Y A _ U N I V E R S I T Y 
+ 
  
 ---
 

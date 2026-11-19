@@ -9,16 +9,20 @@ Service layer only: no routes, no templates, no form gating.  It provides:
 * single-use backup codes, stored only as scrypt hashes;
 * rate limiting on the shared ``login_attempts`` table.
 
+The tables (``student_authenticators`` / ``student_backup_codes``) keep their original
+names but are keyed by ``user_id``, so the service works for every role.
+
 Secrets and codes are never logged.  Plaintext secrets exist only in memory and
 are returned from ``begin_enrollment`` so the enrollment step (Checkpoint 2) can
 display them once.
 """
+import logging
 import re
 import hashlib
 import secrets
 import threading
 import time
-from datetime import datetime
+from datetime import date, datetime
 
 import pyotp
 from cryptography.fernet import Fernet, InvalidToken, MultiFernet
@@ -27,6 +31,8 @@ from flask import current_app
 from . import db
 from .security import (clear_login_failures, hash_password, login_locked,
                        reserve_login_attempt, verify_password)
+
+logger = logging.getLogger(__name__)
 
 TOTP_STEP_SECONDS = 30
 TOTP_DRIFT_STEPS = 1                 # accept previous, current and next step
@@ -334,38 +340,127 @@ def clear_otp_failures(user_id):
 # --------------------------------------------------------------------------- #
 # Full second-factor check (used by the Checkpoint 3 gate)
 # --------------------------------------------------------------------------- #
-def verify_second_factor(user_id, code, now=None):
-    """Check a TOTP or backup code for an enrolled student. Returns (ok, reason).
+def _check_code(user_id, code, reserve, clear, now=None):
+    """Shared TOTP-or-backup-code check. ``reserve``/``clear`` choose the rate-limit key.
 
-    Reasons: ``totp`` / ``backup`` (success), ``locked``, ``not_enrolled``,
-    ``invalid``.  Order (M2): not-enrolled is checked first and is not counted;
-    then the attempt is RESERVED (which refuses if the account is locked or the
-    limit is used up); only then is the code checked (TOTP with replay protection,
-    then backup code).  A success clears the count; every other attempt stays
-    counted.
+    Reasons: ``totp`` / ``backup`` (success), ``locked``, ``not_enrolled``, ``invalid``.
+    Order (M2): not-enrolled is checked first and is not counted; then the attempt is
+    RESERVED (refused if locked or the limit is used up); only then is the code checked
+    (TOTP with replay protection, then backup code).  A success clears the count; every
+    other attempt stays counted.
     """
     row = _row(user_id)
     if row is None or row['status'] != 'active':
         return False, 'not_enrolled'
-    if not reserve_otp_attempt(user_id):
+    if not reserve(user_id):
         return False, 'locked'
     text = str(code or '').strip()
     step = verify_totp(decrypt_secret(row['secret_enc']), text,
                        last_step=row['last_step'], now=now)
     if step is not None:
         if consume_step(user_id, step):
-            clear_otp_failures(user_id)
+            clear(user_id)
             return True, 'totp'
     elif len(_normalise_code(text)) == BACKUP_CODE_LENGTH and consume_backup_code(user_id, text):
-        clear_otp_failures(user_id)
+        clear(user_id)
         return True, 'backup'
     return False, 'invalid'
 
 
-def remove_authenticator(user_id):
-    """Admin reset: delete the student's authenticator (active or pending) and backup codes.
+def verify_second_factor(user_id, code, now=None):
+    """Check a TOTP or backup code for an enrolled account. Returns (ok, reason).
 
-    The student sets up again through the e-mail-proof setup. Returns True if one existed.
+    Used by the sign-in / feedback-form gate. See ``_check_code`` for the reasons.
+    """
+    return _check_code(user_id, code, reserve_otp_attempt, clear_otp_failures, now=now)
+
+
+# --------------------------------------------------------------------------- #
+# Recovery (forgotten password / lost phone) and backup-code management
+# --------------------------------------------------------------------------- #
+def _reset_key(user_id):
+    # Separate from ``otp:<id>`` so failed password-reset guesses (by anyone who only
+    # knows the username) can never lock the real user out of the sign-in gate.
+    return f'otpreset:{user_id}'
+
+
+def reset_locked_seconds(user_id):
+    """Seconds left on a recovery lockout for this account (0 = not locked)."""
+    return login_locked(_reset_key(user_id))
+
+
+def reserve_reset_attempt(user_id):
+    """Reserve one recovery attempt before its code is checked (same rules as M2)."""
+    return reserve_login_attempt(_reset_key(user_id),
+                                 int(current_app.config.get('OTP_MAX_ATTEMPTS', 5)),
+                                 int(current_app.config.get('OTP_LOCKOUT_SECONDS', 900)),
+                                 window_seconds=FAILURE_WINDOW_SECONDS)
+
+
+def clear_reset_failures(user_id):
+    clear_login_failures(_reset_key(user_id))
+
+
+def verify_recovery_code(user_id, code, now=None):
+    """Check a TOTP or single-use backup code for a NORMAL password reset.
+
+    Returns (ok, reason). Reasons: ``totp`` / ``backup`` (success), ``locked``,
+    ``not_enrolled``, ``invalid``.  Rate limited under its own key (``otpreset:``). Reuses
+    ``consume_step`` and ``consume_backup_code``, so a TOTP code cannot be replayed (here
+    or at sign-in) and a backup code works once.
+
+    This function NEVER removes or disables the authenticator, whichever kind of code
+    was used: a backup code used for an ordinary password reset only spends that one
+    code, and the user keeps the same authenticator and their remaining codes.  Removing
+    the authenticator is a separate, explicit lost-device recovery
+    (``complete_lost_device_reset``).  The caller must not tell the browser which reason
+    it was.
+    """
+    return _check_code(user_id, code, reserve_reset_attempt, clear_reset_failures, now=now)
+
+
+def backup_codes_remaining(user_id):
+    """How many unused backup codes the account has (0 if none)."""
+    row = db.query('SELECT COUNT(*) AS n FROM student_backup_codes '
+                   'WHERE user_id=? AND used_at IS NULL', (user_id,), one=True)
+    return int(row['n']) if row else 0
+
+
+def regenerate_backup_codes(user_id):
+    """Issue a fresh set of backup codes, invalidating every older one.
+
+    Returns the plaintext codes ONCE for display; only hashes are stored.  Allowed only
+    for an ACTIVE authenticator.  The caller must have just verified a current TOTP
+    code (``verify_second_factor``) before calling this.
+    """
+    if not is_active(user_id):
+        raise AuthenticatorStateError('No active authenticator for this account.')
+    codes = generate_backup_codes()
+    store_backup_codes(user_id, codes)
+    return codes
+
+
+def complete_lost_device_reset(user_id):
+    """Lost-device recovery ONLY: remove the authenticator and ALL remaining codes.
+
+    This is the single recovery step that removes the old authenticator.  It must be
+    reached only through the separate "I lost my phone" path, after the user proved
+    themselves with a backup code (``verify_recovery_code``); it must NOT be run just
+    because a backup code was used for an ordinary password reset.  The phone may be lost
+    or stolen, so it stops being trusted: the account must enrol a new authenticator at
+    its next sign-in.  This function does not verify anything itself.
+    Returns True if an authenticator was removed.
+    """
+    removed = remove_authenticator(user_id)
+    clear_reset_failures(user_id)
+    return removed
+
+
+def remove_authenticator(user_id):
+    """Delete an account's authenticator (active or pending) and backup codes.
+
+    Used by admin resets and lost-device recovery; the user sets up again at next sign-in.
+    Returns True if one existed.
     """
     conn = db.get_db()
     try:
@@ -376,4 +471,169 @@ def remove_authenticator(user_id):
         conn.rollback()
         raise
     clear_otp_failures(user_id)
+    clear_reset_failures(user_id)
     return cur.rowcount > 0
+
+
+# --------------------------------------------------------------------------- #
+# Enrollment policy (Checkpoint 2): which roles must enrol, and when
+# --------------------------------------------------------------------------- #
+ROLES = ('student', 'teacher', 'hod', 'dean', 'admin')
+
+# The Admin recovery procedure (docs/AUTHENTICATOR_RECOVERY.md section 5) is NOT yet
+# implemented. Until it is, forcing the Admin role to enrol is refused whatever the
+# configuration says. Admins may still enrol voluntarily. Flip this only together with
+# that procedure.
+ADMIN_ENFORCEMENT_ALLOWED = False
+
+
+def _parse_roles(raw):
+    return {r.strip().lower() for r in str(raw or '').split(',') if r.strip()}
+
+
+def _parse_grace(raw):
+    """``"teacher=2026-12-31,hod=2027-01-15"`` -> {role: date}. Bad entries are ignored
+    (so the role is enforced at once, the safer reading) and logged without the value."""
+    out = {}
+    for part in str(raw or '').split(','):
+        role, _, value = part.partition('=')
+        role = role.strip().lower()
+        if not role:
+            continue
+        try:
+            out[role] = date.fromisoformat(value.strip())
+        except ValueError:
+            logger.warning('AUTHENTICATOR_GRACE_UNTIL: ignoring an invalid date for role %r', role)
+    return out
+
+
+def enforcement_state(role, config, today=None):
+    """Return ``(state, grace_until)`` for a role.
+
+    ``state`` is ``'off'`` (not forced to enrol), ``'grace'`` (listed, but before its
+    grace date: remind only) or ``'required'`` (must enrol before using the portal).
+
+    Config: ``AUTHENTICATOR_ENFORCE_ROLES`` (comma list, default ``student``, which is the
+    behaviour before this checkpoint) and ``AUTHENTICATOR_GRACE_UNTIL`` (``role=YYYY-MM-DD``
+    pairs; the role is required from that date). Non-student roles are never forced while
+    ``TOTP_ENCRYPTION_KEY`` is unset (that would lock them out of setup), and the Admin role
+    is never forced while ``ADMIN_ENFORCEMENT_ALLOWED`` is False.
+    """
+    if role not in ROLES:
+        return 'off', None
+    if role not in _parse_roles(config.get('AUTHENTICATOR_ENFORCE_ROLES', 'student')):
+        return 'off', None
+    if role == 'admin' and not ADMIN_ENFORCEMENT_ALLOWED:
+        return 'off', None
+    if role != 'student' and not config.get('TOTP_ENCRYPTION_KEY'):
+        return 'off', None
+    until = _parse_grace(config.get('AUTHENTICATOR_GRACE_UNTIL', '')).get(role)
+    today = today or datetime.utcnow().date()
+    if until is not None and today < until:
+        return 'grace', until
+    return 'required', until
+
+
+# --------------------------------------------------------------------------- #
+# Lost-device recovery (Checkpoint 3)
+#
+# A SEPARATE path from normal password reset. Only a successful recovery here (or the
+# audited administrator reset) removes an authenticator. Recovery leaves a "re-enrollment
+# required" marker so the user must set up a new authenticator at the next sign-in:
+# a PENDING authenticator row whose ``enrolled_at`` is set. (A voluntary, half-finished
+# setup is also ``pending`` but has ``enrolled_at`` NULL, so the two cannot be confused.)
+# No schema change is needed.
+# --------------------------------------------------------------------------- #
+def _lost_key(user_id):
+    # Its own key: failed lost-device attempts never lock sign-in or password reset.
+    return f'otplost:{user_id}'
+
+
+def lost_locked_seconds(user_id):
+    """Seconds left on a lost-device recovery lockout (0 = not locked)."""
+    return login_locked(_lost_key(user_id))
+
+
+def reserve_lost_attempt(user_id):
+    """Reserve one lost-device attempt before anything is checked (same rules as M2)."""
+    return reserve_login_attempt(_lost_key(user_id),
+                                 int(current_app.config.get('OTP_MAX_ATTEMPTS', 5)),
+                                 int(current_app.config.get('OTP_LOCKOUT_SECONDS', 900)),
+                                 window_seconds=FAILURE_WINDOW_SECONDS)
+
+
+def clear_lost_failures(user_id):
+    clear_login_failures(_lost_key(user_id))
+
+
+def needs_reenrollment(user_id):
+    """True if a lost-device or admin recovery removed this account's authenticator and
+    the new one has not been confirmed yet."""
+    row = _row(user_id)
+    if row is None or row['status'] != 'pending':
+        return False
+    marker = db.query('SELECT enrolled_at FROM student_authenticators WHERE user_id=?',
+                      (user_id,), one=True)
+    return bool(marker and marker['enrolled_at'])
+
+
+def apply_lost_device_reset(user_id):
+    """Atomically remove an ACTIVE authenticator and every backup code, and leave the
+    re-enrollment marker. Returns True only for the one caller that removed it.
+
+    The first statement deletes the row only while it is still ``active``, so two
+    simultaneous recoveries cannot both succeed: the loser sees no row, rolls back and gets
+    False. All three changes commit together or not at all. The new pending secret is
+    created (and encrypted) BEFORE anything is deleted, so a missing or bad encryption key
+    fails closed with nothing removed.
+    """
+    token = encrypt_secret(new_secret())
+    stamp = _now_iso()
+    conn = db.get_db()
+    try:
+        cur = conn.execute("DELETE FROM student_authenticators WHERE user_id=? AND status='active'",
+                           (user_id,))
+        if cur.rowcount != 1:
+            conn.rollback()
+            return False
+        conn.execute('DELETE FROM student_backup_codes WHERE user_id=?', (user_id,))
+        conn.execute("INSERT INTO student_authenticators(user_id, secret_enc, status, enrolled_at, "
+                     "updated_at) VALUES(?,?,'pending',?,?)", (user_id, token, stamp, stamp))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    clear_otp_failures(user_id)
+    clear_reset_failures(user_id)
+    clear_lost_failures(user_id)
+    return True
+
+
+def recover_lost_device(user_id, backup_code, reserve=True):
+    """Verify ONE unused backup code and, only if it is right, remove the authenticator.
+
+    Returns ``(ok, reason)``: ``(True, 'backup')``, or ``(False, 'locked' | 'not_enrolled' |
+    'invalid')``. The caller must show the browser the same message for every failure.
+
+    * Backup code only. A 6-digit app code is rejected before anything is spent.
+    * Not-enrolled is checked first and not counted; then the attempt is reserved under
+      ``otplost:`` (pass ``reserve=False`` if the caller already reserved it, for example
+      before checking a password); only then is the code checked.
+    * The code is single use (``consume_backup_code`` is atomic), and the removal is atomic
+      and happens once (``apply_lost_device_reset``). Nothing is removed on any failure.
+    * Does NOT check a password or identity: the route does that first.
+    """
+    row = _row(user_id)
+    if row is None or row['status'] != 'active':
+        return False, 'not_enrolled'
+    _cipher()        # a missing or bad key fails closed HERE, before any code is spent
+    if reserve and not reserve_lost_attempt(user_id):
+        return False, 'locked'
+    code = _normalise_code(backup_code)
+    if len(code) != BACKUP_CODE_LENGTH or any(c not in BACKUP_ALPHABET for c in code):
+        return False, 'invalid'
+    if not consume_backup_code(user_id, backup_code):
+        return False, 'invalid'
+    if not apply_lost_device_reset(user_id):
+        return False, 'not_enrolled'
+    return True, 'backup'

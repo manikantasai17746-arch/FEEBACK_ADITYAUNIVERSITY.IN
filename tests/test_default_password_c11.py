@@ -1,10 +1,11 @@
-"""C1.1: a student still on the shared default password cannot stay there.
+"""C1.1 (revised): students may keep the shared default password; changing it is optional.
 
 * detection uses the stored hash (not ``must_change_password``) and the configured
   default, never a hard-coded value;
-* a student cannot choose the shared default (change-password or reset);
-* a default-password student must change it before any protected student page;
-* personal-password students are unaffected; scan login behaves as before;
+* a student cannot CHOOSE the shared default (change-password or reset);
+* a default-password student is NOT forced to change it: login (and ID-card scan) clear any
+  old forced-change flag and the protected pages open; the Password page always works;
+* personal-password students are unaffected;
 * teacher and admin password changes are unchanged;
 * missing or changed configuration is handled safely.
 """
@@ -175,26 +176,30 @@ def test_student_reset_by_email_code_cannot_set_the_shared_default(app, client, 
 # --------------------------------------------------------------------------- #
 # 4. Default-password students are forced to change before protected pages
 # --------------------------------------------------------------------------- #
-def test_default_password_student_is_forced_to_change_before_protected_pages(
-        app, client, student):
-    default = app.config['DEFAULT_STUDENT_PASSWORD']
-    _set(app, student, default, must_change=0)     # flag deliberately 0: the hash is what counts
-    assert login(client, '/student/login', {'roll': ROLL, 'password': default}).status_code == 302
-    assert _flag(app, student) == 1
-    for page in ('/student/', '/student/notifications'):
-        r = client.get(page)
-        assert r.status_code == 302 and 'change-password' in r.headers['Location'], page
-    _change(client, default, PERSONAL)             # the forced change itself is allowed
-    assert _flag(app, student) == 0
-    assert client.get('/student/').status_code == 200
-
-
-def test_must_change_flag_alone_is_not_what_forces_the_change(app, client, student):
-    """A default-password account whose flag is 0 is still caught at login."""
+def test_default_password_student_is_not_forced_to_change(app, client, student):
     default = app.config['DEFAULT_STUDENT_PASSWORD']
     _set(app, student, default, must_change=0)
     assert login(client, '/student/login', {'roll': ROLL, 'password': default}).status_code == 302
-    assert _flag(app, student) == 1
+    assert _flag(app, student) == 0
+    assert client.get('/student/').status_code == 200      # opens straight away
+
+
+def test_password_page_is_always_available_and_works_for_a_default_student(app, client, student):
+    default = app.config['DEFAULT_STUDENT_PASSWORD']
+    _set(app, student, default, must_change=0)
+    assert login(client, '/student/login', {'roll': ROLL, 'password': default}).status_code == 302
+    assert client.get('/change-password').status_code == 200
+    _change(client, default, PERSONAL)                    # optional change still works
+    assert check_password_hash(_stored(app, student)[0], PERSONAL)
+    assert client.get('/student/').status_code == 200
+
+
+def test_an_old_forced_change_flag_is_cleared_at_student_login(app, client, student):
+    default = app.config['DEFAULT_STUDENT_PASSWORD']
+    _set(app, student, default, must_change=1)            # e.g. flagged before this change
+    assert login(client, '/student/login', {'roll': ROLL, 'password': default}).status_code == 302
+    assert _flag(app, student) == 0
+    assert client.get('/student/').status_code == 200
 
 
 # --------------------------------------------------------------------------- #
@@ -215,15 +220,14 @@ def _scan(client, roll):
     return client.post('/scan-login', data={'code': roll, '_csrf': tok}).get_json()
 
 
-def test_scan_login_for_a_default_student_still_logs_in_and_forces_the_change(
+def test_scan_login_for_a_default_student_logs_in_without_a_forced_change(
         app, client, student):
     default = app.config['DEFAULT_STUDENT_PASSWORD']
-    _set(app, student, default, must_change=0)
+    _set(app, student, default, must_change=1)
     body = _scan(client, ROLL)
     assert body['ok'] is True and body.get('redirect')
-    assert _flag(app, student) == 1
-    r = client.get('/student/')
-    assert r.status_code == 302 and 'change-password' in r.headers['Location']
+    assert _flag(app, student) == 0
+    assert client.get('/student/').status_code == 200
 
 
 def test_scan_login_for_a_personal_student_still_asks_for_the_password(app, client, student):
@@ -240,7 +244,7 @@ def test_scan_login_follows_a_changed_default_with_previous_defaults(
     key_override('PREVIOUS_DEFAULT_STUDENT_PASSWORDS', [old])
     _set(app, student, old, must_change=0)
     body = _scan(client, ROLL)
-    assert body['ok'] is True and _flag(app, student) == 1
+    assert body['ok'] is True and _flag(app, student) == 0
 
 
 # --------------------------------------------------------------------------- #

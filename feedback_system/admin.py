@@ -205,11 +205,14 @@ def reset_password(uid):
         pw = current_app.config['DEFAULT_TEACHER_PASSWORD']
     else:
         pw = current_app.config['DEFAULT_STUDENT_PASSWORD']
-    db.execute('UPDATE users SET password_hash=?, must_change_password=1 WHERE id=?',
-               (hash_password(pw), uid))
+    # Teachers must replace the default at next login; students may keep it (optional change).
+    forced = 1 if target['role'] == 'teacher' else 0
+    db.execute('UPDATE users SET password_hash=?, must_change_password=? WHERE id=?',
+               (hash_password(pw), forced, uid))
     audit('user.reset_password', 'users', uid, f'Reset {target["role"]} password')
-    flash(f'Password for {target["name"]} reset to the default. Ask them to change it '
-          f'on next login.', 'success')
+    flash(f'Password for {target["name"]} reset to the default.'
+          + (' They must change it at next login.' if forced else
+             ' They can change it any time from the Password menu.'), 'success')
     return redirect(request.referrer or url_for('admin.dashboard'))
 
 

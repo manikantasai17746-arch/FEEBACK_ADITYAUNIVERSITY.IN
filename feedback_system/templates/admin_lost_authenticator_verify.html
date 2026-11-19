@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Enter both codes — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="eyebrow">Administrator · Lost authenticator</div>
+    <h2>Enter both codes</h2>
+    <p class="sub" style="margin-bottom:1.2rem">Enter the code sent to each address. Both must be correct. Codes
+      expire after 10 minutes and nothing is removed unless both are right.</p>
+    <form method="post" autocomplete="off" class="card">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <div class="field"><label for="code1">Code sent to e-mail 1</label>
+        <input type="text" id="code1" name="code1" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autofocus
+               style="font-size:1.3rem;letter-spacing:.3em;text-align:center"></div>
+      <div class="field"><label for="code2">Code sent to e-mail 2</label>
+        <input type="text" id="code2" name="code2" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required
+               style="font-size:1.3rem;letter-spacing:.3em;text-align:center"></div>
+      <button class="btn btn-block" type="submit">Remove old authenticator</button>
+    </form>
+    <p class="sub mt"><a href="{{ url_for('lost_device.admin_lost_authenticator') }}">Start again</a></p>
+  </div>
+</div>
+{% endblock %}

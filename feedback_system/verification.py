@@ -57,11 +57,12 @@ def pending(user_id, purpose):
     return row
 
 
-def check(user_id, purpose, code):
+def check(user_id, purpose, code, consume=True):
     """Return the e-mail address the code was sent to if ``code`` is right, else None.
 
     Wrong guesses are counted; after MAX_ATTEMPTS the code is destroyed.
-    A correct code is consumed.
+    A correct code is consumed unless ``consume=False`` (used when two codes must both
+    be right before either is spent; the caller then calls :func:`discard`).
     """
     row = pending(user_id, purpose)
     code = (code or '').strip().replace(' ', '')
@@ -71,7 +72,8 @@ def check(user_id, purpose, code):
         discard(user_id, purpose)
         return None
     if hmac.compare_digest(row['code_hash'], _hash(user_id, purpose, code)):
-        discard(user_id, purpose)
+        if consume:
+            discard(user_id, purpose)
         return row['email']
     db.execute('UPDATE email_codes SET attempts=attempts+1 WHERE id=?', (row['id'],))
     if int(row['attempts']) + 1 >= MAX_ATTEMPTS:

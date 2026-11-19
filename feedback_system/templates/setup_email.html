@@ -6,29 +6,31 @@
     <div class="eyebrow">Step 1 of {{ 4 if current_user.role == 'teacher' else 2 }} · One-time setup</div>
     <h2>Confirm your email</h2>
     <p class="sub" style="margin-bottom:1.2rem">Hi <strong>{{ current_user.name }}</strong>! Confirm your email so we can reach you for password resets.
-      {% if current_user.role == 'student' %}Your feedback stays <strong>anonymous</strong>.{% endif %}</p>
+      {% if current_user.role == 'student' %}Use your <strong>college Microsoft account</strong>. Your feedback stays <strong>anonymous</strong>.{% endif %}</p>
 
     {% if sso_providers %}
     <div class="card" style="margin-bottom:1rem">
       {% if 'microsoft' in sso_providers %}
       <a class="btn btn-block" href="{{ url_for('auth.sso_start', provider='microsoft') }}">Continue with Microsoft</a>
       {% endif %}
-      {% if 'google' in sso_providers %}
+      {% if 'google' in sso_providers and current_user.role != 'student' %}
       <a class="btn btn-block" style="margin-top:.6rem" href="{{ url_for('auth.sso_start', provider='google') }}">Continue with Google</a>
       {% endif %}
-      <p class="sub" style="margin-top:.8rem;font-size:.9rem">Your provider confirms the address, so no code is needed.</p>
+      <p class="sub" style="margin-top:.8rem;font-size:.9rem">Your provider confirms the address, so no code is needed.
+        {% if college_email %}Sign in as <strong>{{ college_email }}</strong>.{% endif %}</p>
     </div>
     {% endif %}
 
     <details class="card" {% if not sso_providers %}open{% endif %}>
-      <summary style="cursor:pointer;font-weight:600;padding:.2rem 0">Try another way: enter your email</summary>
-      <p class="sub" style="margin:.8rem 0">Type your email address below. We will send a <strong>6-digit code</strong> to confirm it.</p>
+      <summary style="cursor:pointer;font-weight:600;padding:.2rem 0">Try another way: enter your {{ 'college ' if college_email }}email</summary>
+      <p class="sub" style="margin:.8rem 0">Type your {% if college_email %}college email (<strong>{{ college_email }}</strong>){% else %}email address{% endif %} below. We will send a <strong>6-digit code</strong> to confirm it.</p>
       <form method="post" autocomplete="off">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <input type="hidden" name="next" value="{{ request.args.get('next','') }}">
         <div class="field">
-          <label for="email">Email address</label>
-          <input type="email" id="email" name="email" placeholder="yourname@gmail.com" required>
+          <label for="email">{{ 'College email' if college_email else 'Email address' }}</label>
+          <input type="email" id="email" name="email" placeholder="{{ college_email or 'yourname@gmail.com' }}" required
+                 autocapitalize="off" spellcheck="false">
         </div>
         <button class="btn btn-block" type="submit">Send code</button>
       </form>

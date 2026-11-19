@@ -107,6 +107,55 @@ These results are reported, not independently rerun as part of this documentatio
 - Migration 17 is present; an earlier "missing v17" report was incorrect.
 - Handoff: `docs/PHASE_HANDOFFS/AUTHENTICATOR_CP1_HANDOFF.md`.
 
+## 3h. Authenticator recovery — all-roles upgrade, Checkpoint 1 (service layer) — 2026-11-17
+
+- Status: service layer done and tested; **documentation complete; Checkpoint 2 not started and awaiting explicit approval.**
+- Scope: `feedback_system/authenticator.py` and `feedback_system/mailer.py` only, plus `tests/test_authenticator_recovery_cp1.py`. No routes, templates, schema (still v25) or data changes. Nothing is user-visible yet.
+- Added: backup-code count and regeneration, recovery verifier under its own `otpreset:` rate-limit key, lost-device reset, `security_notice` e-mails (5 events, no secrets).
+- Rule verified and tested: a normal password reset (TOTP or backup code) never removes or disables the authenticator; only lost-device recovery and the admin reset do.
+- Tests (2026-11-17, review sandbox, real pyotp, SQLite): `pytest tests/test_authenticator_recovery_cp1.py tests/test_authenticator_core.py tests/test_authenticator_notices_stepe.py tests/test_authenticator_setup_stepb.py` — 119 passed. Earlier session reported full suite 633 passed excluding `tests/test_student_default_password.py` (cannot import: `TEST_STUDENT_PASSWORD` missing from `tests/helpers.py`; pre-existing, unfixed); not re-run for this documentation step. PostgreSQL not run.
+- Pending / not implemented: session invalidation after reset and its v26 migration (not written, not approved; schema is v25); the Admin lost-authenticator recovery script (procedure documented only).
+- Open decisions: email fallback for users with no authenticator, rollout/enforcement timing, fixing the admin reset-password route that does not restrict target role (outside this scope).
+- Guide: `docs/AUTHENTICATOR_RECOVERY.md`. Handoff: `docs/PHASE_HANDOFFS/AUTHENTICATOR_CP1_HANDOFF.md` §15.
+
+## 3i. Authenticator all-roles upgrade, Checkpoint 2 (enrollment) — 2026-11-18
+
+- Status: implemented and tested; **Checkpoint 3 not started, awaiting explicit approval.** No migration (schema v25).
+- Added: enrollment for Student/Teacher/HOD/Dean/Admin with password re-entry (students keep the e-mailed code), QR setup, one-time backup codes, `/account/security`, per-role enforcement with grace dates (`AUTHENTICATOR_ENFORCE_ROLES`, `AUTHENTICATOR_GRACE_UNTIL`). Default enforcement is students only (unchanged). Admin enforcement is disabled until Admin recovery exists.
+- Tests (2026-11-18, SQLite, real pyotp/segno): full suite excluding `tests/test_student_default_password.py` — 675 passed (633 + 42 new); that module still cannot be imported (pre-existing). Two Step B/E test files were updated for the new password step. PostgreSQL not run.
+- Still pending / not implemented: session invalidation and migration v26 (not written, not approved); Admin lost-authenticator recovery script; password recovery and lost-device recovery (Checkpoint 3); admin reset for teacher/HOD/Dean (Checkpoint 4).
+- Handoff: `docs/PHASE_HANDOFFS/AUTHENTICATOR_CP1_HANDOFF.md` §16.
+
+## 3j. Authenticator all-roles upgrade, Checkpoint 3 (lost-device recovery) — 2026-11-18
+
+- Status: implemented and tested; **Checkpoint 4 not started, awaiting explicit approval.** No migration (schema v25). Normal password reset unchanged.
+- Added: `/lost-phone` for Student/Teacher/HOD/Dean (ID + current password + one backup code); Admin recovery by verifying both registered recovery e-mails (`/admin/lost-authenticator`); atomic once-only removal of the authenticator and all backup codes; forced re-enrollment at next sign-in for every role (marker = `pending` row with `enrolled_at` set); per-account and per-IP limits; audit entries; `lost_device_reset` e-mails.
+- Tests (2026-11-18, temporary SQLite database, real pyotp/segno): `pytest tests --ignore=tests/test_student_default_password.py` — **714 passed** (675 + 39 new), exit code 0, in a second full run. The first full run had one failure, `tests/test_assignment_setup_ui.py::test_t32_loading_error_and_success_states`: a timing-dependent browser test that also fails about 1 run in 14 on the untouched original zip, and passed on re-run (alone and with its whole file). Unrelated to this work, not fixed. `tests/test_student_default_password.py` still cannot be imported (`TEST_STUDENT_PASSWORD` missing; pre-existing).
+- Pending / not implemented: session invalidation and migration v26 (not written, not approved; schema is v25); Admin enforcement (`ADMIN_ENFORCEMENT_ALLOWED=False`, owner decision); authenticator-based password reset; admin reset of teacher/HOD/Dean authenticators (Checkpoint 4). PostgreSQL and a live mail server not tested.
+- Handoff: `docs/PHASE_HANDOFFS/AUTHENTICATOR_CP1_HANDOFF.md` §17.
+
+## 3k. Forgot password with authenticator, Checkpoint A (2026-11-19)
+
+Owner decisions: authenticator code first, then backup code, then (Checkpoint B, not built yet) a college-mailbox proof to reset a lost authenticator; roles = Student, Teacher, HOD, Dean (not admin); mailbox proof = Microsoft sign-in first, emailed code as fallback.
+
+**Done (Checkpoint A):** `/forgot-password` and `/forgot-password/reset` (`auth.py`, `_check_reset_code`). An account with an ACTIVE authenticator resets its password with an app code or an unused backup code; no email is sent and the authenticator and other codes stay (uses `verify_recovery_code`, key `otpreset:<id>`, replay-safe). Accounts without one keep the emailed 6-digit code. Same page and message for unknown, enrolled and not-enrolled IDs; one error message for every failure including lockout. HOD and Dean added to the page and "Forgot password?" links added to their login pages. Admin unchanged.
+**Tests:** `tests/test_forgot_password_authenticator.py` (new); `test_normal_password_reset_keeps_the_authenticator` in `test_authenticator_lost_device_cp3.py` rewritten (it expected an emailed code for an enrolled student). Full suite: 742 passed.
+**Not done (Checkpoint B):** no phone and no backup codes, using Microsoft sign-in or emailed code to remove the authenticator, then new password, new QR, confirm code, new backup codes. This reverses the Checkpoint 1 rule "never email alone as an authenticator reset" for non-admin roles; needs the owner's approval of the design first.
+**Deploy:** no migration, no new environment variable.
+
+## 3l. Lost-device recovery, Checkpoint B1: recovery lock engine (2026-11-19)
+
+Engine only; no route uses it yet (B2 wires the new e-mail-code flow and the existing `/lost-phone` page, B3 adds Microsoft/Google, B4 docs and regression).
+**Done:** `feedback_system/recovery_lock.py`. 5 wrong recovery codes within 15 minutes lock lost-device recovery for 2 hours (`reclock:<id>` in `login_attempts`), auto-unlock by time. Student/Teacher/HOD/Dean only; every function is a no-op for Admin. Separate keys, so sign-in, the sign-in authenticator check and forgot-password (Checkpoint A) are never blocked. Audit: `user.recovery_locked` (at the 5th wrong code), `user.recovery_blocked` (first refused attempt of a lock), `user.recovery_unlocked` (written lazily on the next attempt after expiry, with the expiry time; there is no background job). IP caps `recstart-ip` (10/15 min) and `reccode-ip` (15/h); per-account e-mail cap `recmail` (3/h).
+**Settings (all optional):** `RECOVERY_MAX_ATTEMPTS=5`, `RECOVERY_LOCK_SECONDS=7200`, `RECOVERY_FAILURE_WINDOW_SECONDS=900`, `RECOVERY_IP_START_MAX=10`, `RECOVERY_IP_CODE_MAX=15`, `RECOVERY_MAIL_MAX=3`.
+**Known trade-off:** someone who knows an ID can lock that account's lost-device recovery for 2 hours (never its login); per-IP caps limit this.
+**Tests:** `tests/test_recovery_lock_b1.py`. **Deploy:** no migration; settings optional.
+
+## 3m. Lost-device recovery, Checkpoint B2: no phone and no backup codes, e-mailed code (2026-11-19)
+
+**Done:** `/lost-phone/no-codes` and `/lost-phone/no-codes/verify` in `lost_device.py` for Student, Teacher, HOD, Dean (Admin excluded and unchanged). An e-mailed 6-digit code goes to the confirmed address only if the account exists, has an ACTIVE authenticator, is not recovery-locked and is under the 3-per-hour mail cap; the browser sees the same page either way. Code + new password in one submit; on the right code the authenticator and all backup codes are removed atomically (`apply_lost_device_reset`), the password is changed, a notice e-mail is sent (`lost_device_reset_mailbox`), and the next sign-in is forced into authenticator setup, which asks for the confirming code and issues 10 new backup codes. Wrong e-mailed codes count toward the 2-hour recovery lock (B1). The existing `/lost-phone` backup-code page now also uses the lock and the per-IP code limit (wrong passwords there do not count toward the 2-hour lock). Checkpoint A files are unchanged. Admin recovery is unchanged.
+**Tests:** `tests/test_lost_device_mailbox_b2.py` (new); `test_recovery_lock_b1.py` updated (only `lost_device.py` may use the lock). **Deploy:** no migration, no new environment variable. **Next:** B3 Microsoft/Google sign-in recovery.
+
 ## 4. Phase 6 — planned, not implemented
 
 Proposed modules:
@@ -157,7 +206,7 @@ After each approved checkpoint/phase, update actual commit/branch, implemented f
 Completed, each as a separate patch with focused tests:
 
 - C1 / C1.1 / C1.2: encrypted TOTP secrets, replay protection, backup codes, atomic lockout counter, H1/H2/M1/M3 fixes.
-- C1.1 default password: detection from the stored hash; students cannot choose the shared default (change or reset); accounts on it must change before protected pages.
+- C1.1 default password: detection from the stored hash; students cannot choose the shared default (change or reset). **Revised:** students are no longer forced to change the shared default (see "Student sign-in flow" below); the Password page stays available.
 - Step A: a confirmed student e-mail is locked; only an administrator can clear it.
 - Step B: authenticator setup after the e-mail step, proved by a code e-mailed to the registered address; secret shown only with that proof, never stored in the session.
 - Step C: the authenticator code is required before a form marked "Authentication Required" can be opened or submitted; verified for the login session only.
@@ -167,10 +216,19 @@ Completed, each as a separate patch with focused tests:
 
 Known limits (not yet closed):
 
-- A student still on the shared default can be taken over by anyone who knows it. Only rejecting the default at login closes this; that is not implemented.
-- Google or Microsoft sign-in does not count as proof for authenticator setup; the e-mailed code does.
+- A student still on the shared default can be taken over by anyone who knows it (the change is now optional, by decision). The college-email rule, the Microsoft tenant check and the authenticator reduce this; they do not remove it.
 - Pending setups never expire (needs a migration).
 - Admins can clear a student's e-mail but not a teacher's.
 - Verified state lasts for the login session (logout, a new login, 30 minutes idle, or 8 hours).
 
 Verification status: each patch was applied to a clean repository with `git apply` and checked with `git diff --check`. The sandbox runner does not run pytest, so the full suite must be run on the developer's machine. PostgreSQL migration execution is not verified.
+
+## Student sign-in flow (current)
+
+1. Student logs in with roll number + the shared default password. No forced password change; the Password menu always allows an optional change. A student still cannot choose the shared default as the new password.
+2. First login, no e-mail on file: **Continue with Microsoft** (students never see Google). The Microsoft account must equal `<roll in lower case>@STUDENT_EMAIL_DOMAIN` (default `adityauniversity.in`), e.g. `26b21cs073@adityauniversity.in`. Microsoft for students only works when `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` and a tenant GUID in `MICROSOFT_TENANT_ID` are set.
+3. **Try another way**: a box for the college e-mail only (same `<roll>@domain` rule); a 6-digit code is sent to it.
+4. After either proof, the authenticator QR code is shown straight away (no second code, no password prompt). A student who already has the college e-mail on file can use Continue with Microsoft instead of the e-mailed code.
+5. Admin keeps two recovery e-mails; student, teacher, HOD and Dean have one e-mail. Teachers keep Google and Microsoft.
+
+Set `STUDENT_EMAIL_DOMAIN=` (empty) to switch the college-email rule off.

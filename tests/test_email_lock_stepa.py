@@ -43,6 +43,10 @@ def student(app):
         db.execute('DELETE FROM email_codes WHERE user_id=?', (saved[0],))
 
 
+def _college(app):
+    return f"{ROLL.lower()}@{app.config['STUDENT_EMAIL_DOMAIN']}"
+
+
 def _set_email(app, uid, email, verified=1):
     with app.app_context():
         db.execute('UPDATE users SET email=?, email_verified=? WHERE id=?', (email, verified, uid))
@@ -86,7 +90,7 @@ def test_confirmed_email_cannot_be_replaced_through_setup(app, client, sent, stu
 def test_code_sent_before_the_lock_cannot_replace_the_confirmed_email(
         app, client, sent, student):
     assert login_student(client, ROLL).status_code == 302
-    _post(client, '/setup/email', email='a@gmail.com')
+    _post(client, '/setup/email', email=_college(app))
     code = sent[-1]['code']
     assert code                                        # a real code was sent
     _set_email(app, student, 'locked@gmail.com')       # confirmed in the meantime
@@ -106,10 +110,10 @@ def test_admin_clears_the_email_and_the_student_can_set_a_new_one_once(
     assert _email_of(app, student) is None
 
     assert login_student(client, ROLL).status_code == 302
-    _post(client, '/setup/email', email='new@gmail.com')
-    assert len(sent) == 1 and sent[-1]['to'] == 'new@gmail.com'
+    _post(client, '/setup/email', email=_college(app))
+    assert len(sent) == 1 and sent[-1]['to'] == _college(app)
     _post(client, '/setup/email/verify', code=sent[-1]['code'])
-    assert _email_of(app, student) == 'new@gmail.com'
+    assert _email_of(app, student) == _college(app)
     # and it is locked again
     _post(client, '/setup/email', email='third@gmail.com')
     assert len(sent) == 1

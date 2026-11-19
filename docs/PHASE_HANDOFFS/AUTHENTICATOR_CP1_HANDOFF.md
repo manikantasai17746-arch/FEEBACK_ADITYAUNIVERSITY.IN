@@ -148,3 +148,68 @@ Enrollment (Checkpoint 2) must:
   existing per-instance in-memory fallback applies, as before.
 - **Tests:** `tests/test_login_lockout_atomic.py` (16 tests, real threads). Mutation checks: a
   non-atomic increment fails 2 concurrency tests; a reservation that counts nothing fails 6 tests.
+
+## 15. Recovery service layer (all-roles upgrade, Checkpoint 1) — 2026-11-17
+
+Scope: service layer only, in `feedback_system/authenticator.py` and `feedback_system/mailer.py`, plus one new test file. No routes, templates, schema or migration changes. Schema stays v25. Full design and operations guide: `docs/AUTHENTICATOR_RECOVERY.md`.
+
+**Added to `authenticator.py`:** `backup_codes_remaining`, `regenerate_backup_codes` (active authenticator only; caller must have just verified a current TOTP), `verify_recovery_code` (TOTP or backup code under its own `otpreset:<id>` rate-limit key), `reset_locked_seconds` / `reserve_reset_attempt` / `clear_reset_failures`, `complete_lost_device_reset` (removes authenticator and all codes; verifies nothing itself). `verify_second_factor` and `verify_recovery_code` now share the helper `_check_code`; sign-in behaviour is unchanged.
+
+**Added to `mailer.py`:** `security_notice(to, name, event)` for `password_reset`, `backup_code_used`, `lost_device_reset`, `backup_codes_regenerated`, `authenticator_reset`. Notification only; no secret, code, link or password.
+
+**Rule verified (owner request):** a backup code or TOTP used for a normal password reset does not remove or disable the authenticator. Only `complete_lost_device_reset` (and the existing admin reset) remove it. The `backup_code_used` notice says the authenticator is still set up; `lost_device_reset` says it was removed.
+
+**Tests:** `tests/test_authenticator_recovery_cp1.py`, run for a student and a teacher account. Results actually obtained on 2026-11-17 in the review sandbox, with real `pyotp`, on SQLite: `pytest tests/test_authenticator_recovery_cp1.py tests/test_authenticator_core.py tests/test_authenticator_notices_stepe.py tests/test_authenticator_setup_stepb.py` — **119 passed**. The previous session reported the full suite at 633 passed (581 existing + 52 new), excluding `tests/test_student_default_password.py`, which cannot be imported because `TEST_STUDENT_PASSWORD` is missing from `tests/helpers.py` (existing failure, not fixed). That full-suite figure was not re-run during the documentation task. PostgreSQL not run.
+
+**Limitations / open decisions:**
+1. Nothing calls the new functions yet; no user-visible change.
+2. `complete_lost_device_reset` trusts its caller; the lost-device route must require `verify_recovery_code(...) == (True, 'backup')` first. A combined verify-and-remove function is offered, not approved.
+3. HOD, Dean and Admin are not separately covered by the CP1 tests (student and teacher only); add in Checkpoint 2.
+4. **PENDING:** no session invalidation after a reset (stateless cookies, 30 min idle / 8 h max). The v26 session-epoch migration is not written and not approved; schema is v25.
+5. A known username lets someone lock that user's recovery (not sign-in) for the lockout period; per-IP limits planned in Checkpoint 3.
+6. **NOT IMPLEMENTED:** the Admin lost-authenticator recovery script. A procedure is documented in `docs/AUTHENTICATOR_RECOVERY.md` §5; enforcement for Admin must wait for it.
+
+**Next:** Checkpoint 2 (enrollment for all five roles, one-time backup-code display, `/account/security`). Not started; requires explicit approval.
+
+## 16. All-roles upgrade, Checkpoint 2 (enrollment) — 2026-11-18
+
+Scope: authenticator enrollment for Student, Teacher, HOD, Dean and Admin; QR setup; one-time backup codes; Account Security page; password re-entry; per-role enforcement and grace periods; notices. **No database migration** (schema stays v25). Design: `docs/AUTHENTICATOR_RECOVERY.md`.
+
+**Files modified:** `feedback_system/authenticator.py` (enforcement policy: `ROLES`, `ADMIN_ENFORCEMENT_ALLOWED`, `enforcement_state`; no change to the Checkpoint 1 functions), `feedback_system/auth.py` (enrollment routes for all roles, password proof, backup-code page, `_authenticator_gate` wired into `_enforce_account_setup`), `feedback_system/__init__.py` (config `AUTHENTICATOR_ENFORCE_ROLES`, `AUTHENTICATOR_GRACE_UNTIL`, blueprint, admin warning), `feedback_system/templates/setup_authenticator.html`, `feedback_system/templates/base.html` ("Security" menu link), `tests/test_authenticator_setup_stepb.py` and `tests/test_authenticator_notices_stepe.py` (updated deliberately for the new password step and the backup-codes response), and the documentation files.
+**Files created:** `feedback_system/account_security.py`, `feedback_system/templates/account_security.html`, `feedback_system/templates/backup_codes.html`, `tests/test_authenticator_enroll_cp2.py` (42 tests).
+**Documentation also changed:** `README.md` and `UPGRADE_NOTES.md` (default passwords removed), `docs/DEPLOYMENT.md`, `docs/DEVELOPMENT_STATUS.md`, `docs/AUTHENTICATOR_RECOVERY.md`, this file, `docs/PHASE_HANDOFFS/README.md`.
+
+**Routes:** `/setup/authenticator` (+ `/verify`, `/confirm`) now serve all five roles; new `GET /account/security`, `POST /account/security/backup-codes`.
+
+**Behaviour:** password re-entry for every role (students also keep the e-mailed code); refused on a temporary/default password; backup codes rendered once in the confirming response (`no-store`), never in session, redirect or log; regeneration needs a current 6-digit app code (a backup code is refused and not spent); enrollment notice via the existing `authenticator_notice('added')`, regeneration via `security_notice('backup_codes_regenerated')`; a failed e-mail is audited and never blocks. Enforcement default is students only (unchanged); other roles are opt-in by config with a grace date; Admin enforcement cannot be enabled while Admin recovery is unimplemented; non-student enforcement is skipped without `TOTP_ENCRYPTION_KEY`.
+
+**Rules kept:** nothing in this checkpoint removes or replaces an active authenticator (a test asserts no such route exists); changing a password leaves it in place. Password recovery, lost-device recovery and the admin-reset extension are still **Checkpoints 3 and 4**.
+
+**Tests (2026-11-18, SQLite, real pyotp/segno):** `pytest tests --ignore=tests/test_student_default_password.py` — **675 tests, all passed** (633 before + 42 new; progress dots only, no failures or errors; pytest printed no summary line). `tests/test_student_default_password.py` still cannot be imported (missing `TEST_STUDENT_PASSWORD` in `tests/helpers.py`; pre-existing, unfixed). Mutation checks: removing the password proof, disabling enforcement, and accepting a backup code at regeneration each made the new tests fail. PostgreSQL and browser/phone-scan checks not run.
+
+**Limitations:** no self-service replacement of a working authenticator (needs lost-device recovery); **PENDING, NOT IMPLEMENTED:** session invalidation and migration v26 (not written, not approved); **NOT IMPLEMENTED:** the Admin lost-authenticator recovery script, so Admin enforcement stays off; grace dates are config-only (no per-user start date, which would need a migration); a user who closes the backup-codes page without saving must create new codes; the notice for enrollment still has student-style fallback wording when a user has no name; Admin enrollment is voluntary and, until Checkpoint 3, an authenticator does not yet gate sign-in or password reset for any role.
+
+**Next:** Checkpoint 3 (TOTP password recovery and lost-device recovery). Not started; requires explicit approval.
+
+## 17. All-roles upgrade, Checkpoint 3 (lost-device recovery) — 2026-11-18
+
+Scope: "I lost my phone" recovery for Student/Teacher/HOD/Dean (backup code), Admin recovery by verifying **both** registered recovery e-mails, atomic once-only removal, forced re-enrollment, audit and notices. **No migration** (schema stays v25). **Normal password reset is unchanged** (`forgot_password`, `reset_password`, `admin_forgot_password` not edited; only a link was added to two pages). Design: `docs/AUTHENTICATOR_RECOVERY.md` §4–5.
+
+**Files created:** `feedback_system/lost_device.py`, `feedback_system/templates/lost_phone.html`, `admin_lost_authenticator.html`, `admin_lost_authenticator_verify.html`, `tests/test_authenticator_lost_device_cp3.py` (39 tests).
+**Files modified:** `feedback_system/authenticator.py` (adds `recover_lost_device`, `apply_lost_device_reset`, `needs_reenrollment`, `otplost:` limiter; earlier functions untouched), `feedback_system/auth.py` (gate redirects on the re-enrollment marker for every role; setup page treats it as mandatory), `feedback_system/verification.py` (`check(..., consume=True)`; default behaviour unchanged), `feedback_system/mailer.py` (code e-mail wording for the admin purposes), `feedback_system/__init__.py` (blueprint, `LOST_DEVICE_IP_MAX_ATTEMPTS`), templates `forgot_password.html`, `admin_forgot_password.html`, `account_security.html` (links), and the documentation files.
+
+**Re-enrollment marker (no migration):** a `pending` `student_authenticators` row with `enrolled_at` set. Voluntary unfinished setups have it NULL.
+
+**Security review summary:**
+- Replay: backup code spent atomically; used/old codes dead; app codes rejected on this path and not spent; admin e-mail codes single use, 10-minute expiry, destroyed after 5 wrong guesses.
+- Brute force: per-account (`otplost:`, `adminlostv:`) and per-IP limits, reserved before checking; isolated from sign-in and password-reset counters (tested both ways).
+- Concurrency: removal is one transaction deleting the row only while `active`; threaded tests show exactly one winner and a consistent final state; failures roll back fully; a bad encryption key fails before any code is spent.
+- Session tampering: `/lost-phone` keeps no session state; admin flow state is `{uid, exp}` in the signed session; tampered cookies, forged/expired/malformed records and another account's id are refused (tested).
+- Probing: identical responses for every failure; password hash always compared.
+- Rules kept: normal reset never touches the authenticator (regression test); only these recovery paths remove it.
+
+**Tests (2026-11-18, temporary SQLite DB, real pyotp/segno):** see DEVELOPMENT_STATUS §3j for the full-suite result. Eight deliberate code breaks (no code consumption, ignored password, ignored marker, one-code admin, unconditional delete, early code spend, no state expiry, no account limit) each made the new tests fail.
+
+**Limitations / pending:** **PENDING, NOT IMPLEMENTED:** session invalidation and migration v26 (other sessions stay valid until they expire; not written, not approved). Admin enforcement still disabled (`ADMIN_ENFORCEMENT_ALLOWED=False`, owner decision). Whoever controls both admin recovery mailboxes can remove the admin authenticator (password still needed to sign in). Per-IP limits are shared by users behind one address. Authenticator-based password reset and the admin reset of other users' authenticators (Checkpoint 4) are not done. PostgreSQL and a live mail server were not tested. The staff page needs the current password, so a user who forgot it must reset it first.
+
+**Next:** Checkpoint 4. Not started; requires explicit approval.
