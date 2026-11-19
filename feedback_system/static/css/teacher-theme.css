@@ -355,3 +355,9 @@ body.role-teacher .card:has(> .perf-table-wrap) > h2 { padding-left: .6rem; }
 body.role-teacher .perf-table-wrap .marks-table th { padding: .7rem .3rem; }
 body.role-teacher .perf-table-wrap .marks-table td { padding: .8rem .3rem; }
 body.role-teacher .perf-table-wrap .marks-table .btn { padding: .35rem .6rem; font-size: .78rem; }
+
+/* "My Improvement" link in the dashboard head: solid brand blue, like the preview */
+body.role-teacher .perf-welcome a.btn.btn-ghost,
+html.dark-mode body.role-teacher .perf-welcome a.btn.btn-ghost { background: var(--tt-blue); color: #fff; border: 0; padding: .65rem 1.2rem; font-size: .95rem; }
+body.role-teacher .perf-welcome a.btn.btn-ghost:hover,
+html.dark-mode body.role-teacher .perf-welcome a.btn.btn-ghost:hover { background: var(--tt-blue-deep); color: #fff; }
