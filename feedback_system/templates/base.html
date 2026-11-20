@@ -10,9 +10,10 @@
   {% if current_user and current_user.role == 'dean' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dean-theme.css') }}">{% endif %}
   {% if current_user and current_user.role == 'teacher' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/teacher-theme.css') }}">{% endif %}
   {% if current_user and current_user.role == 'student' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/student-theme.css') }}">{% endif %}
+  {% if not current_user or current_user.role == 'student' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/loader.css') }}">{% endif %}
   {% block head %}{% endblock %}
 </head>
-<body class="role-{{ current_user.role if current_user else 'guest' }}">
+<body class="role-{{ current_user.role if current_user else 'guest' }} {% block bodyclass %}{% endblock %}">
 <header class="topbar">
   <div class="topbar-inner">
     <a class="brand" href="{{ url_for('auth.landing') }}">
@@ -160,6 +161,7 @@
   });
 })();
 </script>
+{% if not current_user or current_user.role == 'student' %}<script src="{{ url_for('static', filename='js/loader.js') }}" data-logo="{{ url_for('static', filename='img/aditya-logo.png') }}" defer></script>{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

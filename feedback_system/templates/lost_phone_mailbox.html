@@ -1,5 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}No phone, no backup codes — Faculty Feedback{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/recovery-theme.css') }}">{% endblock %}
+{% block bodyclass %}recovery{% endblock %}
 {% block body %}
 <div class="auth-page">
   <div class="auth-card">
@@ -22,30 +24,8 @@
         <label for="ident">Your ID (roll number or employee code)</label>
         <input type="text" id="ident" name="ident" value="{{ ident }}" required autofocus>
       </div>
-      {% if providers %}
-      {% for p, p_roles in providers %}
-      <button class="btn btn-block sso-btn" type="submit" data-roles="{{ p_roles }}"
-              formaction="{{ url_for('lost_device.lost_phone_sso_start', provider=p) }}" style="margin-bottom:.6rem">
-        Continue with {{ p|capitalize }}</button>
-      {% endfor %}
-      <p class="sub" style="text-align:center;margin:.2rem 0 .8rem">Free and instant. Use your <strong>college account</strong>.
-        Or get a code by email:</p>
-      {% endif %}
-      <button class="btn btn-block {{ 'btn-ghost' if providers }}" type="submit">Email me a code</button>
+      <button class="btn btn-block" type="submit">Email me a code</button>
     </form>
-    {% if providers %}
-    <script>
-      (function () {
-        var sel = document.getElementById('role');
-        function sync() {
-          document.querySelectorAll('.sso-btn').forEach(function (b) {
-            b.style.display = b.getAttribute('data-roles').split(',').indexOf(sel.value) >= 0 ? '' : 'none';
-          });
-        }
-        sel.addEventListener('change', sync); sync();
-      })();
-    </script>
-    {% endif %}
     <p class="sub mt">Have a backup code? <a href="{{ url_for('lost_device.lost_phone') }}">Use it instead</a>.
       Still stuck? Ask an administrator to reset your authenticator.</p>
     <p class="sub"><a href="{{ url_for('auth.student_login') }}">← Back to login</a></p>

@@ -1262,6 +1262,24 @@ def _parse_answers(questions, form_payload):
     return prepared, None
 
 
+def _comment_stars(questions, form_payload):
+    """Star rating (1-5) for each written comment.  Returns ``({question_id: stars}, error)``.
+
+    Asked ONLY when the student actually wrote something in that comment box: a comment
+    needs its stars, an empty box needs none (and any posted stars are ignored)."""
+    stars = {}
+    for q in questions:
+        if q['qtype'] != 'text':
+            continue
+        if not (form_payload.get(f'q_{q["id"]}') or '').strip():
+            continue
+        raw = (form_payload.get(f'qs_{q["id"]}') or '').strip()
+        if raw not in ('1', '2', '3', '4', '5'):
+            return None, 'Please give a star rating (1 to 5) for your comment.'
+        stars[q['id']] = int(raw)
+    return stars, None
+
+
 def submit_feedback(student_user_id, form_id, form_payload):
     """Validate and record a submission. Returns (ok, message).
 
@@ -1300,7 +1318,11 @@ def submit_feedback(student_user_id, form_id, form_payload):
     if form.get('locked'):
         return False, 'Please finish your earlier feedback for this subject first.'
 
-    prepared, error = _parse_answers(form_questions(form_id), form_payload)
+    questions = form_questions(form_id)
+    prepared, error = _parse_answers(questions, form_payload)
+    if error:
+        return False, error
+    stars, error = _comment_stars(questions, form_payload)
     if error:
         return False, error
 
@@ -1341,16 +1363,19 @@ def submit_feedback(student_user_id, form_id, form_payload):
             import secrets
             group = secrets.token_hex(12)             # exists ONLY in feedback_responses
             rows = [(form_id, category, submission_session, assignment_id, qid, oid, txt,
-                     group, now[:10]) for (qid, oid, txt) in prepared]
+                     group, now[:10], stars.get(qid) if txt else None)
+                    for (qid, oid, txt) in prepared]
             random.SystemRandom().shuffle(rows)      # no insertion-order fingerprint
             conn.executemany(
                 'INSERT INTO feedback_responses(form_id, category, session_id, assignment_id, '
-                'question_id, option_id, text_value, response_group, created_day) '
-                'VALUES(?,?,?,?,?,?,?,?,?)', rows)
+                'question_id, option_id, text_value, response_group, created_day, comment_stars) '
+                'VALUES(?,?,?,?,?,?,?,?,?,?)', rows)
         else:
             conn.executemany(
-                'INSERT INTO answers(submission_id, question_id, option_id, text_value) '
-                'VALUES(?,?,?,?)', [(sub_id, qid, oid, txt) for (qid, oid, txt) in prepared])
+                'INSERT INTO answers(submission_id, question_id, option_id, text_value, '
+                'comment_stars) VALUES(?,?,?,?,?)',
+                [(sub_id, qid, oid, txt, stars.get(qid) if txt else None)
+                 for (qid, oid, txt) in prepared])
         conn.commit()
     except Exception:
         conn.rollback()

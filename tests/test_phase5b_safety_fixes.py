@@ -35,6 +35,7 @@ class TestFix1CommentOrderCannotLinkStudents(Base):
         for n, (stu, txt) in enumerate(zip(students, texts)):
             ans = self.answers(fid)
             ans[f'q_{text_q}'] = txt
+            ans[f'qs_{text_q}'] = '3'
             ok, msg = services.submit_feedback(stu, fid, ans)
             self.assertTrue(ok, msg)
             db.execute('UPDATE submissions SET submitted_at=? WHERE form_id=? '
