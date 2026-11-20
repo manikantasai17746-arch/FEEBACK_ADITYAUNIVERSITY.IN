@@ -33,19 +33,12 @@ def dashboard():
     pending = [f for f in forms if f['status'] == 'open' and not f['submission_id']]
     submitted = [f for f in forms if f['submission_id']]
     closed = [f for f in forms if f['status'] in ('closed', 'archived') and not f['submission_id']]
-    # One section per category, each with its own Pending / Submitted / Closed.
-    sections = []
-    for key in services.CATEGORY_ORDER + ('other',):
-        in_cat = [f for f in forms if f['category_key'] == key]
-        if not in_cat:
-            continue
-        sections.append({
-            'key': key,
-            'label': services.CATEGORY_LABELS.get(key, 'Other feedback'),
-            'hint': services.CATEGORY_HINTS.get(key, ''),
-            'pending': [f for f in in_cat if f in pending],
-            'submitted': [f for f in in_cat if f in submitted],
-            'closed': [f for f in in_cat if f in closed]})
+    # The student must not be able to tell which kind of feedback a form is, so there is
+    # ONE list.  Pending forms stay in the required order (Main, Lab, Second) per subject.
+    rank = {k: i for i, k in enumerate(services.CATEGORY_ORDER)}
+    pending.sort(key=lambda f: (f.get('session_id') or 0, rank.get(f['category_key'], 9), f['id']))
+    sections = [{'key': 'all', 'pending': pending, 'submitted': submitted, 'closed': closed}] \
+        if forms else []
     return render_template('student_dashboard.html', user=user, ctx=ctx,
                            pending=pending, submitted=submitted, closed=closed,
                            sections=sections,
@@ -104,6 +97,9 @@ def view_form(form_id):
     if not form:
         flash('That feedback form is not available to you.', 'error')
         return redirect(url_for('student.dashboard'))
+    if form.get('locked'):
+        flash('Please finish your earlier feedback for this subject first.', 'warning')
+        return redirect(url_for('student.dashboard'))
     gate = _feedback_gate(user, form_id)
     if gate:
         return gate
@@ -128,7 +124,7 @@ def submit(form_id):
         forms = services.student_forms(user['id'])
         pending = [f for f in forms
                    if f['status'] == 'open' and not f['submission_id']
-                   and f['id'] != form_id]
+                   and f['id'] != form_id and not f.get('locked')]
         if pending:
             flash('Opening your next pending form…', 'info')
             return redirect(url_for('student.view_form', form_id=pending[0]['id']))

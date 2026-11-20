@@ -156,11 +156,6 @@ Engine only; no route uses it yet (B2 wires the new e-mail-code flow and the exi
 **Done:** `/lost-phone/no-codes` and `/lost-phone/no-codes/verify` in `lost_device.py` for Student, Teacher, HOD, Dean (Admin excluded and unchanged). An e-mailed 6-digit code goes to the confirmed address only if the account exists, has an ACTIVE authenticator, is not recovery-locked and is under the 3-per-hour mail cap; the browser sees the same page either way. Code + new password in one submit; on the right code the authenticator and all backup codes are removed atomically (`apply_lost_device_reset`), the password is changed, a notice e-mail is sent (`lost_device_reset_mailbox`), and the next sign-in is forced into authenticator setup, which asks for the confirming code and issues 10 new backup codes. Wrong e-mailed codes count toward the 2-hour recovery lock (B1). The existing `/lost-phone` backup-code page now also uses the lock and the per-IP code limit (wrong passwords there do not count toward the 2-hour lock). Checkpoint A files are unchanged. Admin recovery is unchanged.
 **Tests:** `tests/test_lost_device_mailbox_b2.py` (new); `test_recovery_lock_b1.py` updated (only `lost_device.py` may use the lock). **Deploy:** no migration, no new environment variable. **Next:** B3 Microsoft/Google sign-in recovery.
 
-## 3n. Lost-device recovery, Checkpoint B3: Microsoft / Google sign-in proof (2026-11-19)
-
-**Done:** the "no phone, no backup codes" recovery (B2) can now prove the mailbox with a sign-in instead of an e-mailed code (free, no mail). New pre-login routes in `lost_device.py`: `POST /lost-phone/sso/<provider>/start`, `GET /lost-phone/sso/<provider>/callback`, `GET/POST /lost-phone/sso/finish`. `sso.recovery_providers_for(role)`: Microsoft for all four roles ONLY with the college tenant GUID configured; Google for Teacher/HOD/Dean only when enabled (`verified_email` still needs `email_verified` and the optional hosted domain); Students college Microsoft only; Admin none. State and nonce live in the signed session (10 min, one use, `hmac.compare_digest`); the provider e-mail must equal the confirmed address on file (students also `<roll>@<college domain>`). Unknown ID, no authenticator, locked, mismatch: one generic message, and `start` always redirects to the provider so nothing reveals which accounts exist. A mismatched sign-in counts toward the 2-hour recovery lock (B1); a match gives a 10-minute single-use proof and a page that asks only for a new password. The last step is shared with B2 (`_finish_recovery`): authenticator and backup codes removed atomically, password changed, notice e-mail (`lost_device_reset_signin`), audit `user.lost_device_recovery`; next sign-in forces a new setup with a confirmation code and 10 new backup codes. The start page shows "Continue with Microsoft/Google" above "Email me a code" only when available. Checkpoint A files, Admin recovery and the in-app SSO routes are unchanged.
-**Tests:** `tests/test_lost_device_sso_b3.py` (30). **Deploy:** add redirect URIs `https://<site>/lost-phone/sso/microsoft/callback` (Azure) and `/lost-phone/sso/google/callback` (Google, if used); `MICROSOFT_TENANT_ID` must be the college tenant GUID or the Microsoft button stays hidden. No migration. **Test note:** `test_assignment_setup_ui.py::test_t32_loading_error_and_success_states` (browser timing, teacher assignment setup, runs before any recovery test) failed in 2 of 4 full runs with these changes and passed in the other two and every time on its own; the last full run was 806 passed.
-
 ## 4. Phase 6 — planned, not implemented
 
 Proposed modules:
@@ -237,3 +232,15 @@ Verification status: each patch was applied to a clean repository with `git appl
 5. Admin keeps two recovery e-mails; student, teacher, HOD and Dean have one e-mail. Teachers keep Google and Microsoft.
 
 Set `STUDENT_EMAIL_DOMAIN=` (empty) to switch the college-email rule off.
+
+## Student portal restyle and ordering (2026-11-20)
+
+Verified changes (branch `teacher-ui-landing-style`):
+- `static/css/student-theme.css` (new, loaded only for role `student` in `base.html`, every rule scoped to `body.role-student`). Same fonts, sizes, weights and tokens as `teacher-theme.css`; light and dark via the existing `html.dark-mode` switch. Covers My Feedback, the feedback form, Notifications, Change password and the email / authenticator / backup-code setup pages.
+- `base.html`: student nav gets `active` states and the sun/moon theme toggle.
+- `student_dashboard.html`: page head with eyebrow and info chips. Stat-tile markup is unchanged.
+- `student_notifications.html`: rewritten to extend `base.html`. It previously extended a template (`student_base.html`) that does not exist in the repo, so the page could not render.
+- Students no longer see whether a form is Main, Lab or Second Faculty; Lab and Second forms stay locked until the earlier form of the same session is submitted (`services.feedback_locked`, enforced in `student.view_form` and `services.submit_feedback`). A missed form that has closed does not block later ones.
+- Tests: `tests/test_student_portal_theme.py` (new) and `tests/test_hod_feedback_lab.py::test_lab_submission_does_not_complete_main` updated for the order rule.
+
+Limitations: the full suite was run with stand-in `pyotp`/`segno` modules because package installs were unavailable; 3 authenticator tests fail identically with and without these changes. The authenticator QR and backup-code pages were not screenshotted (they reuse the same scoped classes).

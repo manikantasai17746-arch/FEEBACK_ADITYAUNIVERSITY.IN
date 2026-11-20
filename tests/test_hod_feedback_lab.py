@@ -222,13 +222,18 @@ def test_lab_submission_does_not_complete_main(app, client):
         student_id = students[0]['id']
         q = db.query('SELECT id FROM form_questions WHERE form_id=?', (lab_id,), one=True)
         opt = db.query('SELECT id FROM question_options WHERE question_id=?', (q['id'],), one=True)
+        # Order rule: Lab cannot be answered while the Main form is still waiting.
+        ok, msg = services.submit_feedback(student_id, lab_id, {f'q_{q["id"]}': str(opt['id'])})
+        assert not ok and 'earlier feedback' in msg
+        mq = db.query('SELECT id FROM form_questions WHERE form_id=?', (main_id,), one=True)
+        mopt = db.query('SELECT id FROM question_options WHERE question_id=?', (mq['id'],), one=True)
+        ok, msg = services.submit_feedback(student_id, main_id, {f'q_{mq["id"]}': str(mopt['id'])})
+        assert ok, msg
         ok, msg = services.submit_feedback(student_id, lab_id, {f'q_{q["id"]}': str(opt['id'])})
         assert ok, msg
-        # Main form still has no submission from this student
-        main_sub = db.query(
-            "SELECT 1 FROM submissions WHERE form_id=? AND student_user_id=?",
-            (main_id, student_id), one=True)
-        assert main_sub is None
+        for fid in (lab_id, main_id):
+            assert db.query("SELECT 1 FROM submissions WHERE form_id=? AND student_user_id=?",
+                            (fid, student_id), one=True) is not None
 
 
 def test_lab_preview_eligibility(app, client):

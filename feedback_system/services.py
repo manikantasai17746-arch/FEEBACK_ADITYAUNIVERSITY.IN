@@ -1113,6 +1113,33 @@ CATEGORY_HINTS = {
 CATEGORY_ORDER = ('main', 'lab', 'second')
 
 
+_CHAIN_BEFORE = {'lab': ('main',), 'second': ('main', 'lab')}
+
+
+def feedback_locked(student_user_id, form):
+    """True while an EARLIER feedback of the same class session is still waiting.
+
+    Order is Main Faculty, then Lab, then Second Faculty.  A form is locked while
+    a form earlier in that chain, for the same session and this student, is open
+    and not yet submitted.  A forgotten form that has since closed does not block
+    the student forever."""
+    before = _CHAIN_BEFORE.get(form.get('category'))
+    if not before or not form.get('session_id'):
+        return False
+    ph = ','.join('?' * len(before))
+    rows = db.query(
+        f"""SELECT f.id FROM feedback_forms f
+            WHERE f.session_id=? AND f.category IN ({ph}) AND f.id<>?
+              AND f.is_deleted=0 AND f.status='open'
+              AND NOT EXISTS (SELECT 1 FROM submissions s
+                              WHERE s.form_id=f.id AND s.student_user_id=?)
+              AND (NOT EXISTS (SELECT 1 FROM form_eligible_students e WHERE e.form_id=f.id)
+                   OR EXISTS (SELECT 1 FROM form_eligible_students e
+                              WHERE e.form_id=f.id AND e.student_user_id=?))""",
+        (form['session_id'], *before, form['id'], student_user_id, student_user_id))
+    return bool(rows)
+
+
 def annotate_student_forms(student_user_id, rows):
     """Turn student form rows into dicts for the portal.
 
@@ -1155,6 +1182,8 @@ def annotate_student_forms(student_user_id, rows):
                 ok, _c, _m = fc.access_check(student_user_id, r)
                 if not ok:
                     continue
+            r['locked'] = (not r.get('submission_id') and r['status'] == 'open'
+                           and feedback_locked(student_user_id, r))
             r['category_key'] = cat
             r['category_label'] = CATEGORY_LABELS[cat]
             r['category_hint'] = CATEGORY_HINTS[cat]
@@ -1268,6 +1297,8 @@ def submit_feedback(student_user_id, form_id, form_payload):
     ok, _code, message = fc.access_check(student_user_id, form)
     if not ok:
         return False, message
+    if form.get('locked'):
+        return False, 'Please finish your earlier feedback for this subject first.'
 
     prepared, error = _parse_answers(form_questions(form_id), form_payload)
     if error:
