@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Performance by Score Band — HOD{% endblock %}
+{% block bodyclass %}hod-content{% endblock %}
 {% block body %}
 {% set fargs = {'academic_year_id': filters.academic_year_id, 'semester_id': filters.semester_id,
                 'branch_id': filters.branch_id, 'form_id': filters.form_id} %}
@@ -9,6 +10,7 @@
     <nav class="subnav">
       <a href="{{ url_for('hod.performance', **fargs) }}">← Performance</a>
       <a href="{{ url_for('hod.dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('hod.comparison', academic_year_id=filters.academic_year_id, semester_id=filters.semester_id) }}">Multi-round comparison</a>
     </nav>
   </div>
   <p class="sub">Click a band to see the teachers whose feedback score falls in that range, highest first.
@@ -28,7 +30,7 @@
     <h2 style="margin-top:0">{{ active.label }} <span class="muted">· {{ active.count }}</span></h2>
     {% if active.rows %}
     <form method="post" action="{{ url_for('hod.performance_bands_send') }}" id="band-mail-form"
-          onsubmit="return confirm('Send this email to the ticked teachers?');">
+          data-hod-confirm="Send this email to the ticked teachers?">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <input type="hidden" name="band" value="{{ band_key }}">
       {% for k, v in fargs.items() if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
@@ -40,11 +42,10 @@
       <div class="band-card">
         <div class="band-photo">
           {% if r.teacher_emp_code %}
-          <img src="{{ url_for('static', filename='img/teachers/' ~ r.teacher_emp_code ~ '.jpg') }}"
-               alt="{{ tname }}"
-               onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          <img src="{{ url_for('photos.serve', emp_code=r.teacher_emp_code) }}" alt="" loading="lazy">
+          {% else %}
+          <div class="band-initials" aria-hidden="true">{{ initials }}</div>
           {% endif %}
-          <div class="band-initials" {% if r.teacher_emp_code %}style="display:none"{% endif %}>{{ initials }}</div>
         </div>
         <div class="band-info">
           <div class="band-name">{{ tname }}</div>
@@ -84,7 +85,7 @@
       </div>
     </div>
     </form>
-    <script>
+    <script nonce="{{ csp_nonce }}">
     (function(){
       var all=document.getElementById('band-all');
       var cbs=document.querySelectorAll('.band-cb');

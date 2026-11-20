@@ -3,12 +3,14 @@
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
 {% endblock %}
+{% block bodyclass %}hod-content{% endblock %}
 {% block body %}
 <div class="hf" id="hfCreate"
      data-api-sessions="{{ api_sessions }}"
      data-api-preview="{{ api_preview }}"
      data-api-create="{{ api_create }}"
-     data-question-sets='{{ question_sets_json|safe }}'>
+     data-forms-url="{{ url_for('hod.forms') }}"
+     data-question-sets='{{ question_sets_json|forceescape }}'>
   <div class="hf-head">
     <div>
       <div class="eyebrow">HOD · Main Faculty</div>
@@ -18,23 +20,40 @@
     <a class="btn" href="{{ url_for('hod_feedback.main_list') }}">Back to list</a>
   </div>
   <div id="hfAlert" class="hf-alert" role="status" aria-live="polite" hidden></div>
-  <nav class="hf-steps" aria-label="Create steps">
-    <button type="button" class="hf-step is-active" data-step="1">1. Select</button>
-    <button type="button" class="hf-step" data-step="2">2. Preview</button>
-    <button type="button" class="hf-step" data-step="3">3. Questions</button>
-    <button type="button" class="hf-step" data-step="4">4. Confirm</button>
-  </nav>
-  <section class="card hf-panel is-active" data-panel="1">
+  <ol class="hf-steps hf-picker-steps" aria-label="Create steps">
+    <li class="hf-step is-active" data-step="1" aria-current="step"><span aria-hidden="true">1</span> Select</li>
+    <li class="hf-step" data-step="2"><span aria-hidden="true">2</span> Preview</li>
+    <li class="hf-step" data-step="3"><span aria-hidden="true">3</span> Questions</li>
+    <li class="hf-step" data-step="4"><span aria-hidden="true">4</span> Confirm</li>
+  </ol>
+  <section class="hf-panel is-active" data-panel="1">
     <h2>Select subjects and sections</h2>
-    <div class="hf-filters hf-filters-inline">
-      <label>Subject <input type="search" id="hfSubject" placeholder="Filter subject"></label>
-      <label>Section <input type="search" id="hfSection" placeholder="Filter section"></label>
-      <label>Faculty <input type="search" id="hfFaculty" placeholder="Filter faculty"></label>
-      <button type="button" class="btn" id="hfReload">Refresh</button>
-    </div>
-    <div id="hfSessionTree" class="hf-session-tree"><p class="sub">Loading sessions…</p></div>
-    <div class="hf-panel-actions">
-      <button type="button" class="btn btn-primary" id="hfToPreview" disabled>Preview eligible students</button>
+    <div class="hf-picker">
+      <section class="card" aria-labelledby="hfSubjectsHeading">
+        <h3 id="hfSubjectsHeading">Subjects</h3>
+        <label for="hfSubject">Search subjects</label>
+        <input type="search" id="hfSubject" placeholder="Code or name">
+        <div id="hfSubjects" class="hf-picker-subjects" aria-label="Matching subjects"></div>
+      </section>
+      <section class="card" aria-labelledby="hfSectionsHeading">
+        <h3 id="hfSectionsHeading">Sections</h3>
+        <div class="hf-filters hf-filters-inline">
+          <label>Section <input type="search" id="hfSection" placeholder="Filter section"></label>
+          <label>Faculty <input type="search" id="hfFaculty" placeholder="Filter faculty"></label>
+          <button type="button" class="btn btn-ghost btn-sm" id="hfReload">Refresh</button>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="hfSelectVisible" disabled>Select visible sections</button>
+        <div id="hfSessionTree" class="hf-table-wrap hf-picker-table" role="region" aria-label="Sections" tabindex="0">
+          <p class="sub">Loading sessions…</p>
+        </div>
+      </section>
+      <aside class="card hf-picker-summary" aria-labelledby="hfSelectionHeading">
+        <h3 id="hfSelectionHeading">Your selection</h3>
+        <p aria-live="polite"><strong id="hfSelectionCount">0</strong> sections selected</p>
+        <ul id="hfSelection" class="hf-picker-selection" hidden></ul>
+        <button type="button" class="btn btn-accent" id="hfToPreview" disabled>Preview eligible students</button>
+        <button type="button" class="btn btn-ghost" id="hfClearSelection" disabled>Clear selection</button>
+      </aside>
     </div>
   </section>
   <section class="card hf-panel" data-panel="2" hidden>

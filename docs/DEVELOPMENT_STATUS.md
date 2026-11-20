@@ -256,3 +256,20 @@ Limitations: the full suite was run with stand-in `pyotp`/`segno` modules becaus
 - A student who writes a comment (text answer) must also give 1-5 stars for it; blank comments need no stars.
 - Stored as `comment_stars` on `feedback_responses` and legacy `answers` (migration 26; view `anonymous_answers` now also exposes it). No student id is stored with it.
 - Not done yet: showing stars / grouping comments (Positive, Neutral, Needs improvement) for HOD and Dean.
+
+## HOD Overview UI checkpoint 1 (2026-11-20)
+
+- Branch hod-dashboard-ui starts at 38ccd84. The Overview follows the HOD preview with a full-width welcome band, folded notebook cards, a navy totals band, and section cards. It renders counts and Recent Forms from the existing scoped dashboard data. Pending submissions, score bands, and results open the existing pages.
+- The HOD-only stylesheet updates the shared header and the Overview content. The local PNG logo supports replay and reduced motion. Notification controls were omitted by decision.
+- Schema remains v26. The patch is confined to Jinja templates, static assets, tests, and documentation.
+- Focused verification passed 87 tests, including 30 new dashboard tests. Chromium checked all 12 navigation links at 1280 and 375 px and rendered Overview in both themes at 375, 768, and 1280 px. The browser smoke run covered all 18 preview counterparts.
+- Full pytest returned 847 passed, two baseline-reproduced failures, and one Playwright skip. Both failures are in account recovery tests.
+- See the [HOD Dashboard UI handoff](PHASE_HANDOFFS/HOD_DASHBOARD_UI_HANDOFF.md) for exact commands, results, and limitations. The remaining HOD page designs require separate approval.
+
+## HOD portal UI checkpoint 2 (2026-11-20)
+
+- The remaining 17 HOD pages use scoped portal styles on hod-dashboard-ui. The Overview retains its Checkpoint 1 design. The comparison page connects to the existing score-band report, and onboarding retains the real verification and allocation wizard.
+- The Main Faculty selector uses live subject and section data. The Lab creation wizard uses the existing Lab API. Form, results, action, profile, and onboarding routes continue to use the existing database and authorization logic. Schema remains v26.
+- The focused workflow run passed 168 tests. Chrome checked the 17 pages and the score-band report at 375, 768, and 1280 px in both themes, and passed the live workflow checks.
+- Full pytest in UTF-8 mode returned 848 passed, one baseline-reproduced recovery-page failure, and one Playwright skip. This completes the planned HOD visual checkpoints.
+- See the [HOD portal UI handoff](PHASE_HANDOFFS/HOD_PORTAL_UI_HANDOFF.md) for exact test commands and limitations.

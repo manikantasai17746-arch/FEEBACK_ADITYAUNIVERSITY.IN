@@ -3,12 +3,14 @@
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
 {% endblock %}
+{% block bodyclass %}hod-content{% endblock %}
 {% block body %}
 <div class="hf" id="hfLabCreate"
      data-api-sessions="{{ api_sessions }}"
      data-api-preview="{{ api_preview }}"
      data-api-create="{{ api_create }}"
-     data-question-sets='{{ question_sets_json|safe }}'>
+     data-forms-url="{{ url_for('hod.forms') }}"
+     data-question-sets='{{ question_sets_json|forceescape }}'>
   <div class="hf-head">
     <div>
       <div class="eyebrow">HOD · Lab Faculty</div>
@@ -18,12 +20,12 @@
     <a class="btn" href="{{ url_for('hod_feedback.lab_list') }}">Back to list</a>
   </div>
   <div id="hfAlert" class="hf-alert" role="status" aria-live="polite" hidden></div>
-  <nav class="hf-steps" aria-label="Create steps">
-    <button type="button" class="hf-step is-active" data-step="1">1. Select</button>
-    <button type="button" class="hf-step" data-step="2">2. Preview</button>
-    <button type="button" class="hf-step" data-step="3">3. Questions</button>
-    <button type="button" class="hf-step" data-step="4">4. Confirm</button>
-  </nav>
+  <ol class="hf-steps hf-picker-steps" aria-label="Create steps">
+    <li class="hf-step is-active" data-step="1" aria-current="step"><span aria-hidden="true">1</span> Select</li>
+    <li class="hf-step" data-step="2"><span aria-hidden="true">2</span> Preview</li>
+    <li class="hf-step" data-step="3"><span aria-hidden="true">3</span> Questions</li>
+    <li class="hf-step" data-step="4"><span aria-hidden="true">4</span> Confirm</li>
+  </ol>
   <section class="card hf-panel is-active" data-panel="1">
     <h2>Select subjects and sections</h2>
     <div class="hf-filters hf-filters-inline">

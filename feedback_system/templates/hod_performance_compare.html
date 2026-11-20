@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Historical Comparison — HOD{% endblock %}
+{% block bodyclass %}hod-content{% endblock %}
 {% block body %}
 <div class="container page">
   <div class="page-header">
@@ -13,7 +14,7 @@
 
   <form method="get" class="card filter-bar">
     <div class="field"><label>Faculty</label>
-      <select name="teacher_id" required onchange="this.form.submit()">
+      <select name="teacher_id" required data-hod-auto-submit>
         <option value="">Select faculty…</option>
         {% for t in teachers %}
         <option value="{{ t.id }}" {{ 'selected' if teacher_id == t.id }}>{{ t.name }} ({{ t.emp_code }})</option>
@@ -61,20 +62,22 @@
 
   <div class="card">
     <h2>Criterion-wise changes</h2>
-    <table class="data data-table">
-      <thead><tr><th>Criterion</th><th>Period A</th><th>Period B</th><th>Change</th><th>Note</th></tr></thead>
-      <tbody>
-        {% for c in comparison.criterion_changes %}
-        <tr>
-          <td class="wrap">{{ c.text }}</td>
-          <td>{% if c.score_a is none %}N/A{% else %}{{ '%.1f'|format(c.score_a) }}{% endif %}</td>
-          <td>{% if c.score_b is none %}N/A{% else %}{{ '%.1f'|format(c.score_b) }}{% endif %}</td>
-          <td>{% if c.change is none %}N/A{% elif c.change > 0 %}+{{ '%.1f'|format(c.change) }}{% else %}{{ '%.1f'|format(c.change) }}{% endif %}</td>
-          <td class="muted">{{ c.reason or '' }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    <div class="hod-table-region" role="region" aria-label="Criterion-wise comparison" tabindex="0">
+      <table class="data data-table">
+        <thead><tr><th>Criterion</th><th>Period A</th><th>Period B</th><th>Change</th><th>Note</th></tr></thead>
+        <tbody>
+          {% for c in comparison.criterion_changes %}
+          <tr>
+            <td class="wrap">{{ c.text }}</td>
+            <td>{% if c.score_a is none %}N/A{% else %}{{ '%.1f'|format(c.score_a) }}{% endif %}</td>
+            <td>{% if c.score_b is none %}N/A{% else %}{{ '%.1f'|format(c.score_b) }}{% endif %}</td>
+            <td>{% if c.change is none %}N/A{% elif c.change > 0 %}+{{ '%.1f'|format(c.change) }}{% else %}{{ '%.1f'|format(c.change) }}{% endif %}</td>
+            <td class="muted">{{ c.reason or '' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
   {% endif %}
 </div>

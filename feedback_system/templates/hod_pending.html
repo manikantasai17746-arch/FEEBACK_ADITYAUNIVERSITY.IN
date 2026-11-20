@@ -12,7 +12,7 @@
 <div class="card">
   <form method="get" class="btn-row" style="align-items:flex-end;gap:.75rem;flex-wrap:wrap">
     <div class="field" style="min-width:320px;margin:0"><label for="form_id">Feedback form</label>
-      <select id="form_id" name="form_id" onchange="this.form.submit()">
+      <select id="form_id" name="form_id" data-hod-auto-submit>
         {% for f in forms %}
         <option value="{{ f.id }}" {{ 'selected' if form and form.id == f.id }}>
           {{ f.title }}{% if f.subject_code %} · {{ f.subject_code }}{% endif %} — {{ f.status|capitalize }}{% if f.deadline_at %} (closes {{ f.deadline_at|deadline }}){% endif %}
@@ -23,7 +23,7 @@
   </form>
   {% if can_email and totals.with_pending %}
   <form method="post" action="{{ url_for('hod.pending_email', fid=form.id) }}" style="margin-top:.75rem"
-        onsubmit="return confirm('Email the pending-roll PDF to {{ totals.with_pending }} teacher(s)?')">
+        data-hod-confirm="Email the pending-roll PDF to {{ totals.with_pending }} teacher(s)?">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <input type="hidden" name="all" value="1">
     <button class="btn btn-accent" type="submit">✉ Email all teachers with pending ({{ totals.with_pending }})</button>

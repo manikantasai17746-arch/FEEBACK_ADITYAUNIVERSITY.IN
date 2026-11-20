@@ -1,0 +1,628 @@
+/* Shared HOD header and Overview. The portal's other page content uses app.css. */
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("../fonts/bricolage-grotesque-latin-wght-normal.woff2") format("woff2");
+  font-weight: 200 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("../fonts/instrument-sans-latin-wght-normal.woff2") format("woff2");
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+body.role-hod {
+  --hod-ink: #071e3d;
+  --hod-muted: #475c7a;
+  --hod-surface: #fff;
+  --hod-paper: #f3f6fb;
+  --hod-line: #d3ddec;
+  --hod-link: #04529b;
+  --hod-main: #04529b;
+  --hod-second: #137a55;
+  --hod-lab: #86590b;
+  --hod-orange: #f57025;
+  --hod-button: #04529b;
+  --hod-navy: #071e3d;
+  --hod-open: #0e6144;
+  --hod-open-bg: #ddf3e9;
+  --hod-draft: #794d06;
+  --hod-draft-bg: #fbefd5;
+  --hod-closed: #9e2c23;
+  --hod-closed-bg: #fbe3e0;
+  --hod-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --hod-text: "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+}
+
+html.dark-mode body.role-hod {
+  --hod-ink: #e8eef8;
+  --hod-muted: #adbed5;
+  --hod-surface: #10233c;
+  --hod-paper: #182f4c;
+  --hod-line: #385473;
+  --hod-link: #9ac8ff;
+  --hod-button: #124c86;
+  --hod-main: #83baff;
+  --hod-second: #65d4a7;
+  --hod-lab: #f0c15b;
+  --hod-navy: #071426;
+  --hod-open: #78dfb5;
+  --hod-open-bg: #153d33;
+  --hod-draft: #fad47d;
+  --hod-draft-bg: #403015;
+  --hod-closed: #ffb1a6;
+  --hod-closed-bg: #482527;
+}
+
+body.role-hod .topbar {
+  background: var(--hod-surface);
+  color: var(--hod-ink);
+  border-bottom: 1px solid var(--hod-line);
+  box-shadow: none;
+  font-family: var(--hod-text);
+}
+
+body.role-hod .topbar-inner {
+  position: relative;
+  max-width: 1320px;
+  gap: .5rem .65rem;
+  padding: .6rem clamp(.8rem, 2vw, 1rem);
+}
+
+body.role-hod .topbar .brand {
+  flex: none;
+}
+
+body.role-hod .brand-logo {
+  height: 36px;
+}
+
+html.dark-mode body.role-hod .topbar .brand-logo {
+  padding: .15rem;
+  border-radius: .4rem;
+  background: #fff;
+}
+
+body.role-hod .brand-text {
+  padding-inline-start: .65rem;
+  border-inline-start: 2px solid var(--hod-line);
+  color: var(--hod-ink);
+  font: 700 1.1rem/1.1 var(--hod-display);
+}
+
+body.role-hod .brand-text small {
+  display: none;
+}
+
+body.role-hod #hod-topnav {
+  position: static;
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  gap: .17rem;
+  padding: 0;
+  background: transparent;
+}
+
+body.role-hod .hod-nav-links,
+body.role-hod .hod-nav-tools {
+  display: contents;
+}
+
+body.role-hod #hod-topnav a {
+  display: block;
+  max-width: 100%;
+  padding: .38rem .6rem;
+  border-radius: 999px;
+  color: var(--hod-muted);
+  font-weight: 650;
+  font-size: .84rem;
+  overflow-wrap: anywhere;
+}
+
+body.role-hod #hod-topnav a:hover {
+  background: var(--hod-paper);
+  color: var(--hod-link);
+}
+
+body.role-hod #hod-topnav a.active {
+  background: var(--hod-ink);
+  color: var(--hod-surface);
+}
+
+body.role-hod #hod-topnav .nav-user {
+  background: var(--hod-surface);
+  border: 1px solid var(--hod-line);
+  color: var(--hod-ink) !important; /* app.css sets the legacy logout color with !important. */
+}
+
+body.role-hod #hod-topnav .nav-user:hover {
+  background: var(--hod-closed-bg);
+  color: var(--hod-closed) !important;
+}
+
+body.role-hod .hod-nav-tools .a11y-bar {
+  display: inline-flex;
+  gap: .3rem;
+  margin: 0;
+}
+
+body.role-hod .hod-nav-tools .a11y-bar button,
+body.role-hod #hod-nav-toggle {
+  color: var(--hod-ink);
+  background: var(--hod-paper);
+  border: 1px solid var(--hod-line);
+  border-radius: 999px;
+  min-height: 2.2rem;
+  min-width: 2.2rem;
+  cursor: pointer;
+}
+
+body.role-hod .hod-nav-tools .a11y-bar button {
+  display: inline-grid;
+  place-items: center;
+  padding: 0 .35rem;
+  font: 650 .85rem var(--hod-text);
+}
+
+body.role-hod .hod-nav-tools .theme-toggle .moon,
+html.dark-mode body.role-hod .hod-nav-tools .theme-toggle .sun {
+  display: none;
+}
+
+body.role-hod .hod-nav-tools .theme-toggle .sun,
+html.dark-mode body.role-hod .hod-nav-tools .theme-toggle .moon {
+  display: inline-flex;
+}
+
+body.role-hod .topbar :focus-visible,
+body.role-hod .hod-overview :focus-visible {
+  outline: 2px solid var(--hod-link);
+  outline-offset: 3px;
+}
+
+@media (max-width: 800px) {
+  body.role-hod .topbar-inner {
+    flex-wrap: wrap;
+  }
+
+  body.role-hod #hod-nav-toggle:not([hidden]) {
+    display: block;
+  }
+
+  body.role-hod #hod-nav-toggle[aria-expanded="false"]:not([hidden]) + #hod-topnav {
+    display: none;
+  }
+
+  body.role-hod #hod-topnav {
+    display: block;
+    flex: 1 0 100%;
+    max-height: 58vh;
+    overflow: auto;
+    padding: .35rem;
+    border-top: 0;
+  }
+
+  body.role-hod .hod-nav-links,
+  body.role-hod .hod-nav-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: .25rem;
+  }
+
+  body.role-hod .hod-nav-tools {
+    padding-top: .5rem;
+    margin-top: .5rem;
+    border-top: 1px solid var(--hod-line);
+  }
+}
+
+body.role-hod.hod-overview-page {
+  background: var(--hod-surface);
+}
+
+body.role-hod.hod-overview-page > main.container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 0 2rem;
+}
+
+body.role-hod .hod-overview {
+  --hod-gutter: clamp(.75rem, 2vw, 1rem);
+  --hod-content: 82.5rem;
+  color: var(--hod-ink);
+  font-family: var(--hod-text);
+  font-size: 1rem;
+}
+
+body.role-hod .hod-overview :is(.nb-grid, .sec-tabs, .sec-panel, .alert-warning) {
+  width: min(var(--hod-content), calc(100% - 2 * var(--hod-gutter)));
+  margin-inline: auto;
+}
+
+body.role-hod .hod-overview .au-head,
+body.role-hod .hod-overview .perf-tiles-6 {
+  padding-inline: max(var(--hod-gutter), calc((100% - var(--hod-content)) / 2));
+}
+
+body.role-hod .hod-overview .au-head {
+  align-items: center;
+  flex-wrap: nowrap;
+  min-height: clamp(8rem, 13vw, 10rem);
+  margin: 0;
+  padding-block: 1.25rem;
+  background: var(--hod-paper);
+}
+
+body.role-hod .hod-overview .alert-warning {
+  margin-top: 1.25rem;
+}
+
+body.role-hod .hod-overview .au-head h1 {
+  margin: 0;
+  color: var(--hod-ink);
+  font: 750 clamp(1.75rem, 4vw, 2.4rem)/1.1 var(--hod-display);
+}
+
+body.role-hod .hod-overview .au-head p,
+body.role-hod .hod-overview .sec-panel > p {
+  color: var(--hod-muted);
+}
+
+body.role-hod .hod-overview .au-logo {
+  flex: 0 0 clamp(5.5rem, 14vw, 11rem);
+  padding: .4rem;
+  background: #fff;
+  border: 0;
+  border-radius: .65rem;
+  cursor: pointer;
+}
+
+body.role-hod .hod-overview .au-logo:disabled {
+  cursor: default;
+}
+
+body.role-hod .hod-overview .au-logo img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+body.role-hod .hod-overview .nb-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(.75rem, 2vw, 1.35rem);
+  margin-block: 1.5rem;
+}
+
+body.role-hod .hod-overview .nb-sheet {
+  --nb-accent: var(--hod-main);
+  position: relative;
+  min-width: 0;
+  padding: 1.5rem clamp(.9rem, 2vw, 1.5rem) 1.2rem clamp(1.65rem, 4vw, 3rem);
+  border: 1px solid var(--hod-line);
+  border-radius: 1rem 0 1rem 1rem;
+  background: var(--hod-surface);
+  box-shadow: 0 13px 24px #071e3d24;
+}
+
+body.role-hod .hod-overview .nb-second {
+  --nb-accent: var(--hod-second);
+}
+
+body.role-hod .hod-overview .nb-lab {
+  --nb-accent: var(--hod-lab);
+}
+
+body.role-hod .hod-overview .nb-sheet::before,
+body.role-hod .hod-overview .nb-sheet::after {
+  position: absolute;
+  content: "";
+  pointer-events: none;
+}
+
+body.role-hod .hod-overview .nb-sheet::before {
+  inset: 1.4rem auto 1.4rem clamp(.6rem, 1.4vw, .95rem);
+  width: .55rem;
+  background: repeating-linear-gradient(var(--hod-ink) 0 .55rem, transparent .55rem 1.5rem);
+}
+
+body.role-hod .hod-overview .nb-sheet::after {
+  inset: -1px -1px auto auto;
+  width: 2.35rem;
+  height: 2.35rem;
+  background: linear-gradient(45deg, var(--hod-paper), var(--hod-line));
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+  filter: drop-shadow(0 3px 3px #071e3d40);
+}
+
+body.role-hod .hod-overview .nb-note {
+  margin: 0 2rem .35rem 0;
+  color: var(--hod-muted);
+  font-size: .85rem;
+}
+
+body.role-hod .hod-overview .nb-title,
+body.role-hod .hod-overview .sec-panel h2 {
+  color: var(--nb-accent, var(--hod-ink));
+  font: 750 clamp(1.25rem, 2.6vw, 1.65rem)/1.15 var(--hod-display);
+}
+
+body.role-hod .hod-overview .nb-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem .25rem;
+  text-align: center;
+  margin: 1.15rem 0 1.4rem;
+}
+
+body.role-hod .hod-overview .nb-stats > div,
+body.role-hod .hod-overview .perf-tiles-6 > div {
+  display: flex;
+  flex-direction: column;
+}
+
+body.role-hod .hod-overview .nb-stats dt {
+  color: var(--hod-muted);
+  font-size: .78rem;
+  overflow-wrap: anywhere;
+}
+
+body.role-hod .hod-overview .nb-stats dd {
+  order: -1;
+  display: grid;
+  place-items: center;
+  align-self: center;
+  margin: 0 0 .4rem;
+  min-width: 2.85rem;
+  min-height: 2.85rem;
+  padding: .1rem .35rem;
+  border: 2px solid var(--hod-ink);
+  border-radius: 999px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+body.role-hod .hod-overview .nb-hot dd {
+  background: var(--hod-orange);
+  border-color: var(--hod-orange);
+  color: #071e3d;
+}
+
+body.role-hod .hod-overview .nb-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: .65rem;
+  padding-top: .85rem;
+  border-top: 2px dashed var(--hod-line);
+}
+
+body.role-hod .hod-overview .nb-stamp {
+  width: clamp(3.7rem, 7vw, 5.25rem);
+  flex: none;
+  transform: rotate(-21deg);
+  color: var(--hod-link);
+  font-weight: 750;
+  font-size: 6.3px;
+  letter-spacing: .06em;
+}
+
+body.role-hod .hod-overview .nb-stamp-inner {
+  stroke: var(--hod-orange);
+}
+
+body.role-hod .hod-overview .nb-stamp-caption {
+  fill: var(--hod-orange);
+}
+
+body.role-hod .hod-overview .hod-overview-button {
+  padding: .35rem .9rem;
+  border-radius: 999px;
+  background: var(--hod-button);
+  color: #fff;
+  font-size: .88rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+body.role-hod .hod-overview .hod-overview-button:hover {
+  background: var(--hod-link);
+  color: var(--hod-surface);
+}
+
+body.role-hod .hod-overview .perf-tiles-6 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.35rem 1.5rem;
+  margin: 0 0 2rem;
+  padding-block: 1.85rem;
+  background: var(--hod-navy);
+  color: #fff;
+}
+
+body.role-hod .hod-overview .perf-tiles-6 > div {
+  gap: .35rem;
+}
+
+body.role-hod .hod-overview .perf-tiles-6 dd {
+  margin: 0;
+}
+
+body.role-hod .hod-overview .perf-tiles-6 dd:first-of-type {
+  order: -1;
+  color: var(--hod-orange);
+  font: 750 clamp(1.55rem, 3.5vw, 2.4rem)/1.1 var(--hod-display);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+body.role-hod .hod-overview .perf-tiles-6 dt {
+  color: #dbe8f7;
+  line-height: 1.25;
+  font-size: .85rem;
+}
+
+body.role-hod .hod-overview .dept-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .35rem;
+}
+
+body.role-hod .hod-overview .dept-chip,
+body.role-hod .hod-overview .hod-badge {
+  border-radius: 999px;
+  padding: .13rem .5rem;
+  font-size: .78rem;
+  font-weight: 650;
+}
+
+body.role-hod .hod-overview .dept-chip {
+  background: #244263;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+
+body.role-hod .hod-overview .sec-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .85rem;
+  margin-bottom: 1.55rem;
+}
+
+body.role-hod .hod-overview .sec-tabs a {
+  display: grid;
+  align-content: center;
+  gap: .2rem;
+  min-height: 5.1rem;
+  padding: .8rem 1rem;
+  border: 1px solid var(--hod-line);
+  border-radius: .9rem;
+  background: var(--hod-surface);
+  color: var(--hod-ink);
+  text-decoration: none;
+}
+
+body.role-hod .hod-overview .sec-tabs a small {
+  color: var(--hod-muted);
+  font-size: .84rem;
+}
+
+body.role-hod .hod-overview .sec-tabs a:hover {
+  background: var(--hod-paper);
+  border-color: var(--hod-link);
+}
+
+body.role-hod .hod-overview .sec-tabs a.active {
+  outline: 2px solid var(--hod-link);
+  outline-offset: -2px;
+  box-shadow: 4px 4px 0 var(--hod-link);
+}
+
+body.role-hod .hod-overview .sec-tabs a:focus-visible {
+  outline-offset: 3px;
+}
+
+body.role-hod .hod-overview .sec-panel {
+  padding: clamp(.8rem, 2vw, 1.2rem);
+  background: var(--hod-surface);
+  border: 1px solid var(--hod-line);
+  border-radius: 1rem;
+}
+
+body.role-hod .hod-overview #recent-forms {
+  scroll-margin-top: 9rem;
+}
+
+body.role-hod .hod-overview .hod-recent-table {
+  overflow-x: auto;
+  margin-top: .75rem;
+  border: 1px solid var(--hod-line);
+  border-radius: .6rem;
+}
+
+body.role-hod .hod-overview table {
+  width: 100%;
+  min-width: 40rem;
+  border-collapse: collapse;
+  text-align: start;
+  font-size: .9rem;
+}
+
+body.role-hod .hod-overview th,
+body.role-hod .hod-overview td {
+  padding: .65rem .75rem;
+  border-bottom: 1px solid var(--hod-line);
+}
+
+body.role-hod .hod-overview th,
+body.role-hod .hod-overview .hod-badge {
+  background: var(--hod-paper);
+  color: var(--hod-ink);
+}
+
+body.role-hod .hod-overview tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+body.role-hod .hod-overview .cat-row-main td:first-child {
+  box-shadow: inset 4px 0 var(--hod-main);
+}
+
+body.role-hod .hod-overview .cat-row-second td:first-child {
+  box-shadow: inset 4px 0 var(--hod-second);
+}
+
+body.role-hod .hod-overview .cat-row-lab td:first-child {
+  box-shadow: inset 4px 0 var(--hod-lab);
+}
+
+body.role-hod .hod-overview .status-open {
+  color: var(--hod-open);
+  background: var(--hod-open-bg);
+}
+
+body.role-hod .hod-overview .status-draft {
+  color: var(--hod-draft);
+  background: var(--hod-draft-bg);
+}
+
+body.role-hod .hod-overview .status-closed {
+  color: var(--hod-closed);
+  background: var(--hod-closed-bg);
+}
+
+@media (max-width: 960px) {
+  body.role-hod .hod-overview .sec-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  body.role-hod .hod-overview .nb-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  body.role-hod .hod-overview .nb-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  body.role-hod .hod-overview .perf-tiles-6 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem .75rem;
+  }
+}
+
+@media (max-width: 520px) {
+  body.role-hod .hod-overview .sec-tabs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

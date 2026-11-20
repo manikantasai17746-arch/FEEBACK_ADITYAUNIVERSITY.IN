@@ -1,130 +1,142 @@
 {% extends 'base.html' %}
 {% block title %}Overview — HOD Faculty Feedback{% endblock %}
-{% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
-{% endblock %}
+{% block bodyclass %}hod-overview-page{% endblock %}
 {% block body %}
-<div class="perf-welcome">
-  <div>
-    <h1 style="margin:0;display:flex;align-items:center;gap:.5rem">
-      <span aria-hidden="true">📊</span> Overview
-    </h1>
-    <p class="sub" style="margin:.35rem 0 0">Department feedback status by category — Main, Second, and Lab stay separate.</p>
-  </div>
-</div>
-
-{% if stats.category_overview %}
-<div class="hod-ov">
-  {% for c in stats.category_overview %}
-  <div class="hod-ov-card">
-    <h3>{{ c.label }}</h3>
-    <div class="hod-ov-stats">
-      <div><strong>{{ c.assignments }}</strong> assignments</div>
-      <div><strong>{{ c.published }}</strong> published</div>
-      <div><strong>{{ c.eligible }}</strong> eligible</div>
-      <div><strong>{{ c.submitted }}</strong> submitted</div>
-      <div><strong>{{ c.pending }}</strong> pending</div>
-      <div><strong>{{ c.draft }}</strong> drafts</div>
-    </div>
-    <div class="hod-ov-links">
-      {% if c.key == 'main' %}
-        <a class="btn btn-sm" href="{{ url_for('hod_feedback.main_list') }}">Open Main</a>
-      {% elif c.key == 'second' %}
-        <a class="btn btn-sm" href="{{ url_for('hod_feedback.second_list') }}">Open Second</a>
-      {% else %}
-        <a class="btn btn-sm" href="{{ url_for('hod_feedback.lab_list') }}">Open Lab</a>
-      {% endif %}
-    </div>
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
-
-{% if not stats.branches %}
-<div class="card alert alert-warning">
-  <strong>No department scope assigned.</strong>
-  Ask an Administrator to import HOD accounts and assign department scopes.
-</div>
-{% else %}
-
-<div class="perf-tiles" style="grid-template-columns:repeat(6,1fr)">
-  <div class="perf-tile t-subjects">
-    <div class="ic">🏛</div>
+<div class="hod-overview">
+  <header class="perf-welcome au-head">
     <div>
-      <div class="num">{{ stats.branches|length }}</div>
-      <div class="lbl">Departments</div>
-      <div class="sub" style="font-size:.75rem">{% for b in stats.branches %}{{ b.code }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+      <h1><span aria-hidden="true">📊</span> Overview</h1>
+      <p>Department feedback status by category — Main, Second, and Lab stay separate.</p>
     </div>
-  </div>
-  <div class="perf-tile t-eligible">
-    <div class="ic">👥</div>
-    <div><div class="num">{{ stats.student_count }}</div><div class="lbl">Students</div></div>
-  </div>
-  <div class="perf-tile t-score">
-    <div class="ic">👤</div>
-    <div><div class="num">{{ stats.faculty_count }}</div><div class="lbl">Faculty</div></div>
-  </div>
-  <div class="perf-tile">
-    <div class="ic" style="background:#ede9fe">📄</div>
-    <div>
-      <div class="num">{{ stats.forms_draft }} / {{ stats.forms_open }} / {{ stats.forms_closed }}</div>
-      <div class="lbl">Forms (draft / open / closed)</div>
-    </div>
-  </div>
-  <div class="perf-tile t-responses">
-    <div class="ic">✓</div>
-    <div><div class="num">{{ stats.sfa_confirmed }}</div><div class="lbl">Second-faculty confirmed</div></div>
-  </div>
-  <div class="perf-tile">
-    <div class="ic" style="background:#fee2e2">!</div>
-    <div><div class="num">{{ stats.sfa_unresolved }}</div><div class="lbl">Second-faculty unresolved</div></div>
-  </div>
-</div>
+    <button class="au-logo" type="button" data-hod-logo disabled
+            aria-label="Replay the Aditya University logo animation">
+      <img src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="Aditya University">
+    </button>
+  </header>
 
-<div class="card" style="margin-top:1.25rem">
-  <h2 style="margin-top:0">📋 Recent forms</h2>
-  {% if stats.recent_forms %}
-  <div style="overflow-x:auto">
-    <table class="marks-table">
-      <thead>
-        <tr>
-          <th>Form ID</th>
-          <th>Title</th>
-          <th>Category</th>
-          <th>Subject</th>
-          <th>Teacher(s)</th>
-          <th>Branch</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for f in stats.recent_forms %}
-        <tr>
-          <td>#{{ f.id }}</td>
-          <td>{{ f.title }}</td>
-          <td><span class="badge" style="background:#ede9fe;color:#5b21b6">{{ f.category or 'main' }}</span></td>
-          <td>{{ f.snapshot_subject_code or '—' }}</td>
-          <td class="wrap">{{ f.teachers|join(', ') if f.teachers else '—' }}</td>
-          <td>{{ f.snapshot_branch or '—' }}</td>
-          <td>
-            {% if f.status == 'open' %}
-              <span class="score-pill">OPEN</span>
-            {% elif f.status == 'draft' %}
-              <span class="badge" style="background:#fef3c7;color:#92400e">DRAFT</span>
-            {% elif f.status == 'closed' %}
-              <span class="badge" style="background:#fee2e2;color:#991b1b">CLOSED</span>
-            {% else %}
-              <span class="badge">{{ f.status }}</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+  {% if not stats.branches %}
+  <div class="card alert alert-warning">
+    <strong>No department scope assigned.</strong>
+    Ask an Administrator to import HOD accounts and assign department scopes.
   </div>
   {% else %}
-  <p class="sub">No forms yet for your department(s).</p>
+  {% set category_routes = {'main': ('hod_feedback.main_list', 'Main'),
+                            'second': ('hod_feedback.second_list', 'Second'),
+                            'lab': ('hod_feedback.lab_list', 'Lab')} %}
+  <div class="nb-grid">
+    {% for c in stats.category_overview %}
+    {% set endpoint, short_label = category_routes[c.key] %}
+    <article class="nb-sheet nb-{{ c.key }}" aria-labelledby="overview-category-{{ c.key }}">
+      <p class="nb-note">Department feedback status</p>
+      <h2 class="nb-title" id="overview-category-{{ c.key }}">{{ c.label }}</h2>
+      <dl class="nb-stats">
+        {% for key, label in [('assignments', 'assignments'), ('published', 'published'),
+                              ('eligible', 'eligible'), ('submitted', 'submitted'),
+                              ('pending', 'pending'), ('draft', 'drafts')] %}
+        <div{% if key == 'submitted' %} class="nb-hot"{% endif %}>
+          <dt>{{ label }}</dt>
+          <dd>{{ c[key] }}</dd>
+        </div>
+        {% endfor %}
+      </dl>
+      <div class="nb-foot">
+        <a class="hod-overview-button" href="{{ url_for(endpoint) }}">Open {{ short_label }}</a>
+        <svg class="nb-stamp" viewBox="0 0 84 84" aria-hidden="true">
+          <defs>
+            <path id="stamp-top-{{ c.key }}" d="M10 42a32 32 0 0 1 64 0"/>
+            <path id="stamp-bottom-{{ c.key }}" d="M10 42a32 32 0 0 0 64 0"/>
+          </defs>
+          <circle cx="42" cy="42" r="39" fill="none" stroke="currentColor" stroke-width="2"/>
+          <circle cx="42" cy="42" r="36" fill="none" stroke="currentColor" stroke-dasharray="1.5 2"/>
+          <circle class="nb-stamp-inner" cx="42" cy="42" r="22" fill="none" stroke-width="1"/>
+          <circle class="nb-stamp-inner" cx="42" cy="42" r="8" fill="none" stroke-width="1.3"/>
+          <path class="nb-stamp-inner" d="M42 31v22m-11-11h22m-18-7 14 14m0-14L35 49" stroke-width="1"/>
+          <text fill="currentColor">
+            <textPath href="#stamp-top-{{ c.key }}" startOffset="50%" text-anchor="middle">ADITYA UNIVERSITY</textPath>
+          </text>
+          <text class="nb-stamp-caption">
+            <textPath href="#stamp-bottom-{{ c.key }}" startOffset="50%" text-anchor="middle">ANONYMOUS FEEDBACK</textPath>
+          </text>
+        </svg>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+
+  <dl class="perf-tiles perf-tiles-6" aria-label="Department totals">
+    <div>
+      <dt>Departments</dt>
+      <dd>{{ stats.branches|length }}</dd>
+      <dd class="dept-chips">
+        {% for branch in stats.branches %}<span class="dept-chip">{{ branch.code }}</span>{% endfor %}
+      </dd>
+    </div>
+    <div><dt>Students</dt><dd>{{ stats.student_count }}</dd></div>
+    <div><dt>Faculty</dt><dd>{{ stats.faculty_count }}</dd></div>
+    <div><dt>Forms (draft / open / closed)</dt><dd>{{ stats.forms_draft }} / {{ stats.forms_open }} / {{ stats.forms_closed }}</dd></div>
+    <div><dt>Second-faculty confirmed</dt><dd>{{ stats.sfa_confirmed }}</dd></div>
+    <div><dt>Second-faculty unresolved</dt><dd>{{ stats.sfa_unresolved }}</dd></div>
+  </dl>
+
+  <nav class="sec-tabs" aria-label="Overview sections">
+    <a class="active" aria-current="location" href="#recent-forms">
+      <strong><span aria-hidden="true">📋</span> Recent Forms</strong>
+      <small>Latest forms in your department</small>
+    </a>
+    <a href="{{ url_for('hod.pending') }}">
+      <strong><span aria-hidden="true">📝</span> Pending submissions</strong>
+      <small>Students yet to submit, per teacher</small>
+    </a>
+    <a href="{{ url_for('hod.performance_bands') }}">
+      <strong><span aria-hidden="true">🎯</span> Teachers by Score Band</strong>
+      <small>Browse teachers by feedback score</small>
+    </a>
+    <a href="{{ url_for('hod.results') }}">
+      <strong><span aria-hidden="true">📃</span> Feedback Results</strong>
+      <small>View and publish results to teachers</small>
+    </a>
+  </nav>
+
+  <section class="sec-panel" aria-labelledby="recent-forms">
+    <h2 id="recent-forms" tabindex="-1"><span aria-hidden="true">📋</span> Recent Forms</h2>
+    {% if stats.recent_forms %}
+    <div class="hod-recent-table" role="region" aria-label="Recent forms table" tabindex="0">
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Form ID</th>
+            <th scope="col">Title</th>
+            <th scope="col">Category</th>
+            <th scope="col">Subject</th>
+            <th scope="col">Teacher(s)</th>
+            <th scope="col">Branch</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for form in stats.recent_forms %}
+          {% set category = form.category or 'main' %}
+          <tr class="cat-row-{{ category }}">
+            <td>#{{ form.id }}</td>
+            <td>{{ form.title }}</td>
+            <td><span class="hod-badge">{{ category }}</span></td>
+            <td>{{ form.snapshot_subject_code or '—' }}</td>
+            <td>{{ form.teachers|join(', ') if form.teachers else '—' }}</td>
+            <td>{{ form.snapshot_branch or '—' }}</td>
+            <td>
+              <span class="hod-badge status-{{ form.status }}">
+                {{ form.status|upper if form.status in ('open', 'draft', 'closed') else form.status }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p>No forms yet for your department(s).</p>
+    {% endif %}
+  </section>
   {% endif %}
 </div>
-{% endif %}
 {% endblock %}

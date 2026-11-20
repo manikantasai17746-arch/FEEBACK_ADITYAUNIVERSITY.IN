@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% import '_macros.html' as m %}
 {% block title %}Department Forms — HOD{% endblock %}
+{% block bodyclass %}hod-content{% endblock %}
 {% block body %}
 <div class="perf-welcome">
   <div>
@@ -10,7 +11,7 @@
     <p class="sub" style="margin:.35rem 0 0">Create, manage and publish feedback forms for your department.</p>
   </div>
   {% if branches %}
-  <div class="badge" style="background:#e0f2fe;color:#075985;padding:.45rem .9rem;border-radius:999px;font-weight:600">
+  <div class="badge department-badge">
     🏛 Department: {% for b in branches %}{{ b.code }}{% if b.name %} - {{ b.name }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}
   </div>
   {% endif %}
@@ -20,9 +21,7 @@
 <div class="card alert alert-warning">No department scope assigned.</div>
 {% else %}
 
-<div class="btn-row" style="margin-bottom:1rem;flex-wrap:wrap;gap:.75rem;align-items:stretch">
-  <a class="btn btn-accent" href="{{ url_for('hod.form_new') }}" style="font-weight:700">＋ Create Feedback Form</a>
-  <div class="perf-tiles" style="flex:1;margin:0;grid-template-columns:repeat(4,1fr);min-width:240px">
+<div class="perf-tiles department-forms-totals">
     <div class="perf-tile"><div class="ic" style="background:#dbeafe">📄</div>
       <div><div class="num">{{ counts.total }}</div><div class="lbl">Total Forms</div></div></div>
     <div class="perf-tile t-responses"><div class="ic">✓</div>
@@ -31,45 +30,44 @@
       <div><div class="num">{{ counts.draft }}</div><div class="lbl">Draft</div></div></div>
     <div class="perf-tile t-subjects"><div class="ic">✕</div>
       <div><div class="num">{{ counts.closed }}</div><div class="lbl">Closed</div></div></div>
-  </div>
 </div>
 
-<form method="get" class="card" style="margin-bottom:1rem">
+<form method="get" class="card">
   <div class="grid grid-3" style="gap:.65rem">
-    <div class="field"><label>Academic Year</label>
-      <select name="academic_year_id">
+    <div class="field"><label for="forms-academic_year_id">Academic Year</label>
+      <select id="forms-academic_year_id" name="academic_year_id">
         <option value="">All Years</option>
         {% for y in years %}
         <option value="{{ y.id }}" {{ 'selected' if filters.academic_year_id == y.id }}>{{ y.name }}</option>
         {% endfor %}
       </select>
     </div>
-    <div class="field"><label>Semester</label>
-      <select name="semester_id">
+    <div class="field"><label for="forms-semester_id">Semester</label>
+      <select id="forms-semester_id" name="semester_id">
         <option value="">All Semesters</option>
         {% for s in semesters %}
         <option value="{{ s.id }}" {{ 'selected' if filters.semester_id == s.id }}>{{ s.number }}{% if s.label is defined and s.label %} — {{ s.label }}{% endif %}</option>
         {% endfor %}
       </select>
     </div>
-    <div class="field"><label>Subject</label>
-      <select name="subject_code">
+    <div class="field"><label for="forms-subject_code">Subject</label>
+      <select id="forms-subject_code" name="subject_code">
         <option value="">All Subjects</option>
         {% for s in subjects %}
         <option value="{{ s.code }}" {{ 'selected' if filters.subject_code == s.code }}>{{ s.code }}{% if s.name %} — {{ s.name }}{% endif %}</option>
         {% endfor %}
       </select>
     </div>
-    <div class="field"><label>Status</label>
-      <select name="status">
+    <div class="field"><label for="forms-status">Status</label>
+      <select id="forms-status" name="status">
         <option value="">All Status</option>
         <option value="draft" {{ 'selected' if filters.status == 'draft' }}>Draft</option>
         <option value="open" {{ 'selected' if filters.status == 'open' }}>Open / Published</option>
         <option value="closed" {{ 'selected' if filters.status == 'closed' }}>Closed</option>
       </select>
     </div>
-    <div class="field" style="grid-column:span 2"><label>Search</label>
-      <input type="search" name="q" value="{{ filters.q }}" placeholder="Search by title, subject code or faculty name…">
+    <div class="field department-forms-search"><label for="forms-search">Search</label>
+      <input id="forms-search" type="search" name="q" value="{{ filters.q }}" placeholder="Search by title, subject code or faculty name…">
     </div>
   </div>
   <div class="btn-row" style="margin-top:.75rem">
@@ -79,11 +77,17 @@
 </form>
 
 <div class="card">
-  <h2 style="margin-top:0">📋 Feedback Forms
-    {% if branches|length == 1 %}({{ branches[0].code }} Department){% endif %}
-  </h2>
+  <header class="department-forms-heading">
+    <h2><span aria-hidden="true">📋</span> Feedback Forms
+      {% if branches|length == 1 %}({{ branches[0].code }} Department){% endif %}
+    </h2>
+    <div class="btn-row">
+      <a class="btn btn-sm" href="{{ url_for('hod.form_new') }}">＋ Create Feedback Form</a>
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('hod.question_sets') }}">Edit question sets</a>
+    </div>
+  </header>
   {% if forms %}
-  <div style="overflow-x:auto">
+  <div class="hod-table-region" role="region" aria-label="Feedback forms table" tabindex="0">
     <table class="marks-table">
       <thead>
         <tr>
@@ -100,23 +104,23 @@
       </thead>
       <tbody>
         {% for f in forms %}
-        <tr>
+        <tr class="form-category-{{ f.category or 'main' }}">
           <td>#{{ f.id }}</td>
           <td>{{ f.title }}</td>
           <td>
             {% if f.snapshot_subject_code %}
-            <span class="badge" style="background:#dbeafe;color:#1e40af">{{ f.snapshot_subject_code }}</span>
+            <span class="badge">{{ f.snapshot_subject_code }}</span>
             {% else %}—{% endif %}
           </td>
           <td class="wrap">{{ f.teachers|join(', ') if f.teachers else '—' }}</td>
-          <td><span class="badge" style="background:#ede9fe;color:#5b21b6">{{ f.category or 'main' }}</span></td>
+          <td><span class="badge">{{ f.category or 'main' }}</span></td>
           <td>
             {% if f.status == 'open' %}
               <span class="score-pill">● Open</span>
             {% elif f.status == 'draft' %}
-              <span class="badge" style="background:#fef3c7;color:#92400e">● Draft</span>
+              <span class="badge status-draft">● Draft</span>
             {% elif f.status == 'closed' %}
-              <span class="badge" style="background:#fee2e2;color:#991b1b">● Closed</span>
+              <span class="badge status-closed">● Closed</span>
             {% else %}
               <span class="badge">{{ f.status }}</span>
             {% endif %}
@@ -129,14 +133,14 @@
               <form method="post" action="{{ url_for('hod.form_status', fid=f.id) }}" style="display:inline">
                 <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                 <input type="hidden" name="status" value="open">
-                <button type="submit" class="btn btn-sm" style="background:#16a34a;color:#fff">✓ Publish</button>
+                <button type="submit" class="btn btn-sm btn-ok">✓ Publish</button>
               </form>
               {% endif %}
               {% if f.status == 'open' %}
               <form method="post" action="{{ url_for('hod.form_status', fid=f.id) }}" style="display:inline">
                 <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
                 <input type="hidden" name="status" value="closed">
-                <button type="submit" class="btn btn-sm" style="background:#dc2626;color:#fff">✕ Close</button>
+                <button type="submit" class="btn btn-sm btn-danger">✕ Close</button>
               </form>
               {% endif %}
               {% if f.status == 'draft' %}
@@ -146,7 +150,7 @@
                 <button type="submit" class="btn btn-sm btn-ghost">✕ Close</button>
               </form>
               {% endif %}
-              <a class="btn btn-ghost btn-sm" href="{{ url_for('hod.form_new') }}">👁 View</a>
+              <a class="btn btn-ghost btn-sm" href="{{ url_for('hod.result_detail', fid=f.id) }}">View details</a>
             </div>
           </td>
         </tr>

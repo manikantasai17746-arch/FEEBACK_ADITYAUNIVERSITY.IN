@@ -13,7 +13,7 @@
     <p class="sub" style="margin:0">Anonymous results and comments — no student identity is ever shown.
       <a href="{{ url_for('hod.performance_compare', teacher_id=teacher.id) }}">Compare periods</a></p>
   </div>
-  <a class="btn btn-accent btn-sm" href="#" onclick="window.print();return false;">⬇ Download PDF Report</a>
+  <button class="btn btn-accent btn-sm" type="button" data-hod-print>⬇ Download PDF Report</button>
 </div>
 
 {% include '_faculty_result_cards.html' %}

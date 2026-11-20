@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}HOD Onboarding{% endblock %}
+{% block bodyclass %}hod-content{% endblock %}
 {% block body %}
 <div class="container page">
   <div class="page-header">
@@ -7,7 +8,7 @@
     <p class="muted">Verify your official email and claim exclusive department/semester/timetable scopes.</p>
   </div>
 
-  <div class="wizard-steps" style="display:flex;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap">
+  <div class="wizard-steps" aria-label="Onboarding steps">
     <span class="badge {{ 'primary' if step in ['email','verify'] else '' }}">1. Email</span>
     <span class="badge {{ 'primary' if step == 'scopes' else '' }}">2. Scopes</span>
     <span class="badge {{ 'primary' if step == 'preview' else '' }}">3. Preview</span>
@@ -103,7 +104,7 @@
       {% endif %}
     </form>
 
-    <script>
+    <script nonce="{{ csp_nonce }}">
     (function(){
       var cbs = Array.prototype.slice.call(document.querySelectorAll('.scope-cb:not([disabled])'));
       var all = document.getElementById('selAll');
@@ -126,7 +127,7 @@
 
     <h3 style="margin-top:1.5rem">Selected allocations</h3>
     {% if display_scopes %}
-    <div style="border:1px solid #d9e0ea;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(16,24,40,.06)">
+    <div class="hod-table-region" role="region" aria-label="Selected allocations" tabindex="0">
       <table class="data-table" style="width:100%;border-collapse:collapse">
         <thead>
           <tr style="background:#f1f5fb;text-align:left">

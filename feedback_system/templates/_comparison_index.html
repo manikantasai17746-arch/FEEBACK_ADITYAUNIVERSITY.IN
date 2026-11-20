@@ -14,6 +14,7 @@
   <p class="sub">Each teacher's closed feedback rounds, grouped by subject. Subject averages are listed
     separately; unrelated subjects are never combined into one percentage.</p>
 
+  {% block comparison_intro %}{% endblock %}
   <form method="get" class="card" style="margin-bottom:1rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:end">
     <label>Academic year<br>
       <select name="academic_year_id">
@@ -32,7 +33,7 @@
   </form>
 
   {% if profiles %}
-  <div class="card">
+  <div class="card{% if bpn == 'hod' %} hod-table-region{% endif %}"{% if bpn == 'hod' %} role="region" aria-label="Closed feedback rounds" tabindex="0"{% endif %}>
     <table class="data data-table">
       <thead><tr><th>Teacher</th><th>Subject</th><th>Rounds</th><th>Average</th>
         <th>Net change</th><th>Trend</th><th>Band</th></tr></thead>

@@ -18,6 +18,7 @@
 .pk-err{color:#b3261e;font-size:13px;margin:6px 0 0}
 </style>
 {% endblock %}
+{% block bodyclass %}hod-content{% endblock %}
 {% block body %}
 <div class="container page">
   <div class="page-header">
@@ -39,7 +40,7 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
 (function () {
   var SCOPE = {{ scope|tojson }};
   var CATEGORY = {{ category|tojson }};

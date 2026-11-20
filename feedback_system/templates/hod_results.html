@@ -20,6 +20,7 @@
   .hr-pct{font-weight:700;color:var(--accent,#1a5fb4)}
 </style>
 {% endblock %}
+{% block bodyclass %}hod-content{% endblock %}
 {% block body %}
 <div class="container page">
   <div class="hf-head">
@@ -29,9 +30,9 @@
     </div>
   </div>
   <nav class="hr-tabs" aria-label="Result categories">
-    <a class="{{ 'active' if tab=='main' }}" href="{{ url_for('hod.results', tab='main') }}">Main Faculty Results</a>
-    <a class="{{ 'active' if tab=='second' }}" href="{{ url_for('hod.results', tab='second') }}">Second Faculty Results</a>
-    <a class="{{ 'active' if tab=='lab' }}" href="{{ url_for('hod.results', tab='lab') }}">Lab Faculty Results</a>
+    <a class="{{ 'active' if tab=='main' }}"{% if tab=='main' %} aria-current="page"{% endif %} href="{{ url_for('hod.results', tab='main') }}">Main Faculty Results</a>
+    <a class="{{ 'active' if tab=='second' }}"{% if tab=='second' %} aria-current="page"{% endif %} href="{{ url_for('hod.results', tab='second') }}">Second Faculty Results</a>
+    <a class="{{ 'active' if tab=='lab' }}"{% if tab=='lab' %} aria-current="page"{% endif %} href="{{ url_for('hod.results', tab='lab') }}">Lab Faculty Results</a>
     <a class="btn btn-sm" style="margin-left:auto"
        href="{{ url_for('hod.results_category_pdf', category=tab, year_id=filters.year_id, semester_id=filters.semester_id, branch_id=filters.branch_id, section=filters.section, subject=filters.subject, faculty=filters.faculty) }}">Download {{ tab|capitalize }} PDF</a>
   </nav>
@@ -78,7 +79,8 @@
             <div class="hf-muted">{{ f.faculty_emp or '—' }}</div>
             <div class="hf-muted">{{ f.subject_code_display }} · {{ f.subject_display }}</div>
           </div>
-          <label style="margin-left:auto"><input type="checkbox" class="hr-chk" name="form_ids" value="{{ f.id }}"></label>
+          <label class="hr-selection"><input type="checkbox" class="hr-chk" name="form_ids" value="{{ f.id }}"
+            aria-label="Select form {{ f.id }} for publishing"></label>
         </div>
         <div class="hr-meta">
           <span>Section {{ f.section_code or '—' }}</span>
@@ -100,10 +102,10 @@
           <a class="btn btn-sm" href="{{ url_for('hod.result_detail', fid=f.id) }}">Details</a>
           {% if f.is_published %}
           <button class="btn btn-sm" type="submit" formaction="{{ url_for('hod.result_unpublish', fid=f.id) }}"
-                  onclick="return confirm('Unpublish results for this form?')">Unpublish</button>
+                  data-hod-confirm="Unpublish results for this form?">Unpublish</button>
           {% else %}
           <button class="btn btn-sm btn-primary" type="submit" formaction="{{ url_for('hod.result_publish', fid=f.id) }}"
-                  onclick="return confirm('Publish results to the teacher?')">Publish</button>
+                  data-hod-confirm="Publish results to the teacher?">Publish</button>
           {% endif %}
         </div>
       </article>
@@ -121,14 +123,4 @@
   </div>
   {% endif %}
 </div>
-{% endblock %}
-{% block scripts %}
-<script>
-(function(){
-  var bulk=document.getElementById('hrBulk'); if(!bulk) return;
-  function upd(){ var n=document.querySelectorAll('.hr-chk:checked').length; bulk.textContent='Publish selected ('+n+')'; bulk.disabled=n===0; }
-  document.addEventListener('change',function(e){ if(e.target.classList.contains('hr-chk')) upd(); });
-  upd();
-})();
-</script>
 {% endblock %}

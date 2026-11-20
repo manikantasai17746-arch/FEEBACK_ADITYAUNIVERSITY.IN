@@ -1,3 +1,7 @@
+{% set is_hod = current_user and current_user.role == 'hod' -%}
+{% macro hod_nav_link(endpoint, label, active) -%}
+<a{% if active %} class="active"{% endif %}{% if request.endpoint == endpoint %} aria-current="page"{% endif %} href="{{ url_for(endpoint) }}">{{ label }}</a>
+{%- endmacro %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -10,6 +14,10 @@
   {% if current_user and current_user.role == 'dean' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dean-theme.css') }}">{% endif %}
   {% if current_user and current_user.role == 'teacher' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/teacher-theme.css') }}">{% endif %}
   {% if current_user and current_user.role == 'student' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/student-theme.css') }}">{% endif %}
+  {% if is_hod %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/hod-theme.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/hod-pages.css') }}">
+  {% endif %}
   {% if not current_user or current_user.role == 'student' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/loader.css') }}">{% endif %}
   {% block head %}{% endblock %}
 </head>
@@ -20,9 +28,14 @@
       <img class="brand-logo" src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="Aditya University">
       <span class="brand-text">Faculty Feedback<small>Feedback Portal</small></span>
     </a>
+    {% if is_hod %}
+    <button class="nav-toggle" id="hod-nav-toggle" type="button" aria-label="Toggle navigation"
+            aria-controls="hod-topnav" aria-expanded="false" hidden>☰</button>
+    {% else %}
     <button class="nav-toggle" type="button" aria-label="Toggle navigation"
             onclick="document.body.classList.toggle('nav-open')">☰</button>
-    <nav class="topnav">
+    {% endif %}
+    <nav class="topnav"{% if is_hod %} id="hod-topnav" aria-label="HOD navigation"{% endif %}>
       {% if current_user and current_user.role == 'admin' %}
         <a href="{{ url_for('admin.dashboard') }}">Dashboard</a>
         <a href="{{ url_for('admin.forms') }}">Forms</a>
@@ -43,19 +56,6 @@
         {% set ep = request.endpoint or '' %}
         <a class="{{ 'active' if ep in ('student.dashboard', 'student.view_form', 'student.submit') }}" href="{{ url_for('student.dashboard') }}">My Feedback</a>
         <a class="{{ 'active' if ep.startswith('student.notification') }}" href="{{ url_for('student.notifications') }}">Notifications</a>
-      {% elif current_user and current_user.role == 'hod' %}
-        <a href="{{ url_for('hod.dashboard') }}">Overview</a>
-        <a href="{{ url_for('hod_feedback.main_list') }}">Main Faculty Feedback</a>
-        <a href="{{ url_for('hod_feedback.second_list') }}">Second Faculty Feedback</a>
-        <a href="{{ url_for('hod_feedback.lab_list') }}">Lab Faculty Feedback</a>
-        <a href="{{ url_for('hod.pending') }}">Faculty Assignments</a>
-        <a href="{{ url_for('hod.forms') }}">Form Management</a>
-        <a href="{{ url_for('hod.results') }}">Feedback Results</a>
-        <a href="{{ url_for('hod.performance') }}">Reports</a>
-        <a href="{{ url_for('hod.comparison') }}">Comparison</a>
-        <a href="{{ url_for('hod.second_faculty') }}">Second Faculty</a>
-        <a href="{{ url_for('hod.my_actions') }}">My Actions</a>
-        <a href="{{ url_for('photos.profile') }}">Profile</a>
       {% elif current_user and current_user.role == 'dean' %}
         {% set ep = request.endpoint or '' %}
         <a class="dn {{ 'active' if ep == 'dean.dashboard' }}" href="{{ url_for('dean.dashboard') }}">
@@ -70,13 +70,31 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6c-2-1.5-5-2-8-2v14c3 0 6 .5 8 2 2-1.5 5-2 8-2V4c-3 0-6 .5-8 2z"/><path d="M12 6v14"/></svg>Publication</a>
         <a class="dn {{ 'active' if ep == 'dean.my_hods' }}" href="{{ url_for('dean.my_hods') }}">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.4"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M15.5 14.3c.5-.2 1-.3 1.5-.3 2.2 0 4 1.8 4 4"/></svg>My HODs</a>
-      {% else %}
+      {% elif not is_hod %}
         <a href="{{ url_for('auth.student_login') }}">Student</a>
         <a href="{{ url_for('auth.teacher_login') }}">Teacher</a>
         <a href="{{ url_for('auth.hod_login') }}">HOD</a>
         <a href="{{ url_for('auth.dean_login') }}">Dean</a>
         <a href="{{ url_for('auth.admin_login') }}">Admin</a>
       {% endif %}
+      {% if is_hod %}
+      {% set ep = request.endpoint or '' %}
+      <div class="hod-nav-links">
+        {{ hod_nav_link('hod.dashboard', 'Overview', ep == 'hod.dashboard') }}
+        {{ hod_nav_link('hod_feedback.main_list', 'Main Faculty Feedback', ep in ('hod_feedback.main_list', 'hod_feedback.main_create')) }}
+        {{ hod_nav_link('hod_feedback.second_list', 'Second Faculty Feedback', ep in ('hod_feedback.second_list', 'hod_feedback.second_create')) }}
+        {{ hod_nav_link('hod_feedback.lab_list', 'Lab Faculty Feedback', ep in ('hod_feedback.lab_list', 'hod_feedback.lab_create')) }}
+        {{ hod_nav_link('hod.pending', 'Faculty Assignments', ep == 'hod.pending') }}
+        {{ hod_nav_link('hod.forms', 'Form Management', ep in ('hod.forms', 'hod.form_new', 'hod.pick_teachers', 'hod.question_sets')) }}
+        {{ hod_nav_link('hod.results', 'Feedback Results', ep in ('hod.results', 'hod.result_detail')) }}
+        {{ hod_nav_link('hod.performance', 'Reports', ep.startswith('hod.performance')) }}
+        {{ hod_nav_link('hod.comparison', 'Comparison', ep.startswith('hod.comparison')) }}
+        {{ hod_nav_link('hod.second_faculty', 'Second Faculty', ep == 'hod.second_faculty') }}
+        {{ hod_nav_link('hod.my_actions', 'My Actions', ep == 'hod.my_actions') }}
+        {{ hod_nav_link('photos.profile', 'Profile', ep == 'photos.profile') }}
+      </div>
+      {% endif %}
+      {% if is_hod %}<div class="hod-nav-tools">{% endif %}
       <span class="a11y-bar" title="Accessibility">
         {% if current_user and current_user.role == 'dean' %}
         <button type="button" id="btnDarkMode" class="theme-toggle" aria-label="Toggle dark mode">
@@ -86,7 +104,7 @@
         <button type="button" id="btnSmallText" aria-label="Smaller text">A-</button>
         <button type="button" id="btnResetText" aria-label="Normal text">A</button>
         <button type="button" id="btnLargeText" aria-label="Larger text">A+</button>
-        {% elif current_user and current_user.role in ('teacher', 'student') %}
+        {% elif current_user and current_user.role in ('teacher', 'student', 'hod') %}
         <button type="button" id="btnDarkMode" class="theme-toggle" aria-label="Toggle dark mode" title="Light / dark mode">
           <span class="sun"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></span>
           <span class="moon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 019.5 4 8 8 0 1020 14.5z"/></svg></span>
@@ -107,9 +125,10 @@
         {% if current_user.role == 'admin' %}<a href="{{ url_for('auth.admin_setup_emails') }}">Recovery emails</a>{% endif %}
         {% set ep2 = request.endpoint or '' %}
         {% if current_user.role not in ('teacher', 'hod') %}<a{% if current_user.role == 'student' and ep2 == 'auth.change_password' %} class="active" aria-current="page"{% endif %} href="{{ url_for('auth.change_password') }}">Password</a>{% endif %}
-        <a{% if current_user.role == 'student' and ep2.startswith('account_security.') %} class="active" aria-current="page"{% endif %} href="{{ url_for('account_security.index') }}">Security</a>
+        <a{% if current_user.role in ('student', 'hod') and ep2.startswith('account_security.') %} class="active" aria-current="page"{% endif %} href="{{ url_for('account_security.index') }}">Security</a>
         <a class="nav-user" href="{{ url_for('auth.logout') }}">Logout ({{ current_user.name }})</a>
       {% endif %}
+      {% if is_hod %}</div>{% endif %}
     </nav>
   </div>
 </header>
@@ -128,7 +147,7 @@
 </main>
 
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-<script>
+<script{% if is_hod %} nonce="{{ csp_nonce }}"{% endif %}>
 (function(){
   try {
     if (localStorage.getItem('ffs_dark') === '1') document.documentElement.classList.add('dark-mode');
@@ -162,6 +181,7 @@
 })();
 </script>
 {% if not current_user or current_user.role == 'student' %}<script src="{{ url_for('static', filename='js/loader.js') }}" data-logo="{{ url_for('static', filename='img/aditya-logo.png') }}" defer></script>{% endif %}
+{% if is_hod %}<script src="{{ url_for('static', filename='js/hod-theme.js') }}" defer></script>{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

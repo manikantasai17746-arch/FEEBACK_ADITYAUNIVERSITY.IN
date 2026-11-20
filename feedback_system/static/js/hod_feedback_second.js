@@ -17,7 +17,12 @@
     el.hidden = false; el.className = 'hf-alert' + (kind ? ' is-' + kind : ''); el.textContent = msg;
   }
   function goStep(n) {
-    root.querySelectorAll('.hf-step').forEach(function (b) { b.classList.toggle('is-active', String(b.getAttribute('data-step')) === String(n)); });
+    root.querySelectorAll('.hf-step').forEach(function (step) {
+      var on = step.getAttribute('data-step') === String(n);
+      step.classList.toggle('is-active', on);
+      if (on) step.setAttribute('aria-current', 'step');
+      else step.removeAttribute('aria-current');
+    });
     root.querySelectorAll('.hf-panel').forEach(function (p) {
       var on = String(p.getAttribute('data-panel')) === String(n); p.hidden = !on; p.classList.toggle('is-active', on);
     });

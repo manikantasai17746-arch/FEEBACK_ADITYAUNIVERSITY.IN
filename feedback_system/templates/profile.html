@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% import '_photo_macros.html' as ph %}
 {% block title %}Profile — Faculty Feedback{% endblock %}
+{% block bodyclass %}{% if is_hod %}hod-content{% endif %}{% endblock %}
 {% block body %}
 <div class="profile-page">
   <section class="card profile-head">
