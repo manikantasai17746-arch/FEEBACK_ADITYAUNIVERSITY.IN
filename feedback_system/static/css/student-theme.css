@@ -218,6 +218,7 @@ body.role-student .flash-warning { background: var(--st-warn-bg); border-color: 
 body.role-student .flash-info { background: var(--st-blue-bg); border-color: var(--st-blue); color: var(--st-link); }
 
 /* feedback form */
+body.role-student .teacher-card .meta .form-category { margin: 0 0 .3rem; color: var(--st-link); font-size: clamp(1rem, 2vw, 1.2rem); line-height: 1.25; letter-spacing: 0; }
 body.role-student .teacher-card .verify { background: var(--st-orange-bg); color: var(--st-ink); border: 1.5px dashed var(--st-orange); border-radius: 12px; }
 body.role-student .anon-banner { background: var(--st-paper); border: 1.5px solid var(--st-line); border-left: 4px solid var(--st-orange); border-radius: 0 12px 12px 0; }
 body.role-student .anon-banner strong, body.role-student .anon-banner span { color: var(--st-ink); }

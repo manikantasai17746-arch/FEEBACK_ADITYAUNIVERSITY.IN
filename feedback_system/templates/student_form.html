@@ -16,7 +16,7 @@
   <div class="photo-fallback" aria-hidden="true">{{ initials }}</div>
   {% endif %}
   <div class="meta">
-    <p class="eyebrow">You are giving feedback for</p>
+    <h1 class="form-category">{{ form.category_label or 'Feedback' }}</h1>
     <h2>{{ tname }}</h2>
     <p class="desig">{{ form.teacher_designation or 'Faculty' }}</p>
     <div class="line"><span class="ic">🏛</span>

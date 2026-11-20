@@ -77,25 +77,28 @@ def test_current_menu_item_is_highlighted(app, student):
         assert [a.strip() for a in active] == [label], (path, active)
 
 
-def test_dashboard_history_tabs_use_cat_param(app):
-    """With a Main and a Lab form the history shows both tabs and ?cat= picks one."""
-    import test_hod_feedback_lab as T
+def test_feedback_categories_on_forms_and_history_tabs(app):
+    from test_hod_feedback_second_and_results import _ensure_sfa, _seed_hod
     from feedback_system import category_forms, services
-    from feedback_system.feedback_categories import LAB, MAIN
-    from helpers import future_deadline
-    seed = T._seed_hod(app)
-    sess = T._session_with_lab(app, seed['branch_id'], 'available')
-    if not sess:
-        pytest.skip('no session with a lab')
+    from feedback_system.feedback_categories import LAB, MAIN, SECOND
+    from helpers import future_deadline, question_ids, submit_feedback
+
+    seed = _seed_hod(app)
+    assignment_id, = _ensure_sfa(app, seed['branch_id'], n=1)
     with app.app_context():
         hod = dict(db.query('SELECT * FROM users WHERE id=?', (seed['hod_id'],), one=True))
-        db.execute("UPDATE feedback_forms SET is_deleted=1 WHERE session_id=?", (sess['id'],))
+        session_id = db.query('SELECT session_id FROM second_faculty_assignments WHERE id=?',
+                              (assignment_id,), one=True)['session_id']
         qs = [{'text': 'Q', 'qtype': 'rating', 'is_required': True,
                'options': [{'label': 'Good', 'value': 5}, {'label': 'Bad', 'value': 1}]}]
         dl = services.parse_deadline_input(future_deadline(7))
-        for cat in (MAIN, LAB):
-            category_forms.publish(hod, category_forms.create_form(hod, cat, sess['id'], 'P', qs, deadline_at=dl))
-        st = services.eligible_students(sess['id'])[0]
+        forms = {}
+        for category, scope_id in ((MAIN, session_id), (LAB, session_id), (SECOND, assignment_id)):
+            form_id = category_forms.create_form(hod, category, scope_id, 'Teaching survey', qs,
+                                                 deadline_at=dl, auth_required=False)
+            category_forms.publish(hod, form_id)
+            forms[category] = form_id
+        st = services.eligible_students(session_id)[0]
         db.execute("UPDATE users SET password_hash=?, must_change_password=0, onboarding_complete=1, "
                    "email='t@adityauniversity.in', email_verified=1 WHERE id=?",
                    (hash_password('student@123'), st['id']))
@@ -103,12 +106,20 @@ def test_dashboard_history_tabs_use_cat_param(app):
     c = _client(app, student)
     html = c.get('/student/?cat=lab').get_data(as_text=True)
     assert 'Waiting for your feedback' in html and 'Your feedback history' in html
-    assert 'Main Faculty' in html and 'Lab Feedback' in html
-    assert 'cat=main' in html and 'cat=lab' in html
+    assert 'Main Faculty' in html and 'Lab Feedback' in html and 'Second Faculty' in html
+    assert all(f'cat={category}' in html for category in forms)
     assert c.get('/student/?cat=bogus').status_code == 200
     # the pending cards above the tabs never name the kind of feedback
     pending_part = html.split('Your feedback history')[0]
-    assert 'Lab Feedback' not in pending_part and 'Main Faculty Feedback' not in pending_part
+    for category, label in ((MAIN, 'Main Faculty Feedback'), (LAB, 'Lab Feedback'),
+                            (SECOND, 'Second Faculty Feedback')):
+        assert label not in pending_part
+        form_id = forms[category]
+        response = c.get(f'/student/form/{form_id}')
+        assert response.status_code == 200
+        form_html = response.get_data(as_text=True)
+        assert f'<h1 class="form-category">{label}</h1>' in form_html
+        assert submit_feedback(c, form_id, *question_ids(form_html)).status_code == 302
 
 
 def test_backup_codes_page_continues_to_my_feedback_for_students(app):
