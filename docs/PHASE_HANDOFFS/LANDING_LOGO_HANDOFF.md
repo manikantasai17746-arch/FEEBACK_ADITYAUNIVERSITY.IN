@@ -25,3 +25,12 @@ Implemented on 2026-11-20 from `d0815ea`.
 
 - The login, recovery-link, and loader selection across the targeted pytest files passed 17 tests. SQLite temporary files were redirected to the writable workspace and Python used UTF-8 mode.
 - Chrome exercised successful sign-in and the return destination for Student, Teacher, HOD, and Dean, navigation in both palettes, and mobile reduced motion with CSP enforced. The scanner library loaded successfully in the browser.
+
+## Loading between student feedback forms
+
+Implemented on 2026-11-20 from `6800fbf`.
+
+The feedback submission overlay stays active until the browser leaves the form. When another form is available, the redirect marks the arrival so that the destination shows the overlay before rendering its content and dismisses it on `pageshow`. Returning with Back clears the previous overlay. The submission response, category ordering, and form validation still use the normal student routes. Deploy with the standard application build.
+
+- `pytest tests/test_student_portal_theme.py tests/test_app.py tests/test_feedback_gate_stepc.py --tb=short -rs` passed 84 tests with Python UTF-8 mode and a workspace SQLite temporary directory.
+- Chrome exercised a 14-second feedback submission and a slow asset on the next form under enforced CSP. It verified rotation past the old timeout, an active loader at page departure and during arrival, and dismissal after load and on Back.

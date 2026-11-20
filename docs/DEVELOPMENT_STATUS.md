@@ -272,3 +272,7 @@ The teacher verification card uses the shared employee photo service for uploade
 ## Category headings on student feedback forms (2026-11-20)
 
 An open student form identifies itself as Main Faculty Feedback, Lab Feedback, or Second Faculty Feedback above the faculty name. See the [category heading handoff](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md).
+
+## Loading between student feedback forms (2026-11-20)
+
+Submitting feedback keeps the university loader active through the navigation to the next form. The arriving form displays the loader until it finishes loading. See the [loader handoff](PHASE_HANDOFFS/LANDING_LOGO_HANDOFF.md#loading-between-student-feedback-forms).

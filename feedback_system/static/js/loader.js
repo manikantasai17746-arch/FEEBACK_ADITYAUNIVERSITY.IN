@@ -4,29 +4,33 @@
 (function () {
   var template = document.getElementById('ffs-loader-template');
   if (!template) return;
+  var feedbackArrival = template.hasAttribute('data-feedback-arrival');
+  var feedbackPending = false;
   var el = null, showTimer = null, hideTimer = null;
 
   function build() {
     if (el) return el;
     el = template.content.firstElementChild.cloneNode(true);
-    // The landing page has its own styling. Its loader follows the saved portal theme.
-    if (document.body.classList.contains('landing-page')) {
+    // On arrival the loader starts before the portal theme script has run.
+    if (feedbackArrival || document.body.classList.contains('landing-page')) {
       try { el.classList.toggle('is-dark', localStorage.getItem('ffs_dark') === '1'); } catch (e) {}
     }
     document.body.appendChild(el);
     return el;
   }
-  function show() {
+  function show(untilNavigation) {
+    if (feedbackPending) return;
+    feedbackPending = Boolean(untilNavigation);
     clearTimeout(showTimer);
-    // A short delay so very fast page changes do not flash the screen.
+    clearTimeout(hideTimer);
     showTimer = setTimeout(function () {
       build().classList.add('is-on');
-      clearTimeout(hideTimer);
-      hideTimer = setTimeout(hide, 12000);   // safety: never stay on screen
-    }, 120);
+      if (!feedbackPending) hideTimer = setTimeout(hide, 12000);
+    }, feedbackPending ? 0 : 120);
   }
   function hide() {
     clearTimeout(showTimer); clearTimeout(hideTimer);
+    feedbackPending = false;
     if (el) el.classList.remove('is-on');
   }
 
@@ -50,9 +54,16 @@
     if (!f || f.hasAttribute('data-no-loader')) return;
     var t = f.getAttribute('target');
     if (t && t !== '_self') return;
-    setTimeout(function () { if (!e.defaultPrevented) show(); }, 0);
+    setTimeout(function () {
+      if (!e.defaultPrevented) show(f.hasAttribute('data-feedback-submit'));
+    }, 0);
   });
 
-  window.addEventListener('pageshow', hide);   // back/forward cache
-  window.addEventListener('pagehide', hide);
+  if (feedbackArrival) build().classList.add('is-on');
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted || !feedbackPending) hide();
+  });
+  window.addEventListener('pagehide', function () {
+    if (!feedbackPending) hide();
+  });
 })();

@@ -15,6 +15,7 @@
   {% block head %}{% endblock %}
 </head>
 <body class="role-{{ current_user.role if current_user else 'guest' }} {% block bodyclass %}{% endblock %}">
+{% if show_page_loader and feedback_arrival %}{% include 'partials/page_loader.html' %}{% endif %}
 <header class="topbar">
   <div class="topbar-inner">
     <a class="brand" href="{{ url_for('auth.landing') }}">
@@ -162,7 +163,7 @@
   });
 })();
 </script>
-{% if show_page_loader %}{% include 'partials/page_loader.html' %}{% endif %}
+{% if show_page_loader and not feedback_arrival %}{% include 'partials/page_loader.html' %}{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

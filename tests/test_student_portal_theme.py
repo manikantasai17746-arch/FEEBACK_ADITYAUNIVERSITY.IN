@@ -111,15 +111,27 @@ def test_feedback_categories_on_forms_and_history_tabs(app):
     assert c.get('/student/?cat=bogus').status_code == 200
     # the pending cards above the tabs never name the kind of feedback
     pending_part = html.split('Your feedback history')[0]
+    next_url = None
     for category, label in ((MAIN, 'Main Faculty Feedback'), (LAB, 'Lab Feedback'),
                             (SECOND, 'Second Faculty Feedback')):
         assert label not in pending_part
         form_id = forms[category]
-        response = c.get(f'/student/form/{form_id}')
+        form_url = f'/student/form/{form_id}'
+        if next_url:
+            assert next_url == f'{form_url}?from_feedback=1'
+        response = c.get(next_url or form_url)
         assert response.status_code == 200
         form_html = response.get_data(as_text=True)
         assert f'<h1 class="form-category">{label}</h1>' in form_html
-        assert submit_feedback(c, form_id, *question_ids(form_html)).status_code == 302
+        assert 'data-feedback-submit' in form_html
+        arrival = 'id="ffs-loader-template" data-feedback-arrival'
+        assert (arrival in form_html) == (next_url is not None)
+        if next_url:
+            assert form_html.index(arrival) < form_html.index('class="teacher-card"')
+        submitted = submit_feedback(c, form_id, *question_ids(form_html))
+        assert submitted.status_code == 302
+        next_url = submitted.headers['Location']
+    assert next_url == '/student/'
 
 
 def test_backup_codes_page_continues_to_my_feedback_for_students(app):

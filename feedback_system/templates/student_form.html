@@ -63,7 +63,7 @@
   </div>
 {% else %}
 {% if form.deadline_at %}<div class="flash flash-info">Submit before <strong>{{ form.deadline_at|deadline }}</strong>. The form closes automatically after that.</div>{% endif %}
-<form method="post" action="{{ url_for('student.submit', form_id=form.id) }}">
+<form method="post" action="{{ url_for('student.submit', form_id=form.id) }}" data-feedback-submit>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   {% for q in questions %}
   <div class="card q-card">

@@ -121,7 +121,8 @@ def view_form(form_id):
     already = db.query('SELECT * FROM submissions WHERE form_id=? AND student_user_id=?',
                        (form_id, user['id']), one=True)
     return render_template('student_form.html', user=user, form=form, questions=questions,
-                           already=already, teacher_has_photo=photos.has_any_photo(form.get('teacher_emp')))
+                           already=already, teacher_has_photo=photos.has_any_photo(form.get('teacher_emp')),
+                           feedback_arrival=request.args.get('from_feedback') == '1')
 
 
 @bp.route('/form/<int:form_id>/submit', methods=['POST'])
@@ -141,7 +142,7 @@ def submit(form_id):
                    and f['id'] != form_id and not f.get('locked')]
         if pending:
             flash('Opening your next pending form…', 'info')
-            return redirect(url_for('student.view_form', form_id=pending[0]['id']))
+            return redirect(url_for('student.view_form', form_id=pending[0]['id'], from_feedback=1))
         return redirect(url_for('student.dashboard'))
     flash(message, 'error')
     # Re-render preserving the student's answers so nothing is lost.
