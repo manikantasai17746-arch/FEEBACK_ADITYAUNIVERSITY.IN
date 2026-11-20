@@ -24,10 +24,15 @@
       <div class="inbox-body">
         <strong>{{ n.title }}</strong>
         <p>{{ n.body }}</p>
+        {% if n.deadline_at and not n.form_deleted %}<p>Deadline {{ n.deadline_at|deadline }}</p>{% endif %}
         <div class="inbox-meta">{{ n.created_at }}</div>
       </div>
       <div class="inbox-actions">
-        {% if n.link %}<a class="btn btn-ghost btn-sm" href="{{ n.link }}">Open →</a>{% endif %}
+        {% if n.form_id and not n.form_deleted and n.form_status == 'open' %}
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('student.view_form', form_id=n.form_id) }}">Open →</a>
+        {% elif n.link %}
+        <a class="btn btn-ghost btn-sm" href="{{ n.link }}">Open →</a>
+        {% endif %}
         {% if not n.is_read %}
         <form method="post" action="{{ url_for('student.notification_read', nid=n.id) }}">
           <input type="hidden" name="_csrf" value="{{ csrf_token() }}">

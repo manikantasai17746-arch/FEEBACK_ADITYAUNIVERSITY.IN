@@ -808,4 +808,8 @@ MIGRATIONS = [
                    r.created_day AS submitted_at, r.comment_stars AS comment_stars
             FROM feedback_responses r""",
     ]),
+    (27, "Student feedback publication and deadline notifications", [
+        "ALTER TABLE notifications ADD COLUMN form_id INTEGER REFERENCES feedback_forms(id) ON DELETE CASCADE",
+        "CREATE UNIQUE INDEX IF NOT EXISTS ix_notifications_form_kind ON notifications(user_id, form_id, kind)",
+    ]),
 ]

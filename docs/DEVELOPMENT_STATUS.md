@@ -276,3 +276,7 @@ An open student form identifies itself as Main Faculty Feedback, Lab Feedback, o
 ## Loading between student feedback forms (2026-11-20)
 
 Submitting feedback keeps the university loader active through the navigation to the next form. The arriving form displays the loader until it finishes loading. See the [loader handoff](PHASE_HANDOFFS/LANDING_LOGO_HANDOFF.md#loading-between-student-feedback-forms).
+
+## Student feedback notifications (2026-11-20)
+
+Publishing Main Faculty, Lab, or Second Faculty feedback records notices for eligible students. My Feedback and Notifications check for outstanding forms during their final 24 hours and record one reminder per form. See the [notification handoff](PHASE_HANDOFFS/STUDENT_FEEDBACK_NOTIFICATIONS_HANDOFF.md).

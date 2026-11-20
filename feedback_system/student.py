@@ -29,6 +29,7 @@ def _year_from_semester(semester):
 def dashboard():
     user = current_user()
     forms = services.student_forms(user['id'])
+    services.add_student_feedback_reminders(user['id'], forms)
     ctx = _enrollment_context(user['id'])
     pending = [f for f in forms if f['status'] == 'open' and not f['submission_id']]
     submitted = [f for f in forms if f['submission_id']]
@@ -160,8 +161,11 @@ def submit(form_id):
 def notifications():
     """Change 4: in-app notification inbox."""
     user = current_user()
+    services.add_student_feedback_reminders(user['id'])
     rows = db.query(
-        'SELECT * FROM notifications WHERE user_id=? ORDER BY is_read ASC, created_at DESC LIMIT 100',
+        """SELECT n.*, f.deadline_at, f.status AS form_status, f.is_deleted AS form_deleted
+           FROM notifications n LEFT JOIN feedback_forms f ON f.id=n.form_id
+           WHERE n.user_id=? ORDER BY n.is_read ASC, n.created_at DESC, n.id DESC LIMIT 100""",
         (user['id'],))
     unread = db.query(
         'SELECT COUNT(*) c FROM notifications WHERE user_id=? AND is_read=0',

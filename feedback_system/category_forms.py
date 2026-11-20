@@ -428,6 +428,7 @@ def _open_with_snapshot(actor, form_id, sc):
                WHERE id=? AND status='draft'""", (now, now, frozen, now, form_id))
         if cur.rowcount != 1:                       # someone else published/closed it first
             raise ScopeError('form_locked', 'This form is no longer a draft.', 409)
+        services.notify_form_published(conn, form_id)
         conn.commit()
     except Exception:
         conn.rollback()

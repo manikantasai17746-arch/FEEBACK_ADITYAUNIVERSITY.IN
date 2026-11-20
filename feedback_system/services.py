@@ -911,8 +911,16 @@ def set_form_status(form_id, status, admin_id=None):
     elif status == 'archived':
         extra = ', archived_at=?'
         args.append(now)
-    db.execute(f'UPDATE feedback_forms SET status=?, updated_at=?{extra} WHERE id=?',
-               (status, now, *args, form_id))
+    conn = db.get_db()
+    try:
+        conn.execute(f'UPDATE feedback_forms SET status=?, updated_at=?{extra} WHERE id=?',
+                     (status, now, *args, form_id))
+        if status == 'open':
+            notify_form_published(conn, form_id)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
     audit(f'form.{status}', 'feedback_forms', form_id, f'Status set to {status}')
     if status == 'open':
         _freeze_category_eligibility(form_id)
@@ -1199,7 +1207,7 @@ def annotate_student_forms(student_user_id, rows):
     return out
 
 
-def student_forms(student_user_id):
+def student_forms(student_user_id, *, deadline_window=None):
     """All non-draft, non-deleted forms the student is eligible to answer.
 
     Eligibility is resolved through ``form_sessions`` so a subject-scoped form
@@ -1208,11 +1216,15 @@ def student_forms(student_user_id):
     covered sessions.  Phase 5B then applies the per-category rules
     (:func:`annotate_student_forms`).
     """
-    rows = db.query(_STUDENT_FORM_SELECT + """
-        WHERE f.is_deleted=0 AND f.status<>'draft'
+    where = "WHERE f.is_deleted=0 AND f.status<>'draft'"
+    args = (student_user_id, student_user_id, student_user_id)
+    if deadline_window is not None:
+        where += " AND f.status='open' AND f.deadline_at>? AND f.deadline_at<=?"
+        args += deadline_window
+    rows = db.query(_STUDENT_FORM_SELECT + '\n' + where + """
         GROUP BY f.id
         ORDER BY (f.status='open') DESC, period_no, f.subject_code""",
-        (student_user_id, student_user_id, student_user_id))
+        args)
     return annotate_student_forms(student_user_id, rows)
 
 
@@ -1225,6 +1237,58 @@ def student_form(student_user_id, form_id):
         return None
     rows = annotate_student_forms(student_user_id, [row])
     return rows[0] if rows else None
+
+
+def notify_form_published(conn, form_id):
+    """Write notices in the caller's publication transaction."""
+    form = conn.execute('SELECT title, category FROM feedback_forms WHERE id=?',
+                        (form_id,)).fetchone()
+    if not form or form['category'] not in CATEGORY_LABELS:
+        return
+    label = CATEGORY_LABELS[form['category']]
+    conn.execute("""
+        INSERT INTO notifications(user_id, form_id, kind, title, body)
+        SELECT DISTINCT ss.student_user_id, fs.form_id, 'published', ?, ?
+        FROM form_sessions fs
+        JOIN session_students ss ON ss.session_id=fs.session_id
+        JOIN users u ON u.id=ss.student_user_id
+        WHERE fs.form_id=? AND u.role='student' AND u.is_active=1
+          AND (NOT EXISTS (SELECT 1 FROM form_eligible_students e WHERE e.form_id=fs.form_id)
+               OR EXISTS (SELECT 1 FROM form_eligible_students e WHERE e.form_id=fs.form_id
+                          AND e.student_user_id=ss.student_user_id))
+          AND NOT EXISTS (SELECT 1 FROM submissions s WHERE s.form_id=fs.form_id
+                          AND s.student_user_id=ss.student_user_id)
+        ON CONFLICT(user_id, form_id, kind) DO NOTHING
+    """, (f'New {label}', form['title'], form_id))
+
+
+def add_student_feedback_reminders(student_user_id, forms=None):
+    """Record a single in-app reminder for each outstanding form due within 24 hours."""
+    now = _utc_now_iso()
+    cutoff = (datetime.fromisoformat(now) + timedelta(days=1)).isoformat(timespec='seconds')
+    if forms is None:
+        forms = student_forms(student_user_id, deadline_window=(now, cutoff))
+    due = [f for f in forms if f['category_key'] in CATEGORY_LABELS
+           and f['status'] == 'open' and not f['submission_id']
+           and f['deadline_at'] and now < f['deadline_at'] <= cutoff]
+    if not due:
+        return
+    reminded = {r['form_id'] for r in db.query("""
+        SELECT form_id FROM notifications WHERE user_id=? AND kind='deadline'
+    """, (student_user_id,))}
+    notices = [(student_user_id, f"{f['category_label']} due soon", f['title'],
+                f['id'], now, cutoff, student_user_id)
+               for f in due if f['id'] not in reminded]
+    if not notices:
+        return
+    db.executemany("""
+        INSERT INTO notifications(user_id, form_id, kind, title, body)
+        SELECT ?, f.id, 'deadline', ?, ? FROM feedback_forms f
+        WHERE f.id=? AND f.status='open' AND f.is_deleted=0
+          AND f.deadline_at>? AND f.deadline_at<=?
+          AND NOT EXISTS (SELECT 1 FROM submissions s WHERE s.form_id=f.id AND s.student_user_id=?)
+        ON CONFLICT(user_id, form_id, kind) DO NOTHING
+    """, notices)
 
 
 def _parse_answers(questions, form_payload):

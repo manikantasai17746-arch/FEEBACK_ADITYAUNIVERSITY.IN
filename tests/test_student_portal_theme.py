@@ -1,6 +1,7 @@
 """Student portal: themed pages render, and the Notifications page works (it used to extend a missing template)."""
 import os
 import tempfile
+from datetime import datetime, timedelta
 
 import pytest
 
@@ -77,11 +78,11 @@ def test_current_menu_item_is_highlighted(app, student):
         assert [a.strip() for a in active] == [label], (path, active)
 
 
-def test_feedback_categories_on_forms_and_history_tabs(app):
+def test_feedback_categories_on_forms_and_history_tabs(app, monkeypatch):
     from test_hod_feedback_second_and_results import _ensure_sfa, _seed_hod
     from feedback_system import category_forms, services
     from feedback_system.feedback_categories import LAB, MAIN, SECOND
-    from helpers import future_deadline, question_ids, submit_feedback
+    from helpers import future_deadline, get_csrf, question_ids, submit_feedback
 
     seed = _seed_hod(app)
     assignment_id, = _ensure_sfa(app, seed['branch_id'], n=1)
@@ -96,14 +97,27 @@ def test_feedback_categories_on_forms_and_history_tabs(app):
         for category, scope_id in ((MAIN, session_id), (LAB, session_id), (SECOND, assignment_id)):
             form_id = category_forms.create_form(hod, category, scope_id, 'Teaching survey', qs,
                                                  deadline_at=dl, auth_required=False)
-            category_forms.publish(hod, form_id)
+            assert not db.query('SELECT 1 FROM notifications WHERE form_id=?', (form_id,))
             forms[category] = form_id
+        published = category_forms.publish_many(hod, forms.values())
+        assert {f['form_id'] for f in published['published']} == set(forms.values())
+        for form_id in forms.values():
+            notified = db.query("SELECT user_id FROM notifications WHERE form_id=? AND kind='published'",
+                                (form_id,))
+            eligible = db.query('SELECT student_user_id FROM form_eligible_students WHERE form_id=?',
+                                (form_id,))
+            assert {r['user_id'] for r in notified} == {r['student_user_id'] for r in eligible}
         st = services.eligible_students(session_id)[0]
         db.execute("UPDATE users SET password_hash=?, must_change_password=0, onboarding_complete=1, "
                    "email='t@adityauniversity.in', email_verified=1 WHERE id=?",
                    (hash_password('student@123'), st['id']))
         student = {'roll': st['roll']}
     c = _client(app, student)
+    inbox = c.get('/student/notifications').get_data(as_text=True)
+    for category, form_id in forms.items():
+        assert f'New {services.CATEGORY_LABELS[category]}' in inbox
+        assert f'href="/student/form/{form_id}"' in inbox
+    assert 'due soon' not in inbox
     html = c.get('/student/?cat=lab').get_data(as_text=True)
     assert 'Waiting for your feedback' in html and 'Your feedback history' in html
     assert 'Main Faculty' in html and 'Lab Feedback' in html and 'Second Faculty' in html
@@ -131,6 +145,22 @@ def test_feedback_categories_on_forms_and_history_tabs(app):
         submitted = submit_feedback(c, form_id, *question_ids(form_html))
         assert submitted.status_code == 302
         next_url = submitted.headers['Location']
+        if category == MAIN:
+            now = datetime.fromisoformat(dl) - timedelta(days=1)
+            monkeypatch.setattr(services, '_utc_now_iso', lambda: now.isoformat(timespec='seconds'))
+            inbox = c.get('/student/notifications').get_data(as_text=True)
+            assert 'Lab Feedback due soon' in inbox and 'Second Faculty Feedback due soon' in inbox
+            assert 'Main Faculty Feedback due soon' not in inbox
+            r = c.post('/student/notifications/read-all', data={'_csrf': get_csrf(inbox)})
+            assert r.status_code == 302
+            c.get('/student/')
+            c.get('/student/notifications')
+            with app.app_context():
+                reminders = db.query("""
+                    SELECT form_id, is_read FROM notifications WHERE user_id=? AND kind='deadline'
+                """, (st['id'],))
+                assert {r['form_id']: r['is_read'] for r in reminders} == {forms[LAB]: 1, forms[SECOND]: 1}
+                assert len(reminders) == 2
     assert next_url == '/student/'
 
 
