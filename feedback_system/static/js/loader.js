@@ -1,20 +1,18 @@
-/* Loading screen: shows a spinner while the browser navigates to another page or submits a
+/* Loading screen: shows the university logo while the browser navigates or submits a
    form. It never blocks anything that does not leave the page (new tabs, downloads, '#'
    links, forms that a script cancels), and it always hides itself again. */
 (function () {
-  var script = document.currentScript || document.querySelector('script[data-logo]');
-  var logo = script && script.getAttribute('data-logo');
+  var template = document.getElementById('ffs-loader-template');
+  if (!template) return;
   var el = null, showTimer = null, hideTimer = null;
 
   function build() {
     if (el) return el;
-    el = document.createElement('div');
-    el.id = 'ffs-loader';
-    el.setAttribute('role', 'status');
-    el.setAttribute('aria-live', 'polite');
-    if (logo) { var img = document.createElement('img'); img.className = 'ffs-logo'; img.src = logo; img.alt = ''; el.appendChild(img); }
-    var ring = document.createElement('div'); ring.className = 'ffs-ring'; ring.setAttribute('aria-hidden', 'true'); el.appendChild(ring);
-    var txt = document.createElement('div'); txt.className = 'ffs-text'; txt.textContent = 'Loading…'; el.appendChild(txt);
+    el = template.content.firstElementChild.cloneNode(true);
+    // The landing page has its own styling. Its loader follows the saved portal theme.
+    if (document.body.classList.contains('landing-page')) {
+      try { el.classList.toggle('is-dark', localStorage.getItem('ffs_dark') === '1'); } catch (e) {}
+    }
     document.body.appendChild(el);
     return el;
   }

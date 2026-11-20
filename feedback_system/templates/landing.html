@@ -1,3 +1,4 @@
+{% from 'partials/university_logo.svg' import university_logo %}
 <!doctype html>
 <html lang="en">
 <head>
@@ -8,6 +9,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/anonymity_card.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/loader.css') }}">
 
   <style nonce="{{ csp_nonce }}">
 /* How it works: animated feedback story. It sits where the step numbers used to be. */
@@ -92,7 +94,7 @@
 @media (prefers-reduced-motion:reduce){.fbs-actor *,.fbs-walker{animation:none!important}.fbs-walker{display:none}.fbs-fH,.fbs-blush,.fbs-fpage,.fbs-chk,.fbs-chk4{opacity:1}.fbs-fN,.fbs-spw{opacity:0}}
   </style>
 </head>
-<body class="landing-page">
+<body class="landing-page{% if login_role %} lp-login-open{% endif %}">
 <header class="lp-header">
   <div class="lp-header-inner">
     <a class="lp-brand" href="{{ url_for('auth.landing') }}">
@@ -203,7 +205,7 @@
 {% if stats.students > 0 %}
 <section class="numbers" aria-label="Feedback at Aditya University">
   <div class="numbers-inner">
-    {% include 'partials/landing_numbers_logo.svg' %}
+    {{ university_logo('numbers-logo', 'numbers-logo-ring-mask') }}
     <div>
       <p class="numbers-line">
         <b>{{ '{:,}'.format(stats.students) }}{% if stats.students >= 100 %}+{% endif %}</b> students give feedback on
@@ -492,9 +494,16 @@
 </script>
 
 <!-- Login modal (same page, blurred backdrop) -->
-<div class="lp-login-overlay" id="lpLoginOverlay" hidden>
+{% set active_login_role = login_role or 'student' %}
+{% macro login_fields(role) %}
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  {% if login_role == role and login_next %}
+  <input type="hidden" name="next" value="{{ login_next }}">
+  {% endif %}
+{% endmacro %}
+<div class="lp-login-overlay" id="lpLoginOverlay"{% if not login_role %} hidden{% endif %}>
   <div class="lp-login-backdrop" id="lpLoginBackdrop"></div>
-  <div class="lp-login-modal" role="dialog" aria-modal="true" aria-labelledby="lpLoginTitle">
+  <div class="lp-login-modal" role="dialog" aria-modal="true" aria-labelledby="lpLoginTitle-{{ active_login_role }}">
     <button type="button" class="lp-login-close" id="lpLoginClose" aria-label="Close">
       <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
            stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
@@ -512,15 +521,14 @@
     {% endwith %}
 
     <!-- Student -->
-    <div class="lp-login-panel active" data-role="student">
+    <div class="lp-login-panel{% if active_login_role == 'student' %} active{% endif %}" data-role="student">
       <p class="lp-login-eyebrow">STUDENT LOGIN</p>
-      <h2 id="lpLoginTitle">Welcome back</h2>
+      <h2 id="lpLoginTitle-student">Welcome back</h2>
       <p class="lp-login-sub">Scan your ID card or type your roll number to give feedback. Your responses are <strong>anonymous</strong> — teachers never see your name or roll number.</p>
       <button type="button" class="lp-btn lp-btn-scan" id="lpScanStudent">Scan ID Card</button>
       <div class="lp-login-or">or enter it manually</div>
       <form method="post" action="{{ url_for('auth.student_login') }}" autocomplete="on" class="lp-login-form">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="login_context" value="landing">
+        {{ login_fields('student') }}
         <div class="field">
           <label for="lp_roll">Roll Number</label>
           <input type="text" id="lp_roll" name="roll" value="{{ login_values.get('roll', '') if login_values else '' }}" placeholder="e.g. 25B11CS015" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
@@ -537,18 +545,17 @@
     </div>
 
     <!-- Faculty / Teacher -->
-    <div class="lp-login-panel" data-role="teacher">
+    <div class="lp-login-panel{% if active_login_role == 'teacher' %} active{% endif %}" data-role="teacher">
       <p class="lp-login-eyebrow">FACULTY LOGIN</p>
-      <h2>Welcome back</h2>
+      <h2 id="lpLoginTitle-teacher">Welcome back</h2>
       <p class="lp-login-sub">Scan your staff ID card or type your employee code to view your published feedback results.</p>
       <button type="button" class="lp-btn lp-btn-scan" id="lpScanTeacher">Scan ID Card</button>
       <div class="lp-login-or">or enter it manually</div>
       <form method="post" action="{{ url_for('auth.teacher_login') }}" autocomplete="on" class="lp-login-form">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="login_context" value="landing">
+        {{ login_fields('teacher') }}
         <div class="field">
           <label for="lp_emp_t">Employee Code</label>
-          <input type="text" id="lp_emp_t" name="emp_code" value="{{ login_values.get('emp_code', '') if login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_emp_t" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'teacher' and login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
           <div class="scan-ok" id="lpScanOkTeacher" style="display:none">✓ ID card scanned — now enter your password.</div>
         </div>
         <div class="field">
@@ -561,53 +568,52 @@
     </div>
 
     <!-- HOD -->
-    <div class="lp-login-panel" data-role="hod">
+    <div class="lp-login-panel{% if active_login_role == 'hod' %} active{% endif %}" data-role="hod">
       <p class="lp-login-eyebrow">HOD LOGIN</p>
-      <h2>Head of Department</h2>
+      <h2 id="lpLoginTitle-hod">Head of Department</h2>
       <p class="lp-login-sub">Sign in with your employee code to manage department feedback forms and results.</p>
       <form method="post" action="{{ url_for('auth.hod_login') }}" autocomplete="on" class="lp-login-form">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="login_context" value="landing">
+        {{ login_fields('hod') }}
         <div class="field">
           <label for="lp_emp_h">Employee Code</label>
-          <input type="text" id="lp_emp_h" name="emp_code" value="{{ login_values.get('emp_code', '') if login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_emp_h" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'hod' and login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
         </div>
         <div class="field">
           <label for="lp_h_pw">Password</label>
           <input type="password" id="lp_h_pw" name="password" required autocomplete="current-password" maxlength="128">
         </div>
         <button class="lp-btn lp-btn-primary lp-btn-block" type="submit">Log In</button>
+        <p class="lp-login-forgot"><a href="{{ url_for('auth.forgot_password', role='hod') }}">Forgot password?</a></p>
       </form>
     </div>
 
     <!-- Dean -->
-    <div class="lp-login-panel" data-role="dean">
+    <div class="lp-login-panel{% if active_login_role == 'dean' %} active{% endif %}" data-role="dean">
       <p class="lp-login-eyebrow">DEAN LOGIN</p>
-      <h2>Dean sign in</h2>
+      <h2 id="lpLoginTitle-dean">Dean sign in</h2>
       <p class="lp-login-sub">Sign in with your employee code to view college-wide feedback and performance.</p>
       <form method="post" action="{{ url_for('auth.dean_login') }}" autocomplete="on" class="lp-login-form">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="login_context" value="landing">
+        {{ login_fields('dean') }}
         <div class="field">
           <label for="lp_emp_d">Employee Code</label>
-          <input type="text" id="lp_emp_d" name="emp_code" value="{{ login_values.get('emp_code', '') if login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_emp_d" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'dean' and login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
         </div>
         <div class="field">
           <label for="lp_d_pw">Password</label>
           <input type="password" id="lp_d_pw" name="password" required autocomplete="current-password" maxlength="128">
         </div>
         <button class="lp-btn lp-btn-primary lp-btn-block" type="submit">Log In</button>
+        <p class="lp-login-forgot"><a href="{{ url_for('auth.forgot_password', role='dean') }}">Forgot password?</a></p>
       </form>
     </div>
 
     <!-- Admin -->
-    <div class="lp-login-panel" data-role="admin">
+    <div class="lp-login-panel{% if active_login_role == 'admin' %} active{% endif %}" data-role="admin">
       <p class="lp-login-eyebrow">ADMINISTRATOR LOGIN</p>
-      <h2>Admin sign in</h2>
+      <h2 id="lpLoginTitle-admin">Admin sign in</h2>
       <p class="lp-login-sub">Authorised administrators only.</p>
       <form method="post" action="{{ url_for('auth.admin_login') }}" autocomplete="on" class="lp-login-form">
-        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-        <input type="hidden" name="login_context" value="landing">
+        {{ login_fields('admin') }}
         <div class="field">
           <label for="lp_admin_email">Email Address</label>
           <input type="email" id="lp_admin_email" name="email" value="{{ login_values.get('email', '') if login_values else '' }}" placeholder="admin@college.edu" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="254">
@@ -631,9 +637,10 @@
   var backdrop = document.getElementById('lpLoginBackdrop');
   var closeBtn = document.getElementById('lpLoginClose');
   if (!overlay) return;
+  var dialog = overlay.querySelector('[role=dialog]');
 
   function showRole(role) {
-    role = role || 'student';
+    dialog.setAttribute('aria-labelledby', 'lpLoginTitle-' + role);
     overlay.querySelectorAll('.lp-login-tab').forEach(function (t) {
       t.classList.toggle('active', t.getAttribute('data-role') === role);
     });
@@ -766,5 +773,6 @@
 })();
 </script>
 
+{% include 'partials/page_loader.html' %}
 </body>
 </html>

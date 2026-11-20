@@ -260,3 +260,7 @@ Limitations: the full suite was run with stand-in `pyotp`/`segno` modules becaus
 ## Landing-page logo animation (2026-11-20)
 
 The public feedback statistics banner displays the approved gold Aditya University logo to the left of the live counts on desktop and above them on phones. The entrance starts when the logo scrolls into view. The [landing-page logo handoff](PHASE_HANDOFFS/LANDING_LOGO_HANDOFF.md) records verification and deployment details.
+
+## Shared sign-in and rotating portal loader (2026-11-20)
+
+The role sign-in URLs render the landing-page form for the requested role. The new loader uses the rotating university logo in the Student, Teacher, HOD, and Dean portals and on signed-out pages. See the [sign-in and loader handoff](PHASE_HANDOFFS/LANDING_LOGO_HANDOFF.md#shared-sign-in-and-rotating-loader).

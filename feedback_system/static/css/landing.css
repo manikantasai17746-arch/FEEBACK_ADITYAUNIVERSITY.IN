@@ -192,7 +192,7 @@ body.lp-menu-open .lp-drawer {
   margin-inline: auto;
   padding: 2.25rem 1.25rem;
 }
-.numbers-logo { display: block; width: 100%; height: auto; --gold: #be9337; }
+.numbers-logo { display: block; width: 100%; height: auto; --logo-ink: #be9337; }
 .numbers-line {
   margin: 0;
   font: 500 clamp(1.7rem, 3.6vw, 2.9rem)/1.2 var(--display); letter-spacing: -.02em;

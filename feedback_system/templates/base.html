@@ -1,4 +1,5 @@
 <!doctype html>
+{% set show_page_loader = not current_user or current_user.role in ('student', 'teacher', 'hod', 'dean') %}
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -10,7 +11,7 @@
   {% if current_user and current_user.role == 'dean' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/dean-theme.css') }}">{% endif %}
   {% if current_user and current_user.role == 'teacher' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/teacher-theme.css') }}">{% endif %}
   {% if current_user and current_user.role == 'student' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/student-theme.css') }}">{% endif %}
-  {% if not current_user or current_user.role == 'student' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/loader.css') }}">{% endif %}
+  {% if show_page_loader %}<link rel="stylesheet" href="{{ url_for('static', filename='css/loader.css') }}">{% endif %}
   {% block head %}{% endblock %}
 </head>
 <body class="role-{{ current_user.role if current_user else 'guest' }} {% block bodyclass %}{% endblock %}">
@@ -128,7 +129,7 @@
 </main>
 
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-<script>
+<script nonce="{{ csp_nonce }}">
 (function(){
   try {
     if (localStorage.getItem('ffs_dark') === '1') document.documentElement.classList.add('dark-mode');
@@ -161,7 +162,7 @@
   });
 })();
 </script>
-{% if not current_user or current_user.role == 'student' %}<script src="{{ url_for('static', filename='js/loader.js') }}" data-logo="{{ url_for('static', filename='img/aditya-logo.png') }}" defer></script>{% endif %}
+{% if show_page_loader %}{% include 'partials/page_loader.html' %}{% endif %}
 {% block scripts %}{% endblock %}
 </body>
 </html>

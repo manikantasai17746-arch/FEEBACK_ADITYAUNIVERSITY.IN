@@ -81,20 +81,35 @@ def test_admin_login_rejects_bad_credentials(client):
     ('dean', '/dean/login', {'emp_code': 'NOT-A-DEAN', 'password': 'wrong'}),
     ('admin', '/admin/login', {'email': 'not-an-admin@example.com', 'password': 'wrong'}),
 ])
-def test_invalid_landing_modal_login_stays_on_landing_page(client, role, path, data):
-    token = get_csrf(client.get('/').get_data(as_text=True))
-    r = client.post(path, data={**data, '_csrf': token, 'login_context': 'landing'})
+def test_role_login_uses_landing_modal_on_get_and_failure(client, role, path, data):
+    target = f'/{role}/'
+    page = client.get(path, query_string={'next': target})
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    active = f'class="lp-login-panel active" data-role="{role}"'
+    assert active in html and 'id="lpLoginOverlay" hidden' not in html
+    assert html.count(f'name="next" value="{target}"') == 1
+    token = get_csrf(html)
+    r = client.post(path, data={**data, '_csrf': token, 'next': target,
+                                'password': 'incorrect-example-password'})
 
     html = r.get_data(as_text=True)
     assert r.status_code == 200
     assert '<title>Aditya University — Faculty Feedback Portal</title>' in html
     assert 'Invalid credentials. Please check and try again.' in html
+    assert active in html
     assert f'openLogin("{role}")' in html
+    assert f'name="next" value="{target}"' in html
+    assert 'incorrect-example-password' not in html
 
 
 def test_admin_login_success(client):
-    r = login(client, '/admin/login', {'email': 'admin@college.edu', 'password': 'admin123'})
+    target = '/admin/forms'
+    r = login(client, '/admin/login',
+              {'email': 'admin@college.edu', 'password': 'admin123', 'next': target},
+              token_path='/admin/login?next=/admin/forms')
     assert r.status_code == 302
+    assert r.headers['Location'] == target
     assert client.get('/admin/').status_code == 200
 
 

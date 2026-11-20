@@ -1,0 +1,8 @@
+{% from 'partials/university_logo.svg' import university_logo %}
+<template id="ffs-loader-template">
+  <div id="ffs-loader" role="status">
+    {{ university_logo('ffs-logo', 'ffs-loader-ring-mask', decorative=true) }}
+    <div class="ffs-text">Loading…</div>
+  </div>
+</template>
+<script src="{{ url_for('static', filename='js/loader.js') }}" defer></script>

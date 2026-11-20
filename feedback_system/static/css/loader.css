@@ -1,12 +1,49 @@
-/* Loading screen shown while a page is being fetched (students and signed-out pages).
-   Created by js/loader.js; nothing here applies until the script adds #ffs-loader. */
-#ffs-loader { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1.1rem;
-  background: rgba(243, 246, 251, .92); backdrop-filter: blur(6px); opacity: 0; visibility: hidden; transition: opacity .18s ease, visibility .18s; font-family: "Instrument Sans", "Segoe UI", system-ui, sans-serif; color: #071E3D; }
+#ffs-loader {
+  --logo-ink: #03529b;
+  --logo-accent: #d59c00;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .75rem;
+  background: rgba(255, 255, 255, .96);
+  backdrop-filter: blur(6px);
+  color: #071e3d;
+  font: 600 .95rem/1.5 "Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .18s ease, visibility .18s;
+}
+
 #ffs-loader.is-on { opacity: 1; visibility: visible; }
-html.dark-mode #ffs-loader { background: rgba(8, 22, 43, .92); color: #E8EEF8; }
-#ffs-loader .ffs-logo { height: 44px; width: auto; }
-#ffs-loader .ffs-ring { width: 54px; height: 54px; border-radius: 50%; border: 5px solid #D3DDEC; border-top-color: #F57025; border-right-color: #04529B; animation: ffs-spin .9s linear infinite; }
-html.dark-mode #ffs-loader .ffs-ring { border-color: #223A5C; border-top-color: #F77F3A; border-right-color: #3B82D6; }
-#ffs-loader .ffs-text { font-weight: 600; letter-spacing: .02em; font-size: .95rem; }
-@keyframes ffs-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { #ffs-loader .ffs-ring { animation: none; border-color: #F57025; } }
+html.dark-mode #ffs-loader, #ffs-loader.is-dark {
+  --logo-ink: #be9337;
+  --logo-accent: var(--logo-ink);
+  background: rgba(8, 22, 43, .96);
+  color: #e8eef8;
+}
+
+#ffs-loader .ffs-logo { display: block; width: min(12rem, 55vw); height: auto; }
+
+@media (prefers-reduced-motion: no-preference) {
+  #ffs-loader.is-on .sun {
+    transform-origin: 239px 186.5px;
+    animation: ffs-logo-rotate 40s linear infinite;
+  }
+  #ffs-loader.is-on .orb {
+    transform-origin: 239.8px 185.84px;
+    animation: ffs-logo-rotate var(--orbit-duration) linear infinite var(--orbit-direction, reverse);
+  }
+  #ffs-loader .orb-one { --orbit-duration: 70s; }
+  #ffs-loader .orb-two { --orbit-duration: 46s; --orbit-direction: normal; }
+  #ffs-loader .orb-three { --orbit-duration: 30s; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #ffs-loader { transition: none; }
+}
+
+@keyframes ffs-logo-rotate { to { transform: rotate(360deg); } }

@@ -134,6 +134,17 @@ def test_recovery_pages_use_recovery_theme_and_loader(app, path):
     assert 'js/loader.js' in html and 'css/loader.css' in html
 
 
-def test_loader_is_for_students_and_guests_only(app, student):
+def test_loader_is_available_in_student_portal_and_guest_pages(app, student):
     assert 'js/loader.js' in _client(app, student).get('/student/').get_data(as_text=True)
     assert 'js/loader.js' in app.test_client().get('/lost-phone').get_data(as_text=True)
+    assert 'id="ffs-loader-template"' in app.test_client().get('/').get_data(as_text=True)
+
+
+@pytest.mark.parametrize('role', ['student', 'teacher', 'hod', 'dean', 'admin'])
+def test_base_loader_includes_requested_portals(app, role):
+    from flask import render_template
+
+    with app.test_request_context('/'):
+        html = render_template('base.html', current_user={'role': role})
+    assert ('id="ffs-loader-template"' in html) == (role != 'admin')
+    assert ('css/loader.css' in html) == (role != 'admin')

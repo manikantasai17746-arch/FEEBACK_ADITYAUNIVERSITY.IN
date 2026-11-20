@@ -955,8 +955,10 @@ def _landing_stats():
 
 
 def _render_landing_login(role):
+    target = request.args.get('next') or request.form.get('next')
     return render_template('landing.html', stats=_landing_stats(),
-                           login_role=role, login_values=request.form)
+                           login_role=role, login_values=request.form,
+                           login_next=target if is_safe_next(target) else None)
 
 
 # --------------------------------------------------------------------------- #
@@ -977,9 +979,7 @@ def student_login():
             if resp:
                 flash('Welcome back!', 'success')
                 return resp
-        if request.form.get('login_context') == 'landing':
-            return _render_landing_login('student')
-    return render_template('login.html')
+    return _render_landing_login('student')
 
 
 @bp.route('/scan-login', methods=['POST'])
@@ -1030,9 +1030,7 @@ def admin_login():
             resp = _login_attempt('admin', email, password, 'admin.dashboard')
             if resp:
                 return resp
-        if request.form.get('login_context') == 'landing':
-            return _render_landing_login('admin')
-    return render_template('admin_login.html')
+    return _render_landing_login('admin')
 
 
 # --------------------------------------------------------------------------- #
@@ -1052,9 +1050,7 @@ def teacher_login():
             resp = _login_attempt('teacher', emp, password, 'teacher.dashboard')
             if resp:
                 return resp
-        if request.form.get('login_context') == 'landing':
-            return _render_landing_login('teacher')
-    return render_template('teacher_login.html')
+    return _render_landing_login('teacher')
 
 
 # --------------------------------------------------------------------------- #
@@ -1075,9 +1071,7 @@ def hod_login():
             resp = _login_attempt('hod', emp.strip().upper(), password, 'hod.dashboard')
             if resp:
                 return resp
-        if request.form.get('login_context') == 'landing':
-            return _render_landing_login('hod')
-    return render_template('hod_login.html')
+    return _render_landing_login('hod')
 
 
 # --------------------------------------------------------------------------- #
@@ -1097,9 +1091,7 @@ def dean_login():
             resp = _login_attempt('dean', emp.strip().upper(), password, 'dean.dashboard')
             if resp:
                 return resp
-        if request.form.get('login_context') == 'landing':
-            return _render_landing_login('dean')
-    return render_template('dean_login.html')
+    return _render_landing_login('dean')
 
 
 # --------------------------------------------------------------------------- #
