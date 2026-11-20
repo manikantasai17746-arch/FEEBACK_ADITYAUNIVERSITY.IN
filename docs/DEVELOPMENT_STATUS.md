@@ -240,7 +240,19 @@ Verified changes (branch `teacher-ui-landing-style`):
 - `base.html`: student nav gets `active` states and the sun/moon theme toggle.
 - `student_dashboard.html`: page head with eyebrow and info chips. Stat-tile markup is unchanged.
 - `student_notifications.html`: rewritten to extend `base.html`. It previously extended a template (`student_base.html`) that does not exist in the repo, so the page could not render.
-- Students no longer see whether a form is Main, Lab or Second Faculty; Lab and Second forms stay locked until the earlier form of the same session is submitted (`services.feedback_locked`, enforced in `student.view_form` and `services.submit_feedback`). A missed form that has closed does not block later ones.
+- Students see one neutral "Waiting for your feedback" list (no Main/Lab/Second labels). By the owner's decision, the "Your feedback history" section below it does have Main / Lab / Second tabs (`?cat=`), so history shows the category. Lab and Second forms stay locked until the earlier form of the same session is submitted (`services.feedback_locked`, enforced in `student.view_form` and `services.submit_feedback`). A missed form that has closed does not block later ones.
 - Tests: `tests/test_student_portal_theme.py` (new) and `tests/test_hod_feedback_lab.py::test_lab_submission_does_not_complete_main` updated for the order rule.
 
 Limitations: the full suite was run with stand-in `pyotp`/`segno` modules because package installs were unavailable; 3 authenticator tests fail identically with and without these changes. The authenticator QR and backup-code pages were not screenshotted (they reuse the same scoped classes).
+
+## Recovery pages, setup redirect and loading screen (2026-11-20)
+
+- `static/css/recovery-theme.css` (new): restyles the signed-out forgot-password, reset-password, lost-phone and admin recovery pages (body class `recovery`, same fonts/sizes/tokens as the teacher and student themes). Templates only add the stylesheet link and body class; forms and routes are unchanged.
+- `auth.render_backup_codes`: after a student finishes authenticator setup (`reason == 'enrolled'`) the "I have saved my codes" button goes to My Feedback; other roles and later regenerations still go to Account security. The codes are still shown exactly once.
+- `static/js/loader.js` + `static/css/loader.css` (new): a spinner screen shown while a student or signed-out page is loading after a link click or form submit. It waits 120 ms (no flash on fast pages), never stays more than 12 s, and is hidden on back/forward. Loaded only for students and signed-out pages.
+- Tests: `tests/test_student_portal_theme.py`.
+
+## Star rating on student comments
+- A student who writes a comment (text answer) must also give 1-5 stars for it; blank comments need no stars.
+- Stored as `comment_stars` on `feedback_responses` and legacy `answers` (migration 26; view `anonymous_answers` now also exposes it). No student id is stored with it.
+- Not done yet: showing stars / grouping comments (Positive, Neutral, Needs improvement) for HOD and Dean.

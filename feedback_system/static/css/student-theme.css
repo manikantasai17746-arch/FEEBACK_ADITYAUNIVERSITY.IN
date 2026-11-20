@@ -316,3 +316,34 @@ body.role-student .pw-safe .eyebrow { color: var(--st-orange); margin: 0 0 .3rem
 body.role-student .pw-safe ul { list-style: none; margin: 1rem 0 0; padding: 1rem 0 0; border-top: 2px dashed var(--st-line); display: grid; gap: .8rem; }
 body.role-student .pw-safe li { display: flex; gap: .7rem; }
 body.role-student .pw-safe li::before { content: "\2713"; width: 24px; height: 24px; border-radius: 50%; background: var(--st-ok-bg); color: var(--st-ok); display: grid; place-items: center; font-size: .8rem; font-weight: 700; flex: none; }
+
+/* history heading and count chips */
+body.role-student .stu-eyebrow { color: var(--st-muted); margin: 1.6rem 0 .2rem; }
+body.role-student .stu-h2 { margin: 0 0 1rem; }
+body.role-student .stu-counts { display: flex; flex-wrap: wrap; gap: .5rem; margin: 0 0 .4rem; }
+body.role-student .stu-count { display: inline-flex; align-items: center; gap: .4rem; padding: .15rem .7rem; border-radius: 999px; background: var(--st-paper); border: 1px solid var(--st-line); color: var(--st-muted); font-size: .8rem; }
+body.role-student .stu-count b { color: var(--st-ink); }
+body.role-student .stu-count i { width: 8px; height: 8px; border-radius: 50%; }
+body.role-student .stu-count .d-pend { background: var(--st-orange); }
+body.role-student .stu-count .d-sub { background: var(--st-ok); }
+body.role-student .stu-count .d-clo { background: var(--st-r3); }
+
+/* history tabs */
+body.role-student .stu-cats { display: flex; flex-wrap: wrap; gap: .8rem; margin: 0 0 .2rem; }
+body.role-student .stu-cat { display: block; padding: .6rem 1rem; border: 1.5px solid var(--st-line); border-radius: 12px; background: var(--st-card); color: var(--st-ink); text-decoration: none; }
+body.role-student .stu-cat b { display: block; font: 650 1rem var(--st-display); }
+body.role-student .stu-cat small { display: block; color: var(--st-muted); font-size: .78rem; line-height: 1.3; }
+body.role-student .stu-cat:hover { border-color: var(--st-ink); text-decoration: none; }
+body.role-student .stu-cat.is-on { border-color: var(--st-ink); box-shadow: 3px 3px 0 var(--st-ink); }
+
+/* star rating for a written comment */
+body.role-student .comment-stars { border: 1.5px dashed var(--st-line); border-radius: 12px; padding: .7rem 1rem .8rem; margin: .8rem 0 0; background: var(--st-paper); }
+body.role-student .comment-stars[hidden] { display: none; }
+body.role-student .comment-stars legend { font-weight: 650; font-size: .92rem; padding: 0 .4rem; color: var(--st-ink); }
+body.role-student .star-row { display: inline-flex; flex-direction: row-reverse; gap: .15rem; }
+body.role-student .star-row input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+body.role-student .star-row label { font-size: 2rem; line-height: 1; cursor: pointer; color: var(--st-line); padding: 0 .1rem; transition: color .12s, transform .12s; }
+body.role-student .star-row label:hover, body.role-student .star-row label:hover ~ label, body.role-student .star-row input:checked ~ label { color: var(--st-orange); }
+body.role-student .star-row label:hover { transform: scale(1.12); }
+body.role-student .star-row input:focus-visible + label { outline: 3px solid var(--st-link); outline-offset: 2px; border-radius: 6px; }
+body.role-student .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

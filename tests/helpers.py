@@ -125,6 +125,8 @@ def submit_feedback(client, form_id, rating_qid, text_qid, option_id, text='Nice
         data[f'q_{rating_qid}'] = option_id
     if text_qid:
         data[f'q_{text_qid}'] = text
+        if (text or '').strip():
+            data[f'qs_{text_qid}'] = '4'     # a written comment needs its star rating
     return client.post(f'/student/form/{form_id}/submit', data=data)
 
 

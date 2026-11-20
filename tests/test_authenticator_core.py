@@ -382,7 +382,7 @@ def _v25():
 
 
 def test_v25_is_registered_and_additive():
-    assert schema.MIGRATIONS[-1][0] == 25
+    assert schema.MIGRATIONS[-1][0] >= 25
     for stmt in _v25():
         assert not re.search(r'\b(DROP|DELETE|RENAME|TRUNCATE)\b', stmt, re.I), stmt
     # The only ALTER is an ADD COLUMN; nothing else touches existing schema.
@@ -427,7 +427,7 @@ def test_v25_preserves_existing_forms_and_defaults_them_off(tmp_path, monkeypatc
         tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert {'student_authenticators', 'student_backup_codes'} <= tables
         version = conn.execute('SELECT MAX(version) FROM feedback_system_schema_migrations').fetchone()[0]
-        assert version == 25
+        assert version >= 25
     finally:
         conn.close()
 

@@ -147,6 +147,7 @@ def test_submit_works_after_the_code(app, admin, client, gate_setup):
         data[f'q_{rq}'] = oid
     if tq:
         data[f'q_{tq}'] = 'Clear explanations'
+        data[f'qs_{tq}'] = '4'
     r = client.post(f'/student/form/{fid}/submit', data=data)
     assert r.status_code == 302 and 'verify-code' not in r.headers['Location']
     assert _submissions(app, fid) == 1

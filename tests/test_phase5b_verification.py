@@ -146,6 +146,8 @@ class Base(unittest.TestCase):
         out = {}
         for q in services.form_questions(fid):
             out[f'q_{q["id"]}'] = q['options'][0]['id'] if q['qtype'] == 'rating' else 'ok'
+            if q['qtype'] == 'text':
+                out[f'qs_{q["id"]}'] = '4'
         return out
 
     def cleanup_forms(self, *fids):

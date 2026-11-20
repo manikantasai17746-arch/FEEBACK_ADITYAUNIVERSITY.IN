@@ -356,7 +356,10 @@ def render_backup_codes(codes, *, reason, user):
     """Render the one-time backup-code page. The codes exist only in this response."""
     resp = make_response(render_template(
         'backup_codes.html', codes=codes, reason=reason,
-        continue_url=url_for('account_security.index'), home_url=url_for(_home_for(user['role']))))
+        # A student who has just finished setup goes straight to My Feedback.
+        continue_url=(url_for('student.dashboard') if user['role'] == 'student' and reason == 'enrolled'
+                      else url_for('account_security.index')),
+        home_url=url_for(_home_for(user['role']))))
     return _no_store(resp)
 
 

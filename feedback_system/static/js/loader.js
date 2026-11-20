@@ -1,0 +1,60 @@
+/* Loading screen: shows a spinner while the browser navigates to another page or submits a
+   form. It never blocks anything that does not leave the page (new tabs, downloads, '#'
+   links, forms that a script cancels), and it always hides itself again. */
+(function () {
+  var script = document.currentScript || document.querySelector('script[data-logo]');
+  var logo = script && script.getAttribute('data-logo');
+  var el = null, showTimer = null, hideTimer = null;
+
+  function build() {
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'ffs-loader';
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', 'polite');
+    if (logo) { var img = document.createElement('img'); img.className = 'ffs-logo'; img.src = logo; img.alt = ''; el.appendChild(img); }
+    var ring = document.createElement('div'); ring.className = 'ffs-ring'; ring.setAttribute('aria-hidden', 'true'); el.appendChild(ring);
+    var txt = document.createElement('div'); txt.className = 'ffs-text'; txt.textContent = 'Loading…'; el.appendChild(txt);
+    document.body.appendChild(el);
+    return el;
+  }
+  function show() {
+    clearTimeout(showTimer);
+    // A short delay so very fast page changes do not flash the screen.
+    showTimer = setTimeout(function () {
+      build().classList.add('is-on');
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(hide, 12000);   // safety: never stay on screen
+    }, 120);
+  }
+  function hide() {
+    clearTimeout(showTimer); clearTimeout(hideTimer);
+    if (el) el.classList.remove('is-on');
+  }
+
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target.closest && e.target.closest('a[href]');
+    if (!a || a.hasAttribute('download') || a.hasAttribute('data-no-loader')) return;
+    var t = a.getAttribute('target');
+    if (t && t !== '_self') return;
+    var href = a.getAttribute('href') || '';
+    if (!href || href.charAt(0) === '#' || /^(javascript|mailto|tel):/i.test(href)) return;
+    var url;
+    try { url = new URL(a.href, location.href); } catch (err) { return; }
+    if (url.origin !== location.origin) return;
+    if (url.pathname === location.pathname && url.search === location.search && url.hash) return;
+    setTimeout(function () { if (!e.defaultPrevented) show(); }, 0);
+  });
+
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (!f || f.hasAttribute('data-no-loader')) return;
+    var t = f.getAttribute('target');
+    if (t && t !== '_self') return;
+    setTimeout(function () { if (!e.defaultPrevented) show(); }, 0);
+  });
+
+  window.addEventListener('pageshow', hide);   // back/forward cache
+  window.addEventListener('pagehide', hide);
+})();

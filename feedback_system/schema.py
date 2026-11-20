@@ -784,4 +784,28 @@ MIGRATIONS = [
         "ALTER TABLE feedback_forms ADD COLUMN auth_required INTEGER NOT NULL DEFAULT 0",
         "UPDATE feedback_forms SET auth_required=0 WHERE auth_required IS NULL",
     ]),
+    # ------------------------------------------------------------------ v26
+    # Star rating (1-5) a student gives to their OWN written comment, so comments can later
+    # be grouped (e.g. Positive / Neutral / Needs improvement) for the HOD and Dean.  It is
+    # stored with the anonymous comment text only: no student id.  NULL for comments written
+    # before this version and for questions without a comment.  Purely additive; the
+    # anonymous_answers view is recreated with one extra trailing column.
+    (26, "Star rating on student comments", [
+        "ALTER TABLE feedback_responses ADD COLUMN comment_stars INTEGER",
+        "ALTER TABLE answers ADD COLUMN comment_stars INTEGER",
+        "DROP VIEW IF EXISTS anonymous_answers",
+        """CREATE VIEW anonymous_answers AS
+            SELECT a.id AS answer_id, a.question_id AS question_id, a.option_id AS option_id,
+                   a.text_value AS text_value, s.form_id AS form_id,
+                   s.session_id AS session_id, s.submitted_at AS submitted_at,
+                   a.comment_stars AS comment_stars
+            FROM answers a
+            JOIN submissions s ON s.id = a.submission_id
+            UNION ALL
+            SELECT r.id + 1000000000 AS answer_id, r.question_id AS question_id,
+                   r.option_id AS option_id, r.text_value AS text_value,
+                   r.form_id AS form_id, r.session_id AS session_id,
+                   r.created_day AS submitted_at, r.comment_stars AS comment_stars
+            FROM feedback_responses r""",
+    ]),
 ]

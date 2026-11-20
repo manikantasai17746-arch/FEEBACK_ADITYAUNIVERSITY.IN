@@ -39,7 +39,21 @@ def dashboard():
     pending.sort(key=lambda f: (f.get('session_id') or 0, rank.get(f['category_key'], 9), f['id']))
     sections = [{'key': 'all', 'pending': pending, 'submitted': submitted, 'closed': closed}] \
         if forms else []
+    # History tabs (Main / Lab / Second), chosen with ?cat=.  Only the history uses them;
+    # the "waiting for your feedback" list above stays one neutral list in the required order.
+    history = []
+    for key in services.CATEGORY_ORDER:
+        in_cat = [f for f in forms if f['category_key'] == key]
+        if in_cat:
+            history.append({
+                'key': key, 'label': services.CATEGORY_LABELS[key], 'hint': services.CATEGORY_HINTS[key],
+                'pending': [f for f in in_cat if f in pending],
+                'submitted': [f for f in in_cat if f in submitted],
+                'closed': [f for f in in_cat if f in closed]})
+    chosen = request.args.get('cat')
+    active_cat = next((h for h in history if h['key'] == chosen), history[0] if history else None)
     return render_template('student_dashboard.html', user=user, ctx=ctx,
+                           history=history, active_cat=active_cat,
                            pending=pending, submitted=submitted, closed=closed,
                            sections=sections,
                            total=len(forms), year=_year_from_semester(ctx['semester'] if ctx else None))
