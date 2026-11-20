@@ -1,14 +1,49 @@
 {% extends '_comparison_index.html' %}
 {% block bodyclass %}hod-content{% endblock %}
 {% block comparison_intro %}
-<section class="card comparison-bands">
-  <div>
-    <h2><span aria-hidden="true">🎯</span> Teachers by Score Band</h2>
-    <p class="sub">Browse teacher feedback scores by range.</p>
-  </div>
-  <a class="btn" href="{{ url_for('hod.performance_bands', academic_year_id=filters.academic_year_id, semester_id=filters.semester_id) }}">
-    View score bands
-  </a>
+{% set band_filters = {'academic_year_id': filters.academic_year_id, 'semester_id': filters.semester_id, 'q': filters.q} %}
+<section class="card comparison-bands" aria-labelledby="comparison-band-heading">
+  <h2 id="comparison-band-heading"><span aria-hidden="true">🎯</span> Teachers by Score Band</h2>
+  <p class="sub">Choose a band to see teachers in that score range, highest first.</p>
+  <nav class="band-tabs" aria-label="Score bands">
+    {% for band in bands %}
+    <a class="band-tab band-{{ loop.index }}{{ ' active' if band.key == active_band.key }}"
+       {% if band.key == active_band.key %}aria-current="true"{% endif %}
+       href="{{ url_for('hod.comparison', band=band.key, **band_filters) }}#comparison-band-heading">
+      <span class="band-label">{{ band.label }}</span>
+      <span class="band-count">{{ band.count }} teacher{{ '' if band.count == 1 else 's' }}</span>
+    </a>
+    {% endfor %}
+  </nav>
 </section>
+
+<div class="card comparison-band-results">
+  <h2>{{ active_band.label }} <span class="muted">· {{ active_band.count }}</span></h2>
+  {% set band_class = 'band-' ~ (bands.index(active_band) + 1) %}
+  {% if active_band.rows %}
+  <div class="band-grid">
+    {% for row in active_band.rows %}
+    <article class="band-card {{ band_class }}">
+      <div class="band-photo" aria-hidden="true">
+        <span class="band-initials">{{ (row.teacher_name or 'Faculty').split() | map('first') | join | upper | truncate(2, true, '') }}</span>
+      </div>
+      <div class="band-info">
+        <div class="band-name">{{ row.teacher_name or 'Faculty' }}</div>
+        <div class="band-sub">{{ row.subject_code or '' }} {{ row.subject_name or '' }}</div>
+        <div class="band-sub">{{ row.valid_responses or row.response_count or 0 }} response(s)</div>
+      </div>
+      <div class="band-score">{{ '%.2f'|format(row.overall_score) }}%</div>
+      {% if row.teacher_user_id %}
+      <a class="btn btn-accent btn-sm" href="{{ url_for('hod.performance_detail', teacher_id=row.teacher_user_id) }}">View result</a>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="sub">No teachers in this score band for the selected filters.</p>
+  {% endif %}
+  <p class="sub"><a href="{{ url_for('hod.performance_bands', band=active_band.key, academic_year_id=filters.academic_year_id, semester_id=filters.semester_id) }}">Open the score-band report</a></p>
+</div>
+
 <h2>All teachers — closed rounds by subject</h2>
 {% endblock %}

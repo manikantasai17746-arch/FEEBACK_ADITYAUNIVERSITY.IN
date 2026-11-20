@@ -84,14 +84,14 @@
         {{ hod_nav_link('hod_feedback.main_list', 'Main Faculty Feedback', ep in ('hod_feedback.main_list', 'hod_feedback.main_create')) }}
         {{ hod_nav_link('hod_feedback.second_list', 'Second Faculty Feedback', ep in ('hod_feedback.second_list', 'hod_feedback.second_create')) }}
         {{ hod_nav_link('hod_feedback.lab_list', 'Lab Faculty Feedback', ep in ('hod_feedback.lab_list', 'hod_feedback.lab_create')) }}
-        {{ hod_nav_link('hod.pending', 'Faculty Assignments', ep == 'hod.pending') }}
         {{ hod_nav_link('hod.forms', 'Form Management', ep in ('hod.forms', 'hod.form_new', 'hod.pick_teachers', 'hod.question_sets')) }}
-        {{ hod_nav_link('hod.results', 'Feedback Results', ep in ('hod.results', 'hod.result_detail')) }}
         {{ hod_nav_link('hod.performance', 'Reports', ep.startswith('hod.performance')) }}
         {{ hod_nav_link('hod.comparison', 'Comparison', ep.startswith('hod.comparison')) }}
-        {{ hod_nav_link('hod.second_faculty', 'Second Faculty', ep == 'hod.second_faculty') }}
         {{ hod_nav_link('hod.my_actions', 'My Actions', ep == 'hod.my_actions') }}
         {{ hod_nav_link('photos.profile', 'Profile', ep == 'photos.profile') }}
+        {{ hod_nav_link('hod.pending', 'Faculty Assignments', ep == 'hod.pending') }}
+        {{ hod_nav_link('hod.results', 'Feedback Results', ep in ('hod.results', 'hod.result_detail')) }}
+        {{ hod_nav_link('hod.second_faculty', 'Second Faculty', ep == 'hod.second_faculty') }}
       </div>
       {% endif %}
       {% if is_hod %}<div class="hod-nav-tools">{% endif %}

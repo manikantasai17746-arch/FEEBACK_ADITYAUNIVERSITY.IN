@@ -62,7 +62,7 @@ def dashboard():
             stats[key] = r[key]
         stats['recent_forms'] = db.query(
             f"""SELECT id, title, status, category, snapshot_subject_code,
-                       snapshot_branch, published_at, created_at
+                       snapshot_branch, snapshot_timetable, published_at, created_at
                 FROM feedback_forms
                 WHERE branch_id IN ({ph}) AND is_deleted=0
                 ORDER BY created_at DESC, id DESC LIMIT 15""",
@@ -2565,9 +2565,13 @@ def comparison():
         branch_ids, academic_year_id=ay, semester_id=sem, q=q)
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
     semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
+    bands = _band_data(branch_ids, None, ay, sem, None)
+    requested_band = request.args.get('band')
+    default_band = next((band for band in bands if band['count']), bands[0])
+    active_band = next((band for band in bands if band['key'] == requested_band), default_band)
     return render_template(
         'hod_comparison.html', user=user, branches=branches, profiles=profiles,
-        years=years, semesters=semesters,
+        years=years, semesters=semesters, bands=bands, active_band=active_band,
         filters={'academic_year_id': ay, 'semester_id': sem, 'q': q})
 
 

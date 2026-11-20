@@ -508,16 +508,42 @@ body.role-hod.hod-content > main .ha-description {
   white-space: pre-wrap;
 }
 
-body.role-hod.hod-content > main .comparison-bands {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: .75rem;
+body.role-hod.hod-content > main .page > .comparison-bands {
+  margin-top: 1.15rem;
 }
 
 body.role-hod.hod-content > main .comparison-bands h2 {
   margin-bottom: .25rem;
+}
+
+body.role-hod.hod-content > main .comparison-bands .band-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
+  margin-top: .85rem;
+}
+
+body.role-hod.hod-content > main .comparison-bands .band-tab {
+  background: var(--hod-surface);
+  color: var(--hod-ink);
+}
+
+body.role-hod.hod-content > main .comparison-bands .band-tab.active {
+  background: color-mix(in srgb, var(--bc) 12%, var(--hod-surface));
+}
+
+body.role-hod.hod-content > main .comparison-bands .band-label,
+body.role-hod.hod-content > main .comparison-band-results .band-score {
+  color: color-mix(in srgb, var(--bc) 70%, var(--hod-ink));
+}
+
+body.role-hod.hod-content > main .comparison-band-results .band-grid {
+  margin-bottom: .9rem;
+}
+
+body.role-hod.hod-content > main .comparison-band-results .band-card {
+  min-width: 0;
+  background: color-mix(in srgb, var(--bc) 6%, var(--hod-surface));
+  border-inline-start-color: var(--bc);
 }
 
 body.role-hod.hod-content > main .profile-id {

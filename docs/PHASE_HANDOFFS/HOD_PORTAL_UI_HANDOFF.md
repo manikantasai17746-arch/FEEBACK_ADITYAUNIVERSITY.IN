@@ -54,3 +54,15 @@ Chrome reached all 12 HOD navigation destinations and Security. The browser chec
 | python -X utf8 -B -m pytest -ra --tb=short tests/test_hod_dashboard_theme.py tests/test_hod_feedback_lab.py tests/test_hod_feedback_second_and_results.py | 46 passed |
 
 Live PostgreSQL, email delivery, and a deployed site were outside this verification. Checkpoint 2 completes the planned HOD visual rollout.
+
+## Visual corrections from the supplied preview
+
+The Overview uses the attachment's gold SVG artwork, seal illustration and stamp shapes. The logo draws in on load, replays from the button, and displays the completed artwork when reduced motion is enabled. The exact vector paths and the seal PNG are bundled in the repository. The status chips and table layout use scoped Recent Forms data, and View details opens the existing authorized detail route.
+
+Multi-round Comparison renders the six score bands and active teacher cards using the existing department-scoped score helper. The original closed-round filters and report link are available. The preview's fake notifications, simulated publishing state, and mock action creation were excluded. The top navigation retains all 12 existing destinations. Onboarding continues to render the real setup wizard.
+
+The scoped tests ran in a temporary SQLite database. The final command below returned 74 passed.
+
+    python -X utf8 -B -m pytest -ra --tb=short tests/test_hod_dashboard_theme.py tests/test_comparison.py tests/test_score_marks_consistency.py tests/test_hod_feedback_main.py tests/test_hod_feedback_lab.py tests/test_hod_feedback_second_and_results.py
+
+Chrome under enforced CSP verified the Overview and Comparison at 375, 768, and 1280 px, including the logo reveal and keyboard replay, reduced-motion fallback, the seal asset, the Recent Forms draft filter, and score-band selection. The 17 remaining HOD pages also passed the 375 px route smoke check. This corrective pass did not rerun the full suite or use live PostgreSQL or production data.

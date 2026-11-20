@@ -273,3 +273,8 @@ Limitations: the full suite was run with stand-in `pyotp`/`segno` modules becaus
 - The focused workflow run passed 168 tests. Chrome checked the 17 pages and the score-band report at 375, 768, and 1280 px in both themes, and passed the live workflow checks.
 - Full pytest in UTF-8 mode returned 848 passed, one baseline-reproduced recovery-page failure, and one Playwright skip. This completes the planned HOD visual checkpoints.
 - See the [HOD portal UI handoff](PHASE_HANDOFFS/HOD_PORTAL_UI_HANDOFF.md) for exact test commands and limitations.
+
+## HOD preview visual corrections (2026-11-20)
+
+- Overview uses the supplied SVG artwork, notebook folds and seals, and the live Recent Forms status filters. Comparison uses the existing scoped score helper to show the preview's six score bands and selected teacher cards.
+- The focused run passed 74 tests. Chromium verified the SVG animation, Recent Forms filtering, and comparison bands. The remaining HOD routes rendered at 375 px. See the [HOD portal UI handoff](PHASE_HANDOFFS/HOD_PORTAL_UI_HANDOFF.md) for scope and limitations.

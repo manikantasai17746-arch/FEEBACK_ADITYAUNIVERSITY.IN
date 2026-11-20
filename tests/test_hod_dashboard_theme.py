@@ -171,6 +171,29 @@ def test_overview_empty_states(portal, role, message):
     assert message in response.get_data(as_text=True)
 
 
+def test_recent_forms_filter_keeps_department_totals(portal):
+    app, ids = portal
+    response = _signed_in(app, ids['hod']).get('/hod/?status=draft')
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert 'Draft (1)' in html and 'All (5)' in html
+    assert 'Lab Test Draft' in html
+    assert 'Main Test Form' not in html
+    assert '1 / 2 / 1' in html
+
+
+def test_hod_comparison_links_to_requested_real_score_band(portal):
+    app, ids = portal
+    response = _signed_in(app, ids['hod']).get('/hod/comparison?band=95-100&q=Test')
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert len(re.findall(r'class="band-tab band-', html)) == 6
+    assert 'band-6 active' in html
+    assert 'aria-current="true"' in html
+    assert 'q=Test' in html
+    assert 'No teachers in this score band' in html
+
+
 @pytest.mark.parametrize('role', ('student', 'teacher', 'dean', 'admin'))
 def test_other_roles_do_not_load_hod_theme(portal, role):
     app, ids = portal

@@ -22,7 +22,7 @@ body.role-hod {
   --hod-link: #04529b;
   --hod-main: #04529b;
   --hod-second: #137a55;
-  --hod-lab: #86590b;
+  --hod-lab: #a67508;
   --hod-orange: #f57025;
   --hod-button: #04529b;
   --hod-navy: #071e3d;
@@ -38,16 +38,16 @@ body.role-hod {
 
 html.dark-mode body.role-hod {
   --hod-ink: #e8eef8;
-  --hod-muted: #adbed5;
-  --hod-surface: #10233c;
-  --hod-paper: #182f4c;
-  --hod-line: #385473;
+  --hod-muted: #a7bad4;
+  --hod-surface: #0f2744;
+  --hod-paper: #0c2038;
+  --hod-line: #304b6e;
   --hod-link: #9ac8ff;
   --hod-button: #124c86;
   --hod-main: #83baff;
   --hod-second: #65d4a7;
   --hod-lab: #f0c15b;
-  --hod-navy: #071426;
+  --hod-navy: #050f20;
   --hod-open: #78dfb5;
   --hod-open-bg: #153d33;
   --hod-draft: #fad47d;
@@ -68,7 +68,7 @@ body.role-hod .topbar-inner {
   position: relative;
   max-width: 1320px;
   gap: .5rem .65rem;
-  padding: .6rem clamp(.8rem, 2vw, 1rem);
+  padding: .65rem clamp(.8rem, 2vw, 1rem);
 }
 
 body.role-hod .topbar .brand {
@@ -76,7 +76,7 @@ body.role-hod .topbar .brand {
 }
 
 body.role-hod .brand-logo {
-  height: 36px;
+  height: 34px;
 }
 
 html.dark-mode body.role-hod .topbar .brand-logo {
@@ -89,7 +89,7 @@ body.role-hod .brand-text {
   padding-inline-start: .65rem;
   border-inline-start: 2px solid var(--hod-line);
   color: var(--hod-ink);
-  font: 700 1.1rem/1.1 var(--hod-display);
+  font: 700 1.05rem/1 var(--hod-display);
 }
 
 body.role-hod .brand-text small {
@@ -117,8 +117,8 @@ body.role-hod #hod-topnav a {
   padding: .38rem .6rem;
   border-radius: 999px;
   color: var(--hod-muted);
-  font-weight: 650;
-  font-size: .84rem;
+  font-weight: 600;
+  font-size: .86rem;
   overflow-wrap: anywhere;
 }
 
@@ -165,6 +165,8 @@ body.role-hod .hod-nav-tools .a11y-bar button {
   place-items: center;
   padding: 0 .35rem;
   font: 650 .85rem var(--hod-text);
+  min-height: 38px;
+  min-width: 38px;
 }
 
 body.role-hod .hod-nav-tools .theme-toggle .moon,
@@ -252,9 +254,8 @@ body.role-hod .hod-overview .perf-tiles-6 {
 body.role-hod .hod-overview .au-head {
   align-items: center;
   flex-wrap: nowrap;
-  min-height: clamp(8rem, 13vw, 10rem);
   margin: 0;
-  padding-block: 1.25rem;
+  padding-block: 1.3rem;
   background: var(--hod-paper);
 }
 
@@ -265,7 +266,7 @@ body.role-hod .hod-overview .alert-warning {
 body.role-hod .hod-overview .au-head h1 {
   margin: 0;
   color: var(--hod-ink);
-  font: 750 clamp(1.75rem, 4vw, 2.4rem)/1.1 var(--hod-display);
+  font: 700 clamp(1.7rem, 3.2vw, 2.4rem)/1.06 var(--hod-display);
 }
 
 body.role-hod .hod-overview .au-head p,
@@ -274,11 +275,13 @@ body.role-hod .hod-overview .sec-panel > p {
 }
 
 body.role-hod .hod-overview .au-logo {
-  flex: 0 0 clamp(5.5rem, 14vw, 11rem);
-  padding: .4rem;
-  background: #fff;
+  flex: none;
+  width: clamp(96px, 12vw, 136px);
+  padding: 0;
   border: 0;
-  border-radius: .65rem;
+  border-radius: 12px;
+  background: transparent;
+  line-height: 0;
   cursor: pointer;
 }
 
@@ -286,10 +289,89 @@ body.role-hod .hod-overview .au-logo:disabled {
   cursor: default;
 }
 
-body.role-hod .hod-overview .au-logo img {
+body.role-hod .hod-overview .au-logo svg {
   display: block;
   width: 100%;
   height: auto;
+  overflow: visible;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body.role-hod .hod-overview .au-logo.is-animating .ring {
+    transform: rotate(-90deg);
+    transform-origin: 239.8px 185.84px;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: hod-logo-draw var(--duration) cubic-bezier(.65, 0, .35, 1) var(--delay) both;
+  }
+
+  body.role-hod .hod-overview .au-logo.is-animating .orb {
+    transform-origin: 239.8px 185.84px;
+    animation: hod-logo-orbit 3.4s cubic-bezier(.16, .7, .25, 1) var(--delay) both;
+  }
+
+  body.role-hod .hod-overview .au-logo.is-animating .tw {
+    animation: hod-logo-star 1.6s ease-out var(--delay) both;
+  }
+
+  body.role-hod .hod-overview .au-logo.is-animating .core {
+    animation: hod-logo-fade 1.4s ease-out 3.1s both;
+  }
+
+  body.role-hod .hod-overview .au-logo.is-animating .sun {
+    transform-origin: 239px 186.5px;
+    animation: hod-logo-sun 3.4s cubic-bezier(.16, .7, .25, 1) 3.1s both;
+  }
+
+  body.role-hod .hod-overview .au-logo.is-animating .word {
+    animation: hod-logo-rise 1.3s cubic-bezier(.2, .7, .2, 1) 4.5s both;
+  }
+
+  body.role-hod .hod-overview .au-logo.is-animating .word2 { animation-delay: 5.2s; }
+  body.role-hod .hod-overview .au-timing-1 { --duration: 2.4s; --delay: .3s; }
+  body.role-hod .hod-overview .au-timing-2 { --duration: 2s; --delay: 1.1s; }
+  body.role-hod .hod-overview .au-timing-3 { --duration: 1.8s; --delay: 1.8s; }
+  body.role-hod .hod-overview .au-timing-4 { --delay: 2.4s; }
+  body.role-hod .hod-overview .au-timing-5 { --delay: 2.51s; }
+  body.role-hod .hod-overview .au-timing-6 { --delay: 2.62s; }
+  body.role-hod .hod-overview .au-timing-7 { --delay: 2.73s; }
+  body.role-hod .hod-overview .au-timing-8 { --delay: 2.84s; }
+  body.role-hod .hod-overview .au-timing-9 { --delay: 2.95s; }
+  body.role-hod .hod-overview #aulg1 { --delay: 1.5s; --angle: 55deg; }
+  body.role-hod .hod-overview #aulg2 { --delay: 2.1s; --angle: -70deg; }
+  body.role-hod .hod-overview #aulg3 { --delay: 2.6s; --angle: 80deg; }
+}
+
+@keyframes hod-logo-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes hod-logo-orbit {
+  from { opacity: 0; transform: rotate(var(--angle)); }
+  20% { opacity: 1; }
+  to { opacity: 1; transform: rotate(0); }
+}
+
+@keyframes hod-logo-star {
+  from { opacity: 0; }
+  45% { opacity: 1; filter: drop-shadow(0 0 3px #e8c971); }
+  to { opacity: 1; filter: none; }
+}
+
+@keyframes hod-logo-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes hod-logo-sun {
+  from { transform: rotate(-40deg) scale(.88); }
+  to { transform: rotate(0) scale(1); }
+}
+
+@keyframes hod-logo-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
 }
 
 body.role-hod .hod-overview .nb-grid {
@@ -301,13 +383,20 @@ body.role-hod .hod-overview .nb-grid {
 
 body.role-hod .hod-overview .nb-sheet {
   --nb-accent: var(--hod-main);
+  --nb-cut: 40px;
   position: relative;
   min-width: 0;
-  padding: 1.5rem clamp(.9rem, 2vw, 1.5rem) 1.2rem clamp(1.65rem, 4vw, 3rem);
+  filter: drop-shadow(0 14px 16px #0f285029);
+}
+
+body.role-hod .hod-overview .nb-card {
+  position: relative;
+  height: 100%;
+  padding: 1.5rem clamp(.9rem, 2vw, 1.5rem) 1.3rem clamp(1.65rem, 4vw, 3rem);
   border: 1px solid var(--hod-line);
-  border-radius: 1rem 0 1rem 1rem;
+  border-radius: 18px;
   background: var(--hod-surface);
-  box-shadow: 0 13px 24px #071e3d24;
+  clip-path: polygon(0 0, calc(100% - var(--nb-cut)) 0, 100% var(--nb-cut), 100% 100%, 0 100%);
 }
 
 body.role-hod .hod-overview .nb-second {
@@ -318,26 +407,35 @@ body.role-hod .hod-overview .nb-lab {
   --nb-accent: var(--hod-lab);
 }
 
-body.role-hod .hod-overview .nb-sheet::before,
-body.role-hod .hod-overview .nb-sheet::after {
+body.role-hod .hod-overview .nb-card::before {
   position: absolute;
+  inset: 22px auto 22px clamp(.55rem, 1.4vw, 15px);
+  width: 9px;
+  background: repeating-linear-gradient(var(--hod-ink) 0 9px, transparent 9px 24px);
   content: "";
   pointer-events: none;
 }
 
-body.role-hod .hod-overview .nb-sheet::before {
-  inset: 1.4rem auto 1.4rem clamp(.6rem, 1.4vw, .95rem);
-  width: .55rem;
-  background: repeating-linear-gradient(var(--hod-ink) 0 .55rem, transparent .55rem 1.5rem);
+body.role-hod .hod-overview .nb-fold {
+  position: absolute;
+  inset: 0 0 auto auto;
+  width: var(--nb-cut);
+  height: var(--nb-cut);
+  filter: drop-shadow(-3px 4px 3px #0f285047);
+  pointer-events: none;
 }
 
-body.role-hod .hod-overview .nb-sheet::after {
-  inset: -1px -1px auto auto;
-  width: 2.35rem;
-  height: 2.35rem;
-  background: linear-gradient(45deg, var(--hod-paper), var(--hod-line));
+body.role-hod .hod-overview .nb-fold::before {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #aebcd6, #eef2f9 62%);
   clip-path: polygon(0 0, 100% 100%, 0 100%);
-  filter: drop-shadow(0 3px 3px #071e3d40);
+  content: "";
+}
+
+html.dark-mode body.role-hod .hod-overview .nb-fold::before {
+  background: linear-gradient(135deg, #35517a, #223a5c 62%);
 }
 
 body.role-hod .hod-overview .nb-note {
@@ -406,18 +504,29 @@ body.role-hod .hod-overview .nb-stamp {
   width: clamp(3.7rem, 7vw, 5.25rem);
   flex: none;
   transform: rotate(-21deg);
-  color: var(--hod-link);
-  font-weight: 750;
-  font-size: 6.3px;
-  letter-spacing: .06em;
+  opacity: .88;
+  mix-blend-mode: multiply;
+  pointer-events: none;
 }
 
-body.role-hod .hod-overview .nb-stamp-inner {
-  stroke: var(--hod-orange);
+body.role-hod .hod-overview .nb-stamp svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
 }
 
-body.role-hod .hod-overview .nb-stamp-caption {
-  fill: var(--hod-orange);
+html.dark-mode body.role-hod .hod-overview .nb-stamp {
+  mix-blend-mode: normal;
+  opacity: .9;
+}
+
+html.dark-mode body.role-hod .hod-overview .nb-stamp [stroke="#0b2f6b"] {
+  stroke: #9ac8ff;
+}
+
+html.dark-mode body.role-hod .hod-overview .nb-stamp text[fill="#0b2f6b"] {
+  fill: #9ac8ff;
 }
 
 body.role-hod .hod-overview .hod-overview-button {
@@ -437,9 +546,9 @@ body.role-hod .hod-overview .hod-overview-button:hover {
 
 body.role-hod .hod-overview .perf-tiles-6 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.35rem 1.5rem;
-  margin: 0 0 2rem;
-  padding-block: 1.85rem;
+  gap: 1.2rem 2rem;
+  margin: 0 0 2.2rem;
+  padding-block: 2rem;
   background: var(--hod-navy);
   color: #fff;
 }
@@ -455,7 +564,8 @@ body.role-hod .hod-overview .perf-tiles-6 dd {
 body.role-hod .hod-overview .perf-tiles-6 dd:first-of-type {
   order: -1;
   color: var(--hod-orange);
-  font: 750 clamp(1.55rem, 3.5vw, 2.4rem)/1.1 var(--hod-display);
+  font: 700 clamp(1.7rem, 3.2vw, 2.5rem)/1.1 var(--hod-display);
+  letter-spacing: -.02em;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
@@ -466,14 +576,12 @@ body.role-hod .hod-overview .perf-tiles-6 dt {
   font-size: .85rem;
 }
 
-body.role-hod .hod-overview .dept-chips {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: .35rem;
+body.role-hod .hod-overview .dept-codes {
+  color: #b6c9e2;
+  font-size: .75rem;
+  overflow-wrap: anywhere;
 }
 
-body.role-hod .hod-overview .dept-chip,
 body.role-hod .hod-overview .hod-badge {
   border-radius: 999px;
   padding: .13rem .5rem;
@@ -481,35 +589,33 @@ body.role-hod .hod-overview .hod-badge {
   font-weight: 650;
 }
 
-body.role-hod .hod-overview .dept-chip {
-  background: #244263;
-  overflow-wrap: anywhere;
-  max-width: 100%;
-}
-
 body.role-hod .hod-overview .sec-tabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: .85rem;
-  margin-bottom: 1.55rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+  gap: 14px;
+  margin-bottom: 1.25rem;
+  padding: 0 6px 6px 0;
 }
 
 body.role-hod .hod-overview .sec-tabs a {
-  display: grid;
-  align-content: center;
-  gap: .2rem;
-  min-height: 5.1rem;
-  padding: .8rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 18px;
   border: 1px solid var(--hod-line);
-  border-radius: .9rem;
+  border-radius: 14px;
   background: var(--hod-surface);
   color: var(--hod-ink);
   text-decoration: none;
 }
 
+body.role-hod .hod-overview .sec-tabs a strong {
+  font-size: 1.02rem;
+}
+
 body.role-hod .hod-overview .sec-tabs a small {
   color: var(--hod-muted);
-  font-size: .84rem;
+  font-size: .85rem;
 }
 
 body.role-hod .hod-overview .sec-tabs a:hover {
@@ -518,9 +624,14 @@ body.role-hod .hod-overview .sec-tabs a:hover {
 }
 
 body.role-hod .hod-overview .sec-tabs a.active {
-  outline: 2px solid var(--hod-link);
-  outline-offset: -2px;
-  box-shadow: 4px 4px 0 var(--hod-link);
+  border: 2px solid var(--hod-navy);
+  box-shadow: 5px 5px 0 var(--hod-navy);
+  transform: translate(-2px, -2px);
+}
+
+html.dark-mode body.role-hod .hod-overview .sec-tabs a.active {
+  border-color: var(--hod-link);
+  box-shadow: 5px 5px 0 var(--hod-link);
 }
 
 body.role-hod .hod-overview .sec-tabs a:focus-visible {
@@ -528,7 +639,7 @@ body.role-hod .hod-overview .sec-tabs a:focus-visible {
 }
 
 body.role-hod .hod-overview .sec-panel {
-  padding: clamp(.8rem, 2vw, 1.2rem);
+  padding: clamp(.8rem, 2vw, 1.3rem);
   background: var(--hod-surface);
   border: 1px solid var(--hod-line);
   border-radius: 1rem;
@@ -596,12 +707,6 @@ body.role-hod .hod-overview .status-closed {
   background: var(--hod-closed-bg);
 }
 
-@media (max-width: 960px) {
-  body.role-hod .hod-overview .sec-tabs {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media (max-width: 860px) {
   body.role-hod .hod-overview .nb-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -622,7 +727,47 @@ body.role-hod .hod-overview .status-closed {
 }
 
 @media (max-width: 520px) {
-  body.role-hod .hod-overview .sec-tabs {
-    grid-template-columns: minmax(0, 1fr);
+  body.role-hod .hod-overview .au-head {
+    gap: .6rem;
   }
+}
+
+body.role-hod .hod-overview .recent-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: .5rem 0 .8rem;
+}
+
+body.role-hod .hod-overview :is(.recent-filters a, .recent-detail) {
+  display: inline-block;
+  padding: 4px 12px;
+  border: 1px solid var(--hod-line);
+  border-radius: 999px;
+  background: var(--hod-surface);
+  color: var(--hod-link);
+  font-size: .82rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+body.role-hod .hod-overview .recent-filters a[aria-current=true] {
+  background: var(--hod-ink);
+  border-color: var(--hod-ink);
+  color: var(--hod-surface);
+}
+
+body.role-hod .hod-overview .hod-recent-table th {
+  text-align: left;
+  color: var(--hod-muted);
+  font-size: .74rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+body.role-hod .hod-overview .hod-recent-table small {
+  display: block;
+  color: var(--hod-muted);
+  font-size: .78rem;
 }

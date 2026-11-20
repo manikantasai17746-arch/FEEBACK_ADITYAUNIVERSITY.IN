@@ -10,7 +10,7 @@
     </div>
     <button class="au-logo" type="button" data-hod-logo disabled
             aria-label="Replay the Aditya University logo animation">
-      <img src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="Aditya University">
+      {% include '_hod_preview_logo.html' %}
     </button>
   </header>
 
@@ -27,38 +27,25 @@
     {% for c in stats.category_overview %}
     {% set endpoint, short_label = category_routes[c.key] %}
     <article class="nb-sheet nb-{{ c.key }}" aria-labelledby="overview-category-{{ c.key }}">
-      <p class="nb-note">Department feedback status</p>
-      <h2 class="nb-title" id="overview-category-{{ c.key }}">{{ c.label }}</h2>
-      <dl class="nb-stats">
-        {% for key, label in [('assignments', 'assignments'), ('published', 'published'),
-                              ('eligible', 'eligible'), ('submitted', 'submitted'),
-                              ('pending', 'pending'), ('draft', 'drafts')] %}
-        <div{% if key == 'submitted' %} class="nb-hot"{% endif %}>
-          <dt>{{ label }}</dt>
-          <dd>{{ c[key] }}</dd>
+      <div class="nb-card">
+        <p class="nb-note">Department feedback status</p>
+        <h2 class="nb-title" id="overview-category-{{ c.key }}">{{ c.label }}</h2>
+        <dl class="nb-stats">
+          {% for key, label in [('assignments', 'assignments'), ('published', 'published'),
+                                ('eligible', 'eligible'), ('submitted', 'submitted'),
+                                ('pending', 'pending'), ('draft', 'drafts')] %}
+          <div{% if key == 'submitted' %} class="nb-hot"{% endif %}>
+            <dt>{{ label }}</dt>
+            <dd>{{ c[key] }}</dd>
+          </div>
+          {% endfor %}
+        </dl>
+        <div class="nb-foot">
+          <a class="hod-overview-button" href="{{ url_for(endpoint) }}">Open {{ short_label }}</a>
+          <div class="nb-stamp">{% include '_hod_preview_stamp.html' %}</div>
         </div>
-        {% endfor %}
-      </dl>
-      <div class="nb-foot">
-        <a class="hod-overview-button" href="{{ url_for(endpoint) }}">Open {{ short_label }}</a>
-        <svg class="nb-stamp" viewBox="0 0 84 84" aria-hidden="true">
-          <defs>
-            <path id="stamp-top-{{ c.key }}" d="M10 42a32 32 0 0 1 64 0"/>
-            <path id="stamp-bottom-{{ c.key }}" d="M10 42a32 32 0 0 0 64 0"/>
-          </defs>
-          <circle cx="42" cy="42" r="39" fill="none" stroke="currentColor" stroke-width="2"/>
-          <circle cx="42" cy="42" r="36" fill="none" stroke="currentColor" stroke-dasharray="1.5 2"/>
-          <circle class="nb-stamp-inner" cx="42" cy="42" r="22" fill="none" stroke-width="1"/>
-          <circle class="nb-stamp-inner" cx="42" cy="42" r="8" fill="none" stroke-width="1.3"/>
-          <path class="nb-stamp-inner" d="M42 31v22m-11-11h22m-18-7 14 14m0-14L35 49" stroke-width="1"/>
-          <text fill="currentColor">
-            <textPath href="#stamp-top-{{ c.key }}" startOffset="50%" text-anchor="middle">ADITYA UNIVERSITY</textPath>
-          </text>
-          <text class="nb-stamp-caption">
-            <textPath href="#stamp-bottom-{{ c.key }}" startOffset="50%" text-anchor="middle">ANONYMOUS FEEDBACK</textPath>
-          </text>
-        </svg>
       </div>
+      <div class="nb-fold" aria-hidden="true"></div>
     </article>
     {% endfor %}
   </div>
@@ -67,9 +54,7 @@
     <div>
       <dt>Departments</dt>
       <dd>{{ stats.branches|length }}</dd>
-      <dd class="dept-chips">
-        {% for branch in stats.branches %}<span class="dept-chip">{{ branch.code }}</span>{% endfor %}
-      </dd>
+      <dd class="dept-codes">{{ stats.branches|map(attribute='code')|join(', ') }}</dd>
     </div>
     <div><dt>Students</dt><dd>{{ stats.student_count }}</dd></div>
     <div><dt>Faculty</dt><dd>{{ stats.faculty_count }}</dd></div>
@@ -100,39 +85,56 @@
   <section class="sec-panel" aria-labelledby="recent-forms">
     <h2 id="recent-forms" tabindex="-1"><span aria-hidden="true">📋</span> Recent Forms</h2>
     {% if stats.recent_forms %}
+    {% set options = {'': 'All', 'draft': 'Draft', 'open': 'Open', 'closed': 'Closed'} %}
+    {% set selected = request.args.get('status', '') %}
+    {% set selected = selected if selected in options else '' %}
+    {% set visible = stats.recent_forms|selectattr('status', 'equalto', selected)|list if selected else stats.recent_forms %}
+    <nav class="recent-filters" aria-label="Recent forms by status">
+      {% for status, label in options.items() %}
+      {% set count = (stats.recent_forms|selectattr('status', 'equalto', status)|list|length) if status else stats.recent_forms|length %}
+      <a href="{{ url_for('hod.dashboard', status=status or none) }}#recent-forms"
+         {% if selected == status %}aria-current="true"{% endif %}>{{ label }} ({{ count }})</a>
+      {% endfor %}
+    </nav>
+    {% if visible %}
     <div class="hod-recent-table" role="region" aria-label="Recent forms table" tabindex="0">
       <table>
         <thead>
           <tr>
-            <th scope="col">Form ID</th>
-            <th scope="col">Title</th>
-            <th scope="col">Category</th>
-            <th scope="col">Subject</th>
-            <th scope="col">Teacher(s)</th>
-            <th scope="col">Branch</th>
+            <th scope="col">Form</th>
+            <th scope="col">Type</th>
+            <th scope="col">Sections</th>
             <th scope="col">Status</th>
+            <th scope="col">Action</th>
           </tr>
         </thead>
         <tbody>
-          {% for form in stats.recent_forms %}
+          {% for form in visible %}
           {% set category = form.category or 'main' %}
           <tr class="cat-row-{{ category }}">
-            <td>#{{ form.id }}</td>
-            <td>{{ form.title }}</td>
+            <td>
+              <strong>{{ form.title }}</strong>
+              <small>#{{ form.id }}{% if form.snapshot_subject_code %} · {{ form.snapshot_subject_code }}{% endif %}{% if form.teachers %} · {{ form.teachers|join(', ') }}{% endif %}</small>
+            </td>
             <td><span class="hod-badge">{{ category }}</span></td>
-            <td>{{ form.snapshot_subject_code or '—' }}</td>
-            <td>{{ form.teachers|join(', ') if form.teachers else '—' }}</td>
-            <td>{{ form.snapshot_branch or '—' }}</td>
+            <td>
+              {{ form.snapshot_timetable or '—' }}
+              {% if form.snapshot_branch %}<small>{{ form.snapshot_branch }}</small>{% endif %}
+            </td>
             <td>
               <span class="hod-badge status-{{ form.status }}">
                 {{ form.status|upper if form.status in ('open', 'draft', 'closed') else form.status }}
               </span>
             </td>
+            <td><a class="recent-detail" href="{{ url_for('hod.result_detail', fid=form.id) }}">View details</a></td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+    {% else %}
+    <p>No recent {{ options[selected]|lower }} forms.</p>
+    {% endif %}
     {% else %}
     <p>No forms yet for your department(s).</p>
     {% endif %}

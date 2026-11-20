@@ -62,23 +62,16 @@
   if (!logo) return;
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
-  let animation;
-  const replay = () => {
-    if (reducedMotion.matches) return;
-    animation?.cancel();
-    animation = logo.querySelector('img').animate(
-      [
-        { opacity: 0.4, transform: 'translateY(5px) scale(.96)' },
-        { opacity: 1, transform: 'translateY(0) scale(1)' },
-      ],
-      { duration: 680, easing: 'ease-out' },
-    );
-  };
-  reducedMotion.addEventListener('change', () => {
+  const updateMotion = () => {
     logo.disabled = reducedMotion.matches;
-    if (reducedMotion.matches) animation?.cancel();
+    logo.classList.toggle('is-animating', !reducedMotion.matches);
+  };
+  reducedMotion.addEventListener('change', updateMotion);
+  logo.addEventListener('click', () => {
+    if (!reducedMotion.matches) {
+      const artwork = logo.querySelector('svg');
+      artwork.replaceWith(artwork.cloneNode(true));
+    }
   });
-  logo.disabled = reducedMotion.matches;
-  logo.addEventListener('click', replay);
-  replay();
+  updateMotion();
 })();
