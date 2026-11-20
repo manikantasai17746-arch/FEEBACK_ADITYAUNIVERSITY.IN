@@ -267,4 +267,4 @@ The role sign-in URLs render the landing-page form for the requested role. The n
 
 ## Faculty photos on student feedback forms (2026-11-20)
 
-The teacher verification card uses the shared employee photo service for uploaded photos and bundled portraits. It displays the existing initials badge when a portrait is unavailable. See the [faculty photo handoff](PHASE_HANDOFFS/STUDENT_FORM_PHOTO_HANDOFF.md).
+The teacher verification card uses the shared employee photo service for uploaded photos and bundled portraits. Photos display in a square frame, with an initials badge when a portrait is unavailable. See the [faculty photo handoff](PHASE_HANDOFFS/STUDENT_FORM_PHOTO_HANDOFF.md).

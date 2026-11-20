@@ -139,8 +139,9 @@ body.role-student .teacher-card {
 }
 body.role-student .teacher-card::before { content: ""; position: absolute; left: 13px; top: 18px; bottom: 18px; width: 9px; background: repeating-linear-gradient(to bottom, var(--st-ink) 0 9px, transparent 9px 21px); }
 body.role-student .teacher-card::after { content: ""; position: absolute; top: 0; right: 0; width: 46px; height: 46px; background: linear-gradient(135deg, #aebcd6 0%, #eef2f9 62%); clip-path: polygon(0 0, 100% 100%, 0 100%); }
-body.role-student .teacher-card .photo, body.role-student .teacher-card .photo-fallback { border: 3px solid var(--st-ink); border-radius: 50%; }
-body.role-student .teacher-card .photo-fallback { background: var(--st-orange); color: #fff; font-family: var(--st-display); }
+body.role-student .teacher-card .photo, body.role-student .teacher-card .photo-fallback { border: 3px solid var(--st-ink); }
+body.role-student .teacher-card .photo { height: auto; aspect-ratio: 1; border-radius: 0; }
+body.role-student .teacher-card .photo-fallback { border-radius: 50%; background: var(--st-orange); color: #fff; font-family: var(--st-display); }
 body.role-student .teacher-card .meta h2 { color: var(--st-ink); font-size: 1.4rem; }
 body.role-student .teacher-card .meta .desig, body.role-student .teacher-card .meta .line { color: var(--st-muted); }
 body.role-student .mini-stats { gap: .8rem 1.4rem; padding-right: 2.2rem; }

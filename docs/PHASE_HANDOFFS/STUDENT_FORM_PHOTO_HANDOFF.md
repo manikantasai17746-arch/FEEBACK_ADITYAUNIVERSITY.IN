@@ -9,3 +9,7 @@ Implemented on 2026-11-20 from `2c56bc6`.
 ## Verification
 
 - `pytest tests/test_photos_phase1.py -k 'serve or fetch_photo or initials' --tb=short` passed 4 tests with Python UTF-8 mode and a workspace SQLite temporary directory. The integration check uploaded a PNG, opened an eligible student's feedback form, and verified that the photo URL returned the uploaded bytes. It also exercised the initials state with both photo sources absent.
+
+## Square photo frame
+
+The student theme crops photos to a square with straight corners. Chrome measured the photo at 110 × 110 px in a 1280 px viewport and 64 × 64 px in a 390 px viewport in light and dark modes. The initials badge stays circular. `pytest tests/test_student_portal_theme.py tests/test_photos_phase1.py --tb=short` passed 36 tests with Python UTF-8 mode and a workspace SQLite temporary directory.
