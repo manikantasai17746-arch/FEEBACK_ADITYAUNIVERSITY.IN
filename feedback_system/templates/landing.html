@@ -203,14 +203,17 @@
 {% if stats.students > 0 %}
 <section class="numbers" aria-label="Feedback at Aditya University">
   <div class="numbers-inner">
-    <p class="numbers-line">
-      <b>{{ '{:,}'.format(stats.students) }}{% if stats.students >= 100 %}+{% endif %}</b> students give feedback on
-      <b>{{ '{:,}'.format(stats.subjects) }}{% if stats.subjects >= 10 %}+{% endif %}</b> subjects taught by
-      <b>{{ '{:,}'.format(stats.faculty) }}{% if stats.faculty >= 10 %}+{% endif %}</b> faculty members.
-    </p>
-    {% if stats.completion > 0 %}
-    <p class="numbers-sub">{{ stats.completion }}% of feedback requests have been answered so far.</p>
-    {% endif %}
+    {% include 'partials/landing_numbers_logo.svg' %}
+    <div>
+      <p class="numbers-line">
+        <b>{{ '{:,}'.format(stats.students) }}{% if stats.students >= 100 %}+{% endif %}</b> students give feedback on
+        <b>{{ '{:,}'.format(stats.subjects) }}{% if stats.subjects >= 10 %}+{% endif %}</b> subjects taught by
+        <b>{{ '{:,}'.format(stats.faculty) }}{% if stats.faculty >= 10 %}+{% endif %}</b> faculty members.
+      </p>
+      {% if stats.completion > 0 %}
+      <p class="numbers-sub">{{ stats.completion }}% of feedback requests have been answered so far.</p>
+      {% endif %}
+    </div>
   </div>
 </section>
 {% endif %}
@@ -442,6 +445,19 @@
 </script>
 
 <script nonce="{{ csp_nonce }}">
+// Start the logo entrance when the banner is reached.
+(function () {
+  var logo = document.querySelector('.numbers-logo');
+  if (!logo || typeof IntersectionObserver !== 'function') return;
+  logo.classList.add('is-animated');
+  var observer = new IntersectionObserver(function (entries) {
+    if (!entries[0].isIntersecting) return;
+    logo.classList.add('is-in');
+    observer.disconnect();
+  });
+  observer.observe(logo);
+})();
+
 // Privacy section: play the entrance once when it scrolls into view.
 // Skipped entirely (content stays visible) without IntersectionObserver or with reduced motion.
 (function () {

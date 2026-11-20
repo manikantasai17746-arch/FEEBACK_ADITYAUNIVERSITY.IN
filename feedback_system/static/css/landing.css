@@ -181,14 +181,94 @@ body.lp-menu-open .lp-drawer {
   background: url("../img/aditya-campus.jpg") center 40% / cover no-repeat;
   filter: grayscale(1) contrast(1.05); opacity: .22;
 }
-.numbers-inner { max-width: 1180px; margin: 0 auto; padding: 4rem 1.25rem; }
+.numbers-inner {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: clamp(9rem, 21vw, 16rem) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(1.5rem, 4vw, 4.25rem);
+  max-width: 64.5rem;
+  min-height: 294px;
+  margin-inline: auto;
+  padding: 2.25rem 1.25rem;
+}
+.numbers-logo { display: block; width: 100%; height: auto; --gold: #be9337; }
 .numbers-line {
-  margin: 0; max-width: 46rem;
+  margin: 0;
   font: 500 clamp(1.7rem, 3.6vw, 2.9rem)/1.2 var(--display); letter-spacing: -.02em;
   color: rgba(255,255,255,.85); text-wrap: balance;
 }
 .numbers-line b { font-weight: 700; color: var(--orange); white-space: nowrap; }
 .numbers-sub { margin: 1.2rem 0 0; font-size: 1.05rem; color: rgba(255,255,255,.8); }
+
+@media (max-width: 640px) {
+  .numbers-inner { grid-template-columns: 1fr; gap: 1.25rem; padding-block: 1.5rem 2rem; text-align: center; }
+  .numbers-logo { width: clamp(9rem, 44vw, 11rem); margin-inline: auto; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .numbers-logo.is-animated { --logo-play-state: paused; }
+  .numbers-logo.is-in { --logo-play-state: running; }
+  .numbers-logo.is-animated .ring {
+    transform: rotate(-90deg);
+    transform-origin: 239.8px 185.84px;
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: numbers-logo-draw var(--d) cubic-bezier(.65, 0, .35, 1) var(--t) forwards;
+  }
+  .numbers-logo.is-animated .orb {
+    transform-origin: 239.8px 185.84px;
+    opacity: 0;
+    animation: numbers-logo-orbit 3.4s cubic-bezier(.16, .7, .25, 1) var(--t) forwards,
+      numbers-logo-spin var(--s) linear calc(var(--t) + 3.4s) infinite var(--direction, reverse);
+  }
+  .numbers-logo .orb-one { --t: 1.5s; --a: 55deg; --s: 70s; }
+  .numbers-logo .orb-two { --t: 2.1s; --a: -70deg; --s: 46s; --direction: normal; }
+  .numbers-logo .orb-three { --t: 2.6s; --a: 80deg; --s: 30s; }
+  .numbers-logo.is-animated .tw {
+    opacity: 0;
+    animation: numbers-logo-star 1.6s ease-out var(--t) forwards;
+  }
+  .numbers-logo.is-animated .core { opacity: 0; animation: numbers-logo-fade 1.4s ease-out 3.1s forwards; }
+  .numbers-logo.is-animated .sun {
+    transform-origin: 239px 186.5px;
+    animation: numbers-logo-sun 3.4s cubic-bezier(.16, .7, .25, 1) 3.1s both,
+      numbers-logo-spin 40s linear 6.5s infinite;
+  }
+  .numbers-logo.is-animated .word {
+    opacity: 0;
+    animation: numbers-logo-rise 1.3s cubic-bezier(.2, .7, .2, 1) 4.5s forwards;
+  }
+  .numbers-logo.is-animated .word2 { animation-delay: 5.2s; }
+  .numbers-logo.is-animated :is(.ring, .orb, .tw, .core, .sun, .word) {
+    animation-play-state: var(--logo-play-state);
+  }
+}
+
+@keyframes numbers-logo-draw {
+  99.9% { stroke-dasharray: 1; }
+  100% { stroke-dashoffset: 0; stroke-dasharray: none; }
+}
+@keyframes numbers-logo-orbit {
+  0% { opacity: 0; transform: rotate(var(--a)); }
+  20% { opacity: 1; }
+  100% { opacity: 1; transform: rotate(0); }
+}
+@keyframes numbers-logo-star {
+  0% { opacity: 0; filter: drop-shadow(0 0 0 #be9337); }
+  45% { opacity: 1; filter: drop-shadow(0 0 3px #e8c971); }
+  100% { opacity: 1; filter: none; }
+}
+@keyframes numbers-logo-spin { to { transform: rotate(360deg); } }
+@keyframes numbers-logo-fade { to { opacity: 1; } }
+@keyframes numbers-logo-sun {
+  from { transform: rotate(-40deg) scale(.88); }
+  to { transform: rotate(0) scale(1); }
+}
+@keyframes numbers-logo-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
 
 /* ---------- Shared section shell ---------- */
 .block { padding: 5rem 0; }
@@ -320,7 +400,6 @@ body.lp-menu-open .lp-drawer {
   .lp-menu-btn { display: grid; }
   .lp-brand span { font-size: 1rem; }
   .block { padding: 3.5rem 0; }
-  .numbers-inner { padding: 3rem 1.25rem; }
 }
 @media (max-width: 520px) {
   .sheet { --cut: 42px; padding: 1.4rem 1rem 1.2rem 2.2rem; }

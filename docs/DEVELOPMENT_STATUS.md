@@ -256,3 +256,7 @@ Limitations: the full suite was run with stand-in `pyotp`/`segno` modules becaus
 - A student who writes a comment (text answer) must also give 1-5 stars for it; blank comments need no stars.
 - Stored as `comment_stars` on `feedback_responses` and legacy `answers` (migration 26; view `anonymous_answers` now also exposes it). No student id is stored with it.
 - Not done yet: showing stars / grouping comments (Positive, Neutral, Needs improvement) for HOD and Dean.
+
+## Landing-page logo animation (2026-11-20)
+
+The public feedback statistics banner displays the approved gold Aditya University logo to the left of the live counts on desktop and above them on phones. The entrance starts when the logo scrolls into view. The [landing-page logo handoff](PHASE_HANDOFFS/LANDING_LOGO_HANDOFF.md) records verification and deployment details.
