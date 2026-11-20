@@ -240,7 +240,7 @@ Verified changes (branch `teacher-ui-landing-style`):
 - `base.html`: student nav gets `active` states and the sun/moon theme toggle.
 - `student_dashboard.html`: page head with eyebrow and info chips. Stat-tile markup is unchanged.
 - `student_notifications.html`: rewritten to extend `base.html`. It previously extended a template (`student_base.html`) that does not exist in the repo, so the page could not render.
-- Students no longer see whether a form is Main, Lab or Second Faculty; Lab and Second forms stay locked until the earlier form of the same session is submitted (`services.feedback_locked`, enforced in `student.view_form` and `services.submit_feedback`). A missed form that has closed does not block later ones.
+- Students see one neutral "Waiting for your feedback" list (no Main/Lab/Second labels). By the owner's decision, the "Your feedback history" section below it does have Main / Lab / Second tabs (`?cat=`), so history shows the category. Lab and Second forms stay locked until the earlier form of the same session is submitted (`services.feedback_locked`, enforced in `student.view_form` and `services.submit_feedback`). A missed form that has closed does not block later ones.
 - Tests: `tests/test_student_portal_theme.py` (new) and `tests/test_hod_feedback_lab.py::test_lab_submission_does_not_complete_main` updated for the order rule.
 
 Limitations: the full suite was run with stand-in `pyotp`/`segno` modules because package installs were unavailable; 3 authenticator tests fail identically with and without these changes. The authenticator QR and backup-code pages were not screenshotted (they reuse the same scoped classes).
