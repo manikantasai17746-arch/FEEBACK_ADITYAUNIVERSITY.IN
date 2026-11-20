@@ -104,8 +104,9 @@
           <span><b>Logout</b><small>({{ current_user.name }})</small></span></a>
       {% elif current_user %}
         {% if current_user.role == 'admin' %}<a href="{{ url_for('auth.admin_setup_emails') }}">Recovery emails</a>{% endif %}
-        {% if current_user.role not in ('teacher', 'hod') %}<a href="{{ url_for('auth.change_password') }}">Password</a>{% endif %}
-        <a href="{{ url_for('account_security.index') }}">Security</a>
+        {% set ep2 = request.endpoint or '' %}
+        {% if current_user.role not in ('teacher', 'hod') %}<a{% if current_user.role == 'student' and ep2 == 'auth.change_password' %} class="active" aria-current="page"{% endif %} href="{{ url_for('auth.change_password') }}">Password</a>{% endif %}
+        <a{% if current_user.role == 'student' and ep2.startswith('account_security.') %} class="active" aria-current="page"{% endif %} href="{{ url_for('account_security.index') }}">Security</a>
         <a class="nav-user" href="{{ url_for('auth.logout') }}">Logout ({{ current_user.name }})</a>
       {% endif %}
     </nav>

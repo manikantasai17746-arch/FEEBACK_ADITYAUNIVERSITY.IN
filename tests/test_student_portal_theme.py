@@ -57,3 +57,21 @@ def test_notifications_page_renders_and_lists_items(app, student):
 def test_other_roles_do_not_load_student_theme(app):
     html = app.test_client().get('/teacher/login').get_data(as_text=True)
     assert 'student-theme.css' not in html
+
+
+def test_student_change_password_page_has_new_layout(app, student):
+    c = _client(app, student)
+    html = c.get('/change-password').get_data(as_text=True)
+    for needle in ('id="pw-meter"', 'Keep your account safe', 'js/password-form.js',
+                   'name="current_password"', 'name="new_password"', 'name="confirm_password"'):
+        assert needle in html, needle
+
+
+def test_current_menu_item_is_highlighted(app, student):
+    import re
+    c = _client(app, student)
+    for path, label in (('/student/', 'My Feedback'), ('/student/notifications', 'Notifications'),
+                        ('/change-password', 'Password'), ('/account/security', 'Security')):
+        html = c.get(path).get_data(as_text=True)
+        active = re.findall(r'<a[^>]*class="active"[^>]*>([^<]+)</a>', html)
+        assert [a.strip() for a in active] == [label], (path, active)

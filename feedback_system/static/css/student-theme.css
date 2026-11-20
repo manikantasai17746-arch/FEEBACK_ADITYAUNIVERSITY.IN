@@ -288,3 +288,31 @@ body.role-student .mark-opt .dot { display: inline-block; position: static; }
 body.role-student .mark-opt { flex-direction: row; }
 body.role-student .mark-opt .txt { text-align: left; }
 @media (max-width: 760px) { body.role-student .teacher-card .verify { margin-top: 0; } }
+
+/* the history tables show every row (no inner scrollbar, no see-through sticky header) */
+body.role-student #student-feedback .table-wrap { max-height: none; overflow-y: visible; }
+body.role-student #student-feedback .table-wrap th { position: static; background: var(--st-card); }
+
+/* change password (student) */
+body.role-student .pw-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 1.4rem; align-items: start; margin: 2rem 0 3rem; }
+@media (max-width: 860px) { body.role-student .pw-grid { grid-template-columns: 1fr; } }
+body.role-student .pw-grid .card { padding: 1.6rem; }
+body.role-student .pw-grid h2 { margin-bottom: 1.2rem; }
+body.role-student .pw-wrap { position: relative; }
+body.role-student .pw-wrap input { width: 100%; box-sizing: border-box; padding-right: 3rem; }
+body.role-student .pw-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 36px; height: 36px; border: 0; border-radius: 10px; background: none; color: var(--st-muted); cursor: pointer; display: grid; place-items: center; }
+body.role-student .pw-eye:hover { background: var(--st-paper); color: var(--st-link); }
+body.role-student .pw-meter { display: flex; gap: 4px; margin-top: .5rem; }
+body.role-student .pw-meter i { flex: 1; height: 6px; border-radius: 99px; background: var(--st-line); transition: background-color .15s; }
+body.role-student .pw-rules { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; gap: .35rem; font-size: .88rem; color: var(--st-muted); }
+body.role-student .pw-rules li::before { content: "\25CB"; margin-right: .5rem; }
+body.role-student .pw-rules li.ok { color: var(--st-ok); }
+body.role-student .pw-rules li.ok::before { content: "\25CF"; }
+body.role-student .hint.ok { color: var(--st-ok); }
+body.role-student .hint.bad { color: var(--st-bad); }
+body.role-student .pw-grid .btn-row { display: flex; gap: .7rem; flex-wrap: wrap; margin-top: .4rem; }
+body.role-student .pw-grid .btn[disabled] { opacity: .45; cursor: not-allowed; }
+body.role-student .pw-safe .eyebrow { color: var(--st-orange); margin: 0 0 .3rem; }
+body.role-student .pw-safe ul { list-style: none; margin: 1rem 0 0; padding: 1rem 0 0; border-top: 2px dashed var(--st-line); display: grid; gap: .8rem; }
+body.role-student .pw-safe li { display: flex; gap: .7rem; }
+body.role-student .pw-safe li::before { content: "\2713"; width: 24px; height: 24px; border-radius: 50%; background: var(--st-ok-bg); color: var(--st-ok); display: grid; place-items: center; font-size: .8rem; font-weight: 700; flex: none; }

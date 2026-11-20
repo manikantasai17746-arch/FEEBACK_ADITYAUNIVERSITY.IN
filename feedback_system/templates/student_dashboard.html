@@ -66,7 +66,7 @@
         {% for f in sec.submitted %}
         <tr>
           <td>{{ f.subject_name }}</td><td>{{ f.teacher_name }}</td>
-          <td>{{ f.timetable }}</td><td>{{ f.submitted_at }}</td>
+          <td>{{ f.timetable }}</td><td>{{ f.submitted_at|deadline if f.submitted_at else '' }}</td>
           <td><a class="btn btn-ghost btn-sm" href="{{ url_for('student.view_form', form_id=f.id) }}">View</a></td>
         </tr>
         {% endfor %}
