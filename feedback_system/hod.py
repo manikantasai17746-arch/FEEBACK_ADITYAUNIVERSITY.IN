@@ -16,6 +16,31 @@ def _hod_branches(user):
     return scoped_branches(user)
 
 
+@bp.app_context_processor
+def _hod_notification_menu():
+    user = current_user()
+    if not user or user['role'] != 'hod':
+        return {}
+    notices = db.query(
+        """SELECT title, body, is_read, SUM(CASE WHEN is_read=0 THEN 1 ELSE 0 END)
+                  OVER () AS unread
+           FROM notifications WHERE user_id=?
+           ORDER BY is_read, created_at DESC, id DESC LIMIT 8""", (user['id'],))
+    return {'hod_notices': notices, 'hod_unread': notices[0]['unread'] if notices else 0}
+
+
+@bp.post('/notifications/read')
+@role_required('hod')
+def notifications_read():
+    db.execute('UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0',
+               (current_user()['id'],))
+    return redirect(_overview_url(request.form.get('panel') or 'recent'))
+
+
+def _overview_url(panel, **values):
+    return url_for('hod.dashboard', panel=panel, _anchor='overview-panels', **values)
+
+
 @bp.route('/')
 @role_required('hod')
 def dashboard():
@@ -60,21 +85,40 @@ def dashboard():
         for key in ('student_count', 'faculty_count', 'forms_draft', 'forms_open',
                     'forms_closed', 'sfa_confirmed', 'sfa_unresolved'):
             stats[key] = r[key]
-        stats['recent_forms'] = db.query(
-            f"""SELECT id, title, status, category, snapshot_subject_code,
-                       snapshot_branch, snapshot_timetable, published_at, created_at
-                FROM feedback_forms
-                WHERE branch_id IN ({ph}) AND is_deleted=0
-                ORDER BY created_at DESC, id DESC LIMIT 15""",
-            tuple(branch_ids))
-        _tm = services.form_teachers_map([f['id'] for f in stats['recent_forms']])
-        stats['recent_forms'] = [dict(f, teachers=_tm.get(f['id'], []))
-                                 for f in stats['recent_forms']]
-
-        # Overview counts per feedback category (main / second / lab).
         stats['category_overview'] = _category_overview(branch_ids)
 
-    return render_template('hod_dashboard.html', stats=stats, user=user)
+    panel = request.args.get('panel', 'recent')
+    contexts = {'pending': _pending_context, 'bands': _band_context, 'results': _results_context}
+    if panel not in contexts:
+        panel = 'recent'
+    context = {}
+    if branch_ids:
+        if panel == 'recent':
+            stats['recent_forms'] = _overview_recent_forms(branch_ids)
+        else:
+            context = contexts[panel](user, request.args)
+    return render_template('hod_dashboard.html', stats=stats, user=user,
+                           panel=panel, in_overview=True, **context)
+
+
+def _overview_recent_forms(branch_ids):
+    ph = ','.join('?' * len(branch_ids))
+    forms = db.query(
+        f"""SELECT f.id, f.title, f.status, f.category, f.snapshot_subject_code,
+                   f.snapshot_branch, f.snapshot_timetable, f.deadline_at,
+                   (SELECT COUNT(DISTINCT cs.timetable_id) FROM form_sessions fs
+                      JOIN class_sessions cs ON cs.id=fs.session_id
+                      WHERE fs.form_id=f.id) AS section_count
+            FROM feedback_forms f
+            WHERE f.branch_id IN ({ph}) AND f.is_deleted=0
+              AND f.status IN ('draft', 'open', 'closed')
+            ORDER BY f.created_at DESC, f.id DESC LIMIT 15""", tuple(branch_ids))
+    ids = [form['id'] for form in forms]
+    teachers = services.form_teachers_map(ids)
+    eligible = services.eligible_counts_for_forms(ids)
+    return [dict(form, teachers=teachers.get(form['id'], []),
+                 eligible=eligible.get(form['id'], 0),
+                 deadline_passed=services.deadline_passed(form)) for form in forms]
 
 
 def _category_overview(branch_ids):
@@ -661,6 +705,9 @@ def form_status(fid):
     if form.get('branch_id') not in allowed:
         abort(403)
     status = request.form.get('status') or (request.get_json(silent=True) or {}).get('status')
+    overview = request.form.get('overview') == '1'
+    back = (_overview_url('recent', status=request.form.get('recent_status') or None)
+            if overview else request.form.get('next') or url_for('hod.forms'))
     if status not in ('open', 'closed', 'archived', 'draft'):
         abort(400)
     if status == 'open':
@@ -670,7 +717,7 @@ def form_status(fid):
                 return jsonify(ok=False, errors=errors), 400
             for e in errors:
                 flash(e, 'error')
-            return redirect(url_for('hod.form_new'))
+            return redirect(back if overview else url_for('hod.form_new'))
     ajax = request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     try:
         category_forms.change_status(user, fid, status)
@@ -680,12 +727,12 @@ def form_status(fid):
             return jsonify(ok=False, errors=msgs), exc.status
         for e in msgs:
             flash(e, 'error')
-        return redirect(request.form.get('next') or url_for('hod.forms'))
+        return redirect(back)
     audit('hod.form.status', 'feedback_forms', fid, f'Status -> {status}')
     if ajax:
         return jsonify(ok=True, form_id=fid, status=status)
     flash(f'Form status updated to {status}.', 'success')
-    return redirect(request.form.get('next') or url_for('hod.forms'))
+    return redirect(back)
 
 
 @bp.route('/forms/publish-selected', methods=['POST'])
@@ -750,6 +797,14 @@ def forms_publish_selected():
     skipped_n = len(result.get('skipped') or [])
     audit('hod.forms.bulk_publish', 'feedback_forms', None,
           f'Bulk publish published={published_n} failed={failed_n} skipped={skipped_n}')
+
+    if request.form.get('overview') == '1':
+        flash(f'Published {published_n} form(s). Failed {failed_n}. Skipped {skipped_n}.',
+              'success' if published_n else 'error')
+        for failure in result['failed'][:5]:
+            for message in failure.get('errors') or []:
+                flash(message, 'error')
+        return redirect(_overview_url('recent', status=request.form.get('recent_status') or None))
 
     # 200 if anything published or only skips; 207 multi-status if mix; 422 if all failed
     if published_n and (failed_n or skipped_n):
@@ -1167,7 +1222,7 @@ def _pending_pdf(form, entry, hod_name):
         services.format_deadline(form['deadline_at']) if form['deadline_at'] else 'No deadline',
         entry['pending_rolls'],
         generated_at=datetime.now(services._local_tz()).strftime('%d %b %Y, %I:%M %p'),
-        hod_name=hod_name)
+        hod_name=hod_name, roll_groups=entry.get('roll_groups'))
 
 
 def _email_pending(form, entry, hod_name):
@@ -1194,69 +1249,155 @@ def _email_pending(form, entry, hod_name):
             '<h3 style="color:#0B2F6B">Aditya University - Faculty Feedback</h3>'
             '<div style="white-space:pre-wrap">' + escape(text) + '</div></div>')
     ok = mailer.send_email(entry['email'], subject, text, html,
-                           attachments=[(f"pending_{form['id']}_{entry['emp_code'] or entry['teacher_user_id']}.pdf",
+                           attachments=[(f"pending_{dict(form).get('id', 'group')}_{entry['emp_code'] or entry['teacher_user_id']}.pdf",
                                          pdf, 'application/pdf')])
     return 'sent' if ok else 'failed'
+
+
+def _pending_kind(args):
+    return 'second' if args.get('kind') == 'second' else 'main'
+
+
+def _pending_forms(user, kind):
+    branch_ids = scoped_branch_ids_or_none(user) or []
+    if not branch_ids:
+        return []
+    ph = ','.join('?' * len(branch_ids))
+    category = "f.category='second'" if kind == 'second' else "f.category IN ('main','lab')"
+    return [dict(row) for row in db.query(
+        f"""SELECT f.id, f.title, f.status, f.deadline_at, f.subject_code,
+                   f.snapshot_subject_code, f.snapshot_timetable,
+                   t.name AS timetable
+            FROM feedback_forms f LEFT JOIN timetables t ON t.id=f.timetable_id
+            WHERE f.branch_id IN ({ph}) AND f.is_deleted=0
+              AND f.status IN ('open','closed') AND {category}
+            ORDER BY (f.status='open') DESC, f.created_at DESC, f.id DESC""",
+        tuple(branch_ids))]
+
+
+def _pending_group_entries(forms):
+    teachers = {}
+    for form in forms:
+        for entry in services.pending_by_teacher(form['id']):
+            teacher = teachers.setdefault(entry['teacher_user_id'], {
+                **entry, 'eligible': 0, 'submitted': 0, 'pending': 0,
+                'subjects': set(), 'sections': set(), 'pending_rolls': [],
+                'roll_groups': [], 'can_remind': False,
+            })
+            for field in ('eligible', 'submitted', 'pending'):
+                teacher[field] += entry[field]
+            for field in ('subjects', 'sections'):
+                teacher[field].update(entry[field])
+            if entry['pending_rolls']:
+                label = ' · '.join(filter(None, (form['timetable'] or form['snapshot_timetable'],
+                                               form['subject_code'] or form['snapshot_subject_code'])))
+                teacher['roll_groups'].append((label or f"Form #{form['id']}", entry['pending_rolls']))
+                teacher['pending_rolls'].extend(entry['pending_rolls'])
+            if form['status'] == 'open' and not services.deadline_passed(form) and entry['pending']:
+                teacher['can_remind'] = True
+    for teacher in teachers.values():
+        for field in ('subjects', 'sections'):
+            teacher[field] = sorted(teacher[field])
+    return sorted(teachers.values(), key=lambda t: t['teacher_name'].casefold())
+
+
+def _pending_group(forms, title, *, open_only=False):
+    forms = [form for form in forms if form['title'] == title]
+    if not forms:
+        abort(404)
+    open_forms = [form for form in forms
+                  if form['status'] == 'open' and not services.deadline_passed(form)]
+    used_forms = open_forms if open_only else forms
+    deadlines = {form['deadline_at'] for form in used_forms}
+    form = {'title': title, 'status': 'open' if open_forms else 'closed',
+            'deadline_at': next(iter(deadlines)) if len(deadlines) == 1 else None,
+            'deadline_varies': len(deadlines) > 1}
+    return form, _pending_group_entries(used_forms)
+
+
+def _pending_context(user, args):
+    from . import mailer
+    selection = args.get('form_id', '')
+    kind = _pending_kind(args)
+    if selection.isdecimal():
+        form = _hod_form_or_403(int(selection))
+        kind = 'second' if form['category'] == 'second' else 'main'
+    forms = _pending_forms(user, kind)
+    counts = {}
+    for item in forms:
+        counts[item['title']] = counts.get(item['title'], 0) + 1
+    if not selection and forms and args.get('by_name') == '1':
+        selection = f"group:{forms[0]['title']}"
+    group = None
+    form, teachers = None, []
+    if selection.startswith('group:'):
+        group = selection.removeprefix('group:')
+        form, teachers = _pending_group(forms, group)
+    else:
+        if not selection and forms:
+            selection = str(forms[0]['id'])
+        fid = next((item['id'] for item in forms if str(item['id']) == selection), None)
+        if fid:
+            form = _hod_form_or_403(fid)
+            teachers = services.pending_by_teacher(fid)
+    can_email = bool(form and form['status'] == 'open' and not services.deadline_passed(form))
+    return dict(forms=forms, form=form, teachers=teachers, kind=kind, group=group,
+                form_groups=sorted(counts.items()), pending_selection=selection,
+                totals={'teachers': sum(bool(t['pending']) for t in teachers),
+                        'pending': sum(t['pending'] for t in teachers),
+                        'with_pending': sum(bool(t['pending'] and t.get('can_remind', True)
+                                                 and mailer.is_valid_email(t['email'])) for t in teachers)},
+                mail_ready=mailer.is_configured(), can_email=can_email)
 
 
 @bp.route('/pending')
 @role_required('hod')
 def pending():
-    """Per teacher: who has NOT submitted yet (roll numbers only)."""
-    from . import mailer
     user = current_user()
-    branch_ids = [b['id'] for b in _hod_branches(user)]
-    forms = []
-    if branch_ids:
-        ph = ','.join('?' * len(branch_ids))
-        forms = db.query(
-            f"""SELECT id, title, status, deadline_at, subject_code, subject_name
-                FROM feedback_forms
-                WHERE branch_id IN ({ph}) AND is_deleted=0 AND status IN ('open','closed')
-                ORDER BY (status='open') DESC, created_at DESC, id DESC LIMIT 300""",
-            tuple(branch_ids))
-    fid = request.args.get('form_id', type=int)
-    if fid is None and forms:
-        fid = forms[0]['id']
-    form, teachers = None, []
-    if fid:
-        form = _hod_form_or_403(fid)
-        teachers = services.pending_by_teacher(fid)
-    totals = {'teachers': len(teachers),
-              'pending': sum(t['pending'] for t in teachers),
-              'with_pending': sum(1 for t in teachers if t['pending'])}
-    return render_template('hod_pending.html', user=user, forms=forms, form=form,
-                           teachers=teachers, totals=totals,
-                           mail_ready=mailer.is_configured(),
-                           can_email=bool(form and form['status'] == 'open'))
+    return render_template('hod_pending.html', user=user, **_pending_context(user, request.args))
 
 
 @bp.route('/pending/<int:fid>/teacher/<int:tid>.pdf')
+@bp.route('/pending/group/teacher/<int:tid>.pdf', defaults={'fid': None})
 @role_required('hod')
 def pending_pdf(fid, tid):
     """Preview/download the exact PDF that the e-mail button sends."""
     from flask import Response
-    form = _hod_form_or_403(fid)
-    entry = next((t for t in services.pending_by_teacher(fid)
-                  if t['teacher_user_id'] == tid), None)
+    if fid is None:
+        form, entries = _pending_group(_pending_forms(current_user(), _pending_kind(request.args)),
+                                       request.args.get('group'))
+    else:
+        form, entries = _hod_form_or_403(fid), services.pending_by_teacher(fid)
+    entry = next((t for t in entries if t['teacher_user_id'] == tid), None)
     if not entry:
         abort(404)
     pdf = _pending_pdf(form, entry, dict(current_user()).get('name') or 'HOD')
+    form_key = fid if fid is not None else 'group'
     return Response(pdf, mimetype='application/pdf', headers={
-        'Content-Disposition': f'inline; filename=pending_{fid}_{tid}.pdf'})
+        'Content-Disposition': f'inline; filename=pending_{form_key}_{tid}.pdf'})
 
 
 @bp.route('/pending/<int:fid>/email', methods=['POST'])
+@bp.route('/pending/group/email', methods=['POST'], defaults={'fid': None})
 @role_required('hod')
 def pending_email(fid):
     """E-mail the PDF to one teacher (teacher_user_id) or to all with pending students."""
     user = current_user()
-    form = _hod_form_or_403(fid)
-    back = url_for('hod.pending', form_id=fid)
-    if form['status'] != 'open':
+    if fid is None:
+        kind = _pending_kind(request.args)
+        form, entries = _pending_group(_pending_forms(user, kind), request.args.get('group'), open_only=True)
+        selection = f"group:{form['title']}"
+    else:
+        form = _hod_form_or_403(fid)
+        entries = services.pending_by_teacher(fid)
+        selection = fid
+        kind = 'second' if form['category'] == 'second' else 'main'
+    back = (_overview_url('pending', kind=kind, form_id=selection)
+            if request.args.get('overview') == '1'
+            else url_for('hod.pending', kind=kind, form_id=selection))
+    if form['status'] != 'open' or services.deadline_passed(form):
         flash('Reminders can only be sent while the form is open.', 'error')
         return redirect(back)
-    entries = services.pending_by_teacher(fid)
     if request.form.get('all'):
         chosen = [e for e in entries if e['pending']]
     else:
@@ -1289,9 +1430,9 @@ def pending_email(fid):
 
 def _hod_results_filters(request_args, tab):
     return {
-        'year_id': request_args.get('year_id') or '',
-        'semester_id': request_args.get('semester_id') or '',
-        'branch_id': request_args.get('branch_id') or '',
+        'year_id': request_args.get('year_id', type=int) or '',
+        'semester_id': request_args.get('semester_id', type=int) or '',
+        'branch_id': request_args.get('branch_id', type=int) or '',
         'section': (request_args.get('section') or '').strip(),
         'subject': (request_args.get('subject') or '').strip(),
         'faculty': (request_args.get('faculty') or '').strip(),
@@ -1413,25 +1554,34 @@ def _hod_results_rows(user, tab, filters):
     return forms_list, branches, years, semesters
 
 
+def _results_context(user, args):
+    tab = (args.get('tab') or 'main').strip().lower()
+    if tab not in ('main', 'second', 'lab'):
+        tab = 'main'
+    filters = _hod_results_filters(args, tab)
+    forms, branches, years, semesters = _hod_results_rows(user, tab, filters)
+    return dict(forms=forms, tab=tab, filters=filters, branches=branches,
+                years=years, semesters=semesters)
+
+
+def _results_return():
+    if request.args.get('overview') != '1':
+        return url_for('hod.results')
+    tab = request.args.get('tab', 'main')
+    filters = _hod_results_filters(request.args, tab)
+    return _overview_url('results', tab=tab, **{k: v for k, v in filters.items()
+                                                if v and k != 'category'})
+
+
+def _result_requires_open_opt_in(form):
+    return (request.args.get('overview') == '1' and form['status'] == 'open'
+            and request.form.get('allow_open') != '1')
+
+
 @bp.route('/results')
 @role_required('hod')
 def results():
-    """HOD results with independent Main / Second / Lab tabs and scoring stats."""
-    user = current_user()
-    tab = (request.args.get('tab') or 'main').strip().lower()
-    if tab not in ('main', 'second', 'lab'):
-        tab = 'main'
-    filters = _hod_results_filters(request.args, tab)
-    forms_list, branches, years, semesters = _hod_results_rows(user, tab, filters)
-    return render_template(
-        'hod_results.html',
-        forms=forms_list,
-        tab=tab,
-        filters=filters,
-        branches=branches,
-        years=years,
-        semesters=semesters,
-    )
+    return render_template('hod_results.html', **_results_context(current_user(), request.args))
 
 
 @bp.route('/results/<int:fid>/detail')
@@ -1444,9 +1594,18 @@ def result_detail(fid):
     marks = scoring.form_marks(fid, elig)
     scores = scoring.compute_form_scores(fid)
     qstats = services.question_stats(fid)
+    back_url = url_for('hod.results', tab=form['category'] or 'main')
+    back_label = 'Back to results'
+    if request.args.get('band') in {band[0] for band in SCORE_BANDS}:
+        allowed = scoped_branch_ids_or_none(current_user()) or []
+        back_url = _overview_url('bands', band=request.args['band'],
+                                 **_band_filters(request.args, allowed))
+        back_label = 'Back to score bands'
+    elif request.args.get('overview') == '1':
+        back_url = _results_return()
     return render_template(
         'hod_result_detail.html',
-        form=form,
+        form=form, back_url=back_url, back_label=back_label,
         marks=marks,
         scores=scores,
         question_stats=qstats,
@@ -1518,12 +1677,14 @@ def result_publish(fid):
     form = _hod_form_or_403(fid)
     if form['status'] == 'draft':
         flash('Publish the form before publishing its results.', 'error')
+    elif _result_requires_open_opt_in(form):
+        flash('Allow publishing open forms to publish these results.', 'error')
     elif services.publish_results(fid, user['id']):
         audit('hod.results.publish', 'feedback_forms', fid, 'HOD published results to teacher')
         flash('Results published to the teacher.', 'success')
     else:
         flash('This form has no class session linked, so results cannot be published.', 'error')
-    return redirect(url_for('hod.results'))
+    return redirect(_results_return())
 
 
 @bp.route('/results/<int:fid>/unpublish', methods=['POST'])
@@ -1534,7 +1695,7 @@ def result_unpublish(fid):
     services.unpublish_results(fid, user['id'])
     audit('hod.results.unpublish', 'feedback_forms', fid, 'HOD unpublished results')
     flash('Results unpublished. The teacher can no longer see them.', 'success')
-    return redirect(url_for('hod.results'))
+    return redirect(_results_return())
 
 
 @bp.route('/results/publish-selected', methods=['POST'])
@@ -1543,14 +1704,15 @@ def results_publish_selected():
     user = current_user()
     skip_zero = request.form.get('skip_zero') == '1'
     published = skipped = 0
+    allowed = scoped_branch_ids_or_none(user) or []
     for raw in request.form.getlist('form_ids'):
         try:
             fid = int(raw)
         except (TypeError, ValueError):
             continue
         form = services.get_form(fid)
-        allowed = scoped_branch_ids_or_none(user) or []
-        if not form or form['branch_id'] not in allowed or form['status'] == 'draft':
+        if (not form or form['branch_id'] not in allowed or form['status'] == 'draft'
+                or _result_requires_open_opt_in(form)):
             skipped += 1
             continue
         if skip_zero:
@@ -1566,7 +1728,7 @@ def results_publish_selected():
         else:
             skipped += 1
     flash(f'Published {published} result(s). Skipped {skipped}.', 'success')
-    return redirect(url_for('hod.results'))
+    return redirect(_results_return())
 
 # --------------------------------------------------------------------------- #
 # Improvement actions assigned to this HOD by the Dean
@@ -2318,7 +2480,8 @@ def _default_message_for(band_key):
     return DEFAULT_BAND_MESSAGES['high']
 
 
-def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id):
+def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id,
+               timetable_id=None, subject_code=None):
     """All score bands with their rows (each row carries the teacher's email)."""
     from . import scoring
     scope_ids = [branch_id] if branch_id else branch_ids
@@ -2326,8 +2489,11 @@ def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id):
     if scope_ids:
         rows = scoring.faculty_scores_for_branches(
             scope_ids, academic_year_id=academic_year_id,
-            semester_id=semester_id, form_id=form_id, min_responses=1)
-    rows = [dict(r) for r in rows if r.get('overall_score') is not None]
+            semester_id=semester_id, form_id=form_id,
+            timetable_ids=[timetable_id] if timetable_id else None,
+            subject_code=subject_code, min_responses=1)
+    rows = [dict(r) for r in rows
+            if r.get('overall_score') is not None and r.get('teacher_user_id')]
     ids = sorted({r['teacher_user_id'] for r in rows if r.get('teacher_user_id')})
     emails = {}
     if ids:
@@ -2343,42 +2509,56 @@ def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id):
                    and (hi is None or r['overall_score'] <= hi)]
         members.sort(key=lambda r: r['overall_score'], reverse=True)
         bands.append({'key': key, 'label': label, 'rows': members,
-                      'count': len(members)})
+                      'count': len({r['teacher_user_id'] for r in members})})
     return bands
+
+
+def _band_filters(args, branch_ids):
+    filters = {key: args.get(key, type=int) for key in
+               ('academic_year_id', 'semester_id', 'branch_id', 'form_id', 'timetable_id')}
+    if filters['branch_id'] not in branch_ids:
+        filters['branch_id'] = None
+    filters['subject_code'] = (args.get('subject_code') or '').strip() or None
+    return filters
+
+
+def _band_context(user, args):
+    from . import mailer
+    branches = _hod_branches(user)
+    branch_ids = [b['id'] for b in branches]
+    filters = _band_filters(args, branch_ids)
+    bands = _band_data(branch_ids, **filters)
+    band_key = args.get('band')
+    if band_key not in {band['key'] for band in bands}:
+        band_key = next((band['key'] for band in bands if band['count']), bands[0]['key'])
+    timetables, subjects = [], []
+    if branch_ids:
+        ph = ','.join('?' * len(branch_ids))
+        timetables = db.query(f"""SELECT id, code, name FROM timetables
+                                 WHERE branch_id IN ({ph}) ORDER BY code, id""", tuple(branch_ids))
+        subjects = db.query(
+            f"""SELECT COALESCE(NULLIF(snapshot_subject_code, ''), subject_code) AS code
+                FROM feedback_forms WHERE branch_id IN ({ph}) AND is_deleted=0
+                  AND status IN ('open', 'closed', 'archived')
+                GROUP BY COALESCE(NULLIF(snapshot_subject_code, ''), subject_code) ORDER BY code""",
+            tuple(branch_ids))
+    base_filters = {key: filters[key] for key in ('academic_year_id', 'form_id')}
+    all_bands = (_band_data(branch_ids, None, **base_filters, semester_id=None)
+                 if any(filters[k] for k in ('semester_id', 'branch_id', 'timetable_id', 'subject_code'))
+                 else bands)
+    return dict(branches=branches, filters=filters, bands=bands, band_key=band_key,
+                active=next(band for band in bands if band['key'] == band_key),
+                shown_count=len({row['teacher_user_id'] for band in bands for row in band['rows']}),
+                total_count=len({row['teacher_user_id'] for band in all_bands for row in band['rows']}), timetables=timetables,
+                subjects=subjects, semesters=db.query('SELECT id, number, label FROM semesters ORDER BY number'),
+                default_subject=DEFAULT_BAND_SUBJECT, default_message=_default_message_for(band_key),
+                mail_ready=mailer.is_configured())
 
 
 @bp.route('/performance/bands')
 @role_required('hod')
 def performance_bands():
-    """Teachers grouped by feedback-score band (<=75, 75-80, ... 95-100)."""
-    from . import mailer
-    user = current_user()
-    branches = _hod_branches(user)
-    branch_ids = [b['id'] for b in branches]
-
-    academic_year_id = request.args.get('academic_year_id', type=int)
-    semester_id = request.args.get('semester_id', type=int)
-    branch_id = request.args.get('branch_id', type=int)
-    form_id = request.args.get('form_id', type=int)
-    band_key = (request.args.get('band') or '').strip()
-    if branch_id and branch_id not in branch_ids:
-        branch_id = None
-
-    bands = _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id)
-    valid_keys = {b['key'] for b in bands}
-    if band_key not in valid_keys:
-        band_key = next((b['key'] for b in bands if b['count']), bands[0]['key'])
-    active = next(b for b in bands if b['key'] == band_key)
-
-    return render_template(
-        'hod_performance_bands.html', user=user, branches=branches,
-        bands=bands, active=active, band_key=band_key,
-        default_subject=DEFAULT_BAND_SUBJECT,
-        default_message=_default_message_for(band_key),
-        mail_ready=mailer.is_configured(),
-        filters={'academic_year_id': academic_year_id,
-                 'semester_id': semester_id, 'branch_id': branch_id,
-                 'form_id': form_id})
+    return render_template('hod_performance_bands.html', **_band_context(current_user(), request.args))
 
 
 @bp.route('/performance/bands/send', methods=['POST'])
@@ -2392,19 +2572,11 @@ def performance_bands_send():
     branch_ids = [b['id'] for b in branches]
     f = request.form
 
-    def _int(k):
-        try:
-            return int(f.get(k)) if f.get(k) else None
-        except ValueError:
-            return None
-    academic_year_id, semester_id = _int('academic_year_id'), _int('semester_id')
-    branch_id, form_id = _int('branch_id'), _int('form_id')
-    if branch_id and branch_id not in branch_ids:
-        branch_id = None
+    filters = _band_filters(f, branch_ids)
     band_key = (f.get('band') or '').strip()
-    back = url_for('hod.performance_bands', band=band_key,
-                   academic_year_id=academic_year_id, semester_id=semester_id,
-                   branch_id=branch_id, form_id=form_id)
+    back = (_overview_url('bands', band=band_key, **filters)
+            if f.get('overview') == '1'
+            else url_for('hod.performance_bands', band=band_key, **filters))
 
     subject_tpl = ' '.join((f.get('subject') or '').split())[:150] or DEFAULT_BAND_SUBJECT
     message_tpl = (f.get('message') or '').strip()[:5000] or _default_message_for(band_key)
@@ -2416,7 +2588,7 @@ def performance_bands_send():
         flash('Tick at least one teacher to send the email.', 'error')
         return redirect(back)
 
-    bands = _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id)
+    bands = _band_data(branch_ids, **filters)
     band = next((b for b in bands if b['key'] == band_key), None)
     if not band:
         flash('Unknown score band.', 'error')

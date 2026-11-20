@@ -1,0 +1,117 @@
+{% set endpoint = 'hod.dashboard' if in_overview else 'hod.performance_bands' %}
+{% set view = {'panel':'bands', '_anchor':'overview-panels'} if in_overview else {} %}
+{% set fargs = filters %}
+{% set band_links = dict(filters, **view) %}
+<section class="hod-panel-card" aria-labelledby="bands-heading">
+  <h2 id="bands-heading"><span aria-hidden="true">🎯</span> Teachers by Score Band</h2>
+  <p class="sub">Click a band to see the teachers whose feedback score falls in that range, highest first.
+    Use <strong>View result</strong> to open a teacher's full result.</p>
+
+  <form class="band-filters" method="get" action="{{ url_for(endpoint, _anchor='overview-panels' if in_overview else none) }}">
+    {% if in_overview %}<input type="hidden" name="panel" value="bands">{% endif %}
+    {% for key in ('academic_year_id', 'form_id') if filters[key] %}<input type="hidden" name="{{ key }}" value="{{ filters[key] }}">{% endfor %}
+    <div class="band-filter-fields">
+      <label>Department
+        <select name="branch_id" data-hod-auto-submit>
+          <option value="">All departments</option>
+          {% for b in branches %}<option value="{{ b.id }}" {% if b.id == filters.branch_id %}selected{% endif %}>{{ b.code }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Semester
+        <select name="semester_id" data-hod-auto-submit>
+          <option value="">All semesters</option>
+          {% for s in semesters %}<option value="{{ s.id }}" {% if s.id == filters.semester_id %}selected{% endif %}>{{ s.label or s.number }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Timetable
+        <select name="timetable_id" data-hod-auto-submit>
+          <option value="">All timetables</option>
+          {% for t in timetables %}<option value="{{ t.id }}" {% if t.id == filters.timetable_id %}selected{% endif %}>{{ t.code or t.name }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Subject
+        <select name="subject_code" data-hod-auto-submit>
+          <option value="">All subjects</option>
+          {% for s in subjects if s.code %}<option value="{{ s.code }}" {% if s.code == filters.subject_code %}selected{% endif %}>{{ s.code }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="hod-panel-actions">
+      <span class="sub">Showing <strong>{{ shown_count }}</strong> of <strong>{{ total_count }}</strong> {{ 'teacher' if total_count == 1 else 'teachers' }}</span>
+      <a class="btn btn-sm btn-ghost" href="{{ url_for(endpoint, academic_year_id=filters.academic_year_id, form_id=filters.form_id, **view) }}">Clear filters</a>
+      <noscript><button class="btn btn-sm" type="submit">Filter</button></noscript>
+    </div>
+  </form>
+  <div class="band-tabs">
+    {% for b in bands %}
+    <a class="band-tab band-{{ loop.index }} {{ 'active' if b.key == band_key }}"
+       {% if b.key == band_key %}aria-current="page"{% endif %}
+       href="{{ url_for(endpoint, band=b.key, **band_links) }}">
+      <span class="band-label">{{ b.label }}</span>
+      <span class="band-count">{{ b.count }} teacher{{ '' if b.count == 1 else 's' }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+</section>
+<section class="hod-panel-card band-active band-{{ (bands|map(attribute='key')|list).index(band_key) + 1 }}" aria-labelledby="active-band">
+    <h2 id="active-band">{{ active.label }} <span class="muted">· {{ active.count }}</span></h2>
+    {% if active.rows %}
+    <form method="post" action="{{ url_for('hod.performance_bands_send') }}" id="band-mail-form"
+          data-hod-confirm="Send this email to the ticked teachers?">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      {% if in_overview %}<input type="hidden" name="overview" value="1">{% endif %}
+      <input type="hidden" name="band" value="{{ band_key }}">
+      {% for k, v in fargs.items() if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+      <label class="band-selectall"><input type="checkbox" id="band-all" checked> Select all teachers in this band</label>
+    <div class="band-grid">
+      {% for r in active.rows %}
+      {% set tname = r.teacher_name or 'Faculty' %}
+      {% set initials = (tname.split()|map('first')|join('')|upper)[:2] %}
+      <div class="band-card">
+        <div class="band-photo">
+          <span class="band-initials" aria-hidden="true">{{ initials }}</span>
+        </div>
+        <div class="band-info">
+          <div class="band-name">{{ tname }}</div>
+          <div class="band-sub">{{ r.subject_code or '' }} {{ r.subject_name or '' }}</div>
+          <div class="band-sub">{{ r.valid_responses or r.response_count or 0 }} response(s)</div>
+        </div>
+        <div class="band-score">{{ '%.2f'|format(r.overall_score) }}%</div>
+        <label class="band-pick">
+          {% if r.teacher_email %}
+          <input type="checkbox" class="band-cb" name="teacher_user_id" value="{{ r.teacher_user_id }}" checked>
+          {{ r.teacher_email }}
+          {% else %}
+          <input type="checkbox" disabled> <span class="band-noemail">No email on file</span>
+          {% endif %}
+        </label>
+        <a class="btn btn-sm btn-accent"
+           href="{{ url_for('hod.result_detail', fid=r.form_id, band=band_key, **filters) if in_overview else url_for('hod.performance_detail', teacher_id=r.teacher_user_id) }}">👁 View result</a>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div class="band-compose">
+      <h3>✉ Email to ticked teachers</h3>
+      {% if not mail_ready %}
+      <div class="sub band-mail-warning">Email sending is not set up on the server yet
+        (MAIL_USER / MAIL_APP_PASSWORD). Messages cannot be delivered until it is.</div>
+      {% endif %}
+      <div class="field"><label for="band-subject">Subject</label>
+        <input type="text" id="band-subject" name="subject" maxlength="150" value="{{ default_subject }}"></div>
+      <div class="field"><label for="band-message">Message (a default is filled in; you can rewrite it)</label>
+        <textarea id="band-message" name="message" rows="9" maxlength="5000">{{ default_message }}</textarea>
+        <p class="sub">Placeholders filled for each teacher:
+          <code>{name}</code> <code>{score}</code> <code>{subject}</code> <code>{hod}</code></p></div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-accent" id="band-send">✉ Send email</button>
+        <button type="button" class="btn btn-ghost" id="band-reset">Restore default message</button>
+        <span id="band-selected" class="sub" aria-live="polite"></span>
+      </div>
+    </div>
+    </form>
+    {% else %}
+    <p class="sub">No teachers in this score band for the selected filters.</p>
+    {% endif %}
+</section>

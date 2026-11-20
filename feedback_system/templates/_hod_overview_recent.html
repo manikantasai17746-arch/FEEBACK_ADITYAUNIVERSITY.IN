@@ -1,0 +1,71 @@
+<section class="hod-panel-card" aria-labelledby="recent-forms">
+  <h2 id="recent-forms"><span aria-hidden="true">📋</span> Recent Forms</h2>
+  {% set options = {'': 'All', 'draft': 'Draft', 'open': 'Open', 'closed': 'Closed'} %}
+  {% set selected = request.args.get('status', '') %}
+  {% set selected = selected if selected in options else '' %}
+  {% set recent = stats.recent_forms %}
+  {% set visible = recent|selectattr('status', 'equalto', selected)|list if selected else recent %}
+  {% set drafts = visible|selectattr('status', 'equalto', 'draft')|list|length %}
+  <form id="recent-publish" method="post" action="{{ url_for('hod.forms_publish_selected') }}"
+        data-hod-confirm="Publish the selected drafts to students?">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="overview" value="1">
+    <input type="hidden" name="recent_status" value="{{ selected }}">
+  </form>
+  <div class="hod-panel-toolbar">
+    <nav class="recent-filters" aria-label="Recent forms by status">
+      {% for status, label in options.items() %}
+      {% set count = recent|selectattr('status','equalto',status)|list|length if status else recent|length %}
+      <a href="{{ url_for('hod.dashboard', panel='recent', status=status or none, _anchor='overview-panels') }}"
+         {% if selected == status %}aria-current="true"{% endif %}>{{ label }} ({{ count }})</a>
+      {% endfor %}
+    </nav>
+    <div class="hod-panel-actions">
+      <label><input type="checkbox" id="recent-all" {% if not drafts %}disabled{% endif %}> Select all drafts ({{ drafts }})</label>
+      <button class="btn btn-sm" id="recent-bulk" type="submit" form="recent-publish" disabled>Publish selected (0)</button>
+    </div>
+  </div>
+  {% if visible %}
+  <div class="hod-recent-table" role="region" aria-label="Recent forms table" tabindex="0">
+    <table>
+      <thead><tr><th scope="col" aria-label="Selection"></th><th scope="col">Form</th><th scope="col">Type</th>
+        <th scope="col">Sections</th><th scope="col">Status</th><th scope="col">Action</th></tr></thead>
+      <tbody>
+        {% for form in visible %}
+        {% set category = form.category or 'main' %}
+        <tr>
+          <td><input type="checkbox" class="recent-pick" name="form_ids" value="{{ form.id }}" form="recent-publish"
+                     aria-label="Select {{ form.title }} ({{ form.id }})" {% if form.status != 'draft' %}disabled{% endif %}></td>
+          <td><strong>{{ form.title }}</strong>
+            <small>{{ [form.snapshot_timetable or form.snapshot_branch, form.snapshot_subject_code,
+                       form.teachers|join(', ')]|select|join(' · ') }}</small></td>
+          <td>{{ category|capitalize }}</td>
+          <td>{{ form.section_count }} <small class="hod-inline">({{ form.eligible }} students)</small></td>
+          <td><span class="hod-badge status-{{ form.status }}">{{ 'PUBLISHED' if form.status == 'open' else form.status|upper }}</span>
+            {% if form.deadline_at %}
+            <small>{{ 'closes' if form.status == 'open' else 'closed early · deadline' if form.status == 'closed' and not form.deadline_passed else 'deadline' }} {{ form.deadline_at|deadline }}</small>
+            {% endif %}
+          </td>
+          <td>
+            {% if form.deadline_passed and form.status != 'draft' %}
+              <small>Deadline passed</small>
+            {% else %}
+            {% set label = {'open':'Close feedback', 'closed':'Reopen', 'draft':'Publish to students'}[form.status] %}
+            <form method="post" action="{{ url_for('hod.form_status', fid=form.id) }}" data-hod-confirm="{{ label }}?">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="overview" value="1">
+              <input type="hidden" name="recent_status" value="{{ selected }}">
+              <input type="hidden" name="status" value="{{ 'closed' if form.status == 'open' else 'open' }}">
+              <button class="btn btn-sm {{ 'btn-accent' if form.status == 'draft' else 'btn-ghost' }}" type="submit">{{ label }}</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p>No recent {{ options[selected]|lower ~ ' ' if selected else '' }}forms in your department.</p>
+  {% endif %}
+</section>

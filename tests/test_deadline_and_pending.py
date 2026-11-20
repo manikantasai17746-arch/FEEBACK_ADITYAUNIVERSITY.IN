@@ -262,3 +262,19 @@ def test_email_refused_outside_hod_scope_and_when_closed(app, pending_setup, adm
     finally:
         m.send_email = orig
     assert sent == []
+
+
+def test_overview_closes_and_reopens_an_open_form(app, pending_setup):
+    fid, hod = pending_setup['fid'], pending_setup['hod']
+    path = f'/hod/forms/{fid}/status'
+    page = '/hod/?panel=recent'
+    data = {'_csrf': token_from(hod, page), 'overview': '1'}
+    closed = hod.post(path, data=dict(data, status='closed'), follow_redirects=True)
+    assert closed.status_code == 200
+    assert 'Form status updated to closed.' in closed.get_data(as_text=True)
+    assert 'Reopen' in closed.get_data(as_text=True)
+    reopened = hod.post(path, data=dict(data, status='open'), follow_redirects=True)
+    assert reopened.status_code == 200
+    assert 'Form status updated to open.' in reopened.get_data(as_text=True)
+    with app.app_context():
+        assert services.get_form(fid)['status'] == 'open'

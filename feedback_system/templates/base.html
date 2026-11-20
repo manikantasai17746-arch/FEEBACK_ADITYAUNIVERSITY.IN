@@ -17,6 +17,7 @@
   {% if is_hod %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/hod-theme.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/hod-pages.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/hod-overview-panels.css') }}">
   {% endif %}
   {% if not current_user or current_user.role == 'student' %}<link rel="stylesheet" href="{{ url_for('static', filename='css/loader.css') }}">{% endif %}
   {% block head %}{% endblock %}
@@ -89,12 +90,29 @@
         {{ hod_nav_link('hod.comparison', 'Comparison', ep.startswith('hod.comparison')) }}
         {{ hod_nav_link('hod.my_actions', 'My Actions', ep == 'hod.my_actions') }}
         {{ hod_nav_link('photos.profile', 'Profile', ep == 'photos.profile') }}
-        {{ hod_nav_link('hod.pending', 'Faculty Assignments', ep == 'hod.pending') }}
-        {{ hod_nav_link('hod.results', 'Feedback Results', ep in ('hod.results', 'hod.result_detail')) }}
-        {{ hod_nav_link('hod.second_faculty', 'Second Faculty', ep == 'hod.second_faculty') }}
       </div>
       {% endif %}
-      {% if is_hod %}<div class="hod-nav-tools">{% endif %}
+      {% if is_hod %}<div class="hod-nav-tools">
+        <details class="hod-notices">
+          <summary aria-label="Notifications{% if hod_unread %}, {{ hod_unread }} unread{% endif %}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>
+            {% if hod_unread %}<span class="hod-notice-count">{{ hod_unread }}</span>{% endif %}
+          </summary>
+          <div class="hod-notice-list">
+            <strong>Notifications</strong>
+            {% for notice in hod_notices %}
+            <article><b>{{ notice.title }}</b><div>{{ notice.body }}</div></article>
+            {% else %}<p>No notifications.</p>{% endfor %}
+            {% if hod_unread %}
+            <form method="post" action="{{ url_for('hod.notifications_read') }}">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <input type="hidden" name="panel" value="{{ panel or 'recent' }}">
+              <button type="submit" class="btn btn-sm">Mark all as read</button>
+            </form>
+            {% endif %}
+          </div>
+        </details>
+        {% endif %}
       <span class="a11y-bar" title="Accessibility">
         {% if current_user and current_user.role == 'dean' %}
         <button type="button" id="btnDarkMode" class="theme-toggle" aria-label="Toggle dark mode">
@@ -134,15 +152,7 @@
 </header>
 
 <main class="container">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <div class="flashes">
-        {% for category, message in messages %}
-          <div class="flash flash-{{ category or 'info' }}">{{ message }}</div>
-        {% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
+  {% if not (in_overview and stats.branches) %}{% include '_flash_messages.html' %}{% endif %}
   {% block body %}{% endblock %}
 </main>
 

@@ -18,7 +18,7 @@ HOD_PAGES = (
 )
 
 
-UNSTYLED_HOD_CONTENT = {'/hod/', '/hod/pending', '/hod/second-faculty', '/account/security'}
+UNSTYLED_HOD_CONTENT = {'/hod/', '/hod/pending', '/hod/performance/bands', '/hod/results', '/hod/second-faculty', '/account/security'}
 
 
 def _new_user(role, name, onboarding_complete=True):
@@ -151,10 +151,10 @@ def test_overview_renders_scoped_counts_and_live_links(portal):
 
     totals = html.split('aria-label="Department totals">', 1)[1].split('</dl>', 1)[0]
     assert re.findall(r'<dd>([^<]+)</dd>', totals) == ['1', '2', '1', '1 / 2 / 1', '1', '1']
-    for path in ('/hod/pending', '/hod/performance/bands', '/hod/results'):
-        assert f'href="{path}"' in html.split('aria-label="Overview sections">', 1)[1].split('</nav>', 1)[0]
+    for panel in ('recent', 'pending', 'bands', 'results'):
+        assert f'href="/hod/?panel={panel}#overview-panels"' in html.split('aria-label="Overview sections">', 1)[1].split('</nav>', 1)[0]
     for text in ('Main Test Form', 'Second Test Form', 'Lab Test Draft', 'Lab Test Closed',
-                 'Overview Teacher', 'Second Test Teacher', 'OPEN', 'DRAFT', 'CLOSED', 'archived'):
+                 'Overview Teacher', 'Second Test Teacher', 'PUBLISHED', 'DRAFT', 'CLOSED'):
         assert text in html
     for text in ('Other Department Form', 'Deleted Test Form', 'Pending Test Student', 'pending-test-student'):
         assert text not in html
@@ -162,7 +162,7 @@ def test_overview_renders_scoped_counts_and_live_links(portal):
 
 @pytest.mark.parametrize(('role', 'message'), (
     ('empty_hod', 'No department scope assigned.'),
-    ('no_forms_hod', 'No forms yet for your department(s).'),
+    ('no_forms_hod', 'No recent forms in your department.'),
 ))
 def test_overview_empty_states(portal, role, message):
     app, ids = portal
@@ -176,7 +176,7 @@ def test_recent_forms_filter_keeps_department_totals(portal):
     response = _signed_in(app, ids['hod']).get('/hod/?status=draft')
     assert response.status_code == 200
     html = response.get_data(as_text=True)
-    assert 'Draft (1)' in html and 'All (5)' in html
+    assert 'Draft (1)' in html and 'All (4)' in html
     assert 'Lab Test Draft' in html
     assert 'Main Test Form' not in html
     assert '1 / 2 / 1' in html
@@ -214,7 +214,7 @@ def test_hod_pages_keep_working_with_shared_header(portal, path):
     html = response.get_data(as_text=True)
     assert 'css/hod-theme.css' in html
     nav = html.split('class="hod-nav-links">', 1)[1].split('</div>', 1)[0]
-    assert len(re.findall(r'<a\b', nav)) == 12
+    assert len(re.findall(r'<a\b', nav)) == 9
     assert ('class="hod-overview"' in html) == (path == '/hod/')
     assert ('class="role-hod hod-content"' in html) == (path not in UNSTYLED_HOD_CONTENT)
 
@@ -245,3 +245,79 @@ def test_dashboard_and_existing_actions_keep_access_gates(portal):
     assert hod.post(path, data={'status': 'closed'}).status_code == 400
     path = f"/hod/forms/{ids['other_form']}/status"
     assert hod.post(path, data={'status': 'closed', '_csrf': 'hod-test-csrf'}).status_code == 403
+
+
+@pytest.mark.parametrize(('panel', 'visible', 'hidden'), (
+    ('pending', ('pending-heading', 'Main + Lab', 'By form name (all subjects)', 'Individual forms',
+                 'Overview Teacher', 'pending-test-student'), ('Second Test Form', 'results-heading')),
+    ('pending&kind=second&by_name=1', ('pending-heading', 'group:Second Test Form', 'Second Test Teacher'),
+     ('Main Test Form', 'Overview Teacher')),
+    ('bands', ('bands-heading', 'name="branch_id"', 'name="semester_id"', 'name="timetable_id"',
+               'name="subject_code"', '75% or less', 'Above 95'), ('pending-heading', 'results-heading')),
+    ('results', ('results-heading', 'Main Faculty Results', 'Second Faculty Results', 'Lab Faculty Results',
+                 'id="hrAll"', 'id="hrAllowOpen"', 'Overview Teacher'), ('Pending Test Student', 'pending-test-student')),
+))
+def test_panels_render_inside_overview(portal, panel, visible, hidden):
+    app, ids = portal
+    response = _signed_in(app, ids['hod']).get(f'/hod/?panel={panel}')
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert 'id="overview-panels"' in html and 'class="hod-overview"' in html
+    assert all(text in html for text in visible)
+    assert all(text not in html for text in (*hidden, 'Other Department Form'))
+
+
+def test_grouped_pending_scope_and_pdf(portal, monkeypatch):
+    from feedback_system import mailer
+    app, ids = portal
+    with app.app_context():
+        db.execute("UPDATE users SET email='preview@example.test' WHERE id=?", (ids['teacher'],))
+        db.execute("UPDATE feedback_forms SET title='Main Test Form' WHERE id=?", (ids['other_form'],))
+    client = _signed_in(app, ids['hod'])
+    response = client.get('/hod/?panel=pending&form_id=group:Main+Test+Form')
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert 'Main Test Form — all subjects (1 form)' in html
+    route = '/hod/pending/group/teacher'
+    query = '?group=Main+Test+Form&kind=main'
+    assert client.get(f"{route}/{ids['teacher']}.pdf{query}").data.startswith(b'%PDF-')
+    assert client.get(f"{route}/{ids['dean']}.pdf{query}").status_code == 404
+    sent = []
+    monkeypatch.setattr(mailer, 'send_email', lambda *args, **kwargs: sent.append(kwargs) or True)
+    response = client.post('/hod/pending/group/email' + query + '&overview=1',
+                           data={'_csrf': 'hod-test-csrf', 'all': '1'})
+    assert response.status_code == 302
+    assert 'panel=pending' in response.location
+    assert len(sent) == 1 and sent[0]['attachments'][0][1].startswith(b'%PDF-')
+
+
+def test_overview_results_open_opt_in(portal):
+    from feedback_system import services
+    app, ids = portal
+    client = _signed_in(app, ids['hod'])
+    endpoint = f"/hod/results/{ids['main_form']}/publish?overview=1&tab=main&faculty=Overview"
+    data = {'_csrf': 'hod-test-csrf'}
+    response = client.post(endpoint, data=data)
+    assert response.status_code == 302
+    assert 'panel=results' in response.location and 'faculty=Overview' in response.location
+    with app.app_context():
+        assert not db.query('SELECT 1 FROM result_publications WHERE form_id=?', (ids['main_form'],))
+    assert client.post(endpoint, data=dict(data, allow_open='1')).status_code == 302
+    with app.app_context():
+        assert db.query('SELECT 1 FROM result_publications WHERE form_id=?', (ids['main_form'],))
+        services.unpublish_results(ids['main_form'], ids['hod'])
+
+
+def test_hod_bell_reads_only_own_notifications(portal):
+    app, ids = portal
+    with app.app_context():
+        for role, title in [('hod', 'Only for HOD'), ('dean', 'Only for Dean')]:
+            db.execute('INSERT INTO notifications(user_id,title) VALUES(?,?)', (ids[role], title))
+    client = _signed_in(app, ids['hod'])
+    html = client.get('/hod/').get_data(as_text=True)
+    assert 'Notifications, 1 unread' in html and 'Only for HOD' in html
+    assert 'Only for Dean' not in html
+    assert client.post('/hod/notifications/read', data={'_csrf': 'hod-test-csrf'}).status_code == 302
+    with app.app_context():
+        assert db.query('SELECT is_read FROM notifications WHERE user_id=?', (ids['hod'],), one=True)['is_read'] == 1
+        assert db.query('SELECT is_read FROM notifications WHERE user_id=?', (ids['dean'],), one=True)['is_read'] == 0

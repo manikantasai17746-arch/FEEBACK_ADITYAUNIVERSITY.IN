@@ -172,7 +172,7 @@ def build_student_report(rows, meta_lines, title, subtitle=None, generated_at=''
 
 
 def build_pending_rolls_pdf(teacher_name, emp_code, form_title, subjects, sections,
-                            deadline_text, rolls, generated_at='', hod_name=''):
+                            deadline_text, rolls, generated_at='', hod_name='', roll_groups=None):
     """One teacher's pending list as a PDF: roll numbers ONLY (no names).
 
     Portrait A4, roll numbers laid out in a grid so the page stays short.
@@ -206,15 +206,17 @@ def build_pending_rolls_pdf(teacher_name, emp_code, form_title, subjects, sectio
 
     if not rolls:
         story.append(Paragraph('No pending students - everyone has submitted.', styles['empty']))
-    else:
+    for label, entries in (roll_groups or ([(None, rolls)] if rolls else [])):
+        if label:
+            story.append(Paragraph(escape(label), styles['meta']))
         story.append(Paragraph('Roll numbers who have not yet submitted:', styles['meta']))
         story.append(Spacer(1, 4))
         cols = 5
         cell = ParagraphStyle('RollCell', parent=styles['cell'], fontName='Helvetica-Bold',
                               fontSize=10, leading=13, alignment=1)
-        grid = [[Paragraph(escape(str(r)), cell) for r in rolls[i:i + cols]]
-                + [''] * (cols - len(rolls[i:i + cols]))
-                for i in range(0, len(rolls), cols)]
+        grid = [[Paragraph(escape(str(r)), cell) for r in entries[i:i + cols]]
+                + [''] * (cols - len(entries[i:i + cols]))
+                for i in range(0, len(entries), cols)]
         table = Table(grid, colWidths=[doc.width / cols] * cols)
         table.setStyle(TableStyle([
             ('GRID', (0, 0), (-1, -1), 0.4, LINE),

@@ -63,82 +63,28 @@
     <div><dt>Second-faculty unresolved</dt><dd>{{ stats.sfa_unresolved }}</dd></div>
   </dl>
 
-  <nav class="sec-tabs" aria-label="Overview sections">
-    <a class="active" aria-current="location" href="#recent-forms">
-      <strong><span aria-hidden="true">📋</span> Recent Forms</strong>
-      <small>Latest forms in your department</small>
-    </a>
-    <a href="{{ url_for('hod.pending') }}">
-      <strong><span aria-hidden="true">📝</span> Pending submissions</strong>
-      <small>Students yet to submit, per teacher</small>
-    </a>
-    <a href="{{ url_for('hod.performance_bands') }}">
-      <strong><span aria-hidden="true">🎯</span> Teachers by Score Band</strong>
-      <small>Browse teachers by feedback score</small>
-    </a>
-    <a href="{{ url_for('hod.results') }}">
-      <strong><span aria-hidden="true">📃</span> Feedback Results</strong>
-      <small>View and publish results to teachers</small>
-    </a>
-  </nav>
-
-  <section class="sec-panel" aria-labelledby="recent-forms">
-    <h2 id="recent-forms" tabindex="-1"><span aria-hidden="true">📋</span> Recent Forms</h2>
-    {% if stats.recent_forms %}
-    {% set options = {'': 'All', 'draft': 'Draft', 'open': 'Open', 'closed': 'Closed'} %}
-    {% set selected = request.args.get('status', '') %}
-    {% set selected = selected if selected in options else '' %}
-    {% set visible = stats.recent_forms|selectattr('status', 'equalto', selected)|list if selected else stats.recent_forms %}
-    <nav class="recent-filters" aria-label="Recent forms by status">
-      {% for status, label in options.items() %}
-      {% set count = (stats.recent_forms|selectattr('status', 'equalto', status)|list|length) if status else stats.recent_forms|length %}
-      <a href="{{ url_for('hod.dashboard', status=status or none) }}#recent-forms"
-         {% if selected == status %}aria-current="true"{% endif %}>{{ label }} ({{ count }})</a>
+  <div class="hod-panel-view" id="overview-panels">
+    <nav class="sec-tabs" aria-label="Overview sections">
+      {% for key, label, icon, description in [
+          ('recent', 'Recent Forms', '📋', 'Latest forms in your department'),
+          ('pending', 'Pending submissions', '📝', 'Students yet to submit, per teacher'),
+          ('bands', 'Teachers by Score Band', '🎯', 'Browse teachers by feedback score'),
+          ('results', 'Feedback Results', '📄', 'View and publish results to teachers')] %}
+      <a class="{{ 'active' if panel == key }}" {% if panel == key %}aria-current="page"{% endif %}
+         href="{{ url_for('hod.dashboard', panel=key, _anchor='overview-panels') }}">
+        <strong><span aria-hidden="true">{{ icon }}</span> {{ label }}</strong>
+        <small>{{ description }}</small>
+      </a>
       {% endfor %}
     </nav>
-    {% if visible %}
-    <div class="hod-recent-table" role="region" aria-label="Recent forms table" tabindex="0">
-      <table>
-        <thead>
-          <tr>
-            <th scope="col">Form</th>
-            <th scope="col">Type</th>
-            <th scope="col">Sections</th>
-            <th scope="col">Status</th>
-            <th scope="col">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for form in visible %}
-          {% set category = form.category or 'main' %}
-          <tr class="cat-row-{{ category }}">
-            <td>
-              <strong>{{ form.title }}</strong>
-              <small>#{{ form.id }}{% if form.snapshot_subject_code %} · {{ form.snapshot_subject_code }}{% endif %}{% if form.teachers %} · {{ form.teachers|join(', ') }}{% endif %}</small>
-            </td>
-            <td><span class="hod-badge">{{ category }}</span></td>
-            <td>
-              {{ form.snapshot_timetable or '—' }}
-              {% if form.snapshot_branch %}<small>{{ form.snapshot_branch }}</small>{% endif %}
-            </td>
-            <td>
-              <span class="hod-badge status-{{ form.status }}">
-                {{ form.status|upper if form.status in ('open', 'draft', 'closed') else form.status }}
-              </span>
-            </td>
-            <td><a class="recent-detail" href="{{ url_for('hod.result_detail', fid=form.id) }}">View details</a></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p>No recent {{ options[selected]|lower }} forms.</p>
+
+    {% include '_flash_messages.html' %}
+    {% if panel == 'pending' %}{% include '_hod_overview_pending.html' %}
+    {% elif panel == 'bands' %}{% include '_hod_overview_bands.html' %}
+    {% elif panel == 'results' %}{% include '_hod_overview_results.html' %}
+    {% else %}{% include '_hod_overview_recent.html' %}
     {% endif %}
-    {% else %}
-    <p>No forms yet for your department(s).</p>
-    {% endif %}
-  </section>
+  </div>
   {% endif %}
 </div>
 {% endblock %}

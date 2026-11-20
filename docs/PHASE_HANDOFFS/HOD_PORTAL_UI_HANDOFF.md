@@ -66,3 +66,16 @@ The scoped tests ran in a temporary SQLite database. The final command below ret
     python -X utf8 -B -m pytest -ra --tb=short tests/test_hod_dashboard_theme.py tests/test_comparison.py tests/test_score_marks_consistency.py tests/test_hod_feedback_main.py tests/test_hod_feedback_lab.py tests/test_hod_feedback_second_and_results.py
 
 Chrome under enforced CSP verified the Overview and Comparison at 375, 768, and 1280 px, including the logo reveal and keyboard replay, reduced-motion fallback, the seal asset, the Recent Forms draft filter, and score-band selection. The 17 remaining HOD pages also passed the 375 px route smoke check. This corrective pass did not rerun the full suite or use live PostgreSQL or production data.
+
+
+## Screenshot review follow-up
+
+The screenshot review uses four section cards within `/hod/`. The active section, pending form type and selection, score filters, and result category and filters have bookmarkable URLs. The shared header displays nine primary links and a bell backed by the signed-in account's notifications. Second Faculty assignments are reached from Second Faculty Feedback.
+
+Recent Forms uses the existing form lifecycle for publishing, closing, and reopening, including its deadline checks and publishing validation. The grouped Pending selector resolves forms within both the HOD's branch allocation and the selected category. Grouped PDFs label roll-number blocks by form scope. Reminder emails include open forms only, and all outcomes are reported inside the active panel. Score-band mailing rechecks the chosen band and filters on the server. The Overview's results panel requires opting in to publish results from an open form. Answers remain anonymous.
+
+The focused test command returned 95 passed.
+
+    python -X utf8 -B -m pytest -ra --tb=short tests/test_hod_dashboard_theme.py tests/test_deadline_and_pending.py tests/test_hod_feedback_second_and_results.py tests/test_hod_category_pdf.py tests/test_hod_feedback_main.py tests/test_hod_feedback_lab.py
+
+Chrome at 375, 768, and 1317 px verified the section links, grouped form picker, score-band selection, composer reset, results category and open-form selection controls, and notification menu. Browser verification used synthetic SQLite records and stubbed mail. The HOD uses local fonts. The legacy Google Fonts import in the shared stylesheet was blocked under enforced CSP. Production database and SMTP delivery require environment-level verification.

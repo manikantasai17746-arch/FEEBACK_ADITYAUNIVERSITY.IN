@@ -370,7 +370,8 @@ def pending_by_teacher(form_id):
         LEFT JOIN submissions sb ON sb.form_id=fs.form_id AND sb.student_user_id=u.id
         LEFT JOIN second_faculty_assignments sfa
                ON sfa.session_id=cs.id AND sfa.status='confirmed'
-        WHERE fs.form_id=?""", (form_id,))
+               AND sfa.id=COALESCE(?, sfa.id)
+        WHERE fs.form_id=?""", (form['second_faculty_assignment_id'], form_id))
     groups = {}
     for r in rows:
         tid = r['t2'] if second else r['t1']

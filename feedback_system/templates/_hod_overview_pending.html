@@ -1,0 +1,116 @@
+{% set overview = '1' if in_overview else none %}
+{% set endpoint = 'hod.dashboard' if in_overview else 'hod.pending' %}
+{% set view = {'panel':'pending', '_anchor':'overview-panels'} if in_overview else {} %}
+{% if form %}
+{% set mail_url = url_for('hod.pending_email', group=group, kind=kind, overview=overview) if group is not none
+                  else url_for('hod.pending_email', fid=form.id, overview=overview) %}
+{% endif %}
+<section class="hod-panel-card" aria-labelledby="pending-heading">
+  <h2 id="pending-heading"><span aria-hidden="true">📝</span> Pending submissions</h2>
+  <p class="sub">Students who have <strong>not</strong> submitted yet, per teacher (roll numbers only). Nothing here changes any submission.</p>
+  <div class="hod-pending-controls">
+    <div>
+      <div class="hod-control-label">Form type</div>
+      <nav class="hod-segments" aria-label="Pending form type">
+        {% for value, label in [('main', 'Main + Lab'), ('second', 'Second faculty')] %}
+        <a href="{{ url_for(endpoint, kind=value, by_name='1', **view) }}"
+           {% if kind == value %}aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
+      </nav>
+    </div>
+    <form method="get" action="{{ url_for(endpoint, _anchor='overview-panels' if in_overview else none) }}">
+      {% if in_overview %}<input type="hidden" name="panel" value="pending">{% endif %}
+      <input type="hidden" name="kind" value="{{ kind }}">
+      <label class="hod-control-label" for="form_id">Feedback form</label>
+      <select id="form_id" name="form_id" data-hod-auto-submit {% if not forms %}disabled{% endif %}>
+        {% if not forms %}<option>No open or closed forms</option>{% endif %}
+        {% if form_groups %}
+        <optgroup label="By form name (all subjects)">
+          {% for title, count in form_groups %}
+          <option value="group:{{ title }}" {% if title == group %}selected{% endif %}>{{ title }} — all subjects ({{ count }} {{ 'form' if count == 1 else 'forms' }})</option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
+        {% if forms %}
+        <optgroup label="Individual forms">
+          {% for f in forms %}
+          <option value="{{ f.id }}" {% if pending_selection == f.id|string %}selected{% endif %}>
+            {{ f.title }}{% if f.timetable or f.snapshot_timetable %} - {{ f.timetable or f.snapshot_timetable }}{% endif %}{% if f.subject_code or f.snapshot_subject_code %} · {{ f.subject_code or f.snapshot_subject_code }}{% endif %} — {{ f.status|capitalize }}{% if f.status == 'open' and f.deadline_at %} (closes {{ f.deadline_at|deadline }}){% endif %}
+          </option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
+      </select>
+      <noscript><button class="btn btn-sm" type="submit">Show</button></noscript>
+    </form>
+  </div>
+  {% if can_email %}
+  <form method="post" class="hod-pending-email" action="{{ mail_url }}"
+        data-hod-confirm="Email the pending-roll PDF to {{ totals.with_pending }} teacher(s)?">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="all" value="1">
+    <button class="btn btn-accent" type="submit" {% if not totals.with_pending %}disabled{% endif %}>✉ Email all teachers with pending ({{ totals.with_pending }})</button>
+  </form>
+  {% endif %}
+  {% if form %}
+  <p class="sub hod-pending-totals"><strong>{{ totals.pending }}</strong> pending across
+    <strong>{{ totals.teachers }}</strong> teacher(s).
+    {% if form.deadline_at %}Deadline: {{ form.deadline_at|deadline }}.{% elif form.deadline_varies %}Deadline varies by form.{% endif %}
+    {% if not can_email %}Reminders are closed for this selection.{% endif %}
+    {% if not mail_ready %}<br><em>Mail is not configured (MAIL_USER / MAIL_APP_PASSWORD).</em>{% endif %}
+  </p>
+  {% endif %}
+</section>
+{% if teachers %}
+<section class="hod-panel-card hod-panel-tables">
+  <div class="hod-table-scroll" role="region" aria-label="Pending roll numbers by teacher" tabindex="0">
+    <table class="hod-pending-table">
+      <thead><tr><th>Teacher</th><th>Subject(s)</th><th>Eligible</th><th>Submitted</th>
+        <th>Pending</th><th>Pending roll numbers</th><th>Actions</th></tr></thead>
+      <tbody>
+      {% for t in teachers %}
+        <tr>
+          <td><strong>{{ t.teacher_name }}</strong>
+            <div class="sub">{{ t.emp_code or '' }}{% if t.email %} · {{ t.email }}{% else %} · <em>no email on file</em>{% endif %}</div></td>
+          <td>{{ t.subjects|join(', ') or '—' }}{% if group and t.sections %}<small>{{ t.sections|join(' · ') }}</small>{% endif %}</td>
+          <td>{{ t.eligible }}</td>
+          <td>{{ t.submitted }}</td>
+          <td><strong>{{ t.pending }}</strong></td>
+          <td>
+            {% if t.pending_rolls %}
+            <details><summary class="sub">Show {{ t.pending_rolls|length }} roll number(s)</summary>
+              {% for label, rolls in t.roll_groups|default([(none, t.pending_rolls)]) %}
+              {% if label %}<small>{{ label }}</small>{% endif %}
+              <div class="hod-roll-list">
+                {% for roll in rolls %}<span class="hod-badge">{{ roll }}</span>{% endfor %}
+              </div>
+              {% endfor %}
+            </details>
+            {% elif t.pending %}<span class="sub">No roll numbers on file</span>
+            {% else %}<span class="sub">All submitted ✓</span>{% endif %}
+          </td>
+          <td>
+            <div class="hod-panel-actions">
+              {% if t.pending %}
+              <a class="btn btn-ghost btn-sm" target="_blank" rel="noopener"
+                 href="{{ url_for('hod.pending_pdf', tid=t.teacher_user_id, group=group, kind=kind) if group is not none
+                          else url_for('hod.pending_pdf', fid=form.id, tid=t.teacher_user_id) }}">PDF</a>
+              {% endif %}
+              {% if can_email and t.pending and t.can_remind|default(true) %}
+              <form method="post" action="{{ mail_url }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <input type="hidden" name="teacher_user_id" value="{{ t.teacher_user_id }}">
+                <button class="btn btn-sm" type="submit" {% if not t.email %}disabled{% endif %}>✉ Email PDF</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% elif form %}
+<section class="hod-panel-card"><p class="sub">No teachers are linked to this form selection.</p></section>
+{% endif %}

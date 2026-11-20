@@ -1,0 +1,110 @@
+{% set endpoint = 'hod.dashboard' if in_overview else 'hod.results' %}
+{% set view = {'panel':'results', '_anchor':'overview-panels'} if in_overview else {} %}
+{% set post_args = dict(filters, overview='1', tab=tab) if in_overview else {} %}
+<section class="hod-panel-card" aria-labelledby="results-heading">
+  <h2 id="results-heading"><span aria-hidden="true">📄</span> Feedback Results</h2>
+  <p class="sub">Main, Second and Lab results stay separate. Teachers only see results you publish.</p>
+</section>
+<nav class="hr-tabs" aria-label="Result categories">
+  {% for category in ['main','second','lab'] %}
+  <a class="btn btn-sm {{ '' if tab == category else 'btn-ghost' }}" {% if tab == category %}aria-current="page"{% endif %}
+     href="{{ url_for(endpoint, tab=category, **view) }}">{{ category|capitalize }} Faculty Results</a>
+  {% endfor %}
+  <a class="btn btn-sm hr-download"
+     href="{{ url_for('hod.results_category_pdf', category=tab, year_id=filters.year_id, semester_id=filters.semester_id, branch_id=filters.branch_id, section=filters.section, subject=filters.subject, faculty=filters.faculty) }}">Download {{ tab|capitalize }} PDF</a>
+</nav>
+<form class="hod-panel-card hr-filters" method="get" action="{{ url_for(endpoint, _anchor='overview-panels' if in_overview else none) }}">
+    {% if in_overview %}<input type="hidden" name="panel" value="results">{% endif %}
+    <input type="hidden" name="tab" value="{{ tab }}">
+    <label>Academic year
+      <select name="year_id">
+        <option value="">All</option>
+        {% for y in years %}<option value="{{ y.id }}" {% if filters.year_id|string==y.id|string %}selected{% endif %}>{{ y.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Semester
+      <select name="semester_id">
+        <option value="">All</option>
+        {% for s in semesters %}<option value="{{ s.id }}" {% if filters.semester_id|string==s.id|string %}selected{% endif %}>{{ s.label or s.number }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Branch
+      <select name="branch_id">
+        <option value="">All in scope</option>
+        {% for b in branches %}<option value="{{ b.id }}" {% if filters.branch_id|string==b.id|string %}selected{% endif %}>{{ b.code }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Section <input type="search" name="section" value="{{ filters.section }}"></label>
+    <label>Subject <input type="search" name="subject" value="{{ filters.subject }}"></label>
+    <label>Faculty <input type="search" name="faculty" value="{{ filters.faculty }}"></label>
+    <div class="hod-panel-actions">
+      <button class="btn btn-primary" type="submit">Filter</button>
+      <a class="btn" href="{{ url_for(endpoint, tab=tab, **view) }}">Clear</a>
+    </div>
+  </form>
+  {% if forms %}
+  <form method="post" action="{{ url_for('hod.results_publish_selected', **post_args) }}" id="hrForm">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    {% if in_overview %}
+    <div class="hod-panel-card hr-selection-bar">
+      <label><input type="checkbox" id="hrAll"> Select all</label>
+      <label><input type="checkbox" name="allow_open" id="hrAllowOpen" value="1"> Also publish forms that are still open</label>
+      <span class="sub" id="hrCount" aria-live="polite"></span>
+    </div>
+    {% endif %}
+    <div class="hr-card-grid">
+      {% for f in forms %}
+      <article class="hr-card">
+        <div class="hr-card-top">
+          {% set initials = ((f.faculty_name or 'Faculty').split()|map('first')|join('')|upper)[:2] %}
+          <span class="hr-avatar" aria-hidden="true">{{ initials }}</span>
+          <div>
+            <strong>{{ f.faculty_name or 'Faculty' }}</strong>
+            <div class="hf-muted">{{ f.faculty_emp or '—' }}</div>
+            <div class="hf-muted">{{ f.subject_code_display }} · {{ f.subject_display }}</div>
+          </div>
+          <label class="hr-selection"><input type="checkbox" class="hr-chk" name="form_ids" value="{{ f.id }}"
+            {% if in_overview and f.status == 'open' and not f.is_published %}data-hr-open{% endif %}
+            aria-label="Select form {{ f.id }} for publishing"></label>
+        </div>
+        <div class="hr-meta">
+          <span>Section {{ f.section_code or '—' }}</span>
+          <span>Room {{ f.room or '—' }}</span>
+          <span class="hod-badge status-{{ f.status }}">{{ f.status }}</span>
+          {% if f.is_published %}<span class="hod-badge hr-published">Published</span>{% endif %}
+        </div>
+        <div class="hr-stats">
+          <div><strong>{{ f.eligible }}</strong> eligible</div>
+          <div><strong>{{ f.submitted }}</strong> submitted</div>
+          <div><strong>{{ f.pending }}</strong> pending</div>
+        </div>
+        <p class="sub hr-completion">
+          <span class="hr-pct">{{ '%.1f'|format(f.completion_pct) }}%</span> complete
+          · {{ f.answer_count }} answers from {{ f.students_count }} students
+          · marks {{ f.obtained }} / {{ f.maximum }}
+        </p>
+        <div class="hr-actions">
+          <a class="btn btn-sm" href="{{ url_for('hod.result_detail', fid=f.id, **post_args) }}">Details</a>
+          {% if f.is_published %}
+          <button class="btn btn-sm" type="submit" formaction="{{ url_for('hod.result_unpublish', fid=f.id, **post_args) }}"
+                  data-hod-confirm="Unpublish results for this form?">Unpublish</button>
+          {% else %}
+          <button class="btn btn-sm btn-primary" type="submit" formaction="{{ url_for('hod.result_publish', fid=f.id, **post_args) }}"
+                  {% if in_overview and f.status == 'open' %}data-hr-open{% endif %}
+                  data-hod-confirm="Publish results to the teacher?">Publish</button>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+    <div class="hr-bulk">
+      <button class="btn btn-primary" type="submit" id="hrBulk">Publish selected</button>
+      <label class="hf-muted"><input type="checkbox" name="skip_zero" value="1" checked> Skip forms with 0 responses</label>
+    </div>
+  </form>
+  {% else %}
+  <div class="hod-panel-card hf-empty">
+    <h2>No {{ tab }} results yet</h2>
+    <p class="sub">Published or closed forms in this category will appear here.</p>
+  </div>
+  {% endif %}

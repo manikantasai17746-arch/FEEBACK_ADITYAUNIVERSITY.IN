@@ -13,7 +13,7 @@
         · {{ marks.students }} students · {{ marks.answer_count }} rating answers
         · marks {{ marks.obtained }} / {{ marks.maximum }}</p>
     </div>
-    <a class="btn" href="{{ url_for('hod.results', tab=form.category or 'main') }}">Back to results</a>
+    <a class="btn" href="{{ back_url }}">{{ back_label }}</a>
   </div>
 
   <section class="card" style="padding:1rem;margin-bottom:1rem">

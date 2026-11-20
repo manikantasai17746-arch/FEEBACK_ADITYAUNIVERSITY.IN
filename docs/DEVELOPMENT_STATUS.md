@@ -278,3 +278,11 @@ Limitations: the full suite was run with stand-in `pyotp`/`segno` modules becaus
 
 - Overview uses the supplied SVG artwork, notebook folds and seals, and the live Recent Forms status filters. Comparison uses the existing scoped score helper to show the preview's six score bands and selected teacher cards.
 - The focused run passed 74 tests. Chromium verified the SVG animation, Recent Forms filtering, and comparison bands. The remaining HOD routes rendered at 375 px. See the [HOD portal UI handoff](PHASE_HANDOFFS/HOD_PORTAL_UI_HANDOFF.md) for scope and limitations.
+
+
+## HOD Overview panels from the screenshot review
+
+- Overview now presents Recent Forms, Pending submissions, Teachers by Score Band, and Feedback Results under the same dashboard, with a nine-link HOD navigation and an account-scoped notification bell.
+- Recent Forms supports deadline-aware close and reopen, single and bulk publishing, and status counts. Pending supports category and form-name grouping, roll-number PDFs, and scoped reminders. Score Bands and Feedback Results support the illustrated filters and selection controls.
+- Focused workflow tests passed 95 cases. Chrome verified the four panels and navigation at 375, 768, and 1317 px using a temporary database. No migration or deployment configuration changes are needed.
+- See the [HOD portal UI handoff](PHASE_HANDOFFS/HOD_PORTAL_UI_HANDOFF.md) for verification details.

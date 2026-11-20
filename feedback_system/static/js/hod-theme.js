@@ -44,19 +44,78 @@
     });
   }
 
+  function setupSelection(form, selector, master, update) {
+    const boxes = [...form.elements].filter((element) => element.matches(selector));
+    const refresh = () => {
+      const active = boxes.filter((box) => !box.disabled);
+      const count = active.filter((box) => box.checked).length;
+      if (master) {
+        master.disabled = active.length === 0;
+        master.checked = count > 0 && count === active.length;
+        master.indeterminate = count > 0 && count < active.length;
+      }
+      update(count, active.length);
+    };
+    master?.addEventListener('change', () => {
+      boxes.forEach((box) => { if (!box.disabled) box.checked = master.checked; });
+      refresh();
+    });
+    boxes.forEach((box) => box.addEventListener('change', refresh));
+    refresh();
+    return refresh;
+  }
+
+  const recent = document.getElementById('recent-publish');
+  if (recent) {
+    const bulk = document.getElementById('recent-bulk');
+    setupSelection(recent, '.recent-pick', document.getElementById('recent-all'), (count) => {
+      bulk.disabled = count === 0;
+      bulk.textContent = `Publish selected (${count})`;
+    });
+  }
+
   const publishForm = document.getElementById('hrForm');
   if (publishForm) {
     const publish = document.getElementById('hrBulk');
-    const update = () => {
-      const count = publishForm.querySelectorAll('.hr-chk:checked').length;
-      publish.textContent = 'Publish selected (' + count + ')';
+    const selected = document.getElementById('hrCount');
+    const allowOpen = document.getElementById('hrAllowOpen');
+    const refresh = setupSelection(publishForm, '.hr-chk', document.getElementById('hrAll'), (count, total) => {
+      publish.textContent = `Publish selected (${count})`;
       publish.disabled = count === 0;
-    };
-    publishForm.addEventListener('change', (event) => {
-      if (event.target.matches('.hr-chk')) update();
+      if (selected) selected.textContent = `${count} of ${total} selected`;
     });
-    update();
+    if (allowOpen) {
+      const toggleOpen = () => {
+        publishForm.querySelectorAll('[data-hr-open]').forEach((control) => {
+          control.disabled = !allowOpen.checked;
+          if (control.disabled && control.type === 'checkbox') control.checked = false;
+        });
+        refresh();
+      };
+      allowOpen.addEventListener('change', toggleOpen);
+      toggleOpen();
+    }
   }
+
+  const bandForm = document.getElementById('band-mail-form');
+  if (bandForm) {
+    const send = document.getElementById('band-send');
+    const selected = document.getElementById('band-selected');
+    const subject = document.getElementById('band-subject');
+    const message = document.getElementById('band-message');
+    setupSelection(bandForm, '.band-cb', document.getElementById('band-all'), () => {
+      const boxes = [...bandForm.querySelectorAll('.band-cb')];
+      const total = new Set(boxes.map((box) => box.value)).size;
+      const count = new Set(boxes.filter((box) => box.checked).map((box) => box.value)).size;
+      send.disabled = count === 0;
+      selected.textContent = `${count} of ${total} with email selected`;
+    });
+    document.getElementById('band-reset').addEventListener('click', () => {
+      subject.value = subject.defaultValue;
+      message.value = message.defaultValue;
+    });
+  }
+
 
   const logo = document.querySelector('[data-hod-logo]');
   if (!logo) return;
