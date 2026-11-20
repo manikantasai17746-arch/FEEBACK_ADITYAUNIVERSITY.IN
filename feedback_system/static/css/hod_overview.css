@@ -1,0 +1,162 @@
+/* HOD Overview (dashboard) — preview look.
+   Loaded only by hod_dashboard.html. Every rule is scoped to body.hod-overview,
+   so the other HOD pages keep their current styling. */
+
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url("../fonts/bricolage-grotesque-latin-wght-normal.woff2") format("woff2");
+  font-weight: 200 800; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("../fonts/instrument-sans-latin-wght-normal.woff2") format("woff2");
+  font-weight: 400 700; font-style: normal; font-display: swap;
+}
+
+body.hod-overview {
+  --tt-ink: #071E3D; --tt-muted: #475C7A; --tt-line: #D3DDEC;
+  --tt-blue: #04529B; --tt-blue-deep: #033C73; --tt-link: #04529B; --tt-orange: #F57025;
+  --tt-bg: #FFFFFF; --tt-paper: #F3F6FB; --tt-card: #FFFFFF; --tt-navy: #071E3D;
+  --tt-ok: #137A55; --tt-ok-bg: #DDF3E9; --tt-warn: #8A5A12; --tt-warn-bg: #FBEFD5;
+  --tt-bad: #C0362C; --tt-bad-bg: #FBE3E0; --tt-blue-bg: #DCE9F8; --tt-orange-bg: #FFE5D4;
+  --tt-r1: #04529B; --tt-r2: #137A55; --tt-r3: #D9A21B; --tt-r4: #F57025; --tt-r5: #C0362C;
+  --tt-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --tt-text: "Instrument Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+  /* re-point the app tokens so the shared rules pick up this palette */
+  --navy: var(--tt-ink); --navy-dark: var(--tt-ink); --navy-soft: var(--tt-paper);
+  --accent: var(--tt-blue); --ink: var(--tt-ink); --muted: var(--tt-muted); --line: var(--tt-line);
+  --bg: var(--tt-bg); --card: var(--tt-card); --ok: var(--tt-ok); --err: var(--tt-bad);
+  --radius: 14px; --shadow: none;
+  background: var(--tt-bg); color: var(--tt-ink);
+  font-family: var(--tt-text); font-size: 1rem; line-height: 1.6;
+}
+html.dark-mode body.hod-overview {
+  --tt-ink: #E8EEF8; --tt-muted: #9DB0CC; --tt-line: #223A5C;
+  --tt-blue: #3B82D6; --tt-blue-deep: #2F73C4; --tt-link: #7DB4F5; --tt-orange: #F77F3A;
+  --tt-bg: #08162B; --tt-paper: #0C2038; --tt-card: #0F2744; --tt-navy: #050F20;
+  --tt-ok: #4CC796; --tt-ok-bg: #12382C; --tt-warn: #E8B54E; --tt-warn-bg: #3A2D10;
+  --tt-bad: #F2796E; --tt-bad-bg: #3F1C1A; --tt-blue-bg: #14355C; --tt-orange-bg: #44250F;
+}
+
+body.hod-overview h1, body.hod-overview h2, body.hod-overview h3 {
+  font-family: var(--tt-display); color: var(--tt-ink); letter-spacing: -.01em;
+}
+body.hod-overview .card {
+  border: 1px solid var(--tt-line); border-radius: 14px; box-shadow: none; background: var(--tt-card);
+}
+body.hod-overview .btn {
+  background: var(--tt-blue); color: #fff; border-radius: 999px; font-weight: 600; box-shadow: none;
+}
+body.hod-overview .btn:hover { background: var(--tt-blue-deep); color: #fff; }
+
+/* ---------- header ---------- */
+.ov-head { margin: .2rem 0 1rem; }
+.ov-title { margin: 0 0 .25rem; font-size: 1.9rem; display: flex; align-items: center; gap: .5rem; }
+.ov-sub { margin: 0; color: var(--tt-muted); }
+
+/* ---------- category sheets (notebook style) ---------- */
+body.hod-overview .nb-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1.4rem; margin: 1.5rem 0;
+}
+body.hod-overview .nb-sheet {
+  --nb-cut: 40px; --nb-f1: #aebcd6; --nb-f2: #eef2f9;
+  position: relative; filter: drop-shadow(0 14px 16px rgba(15, 40, 80, .16));
+}
+body.hod-overview .nb-card {
+  position: relative; height: 100%; background: var(--tt-card); border: 1px solid var(--tt-line);
+  border-radius: 18px; padding: 1.5rem 1.5rem 1.3rem 3rem;
+  clip-path: polygon(0 0, calc(100% - var(--nb-cut)) 0, 100% var(--nb-cut), 100% 100%, 0 100%);
+}
+body.hod-overview .nb-card::before { /* notebook binding */
+  content: ""; position: absolute; left: 15px; top: 22px; bottom: 22px; width: 9px;
+  background: repeating-linear-gradient(to bottom, var(--tt-ink) 0 9px, transparent 9px 24px);
+}
+body.hod-overview .nb-fold {
+  position: absolute; top: 0; right: 0; width: var(--nb-cut); height: var(--nb-cut);
+  filter: drop-shadow(-3px 4px 3px rgba(15, 40, 80, .28)); pointer-events: none;
+}
+body.hod-overview .nb-fold i {
+  display: block; width: 100%; height: 100%;
+  background: linear-gradient(135deg, var(--nb-f1) 0%, var(--nb-f2) 62%);
+  clip-path: polygon(0 0, 100% 100%, 0 100%);
+}
+body.hod-overview .nb-note { margin: 0 2rem .3rem 0; font-size: .85rem; color: var(--tt-muted); }
+body.hod-overview .nb-title { margin: 0 0 1rem; font-size: 1.55rem; line-height: 1.2; color: var(--tt-blue-deep); }
+body.hod-overview .nb-main .nb-title { color: var(--tt-blue); }
+body.hod-overview .nb-second .nb-title { color: var(--tt-ok); }
+body.hod-overview .nb-lab .nb-title { color: var(--tt-r3); }
+body.hod-overview .nb-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: .9rem .6rem; text-align: center;
+}
+body.hod-overview .nb-stats div {
+  display: grid; gap: .45rem; justify-items: center; font-size: .8rem; color: var(--tt-muted);
+}
+body.hod-overview .nb-stats strong {
+  display: grid; place-items: center; min-width: 46px; height: 46px; padding: 0 .4rem;
+  border-radius: 999px; border: 2px solid var(--tt-ink); font-size: 1.05rem; color: var(--tt-ink);
+}
+body.hod-overview .nb-stats .nb-hot strong {
+  background: var(--tt-orange); border-color: var(--tt-orange); color: #fff;
+}
+body.hod-overview .nb-card hr { border: 0; border-top: 2px dashed var(--tt-line); margin: 1.2rem 0 1rem; }
+body.hod-overview .nb-foot { display: flex; align-items: center; justify-content: space-between; gap: .8rem; min-height: 84px; }
+body.hod-overview .nb-stamp {
+  width: 84px; height: 84px; flex: none; transform: rotate(-21deg); opacity: .88;
+  mix-blend-mode: multiply; pointer-events: none;
+}
+body.hod-overview .nb-stamp svg { width: 100%; height: 100%; display: block; overflow: visible; }
+html.dark-mode body.hod-overview .nb-stamp { mix-blend-mode: normal; opacity: .7; }
+
+/* ---------- stats strip (navy band, orange figures) ---------- */
+body.hod-overview .ov-tiles {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.6rem 2rem;
+  background: var(--tt-navy); box-shadow: 0 0 0 100vmax var(--tt-navy); clip-path: inset(0 -100vmax);
+  margin: 0 0 2.2rem; padding: 2rem 0;
+}
+body.hod-overview .ov-tile { color: #fff; min-width: 0; }
+body.hod-overview .ov-tile .num {
+  font: 700 clamp(1.6rem, 3vw, 2.6rem)/1.1 var(--tt-display); letter-spacing: -.02em;
+  color: var(--tt-orange); font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+body.hod-overview .ov-tile .lbl { font-size: .85rem; color: #C9D6EA; margin-top: .25rem; }
+body.hod-overview .ov-tile .sub { font-size: .75rem; color: #9DB0CC; }
+@media (max-width: 900px) { body.hod-overview .ov-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px)  { body.hod-overview .ov-tiles { grid-template-columns: 1fr; } }
+
+/* ---------- section tabs ---------- */
+body.hod-overview .sec-tabs {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px; margin: 1.5rem 0 1.25rem; padding: 0 6px 6px 0;
+}
+body.hod-overview .sec-tab {
+  appearance: none; font: inherit; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 2px; padding: 14px 18px; border-radius: 14px;
+  background: var(--tt-card); border: 1px solid var(--tt-line); color: var(--tt-ink); transition: .15s;
+}
+body.hod-overview .sec-tab:hover { border-color: var(--tt-blue); transform: translateY(-1px); }
+body.hod-overview .sec-tab:focus-visible { outline: 3px solid var(--tt-blue); outline-offset: 2px; }
+body.hod-overview .sec-tab .sec-t { font-weight: 700; font-size: 1.02rem; color: var(--tt-ink); }
+body.hod-overview .sec-tab .sec-s { font-size: .85rem; color: var(--tt-muted); }
+body.hod-overview .sec-tab[aria-selected="true"] {
+  border: 2px solid var(--tt-ink); box-shadow: 5px 5px 0 var(--tt-ink);
+  transform: translate(-2px, -2px);
+}
+body.hod-overview .sec-panel[hidden] { display: none; }
+
+/* ---------- pending panel rows ---------- */
+.ov-pend { display: grid; gap: .5rem; margin: .4rem 0 1rem; }
+.ov-pend-row {
+  display: grid; grid-template-columns: 1fr auto; gap: .2rem .8rem; align-items: center;
+  padding: .7rem .9rem; border: 1px solid var(--tt-line); border-radius: 12px; background: var(--tt-paper);
+}
+.ov-pend-row strong { font: 700 1.25rem/1 var(--tt-display); color: var(--tt-ink); }
+.ov-pend-row .sub { grid-column: 1 / -1; font-size: .8rem; color: var(--tt-muted); }
+
+/* ---------- small screens ---------- */
+@media (max-width: 560px) {
+  body.hod-overview .nb-grid { grid-template-columns: 1fr; }
+  body.hod-overview .sec-tabs { grid-template-columns: 1fr; }
+  .ov-title { font-size: 1.5rem; }
+}
