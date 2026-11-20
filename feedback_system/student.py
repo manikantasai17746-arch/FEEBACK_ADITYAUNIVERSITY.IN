@@ -1,7 +1,7 @@
 """Student dashboard and feedback submission."""
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
-from . import authenticator, db, services
+from . import authenticator, db, photos, services
 from .security import audit, current_user, is_safe_next, role_required
 
 bp = Blueprint('student', __name__, url_prefix='/student')
@@ -121,7 +121,7 @@ def view_form(form_id):
     already = db.query('SELECT * FROM submissions WHERE form_id=? AND student_user_id=?',
                        (form_id, user['id']), one=True)
     return render_template('student_form.html', user=user, form=form, questions=questions,
-                           already=already)
+                           already=already, teacher_has_photo=photos.has_any_photo(form.get('teacher_emp')))
 
 
 @bp.route('/form/<int:form_id>/submit', methods=['POST'])
@@ -150,7 +150,8 @@ def submit(form_id):
         return redirect(url_for('student.dashboard'))
     questions = services.form_questions(form_id)
     return render_template('student_form.html', user=user, form=form, questions=questions,
-                           already=None, form_data=request.form)
+                           already=None, form_data=request.form,
+                           teacher_has_photo=photos.has_any_photo(form.get('teacher_emp')))
 
 
 @bp.route('/notifications')

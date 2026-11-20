@@ -264,3 +264,7 @@ The public feedback statistics banner displays the approved gold Aditya Universi
 ## Shared sign-in and rotating portal loader (2026-11-20)
 
 The role sign-in URLs render the landing-page form for the requested role. The new loader uses the rotating university logo in the Student, Teacher, HOD, and Dean portals and on signed-out pages. See the [sign-in and loader handoff](PHASE_HANDOFFS/LANDING_LOGO_HANDOFF.md#shared-sign-in-and-rotating-loader).
+
+## Faculty photos on student feedback forms (2026-11-20)
+
+The teacher verification card uses the shared employee photo service for uploaded photos and bundled portraits. It displays the existing initials badge when a portrait is unavailable. See the [faculty photo handoff](PHASE_HANDOFFS/STUDENT_FORM_PHOTO_HANDOFF.md).

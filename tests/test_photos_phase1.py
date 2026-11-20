@@ -6,7 +6,8 @@ import pytest
 from PIL import Image
 
 from feedback_system import db, pg, photos, schema
-from helpers import login, login_student
+from helpers import (eligible_rolls, find_session, give_feedback_code, login, login_student,
+                     make_form, publish_form)
 
 
 def _img(fmt='PNG', size=(200, 240), color=(30, 90, 160)):
@@ -119,7 +120,7 @@ def test_initials_helper():
 
 
 # ---------------------------------------------------------------- upload
-def test_upload_replace_and_serve(tclient, app):
+def test_upload_replace_and_serve(tclient, app, admin, monkeypatch):
     r = _upload(tclient, '6817', _img('PNG'))
     assert r.status_code == 302
     with app.app_context():
@@ -128,6 +129,23 @@ def test_upload_replace_and_serve(tclient, app):
         assert row['filename'] == 'employee_photos/6817.png' and row['mime'] == 'image/png'
     served = tclient.get('/employee-photo/6817')
     assert served.mimetype == 'image/png' and served.headers['ETag']
+    session_id = find_session(app, '6817', '2501IT07')
+    form_id = make_form(admin, session_id)
+    publish_form(admin, form_id)
+    student = app.test_client()
+    login_student(student, eligible_rolls(app, session_id)[0])
+    give_feedback_code(student)
+    form_url = f'/student/form/{form_id}'
+    html = student.get(form_url).get_data(as_text=True)
+    assert 'src="/employee-photo/6817"' in html
+    assert 'class="photo-fallback"' not in html
+    assert student.get('/employee-photo/6817').data == served.data
+    with monkeypatch.context() as missing:
+        missing.setattr(photos, 'photo_meta', lambda code: None)
+        missing.setattr(photos, '_legacy_static_path', lambda code: None)
+        html = student.get(form_url).get_data(as_text=True)
+        assert 'class="photo-fallback"' in html
+        assert 'src="/employee-photo/6817"' not in html
     # conditional request
     again = tclient.get('/employee-photo/6817', headers={'If-None-Match': served.headers['ETag']})
     assert again.status_code == 304

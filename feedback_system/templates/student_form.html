@@ -6,16 +6,15 @@
 
 {# --- Teacher identity card --- #}
 {% set tname = form.teacher_name or 'Faculty Member' %}
-{% set initials = (tname.split()|map('first')|join('')|upper)[:2] %}
 <div class="teacher-card">
-   {% if form.teacher_emp %}
+  {% if teacher_has_photo %}
   <img class="photo"
-       src="{{ url_for('static', filename='img/teachers/' ~ form.teacher_emp ~ '.jpg') }}"
-       alt="{{ tname }}"
-       onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+       src="{{ url_for('photos.serve', emp_code=form.teacher_emp) }}"
+       alt="{{ tname }}">
+  {% else %}
+  {% set initials = (tname.split()|map('first')|join('')|upper)[:2] %}
+  <div class="photo-fallback" aria-hidden="true">{{ initials }}</div>
   {% endif %}
-  <div class="photo-fallback" aria-hidden="true"
-       {% if form.teacher_emp %}style="display:none"{% endif %}>{{ initials }}</div>
   <div class="meta">
     <p class="eyebrow">You are giving feedback for</p>
     <h2>{{ tname }}</h2>
