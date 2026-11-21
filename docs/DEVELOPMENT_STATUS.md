@@ -284,3 +284,13 @@ Publishing Main Faculty, Lab, or Second Faculty feedback records notices for eli
 ## Student Complaints (2026-11-21)
 
 My Feedback offers an optional college issue report after the student completes their eligible published forms. HODs review their departments' complaints, and Deans review complaints across departments. Both can update statuses. See the [Student Complaints handoff](PHASE_HANDOFFS/STUDENT_COMPLAINTS_HANDOFF.md).
+
+## Review and delete imported timetables (2026-11-21)
+
+Admin → Import now lists every imported workbook (file, semester, academic year, import time and what that semester currently holds). **Delete…** removes the imported timetables, class sessions, enrollments, eligibility rows and legacy assignments for that semester + academic year, forgets the file record so a corrected workbook can be imported again, and removes student/teacher accounts that nothing else references. It reuses the HOD/Dean deletion safeguard: a 6-digit code is e-mailed to `DELETE_OTP_EMAIL` (10-minute expiry, 5 attempts) and must be entered on a confirmation page.
+
+Decisions and limits:
+- Imports are not tagged per file, so deletion is scoped to semester + academic year; if several files were imported for the same pair, all are removed together (the list warns about this).
+- An import is **locked** (no code is sent, deletion is refused) while feedback forms (including archived), submissions, responses, published results, second-faculty/lab assignments, teacher room settings, HOD allocations or complaints depend on it. The check is repeated when the code is submitted.
+- No schema change. Accounts are only deleted if absent from `import_data.USER_REFERENCES`; `tests/test_import_delete.py` fails if a new table references `users.id` and is not listed.
+- Verified: `tests/test_import_delete.py` (8 tests, pass). Full suite compared against the original zip in an environment lacking `pyotp`, `segno` and `psycopg`: no new failures (authenticator/QR tests fail identically before and after; one browser UI test is flaky in both). PostgreSQL was not exercised; the SQL is portable but untested there.
