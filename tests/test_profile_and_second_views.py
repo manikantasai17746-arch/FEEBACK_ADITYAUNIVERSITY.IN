@@ -121,12 +121,14 @@ class Views(unittest.TestCase):
         self.assertNotIn('>My Photo</a>', html)
         self.assertNotIn('>Password</a>', html)
 
-    def test_profile_page_has_photo_and_password_forms(self):
+    def test_profile_page_has_password_form_and_read_only_photo(self):
         c = self.as_user('101')
         html = c.get('/profile').get_data(as_text=True)
         self.assertIn('Main Mohan', html)
-        self.assertIn('id="photoForm"', html)
-        self.assertIn('/photos/manage/101', html)
+        # teachers cannot choose their own photo: the admin adds it
+        self.assertNotIn('id="photoForm"', html)
+        self.assertNotIn('/photos/manage/101', html)
+        self.assertIn('administrator', html)
         self.assertIn('/change-password', html)
 
     def test_password_change_from_profile_returns_to_profile(self):

@@ -601,14 +601,11 @@ def sso_callback(provider):
 @bp.route('/setup/photo', methods=['GET', 'POST'])
 @role_required('teacher')
 def setup_photo():
-    """Last onboarding step: show the current photo, or ask for one.
+    """Last onboarding step: show the photo the admin loaded for this teacher.
 
-    * photo on file  -> preview card, "Continue" (can also replace it)
-    * no photo       -> upload prompt with a live preview; "Skip for now" is
-                        allowed because every screen falls back to an initials
-                        avatar, and the photo can be added later.
-    Finishing (continue / skip / saved upload) sets ``first_login_complete``
-    and sends the teacher to the Teacher Assignment Setup page.
+    Teachers do not choose their own photo: the college supplies it and the admin
+    uploads it (Admin -> Photos). This step only shows what is on file (or the
+    initials avatar) and lets the teacher continue.
     """
     from . import photos
     user = current_user()
@@ -621,28 +618,14 @@ def setup_photo():
         return redirect(url_for('auth.change_password'))
     code = photos.normalize_emp(user.get('emp_code'))
     if request.method == 'POST':
-        action = request.form.get('action') or 'upload'
-        if action in ('continue', 'skip'):
-            if action == 'continue' and code and not photos.has_any_photo(code):
-                flash('Please upload a photo, or choose “Skip for now”.', 'warning')
-            else:
-                return _finish_first_login(user, skipped=(action == 'skip'))
+        if (request.form.get('action') or 'continue') == 'upload' or request.files.get('photo'):
+            flash('Photos are added by the administrator. You cannot upload one yourself.',
+                  'warning')
         else:
-            upload = request.files.get('photo')
-            raw = upload.read(photos.MAX_UPLOAD_BYTES + 1) if upload and upload.filename else b''
-            if not code:
-                flash('Your account has no employee code, so a photo cannot be attached.', 'error')
-            else:
-                ok, msg = photos.save_photo(code, raw, user['id'])
-                if ok:
-                    audit('photo.upload', 'employee', code, f'by user {user["id"]} (onboarding)')
-                    return _finish_first_login(user, skipped=False)
-                flash(msg, 'error')
-    meta = photos.photo_meta(code) if code else None
+            return _finish_first_login(user, skipped=not (code and photos.has_any_photo(code)))
     return render_template(
         'setup_photo.html', emp_code=code, designation=user.get('designation'),
-        has_photo=bool(code and photos.has_any_photo(code)), meta=meta,
-        max_kb=photos.MAX_UPLOAD_BYTES // 1024)
+        has_photo=bool(code and photos.has_any_photo(code)))
 
 
 def _finish_first_login(user, skipped):

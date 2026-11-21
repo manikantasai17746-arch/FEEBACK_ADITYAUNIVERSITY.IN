@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Import teacher photos — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('photos.admin_list'), 'Teacher photos') }}
+<h1>Import teacher photos (Excel)</h1>
+<p class="sub">Upload the college photo sheet (.xlsx) with the columns
+  <strong>S.No, Time Table, Emp.Code, Emp.Name, Photo</strong>. Each photo is matched to the
+  teacher by <strong>Emp.Code</strong> and saved. Several sheets in one file are fine.</p>
+
+{% if result and result.problems %}
+<div class="flash flash-error"><strong>Cannot import this file:</strong>
+  <ul style="margin:.4rem 0 0 1.1rem">{% for p in result.problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
+{% endif %}
+
+<form method="post" enctype="multipart/form-data" class="card" autocomplete="off">
+  <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  <div class="field"><label for="workbook">Excel file (.xlsx)</label>
+    <input type="file" id="workbook" name="workbook"
+           accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
+    {% if max_mb %}<div class="hint">Maximum file size {{ max_mb }} MB.</div>{% endif %}</div>
+  <div class="field"><label>
+    <input type="checkbox" name="overwrite" value="1" {{ 'checked' if overwrite }}>
+    Replace photos that already exist</label></div>
+  <button class="btn" type="submit">Import photos</button>
+</form>
+
+{% if result and not result.problems %}
+<div class="card">
+  <h2>Import finished</h2>
+  <div class="table-wrap"><table class="data"><tbody>
+    <tr><td>New photos added</td><td>{{ result.saved|length }}</td></tr>
+    <tr><td>Existing photos replaced</td><td>{{ result.replaced|length }}</td></tr>
+    <tr><td>Skipped (already had a photo)</td><td>{{ result.skipped|length }}</td></tr>
+    <tr><td>Emp.Code not found in the system</td><td>{{ result.unmatched|length }}</td></tr>
+    <tr><td>Photo rejected (not a valid JPG/PNG)</td><td>{{ result.invalid|length }}</td></tr>
+    <tr><td>Rows with no picture</td><td>{{ result.no_image|length }}</td></tr>
+  </tbody></table></div>
+
+  {% if result.unmatched %}
+  <h3>Not found in the system</h3>
+  <p class="sub">These Emp.Codes have no active teacher/HOD/Dean account, so no photo was saved.</p>
+  <div class="table-wrap"><table class="data"><thead><tr><th>Emp.Code</th><th>Name in sheet</th></tr></thead><tbody>
+    {% for u in result.unmatched %}<tr><td>{{ u.emp_code }}</td><td>{{ u.name }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% endif %}
+
+  {% if result.invalid %}
+  <h3>Photos rejected</h3>
+  <div class="table-wrap"><table class="data"><thead><tr><th>Emp.Code</th><th>Name</th><th>Reason</th></tr></thead><tbody>
+    {% for u in result.invalid %}<tr><td>{{ u.emp_code }}</td><td>{{ u.name }}</td><td>{{ u.message }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% endif %}
+
+  {% if result.no_image %}
+  <h3>Rows without a picture</h3>
+  <div class="table-wrap"><table class="data"><thead><tr><th>Emp.Code</th><th>Name in sheet</th><th>Sheet</th><th>Row</th></tr></thead><tbody>
+    {% for u in result.no_image %}<tr><td>{{ u.emp_code }}</td><td>{{ u.name }}</td><td>{{ u.sheet }}</td><td>{{ u.row }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% endif %}
+
+  {% set done = result.saved + result.replaced %}
+  {% if done %}
+  <h3>Saved</h3>
+  <div class="table-wrap"><table class="data"><thead><tr><th>Emp.Code</th><th>Name</th><th>Name in sheet</th></tr></thead><tbody>
+    {% for u in done %}<tr><td>{{ u.emp_code }}</td><td>{{ u.name }}</td><td>{{ u.sheet_name }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% endif %}
+  <p><a class="btn btn-ghost btn-sm" href="{{ url_for('photos.admin_list') }}">View all photos</a></p>
+</div>
+{% endif %}
+{% endblock %}

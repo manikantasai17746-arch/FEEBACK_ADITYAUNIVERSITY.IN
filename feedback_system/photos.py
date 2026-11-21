@@ -6,8 +6,10 @@
 * Only JPG/PNG are accepted.  Every upload is decoded with Pillow, size and
   pixel limited, down-scaled and re-encoded, which also strips EXIF metadata and
   rejects files that merely *claim* to be images.
-* Who may change a photo: the employee themself, an admin (anyone), or an HOD
-  for employees that belong to the HOD's own departments.
+* Who may change a photo: an admin (anyone, singly or in bulk from the college
+  Excel), an HOD/Dean for their own photo, or an HOD for employees that belong to
+  the HOD's own departments.  Teachers can NOT choose their own photo: the college
+  supplies it and the admin loads it.
 * ``/employee-photo/<emp>`` never 404s for a valid code: it serves the stored
   photo, then any legacy ``static/img/teachers/<emp>.jpg``, then a generated
   initials avatar, so no JavaScript fallback is needed (works under a strict CSP).
@@ -167,6 +169,134 @@ def save_photo(emp_code, raw, actor_id):
     return True, 'Photo saved.'
 
 
+def delete_photo(emp_code):
+    """Remove the stored photo (the initials avatar / legacy file shows again)."""
+    code = normalize_emp(emp_code)
+    if not code:
+        return False
+    db.execute('DELETE FROM employee_photos WHERE emp_code=?', (code,))
+    return True
+
+
+# --------------------------------------------------------------------------- #
+# College Excel (photo sheet) -> photos
+# --------------------------------------------------------------------------- #
+_CODE_HEADERS = {'empcode', 'employeecode', 'empid', 'employeeid'}
+_NAME_HEADERS = {'empname', 'employeename', 'facultyname', 'name'}
+
+
+def _norm_header(value):
+    return re.sub(r'[^a-z]', '', str(value or '').lower())
+
+
+def _cell_code(value):
+    if value is None:
+        return None
+    if isinstance(value, float) and value.is_integer():
+        value = int(value)
+    return normalize_emp(str(value))
+
+
+def read_photo_workbook(raw):
+    """Read the college sheet. Returns (entries, no_image, problems).
+
+    ``entries``  - [{'emp_code','name','data','sheet','row'}] one per employee code
+                   (the first photo found wins when a code repeats across sheets)
+    ``no_image`` - [{'emp_code','name','sheet','row'}] listed rows with no picture
+    ``problems`` - blocking messages (empty list when the file is usable)
+    """
+    if not raw or not raw.startswith(b'PK\x03\x04'):
+        return [], [], ['The file is not a valid .xlsx workbook. In Excel use '
+                        'File → Save As → Excel Workbook (.xlsx).']
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(raw))      # not read-only: images are loaded
+    except Exception:
+        return [], [], ['That workbook could not be read. Is it a damaged or '
+                        'password-protected file?']
+    entries, no_image, seen = [], [], set()
+    found_header = False
+    for ws in wb.worksheets:
+        head = None
+        for row in ws.iter_rows(min_row=1, max_row=40):
+            cols = {_norm_header(c.value): c.column for c in row if c.value is not None}
+            code_col = next((cols[h] for h in cols if h in _CODE_HEADERS), None)
+            if code_col:
+                name_col = next((cols[h] for h in cols if h in _NAME_HEADERS), None)
+                head = (row[0].row, code_col, name_col)
+                break
+        if not head:
+            continue
+        found_header = True
+        hrow, code_col, name_col = head
+        listed = {}
+        for r in range(hrow + 1, ws.max_row + 1):
+            code = _cell_code(ws.cell(r, code_col).value)
+            if code:
+                name = ws.cell(r, name_col).value if name_col else None
+                listed[r] = (code, str(name or '').strip())
+        by_code = {}
+        for img in getattr(ws, '_images', []):
+            anchor = getattr(img, 'anchor', None)
+            start = getattr(anchor, '_from', None)
+            if start is None:
+                continue
+            first = start.row + 1
+            end = getattr(getattr(anchor, 'to', None), 'row', None)
+            last = max(first, (end + 1) if end is not None else first)
+            row_no = next((x for x in range(first, last + 1) if x in listed), None)
+            if row_no is None:
+                continue
+            try:
+                data = img._data()
+            except Exception:
+                continue
+            by_code.setdefault(listed[row_no][0], (row_no, data))
+        for row_no, (code, name) in listed.items():
+            if code in seen:
+                continue
+            if code in by_code:
+                seen.add(code)
+                entries.append({'emp_code': code, 'name': name, 'sheet': ws.title,
+                                'row': by_code[code][0], 'data': by_code[code][1]})
+            else:
+                no_image.append({'emp_code': code, 'name': name, 'sheet': ws.title,
+                                 'row': row_no})
+    # a code that gets a photo on another sheet is not "missing"
+    no_image = [n for n in no_image if n['emp_code'] not in seen]
+    if not found_header:
+        return [], [], ['No "Emp.Code" column was found. Use the college photo sheet '
+                        '(columns: S.No, Time Table, Emp.Code, Emp.Name, Photo).']
+    if not entries and not no_image:
+        return [], [], ['The sheet has no employee rows.']
+    return entries, no_image, []
+
+
+def import_photo_workbook(raw, actor_id, overwrite=True):
+    """Apply the college sheet. Returns a result dict for the admin page."""
+    entries, no_image, problems = read_photo_workbook(raw)
+    result = {'problems': problems, 'saved': [], 'replaced': [], 'skipped': [],
+              'unmatched': [], 'invalid': [], 'no_image': no_image}
+    for e in entries:
+        emp = find_employee(e['emp_code'])
+        if not emp:
+            result['unmatched'].append(e)
+            continue
+        row = {'emp_code': emp['emp_code'], 'name': emp['name'], 'sheet_name': e['name']}
+        had = bool(photo_meta(e['emp_code']))
+        if had and not overwrite:
+            result['skipped'].append(row)
+            continue
+        ok, msg = save_photo(e['emp_code'], e['data'], actor_id)
+        if not ok:
+            result['invalid'].append({**row, 'message': msg})
+        elif had:
+            result['replaced'].append(row)
+        else:
+            result['saved'].append(row)
+    return result
+
+
 def can_manage(actor, emp_code):
     """May ``actor`` upload/replace the photo of ``emp_code``?"""
     if not actor:
@@ -181,7 +311,7 @@ def can_manage(actor, emp_code):
         return False                          # students can never upload
     own = normalize_emp(actor.get('emp_code'))
     if own and own == code:
-        return True
+        return role != 'teacher'              # teachers' photos come from the admin
     if role != 'hod':
         return False
     # HOD on behalf of someone in the HOD's own departments.
@@ -250,6 +380,8 @@ def serve(emp_code):
 def mine():
     user = current_user()
     code = normalize_emp(user.get('emp_code'))
+    if user['role'] == 'teacher':
+        return redirect(url_for('photos.profile'))   # photo is set by the admin
     if not code:
         flash('Your account has no employee code, so a photo cannot be attached.', 'error')
         return redirect(url_for('auth.landing'))
@@ -279,6 +411,7 @@ def profile():
     return render_template(
         'profile.html', emp_code=code, department=_department_of(user),
         has_photo=bool(code and (meta or _legacy_static_path(code))),
+        can_upload=bool(code and can_manage(user, code)),
         max_kb=MAX_UPLOAD_BYTES // 1024,
         forced_password_change=bool(user['role'] == 'teacher'
                                     and user.get('must_change_password')))
@@ -314,3 +447,90 @@ def manage(emp_code):
         has_photo=bool(meta or _legacy_static_path(code)),
         max_kb=MAX_UPLOAD_BYTES // 1024, on_behalf=normalize_emp(user.get('emp_code')) != code,
         next_url=request.args.get('next', ''))
+
+
+# --------------------------------------------------------------------------- #
+# Admin: add / edit / remove employee photos (single and from the college Excel)
+# --------------------------------------------------------------------------- #
+def _admin_list_query(q, status):
+    where, args = [], []
+    if q:
+        like = f'%{q.upper()}%'
+        where.append('(UPPER(name) LIKE ? OR emp_code LIKE ?)')
+        args += [like, like]
+    if status == 'with':
+        where.append('has_photo=1')
+    elif status == 'without':
+        where.append('has_photo=0')
+    base = ("""SELECT UPPER(u.emp_code) AS emp_code, MIN(u.name) AS name, MIN(u.role) AS role,
+                  MAX(CASE WHEN p.emp_code IS NULL THEN 0 ELSE 1 END) AS has_photo,
+                  MAX(p.updated_at) AS updated_at
+           FROM users u LEFT JOIN employee_photos p ON p.emp_code = UPPER(u.emp_code)
+           WHERE u.role IN ('teacher','hod','dean') AND u.is_active=1
+                 AND u.emp_code IS NOT NULL AND u.emp_code<>''
+           GROUP BY UPPER(u.emp_code)""")
+    clause = (' WHERE ' + ' AND '.join(where)) if where else ''
+    return base, clause, tuple(args)
+
+
+@bp.route('/admin/photos')
+@role_required('admin')
+def admin_list():
+    q = (request.args.get('q') or '').strip()
+    status = request.args.get('status') or ''
+    if status not in ('with', 'without'):
+        status = ''
+    base, clause, args = _admin_list_query(q, status)
+    total = db.query(f'SELECT COUNT(*) AS n FROM ({base}) x{clause}', args, one=True)['n']
+    per_page = 25
+    pages = max(1, -(-total // per_page))
+    page = min(max(1, request.args.get('page', 1, type=int)), pages)
+    rows = db.query(f'SELECT * FROM ({base}) x{clause} ORDER BY name LIMIT ? OFFSET ?',
+                    args + (per_page, (page - 1) * per_page))
+    counts = db.query(f'SELECT COUNT(*) AS n, COALESCE(SUM(has_photo),0) AS w FROM ({base}) x',
+                      (), one=True)
+    pg = {'page': page, 'pages': pages, 'per_page': per_page, 'total': total}
+    return render_template('admin_photos.html', rows=rows, q=q, status=status, pg=pg,
+                           total_all=counts['n'], with_photo=int(counts['w']))
+
+
+@bp.route('/admin/photos/import', methods=['GET', 'POST'])
+@role_required('admin')
+def admin_import():
+    user = current_user()
+    if request.method == 'GET':
+        return render_template('admin_photos_import.html', result=None, overwrite=True,
+                               max_mb=current_app.config.get('MAX_CONTENT_LENGTH', 0)
+                               // (1024 * 1024))
+    upload = request.files.get('workbook')
+    overwrite = request.form.get('overwrite') == '1'
+    max_mb = current_app.config.get('MAX_CONTENT_LENGTH', 0) // (1024 * 1024)
+    if not upload or not upload.filename:
+        result = {'problems': ['Choose the college Excel (.xlsx) file first.']}
+    elif not upload.filename.lower().endswith('.xlsx'):
+        result = {'problems': ['Only .xlsx files are accepted. In Excel use '
+                               'File → Save As → Excel Workbook (.xlsx).']}
+    else:
+        result = import_photo_workbook(upload.read(), user['id'], overwrite=overwrite)
+        if not result['problems']:
+            audit('photo.import', 'employee', 'bulk',
+                  f"saved={len(result['saved'])} replaced={len(result['replaced'])} "
+                  f"skipped={len(result['skipped'])} unmatched={len(result['unmatched'])} "
+                  f"invalid={len(result['invalid'])}")
+    status = 400 if result['problems'] else 200
+    return render_template('admin_photos_import.html', result=result, overwrite=overwrite,
+                           max_mb=max_mb), status
+
+
+@bp.route('/admin/photos/<emp_code>/delete', methods=['POST'])
+@role_required('admin')
+def admin_delete(emp_code):
+    code = normalize_emp(emp_code)
+    if not code or not find_employee(code):
+        abort(404)
+    if photo_meta(code):
+        delete_photo(code)
+        audit('photo.delete', 'employee', code, f'by admin {current_user()["id"]}')
+        flash('Photo removed.', 'success')
+    nxt = request.form.get('next') or ''
+    return redirect(nxt if nxt and is_safe_next(nxt) else url_for('photos.admin_list'))

@@ -20,7 +20,10 @@
   <div class="profile-grid">
     <section class="card" id="profile-photo">
       <h2>Profile photo</h2>
-      {% if emp_code %}
+      {% if emp_code and not can_upload %}
+      <p class="sub">{{ 'This is the photo the university has on file for you. It is added by the university administrator.' if has_photo
+                         else 'No photo is on file yet. Your photo is added by the university administrator.' }}</p>
+      {% elif emp_code %}
       <p class="sub">{{ 'Upload a new photo to replace the current one.' if has_photo
                          else 'No photo yet. Add one so students and the HOD can recognise you.' }}</p>
       <form method="post" action="{{ url_for('photos.manage', emp_code=emp_code) }}"
@@ -65,5 +68,5 @@
     </section>
   </div>
 </div>
-<script src="{{ url_for('static', filename='js/photo_upload.js') }}"></script>
+{% if can_upload %}<script src="{{ url_for('static', filename='js/photo_upload.js') }}"></script>{% endif %}
 {% endblock %}

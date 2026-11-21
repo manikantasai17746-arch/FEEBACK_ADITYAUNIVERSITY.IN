@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% import '_photo_macros.html' as ph %}
+{% block title %}Teacher photos — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
+<h1>Teacher photos</h1>
+<p class="sub">{{ with_photo }} of {{ total_all }} employees have a photo.
+  Teachers cannot upload their own photo, so add or change it here.</p>
+<p><a class="btn" href="{{ url_for('photos.admin_import') }}">Import from college Excel</a></p>
+
+<form method="get" class="filter-bar">
+  <div class="field"><label for="q">Search</label>
+    <input type="search" id="q" name="q" value="{{ q }}" placeholder="Name or employee code…"></div>
+  <div class="field"><label for="status">Show</label>
+    <select id="status" name="status">
+      <option value="" {{ 'selected' if not status }}>All</option>
+      <option value="with" {{ 'selected' if status == 'with' }}>With photo</option>
+      <option value="without" {{ 'selected' if status == 'without' }}>Without photo</option>
+    </select></div>
+  <button class="btn" type="submit">Filter</button>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table class="data">
+      <thead><tr><th>Photo</th><th>Employee code</th><th>Name</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ ph.avatar(r.emp_code, r.name, 48) }}</td>
+          <td>{{ r.emp_code }}</td>
+          <td class="wrap">{{ r.name }}</td>
+          <td>{{ r.role|title }}</td>
+          <td>{{ 'Photo added' if r.has_photo else 'No photo' }}</td>
+          <td class="btn-row">
+            <a class="btn btn-ghost btn-sm"
+               href="{{ url_for('photos.manage', emp_code=r.emp_code, next=url_for('photos.admin_list')) }}">{{ 'Replace' if r.has_photo else 'Add' }}</a>
+            {% if r.has_photo %}
+            <form method="post" action="{{ url_for('photos.admin_delete', emp_code=r.emp_code) }}"
+                  onsubmit="return confirm('Remove this photo?')">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button class="btn btn-ghost btn-sm" type="submit">Remove</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}<tr><td colspan="6">No employees match.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ m.pagination(pg, 'photos.admin_list', {'q': q, 'status': status}) }}
+</div>
+{% endblock %}
