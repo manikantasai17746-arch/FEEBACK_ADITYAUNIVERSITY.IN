@@ -158,16 +158,30 @@ def _check_questions(questions):
 
 
 def create_form(actor, category, assignment_id, title, questions, instructions='',
-                deadline_at=None, auth_required=None):
-    """Create a DRAFT form for one assignment.  Returns the new form id."""
+                deadline_at=None, auth_required=None, phase=None):
+    """Create a DRAFT form for one assignment.  Returns the new form id.
+
+    ``phase`` ('phase1' / 'phase2' / None) applies the same per-phase rules as the
+    HOD form builder: one live form per assignment and phase, and Phase 2 only after
+    Phase 1 is closed.  ``None`` keeps the original behaviour."""
     sc = resolve_scope(category, assignment_id)
     _require_actor(actor, sc)
     _check_questions(questions)
-    if conflicting_forms(sc['category'], sc['assignment_id'], phase=None):
+    if phase not in services.PHASE_LABELS:
+        phase = None
+    if conflicting_forms(sc['category'], sc['assignment_id'], phase=phase):
         raise ScopeError('duplicate_form',
                          'A draft or open form already exists for this assignment.', 409)
-    form_id = services.save_form(_payload_with_auth(sc, auth_required, title, instructions,
-                                                    deadline_at), questions,
+    if phase:
+        errs = services.phase_rule_errors(
+            phase, [sc['session_id']], category=sc['category'],
+            second_assignment_id=sc.get('second_faculty_assignment_id'))
+        if errs:
+            raise ScopeError('phase_rule', errs[0], 409)
+    payload = _payload_with_auth(sc, auth_required, title, instructions, deadline_at)
+    if phase:
+        payload['phase'] = phase
+    form_id = services.save_form(payload, questions,
                                  actor['id'], session_ids=[sc['session_id']])
     audit('form.category_created', 'feedback_forms', form_id,
           f'{sc["category"]} form for assignment {sc["assignment_id"]}', actor=actor)

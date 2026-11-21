@@ -311,3 +311,24 @@ Fix: `security.scoped_timetable_ids()` / `timetable_scope_sql()` return the HOD'
 Not covered (still branch-scoped, follow-up needed): score bands / performance pages, results, comparison and complaint views for HODs.
 
 Tests: `tests/test_hod_timetable_scope.py` (3 pass; fail on the original code). HOD/Dean related suites pass. Full run: same 3 failures as on untouched `main` (listed above); PostgreSQL not exercised.
+
+## HOD Main Faculty create flow (2026-11-21)
+
+New create page `/hod/feedback/main/create` (`main_create.html`, `static/js/hod_feedback_main.js`, `hfc-*` classes in `hod_feedback.css`, routes in `hod_feedback.py`): Select (list "Select" opens it with only that teacher/section, "Show all teachers" lists the subject with nothing selected) -> Preview (eligible students, first 8 per section, "Go to bottom") -> Questions (shared/own question sets, per-form trash, extra questions, Phase 1/Phase 2/Custom name, deadline, instructions, authenticator checkbox, "Edit sets" popup with autosave; editing a shared phase set creates the HOD's own copy via `/hod/api/question-sets/customise-shared`) -> Confirm (Save as draft -> `/hod/forms`, Publish now -> `/hod/` overview). Timetable scope (`security.scoped_timetable_ids`) applies to the list, preview and create. No schema change.
+
+Verified in Chromium (Playwright, seeded HOD with one allocation, CSE Sem 3 T1-General: 19 sections, 7 subjects, 2501AI06 = 3 teachers / 212 students): Select, Show all teachers, Select/Unselect all, Preview, Go to bottom, trash/extras, Edit sets (customise, autosave, Reset, Duplicate, Delete, New set + rename), Phase 2 blocked while Phase 1 is draft/open, Back buttons, draft and publish redirects, out-of-scope session rejected (preview 403, create 409). Only console errors: Google Fonts blocked in the sandbox.
+
+Bugs found by that walk-through and fixed:
+- Question sets/presets were embedded in a single-quoted `data-` attribute with `|safe`; an apostrophe ("teacher's", Phase 2) truncated the JSON so the page had no question sets. Now autoescaped in double quotes.
+- `app.js` turns every `[data-back]` into `history.back()`; the wizard Back buttons left the page. Renamed to `data-hf-back`.
+- `body.role-hod .btn` out-ranked `.hfc-orange/.hfc-outline/.hfc-danger`; selectors raised. `.hfc-banner[hidden]` was overridden by `display:flex`.
+- The Edit sets dialog sat under the site header's stacking context; it is moved to `<body>`.
+- Preview read `name` that `eligible_students()` does not return; Main preview now looks names up (imported students have name == roll, shown once). Selection order now follows the table.
+
+Tests: `tests/test_hod_timetable_scope.py` (+3: JSON attribute, no `data-back`, preview names), `tests/test_hod_teacher_picker.py` (Main list link assertion updated to the new create page).
+
+Known / not done:
+- `lab_create.html` and `second_create.html` also use `[data-back]` (same history.back clash); `api_lab_preview` / `api_second_preview` also return blank names. Out of scope, not changed.
+- Closing "Edit sets" clears the per-form trash exclusions (indices can shift).
+- Score bands, performance, results, comparison and complaint pages for HODs remain branch-scoped, not timetable-scoped.
+- Test environment: `pyotp` and `segno` were not installable here; a local RFC 6238 stand-in for `pyotp` was used outside the repo.

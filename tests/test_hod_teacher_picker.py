@@ -37,7 +37,9 @@ def test_picker_page_and_main_list_links(app, client):
     for cat in ('main', 'lab', 'second'):
         assert c.get(f'/hod/forms/pick-teachers?category={cat}').status_code == 200
     page = c.get('/hod/feedback/main').get_data(as_text=True)
-    assert '/hod/forms/new?category=main&amp;scope=subject' in page
+    # Main now uses the dedicated create flow (Create button and per-row Select).
+    assert '/hod/feedback/main/create' in page
+    assert '/hod/feedback/main/create?session_id=' in page
     assert '/hod/forms/new?category=lab' in c.get('/hod/feedback/lab').get_data(as_text=True)
     assert '/hod/forms/new?category=second' in c.get('/hod/feedback/second').get_data(as_text=True)
 
