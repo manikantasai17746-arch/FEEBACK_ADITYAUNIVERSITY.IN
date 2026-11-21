@@ -8,68 +8,139 @@
      data-api-sessions="{{ api_sessions }}"
      data-api-preview="{{ api_preview }}"
      data-api-create="{{ api_create }}"
-     data-question-sets='{{ question_sets_json|safe }}'>
+     data-api-qsets="{{ api_qsets }}"
+     data-api-qsets-list="{{ api_qsets_list }}"
+     data-overview-url="{{ overview_url }}"
+     data-forms-url="{{ forms_url }}"
+     data-preselect="{{ preselect_session_id or '' }}"
+     data-question-sets='{{ question_sets_json|safe }}'
+     data-presets='{{ presets_json|safe }}'>
   <div class="hf-head">
     <div>
       <div class="eyebrow">HOD · Main Faculty</div>
       <h1>Create Main Faculty Feedback</h1>
       <p class="sub">Select sections, preview eligible students, choose a question set, then publish.</p>
     </div>
-    <a class="btn" href="{{ url_for('hod_feedback.main_list') }}">Back to list</a>
+    <a class="btn btn-primary" href="{{ url_for('hod_feedback.main_list') }}">Back to list</a>
   </div>
   <div id="hfAlert" class="hf-alert" role="status" aria-live="polite" hidden></div>
-  <nav class="hf-steps" aria-label="Create steps">
-    <button type="button" class="hf-step is-active" data-step="1">1. Select</button>
-    <button type="button" class="hf-step" data-step="2">2. Preview</button>
-    <button type="button" class="hf-step" data-step="3">3. Questions</button>
-    <button type="button" class="hf-step" data-step="4">4. Confirm</button>
+  <nav class="hf-steps hfc-steps" aria-label="Create steps">
+    <button type="button" class="hf-step is-active" data-step="1"><span class="hfc-num">1</span> Select</button>
+    <button type="button" class="hf-step" data-step="2"><span class="hfc-num">2</span> Preview</button>
+    <button type="button" class="hf-step" data-step="3"><span class="hfc-num">3</span> Questions</button>
+    <button type="button" class="hf-step" data-step="4"><span class="hfc-num">4</span> Confirm</button>
   </nav>
-  <section class="card hf-panel is-active" data-panel="1">
-    <h2>Select subjects and sections</h2>
-    <div class="hf-filters hf-filters-inline">
-      <label>Subject <input type="search" id="hfSubject" placeholder="Filter subject"></label>
-      <label>Section <input type="search" id="hfSection" placeholder="Filter section"></label>
-      <label>Faculty <input type="search" id="hfFaculty" placeholder="Filter faculty"></label>
-      <button type="button" class="btn" id="hfReload">Refresh</button>
+
+  <section class="hf-panel is-active" data-panel="1">
+    <h2 class="hfc-h">Select subjects and sections</h2>
+    <div id="hfBanner" class="hfc-banner" hidden>
+      <span id="hfBannerText"></span>
+      <button type="button" class="btn btn-primary btn-sm" id="hfShowAll">Show all teachers</button>
     </div>
-    <div id="hfSessionTree" class="hf-session-tree"><p class="sub">Loading sessions…</p></div>
-    <div class="hf-panel-actions">
-      <button type="button" class="btn btn-primary" id="hfToPreview" disabled>Preview eligible students</button>
+    <div class="hfc-select">
+      <aside class="hfc-box hfc-subjects">
+        <div class="hfc-cap">Subjects</div>
+        <input type="search" id="hfSubjectSearch" placeholder="Search subject" aria-label="Search subject">
+        <div id="hfSubjectList"></div>
+      </aside>
+      <div class="hfc-box hfc-main">
+        <div class="hfc-toolbar">
+          <input type="search" id="hfRowFilter" placeholder="Filter section or faculty..." aria-label="Filter section or faculty">
+          <span class="hfc-pill" id="hfCount"></span>
+          <button type="button" class="btn btn-sm" id="hfToggleAll">Select all</button>
+        </div>
+        <div class="hfc-table-wrap">
+          <table class="hfc-table">
+            <thead><tr><th></th><th>Faculty</th><th>Section</th><th>Branch</th><th>Eligible</th></tr></thead>
+            <tbody id="hfRows"><tr><td colspan="5" class="sub">Loading sessions…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <aside class="hfc-box hfc-selection">
+        <div class="hfc-cap">Your selection</div>
+        <div class="hfc-big" id="hfSelCount">0</div>
+        <div class="sub" id="hfSelMeta">sections · 0 students</div>
+        <div id="hfChips" class="hfc-chips"><span class="sub">Nothing selected yet</span></div>
+        <button type="button" class="btn hfc-orange" id="hfToPreview" disabled>Preview eligible students →</button>
+        <button type="button" class="btn hfc-outline" id="hfClear">Clear selection</button>
+      </aside>
     </div>
   </section>
-  <section class="card hf-panel" data-panel="2" hidden>
-    <h2>Eligible students (authorized preview)</h2>
+
+  <section class="hf-panel hfc-card" data-panel="2" hidden>
+    <div class="hfc-previewhead">
+      <h2 class="hfc-h" style="margin:0">Eligible students (authorized preview)</h2>
+      <button type="button" class="btn btn-sm hfc-goto" id="hfGoBottom">Go to bottom ↓</button>
+    </div>
     <p class="sub">Names and roll numbers are shown only here for eligibility checks. They are never stored with answers.</p>
     <div id="hfPreview" class="hf-preview"><p class="sub">Select sections first.</p></div>
-    <div class="hf-panel-actions">
-      <button type="button" class="btn" data-back="1">Back</button>
+    <div class="hf-panel-actions" id="hfPreviewActions">
+      <button type="button" class="btn btn-primary" data-back="1">Back</button>
       <button type="button" class="btn btn-primary" id="hfToQuestions">Choose question set</button>
     </div>
   </section>
-  <section class="card hf-panel" data-panel="3" hidden>
-    <h2>Question set and options</h2>
-    <label class="hf-block">Question set <select id="hfQSet"></select></label>
-    <div id="hfQPreview" class="hf-qpreview sub"></div>
-    <label class="hf-block">Form title (optional)
-      <input type="text" id="hfTitle" maxlength="200" placeholder="Default title uses faculty and subject"></label>
-    <label class="hf-block">Deadline (optional)
-      <input type="datetime-local" id="hfDeadline"></label>
-    <label class="hf-block">Instructions
-      <textarea id="hfInstructions" rows="3">{{ default_instructions }}</textarea></label>
+
+  <section class="hf-panel hfc-card" data-panel="3" hidden>
+    <h2 class="hfc-h">Question set and options</h2>
+    <label class="hfc-label" for="hfQSet">Question set</label>
+    <select id="hfQSet" class="hfc-select-input"></select>
+    <button type="button" class="btn btn-primary hfc-wide" id="hfEditSets">&#9998; Edit sets</button>
+    <div class="sub hfc-note">Add a new set or edit the shared phase sets.</div>
+    <div id="hfQPreview" class="hfc-qlist"></div>
+
+    <div class="hfc-extra">
+      <div class="hfc-cap">Step 2 · Questions <span class="hfc-muted">(optional extras for this form only)</span></div>
+      <div id="hfExtraList"></div>
+      <div id="hfExtraEmpty" class="hfc-dashed">No extra questions yet. Use the + button below to add one.</div>
+      <button type="button" class="hfc-dashed hfc-addbtn" id="hfAddRating">+ Add a question</button>
+      <button type="button" class="btn hfc-outline" id="hfAddText">+ Add written/suggestion question</button>
+    </div>
+
+    <label class="hfc-label" for="hfPhase">Form name</label>
+    <select id="hfPhase" class="hfc-select-input">
+      <option value="phase1">Phase 1</option>
+      <option value="phase2">Phase 2</option>
+      <option value="custom">Custom name…</option>
+    </select>
+    <input type="text" id="hfTitle" maxlength="200" placeholder="Type a custom form name" hidden>
+    <div class="sub hfc-note">Phase 1 and Phase 2 can each be created once per teacher, subject and section. Phase 2 can only be created or published after Phase 1 is closed.</div>
+
+    <label class="hfc-label" for="hfDeadline">Deadline <span class="hfc-muted">(optional for a draft, required to publish)</span></label>
+    <input type="datetime-local" id="hfDeadline" class="hfc-select-input">
+
+    <label class="hfc-label" for="hfInstructions">Instructions</label>
+    <textarea id="hfInstructions" rows="3" class="hfc-select-input">{{ default_instructions }}</textarea>
+
+    <label class="hfc-authbox"><input type="checkbox" id="hfAuth" checked>
+      Require the authenticator-app code before students open or submit this feedback</label>
+
     <div class="hf-panel-actions">
-      <button type="button" class="btn" data-back="2">Back</button>
+      <button type="button" class="btn btn-primary" data-back="2">Back</button>
       <button type="button" class="btn btn-primary" id="hfToConfirm">Review and confirm</button>
     </div>
   </section>
-  <section class="card hf-panel" data-panel="4" hidden>
-    <h2>Confirm</h2>
+
+  <section class="hf-panel hfc-card" data-panel="4" hidden>
+    <h2 class="hfc-h">Confirm</h2>
     <div id="hfSummary" class="hf-summary"></div>
     <div class="hf-panel-actions">
-      <button type="button" class="btn" data-back="3">Back</button>
-      <button type="button" class="btn" id="hfSaveDraft">Save as draft</button>
+      <button type="button" class="btn btn-primary" data-back="3">Back</button>
+      <button type="button" class="btn btn-primary" id="hfSaveDraft">Save as draft</button>
       <button type="button" class="btn btn-primary" id="hfPublish">Publish now</button>
     </div>
   </section>
+</div>
+
+<div class="hfc-modal" id="hfModal" hidden role="dialog" aria-modal="true" aria-labelledby="hfModalTitle">
+  <div class="hfc-modal-card">
+    <div class="hfc-modal-head"><h2 id="hfModalTitle">Edit question sets</h2>
+      <button type="button" class="hfc-x" id="hfModalX" aria-label="Close">×</button></div>
+    <div class="hfc-modal-body">
+      <nav class="hfc-setnav" id="hfSetNav"></nav>
+      <div class="hfc-seteditor" id="hfSetEditor"></div>
+    </div>
+    <div class="hfc-modal-foot"><button type="button" class="btn btn-primary" id="hfModalDone">Done</button></div>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}

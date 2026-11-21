@@ -141,14 +141,40 @@ def _question_sets_payload(user_id):
 
 
 def _questions_from_set(user_id, set_id):
-    try:
-        sid = int(set_id)
-    except (TypeError, ValueError):
+    # Shared phase sets use string keys ('shared-phase1'); own sets use integer ids.
+    if set_id is None or str(set_id).strip() == '':
         return None
+    sid = str(set_id).strip()
     for s in _question_sets_payload(user_id):
-        if int(s['id']) == sid:
+        if str(s['id']) == sid:
             return s.get('questions') or []
     return None
+
+
+def _apply_form_question_changes(questions, exclude, extra):
+    """Per-form tweaks on top of a question set: leave some questions out (by
+    position) and append extra questions that exist only in this form.  The set
+    itself is never modified."""
+    skip = set()
+    for x in (exclude if isinstance(exclude, list) else []):
+        try:
+            skip.add(int(x))
+        except (TypeError, ValueError):
+            continue
+    out = [q for i, q in enumerate(questions or []) if i not in skip]
+    rating_opts = [dict(o) for o in services.SCALE_PRESETS['five_point']['options']]
+    for q in (extra if isinstance(extra, list) else [])[:20]:
+        if not isinstance(q, dict):
+            continue
+        text = ' '.join(str(q.get('text') or '').split())[:1000]
+        if not text:
+            continue
+        if q.get('qtype') == 'text':
+            out.append({'text': text, 'qtype': 'text', 'is_required': False, 'options': []})
+        else:
+            out.append({'text': text, 'qtype': 'rating', 'is_required': True,
+                        'options': [dict(o) for o in rating_opts]})
+    return out
 
 
 def _parse_deadline(raw):
@@ -190,15 +216,33 @@ def main_create():
         flash('No department scope assigned. Contact Admin.', 'warning')
         return redirect(url_for('hod.dashboard'))
     sets = _question_sets_payload(user['id'])
+    preselect = None
+    pre_raw = request.args.get('session_id', type=int)
+    if pre_raw and _session_in_scope(user, pre_raw):
+        preselect = pre_raw
     return render_template(
         'hod_feedback/main_create.html',
         branches=branches,
         question_sets_json=json.dumps(sets),
+        presets_json=json.dumps(services.SCALE_PRESETS),
+        preselect_session_id=preselect,
         default_instructions=services.DEFAULT_INSTRUCTIONS,
         api_sessions=url_for('hod_feedback.api_sessions'),
         api_preview=url_for('hod_feedback.api_preview'),
         api_create=url_for('hod_feedback.api_create'),
+        api_qsets=url_for('hod.api_question_set_create'),
+        api_qsets_list=url_for('hod_feedback.api_question_sets'),
+        overview_url=url_for('hod.dashboard'),
+        forms_url=url_for('hod.forms'),
     )
+
+
+@bp.route('/main/api/question-sets')
+@role_required('hod')
+def api_question_sets():
+    """Fresh list of the HOD's selectable question sets (used by the create page)."""
+    user, _b, _ids = _hod_or_abort()
+    return jsonify(ok=True, sets=_question_sets_payload(user['id']))
 
 
 @bp.route('/main/api/sessions')
@@ -284,7 +328,23 @@ def api_create():
     if not questions:
         return jsonify(ok=False, error='That question set has no questions.'), 400
 
+    questions = _apply_form_question_changes(
+        questions, data.get('exclude_questions'), data.get('extra_questions'))
+    if not questions:
+        return jsonify(ok=False, error='Keep at least one question in the form.'), 400
+
     title_in = (data.get('title') or '').strip()
+    phase = None
+    phase_choice = (data.get('phase') or '').strip().lower()
+    if phase_choice in services.PHASE_LABELS:
+        phase = phase_choice
+        title_in = services.PHASE_LABELS[phase]
+    else:
+        phase = services.phase_from_title(title_in)
+        if phase:
+            title_in = services.PHASE_LABELS[phase]
+    auth_required = data.get('auth_required')
+    auth_required = None if auth_required is None else bool(auth_required)
     instructions = (data.get('instructions') if data.get('instructions') is not None
                     else services.DEFAULT_INSTRUCTIONS)
     deadline_at, derr = _parse_deadline(data.get('deadline_at'))
@@ -307,6 +367,8 @@ def api_create():
                 user, MAIN, sid, title, questions,
                 instructions=instructions or '',
                 deadline_at=deadline_at,
+                auth_required=auth_required,
+                phase=phase,
             )
             published = False
             eligible = 0
