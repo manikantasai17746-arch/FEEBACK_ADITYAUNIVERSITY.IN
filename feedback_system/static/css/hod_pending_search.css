@@ -1,0 +1,10 @@
+/* HOD Pending submissions: search box (used by the dashboard panel and /hod/pending) */
+.pd-toolbar{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem}
+.pd-search{position:relative;display:inline-flex;align-items:center;flex:1 1 280px;max-width:420px}
+.pd-search input{width:100%;padding:8px 32px 8px 14px;border:1px solid var(--line,#dfe5ef);border-radius:999px;font:inherit;font-size:.9rem;background:var(--card,#fff);color:var(--ink,#1f2733)}
+.pd-search input::-webkit-search-cancel-button{display:none}
+.pd-search input:focus{outline:2px solid var(--brand,#0b2a4a);outline-offset:1px}
+.pd-x{position:absolute;right:10px;border:0;background:none;cursor:pointer;font-size:1.15rem;line-height:1;color:var(--muted,#5b6a82)}
+.pd-x[hidden],.pd-empty[hidden]{display:none}
+.pd-row[hidden]{display:none}
+.pd-row mark{background:#fff0a8;color:inherit;border-radius:3px;padding:0 1px}

@@ -149,6 +149,41 @@
         });
       });
     });
+    /* Change deadline: a small dialog. "This form only" posts to the form's own deadline route;
+       "All Phase N forms" posts to the phase route. HOD department scope is checked on the server. */
+    var dlOv = $('#rfDl'), dlForm = $('#rfDlForm'), dlIn = $('#rfDlIn');
+    if (dlOv && dlForm && dlIn) {
+      /* The page container is its own stacking layer (z-index 1), below the sticky header (z-index 50),
+         so a dialog left inside it is partly hidden behind the header. Attach it to <body> instead. */
+      document.body.appendChild(dlOv);
+      var dlOne = '', dlStatus = '', dlHint = $('#rfDlH'), dlAllW = $('#rfDlAllW');
+      var dlClose = function () { dlOv.classList.remove('on'); };
+      var dlScope = function () { var r = dlForm.querySelector('input[name=scope]:checked'); return r ? r.value : 'current'; };
+      var dlSync = function () {
+        var all = dlScope() === 'phase';
+        dlForm.action = all ? dlForm.getAttribute('data-phase-url') : dlOne;
+        var msg = all ? 'Closed forms in this phase are not changed. Draft and published forms get the new deadline.'
+          : (dlStatus === 'closed' ? 'This form is closed. Saving a new future deadline will open it again for students.' : '');
+        dlHint.textContent = msg; dlHint.hidden = !msg;
+      };
+      $$('[data-dl]', rf).forEach(function (b) {
+        b.addEventListener('click', function () {
+          dlOne = b.getAttribute('data-dl'); dlStatus = b.getAttribute('data-status') || '';
+          $('#rfDlS').textContent = b.getAttribute('data-title') || '';
+          dlIn.value = b.getAttribute('data-val') || '';
+          var ph = b.getAttribute('data-phase') || '';
+          $('#rfDlPhase').value = ph;
+          $('#rfDlPh').textContent = b.getAttribute('data-phase-label') || '';
+          dlAllW.hidden = !ph;                       /* custom-named forms have no phase to apply to */
+          dlForm.querySelector('input[name=scope][value=current]').checked = true;
+          dlSync(); dlOv.classList.add('on'); dlIn.focus();
+        });
+      });
+      $$('input[name=scope]', dlForm).forEach(function (r) { r.addEventListener('change', dlSync); });
+      $('#rfDlNo').addEventListener('click', dlClose);
+      dlOv.addEventListener('click', function (e) { if (e.target === dlOv) dlClose(); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') dlClose(); });
+    }
     upd();
   }
 

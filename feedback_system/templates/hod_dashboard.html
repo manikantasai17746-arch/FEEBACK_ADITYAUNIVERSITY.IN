@@ -3,6 +3,7 @@
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hod-overview.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod_pending_search.css') }}">
 {% endblock %}
 {% block body %}
 {% from '_hod_bands.html' import hod_bands with context %}
@@ -131,4 +132,5 @@
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/hod_overview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hod_pending_search.js') }}"></script>
 {% endblock %}
