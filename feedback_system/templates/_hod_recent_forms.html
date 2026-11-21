@@ -32,8 +32,8 @@
           <td>{{ (f.category or 'main')|capitalize }}</td>
           <td>{{ f.sections }} <span class="rf-s" style="display:inline">({{ f.students }} students)</span></td>
           <td><span class="badge badge-{{ f.status }}">{{ 'Published' if f.status == 'open' else f.status }}</span>
-            {% if f.status == 'open' and f.deadline_at %}<span class="rf-s">closes {{ f.deadline_at }}</span>{% endif %}
-            {% if f.status == 'closed' %}<span class="rf-s">deadline {{ f.deadline_at or 'none' }}</span>{% endif %}</td>
+            {% if f.deadline_at %}<span class="rf-s">{{ 'closes' if f.status == 'open' else 'deadline' }} {{ f.deadline_at|deadline }}</span>
+            {% else %}<span class="rf-s">No deadline</span>{% endif %}</td>
           <td class="rf-act">
             {% if dr %}
               <button type="button" class="btn btn-accent btn-sm" data-act="open" data-fid="{{ f.id }}" data-title="{{ f.title }}">Publish to students</button>
@@ -44,6 +44,11 @@
               <button type="button" class="btn btn-ghost btn-sm" data-act="closed" data-fid="{{ f.id }}" data-title="{{ f.title }}">Close feedback</button>
             {% else %}
               <button type="button" class="btn btn-ghost btn-sm" data-act="open" data-fid="{{ f.id }}" data-title="{{ f.title }}">Reopen</button>
+            {% endif %}
+            {% if f.status != 'archived' %}
+              <div style="margin-top:6px"><button type="button" class="btn btn-ghost btn-sm rf-dl" data-dl="{{ url_for('hod.form_deadline', fid=f.id) }}"
+                      data-title="{{ f.title }}" data-status="{{ f.status }}"
+                      data-val="{{ f.deadline_at|deadline_input if f.deadline_at else '' }}">&#128339; Change deadline</button></div>
             {% endif %}
           </td>
         </tr>
@@ -73,6 +78,23 @@
       <button type="button" class="btn btn-accent" id="rfYes">Confirm</button>
     </div>
   </div>
+</div>
+<div class="rv-ov" id="rfDl" role="dialog" aria-modal="true" aria-labelledby="rfDlT">
+  <form method="post" class="rv-box" id="rfDlForm" style="max-width:480px">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="next" value="{{ next_url }}">
+    <div class="rv-body">
+      <h3 id="rfDlT" style="margin-top:0">Change deadline</h3>
+      <p id="rfDlS" class="sub" style="margin-top:0"></p>
+      <div class="field"><label for="rfDlIn">New deadline <span class="req">*</span></label>
+        <input type="datetime-local" id="rfDlIn" name="deadline_at" required></div>
+      <p class="hint" id="rfDlH" hidden>This form is closed. Saving a new future deadline will open it again for students.</p>
+    </div>
+    <div class="rv-foot">
+      <button type="button" class="btn btn-ghost" id="rfDlNo">Cancel</button>
+      <button type="submit" class="btn btn-accent">Save deadline</button>
+    </div>
+  </form>
 </div>
 
 {% endmacro %}

@@ -12,6 +12,7 @@ This directory indexes phase documentation. Existing handoff files remain in the
 | Phase 5B | `feedback_system/PHASE_5B_VERIFICATION_REPORT.md` | Category ownership, eligibility, anonymity verification, safety fixes, test gaps. |
 | Recent Forms search + close rule | `RECENT_FORMS_SEARCH_CLOSE_HANDOFF.md` (this folder) | Search box and close-only-before-deadline rule in the HOD Recent Forms table. |
 | Pending submissions search | `PENDING_SEARCH_HANDOFF.md` (this folder) | Search box (emp ID, name, subject) in the HOD Pending submissions table. |
+| Change form deadline | `FORM_DEADLINE_CHANGE_HANDOFF.md` (this folder) | "Change deadline" button and dialog on HOD Recent Forms / Form Management rows. |
 
 ## Missing / not located during inspection
 

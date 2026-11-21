@@ -149,6 +149,23 @@
         });
       });
     });
+    /* Change deadline: a small dialog posts to the form's deadline route (HOD scope is checked there). */
+    var dlOv = $('#rfDl'), dlForm = $('#rfDlForm'), dlIn = $('#rfDlIn');
+    if (dlOv && dlForm && dlIn) {
+      var dlClose = function () { dlOv.classList.remove('on'); };
+      $$('[data-dl]', rf).forEach(function (b) {
+        b.addEventListener('click', function () {
+          dlForm.action = b.getAttribute('data-dl');
+          $('#rfDlS').textContent = b.getAttribute('data-title') || '';
+          dlIn.value = b.getAttribute('data-val') || '';
+          $('#rfDlH').hidden = b.getAttribute('data-status') !== 'closed';
+          dlOv.classList.add('on'); dlIn.focus();
+        });
+      });
+      $('#rfDlNo').addEventListener('click', dlClose);
+      dlOv.addEventListener('click', function (e) { if (e.target === dlOv) dlClose(); });
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') dlClose(); });
+    }
     upd();
   }
 
