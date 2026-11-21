@@ -2549,7 +2549,8 @@ def _default_message_for(band_key):
     return DEFAULT_BAND_MESSAGES['high']
 
 
-def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id):
+def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id,
+               timetable_id=None, subject_code=None):
     """All score bands with their rows (each row carries the teacher's email)."""
     from . import scoring
     scope_ids = [branch_id] if branch_id else branch_ids
@@ -2557,7 +2558,9 @@ def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id):
     if scope_ids:
         rows = scoring.faculty_scores_for_branches(
             scope_ids, academic_year_id=academic_year_id,
-            semester_id=semester_id, form_id=form_id, min_responses=1)
+            semester_id=semester_id, form_id=form_id, min_responses=1,
+            timetable_ids=[timetable_id] if timetable_id else None,
+            subject_codes=[subject_code] if subject_code else None)
     rows = [dict(r) for r in rows if r.get('overall_score') is not None]
     ids = sorted({r['teacher_user_id'] for r in rows if r.get('teacher_user_id')})
     emails = {}
@@ -2578,6 +2581,25 @@ def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id):
     return bands
 
 
+def _band_filter_options(branch_ids, semester_id=None):
+    """Timetable and subject choices for the score-band filters (HOD scope only)."""
+    if not branch_ids:
+        return [], []
+    ph = ','.join('?' * len(branch_ids))
+    tts = db.query(
+        f"""SELECT t.id, t.code, t.name, t.branch_id, t.semester_id
+            FROM timetables t WHERE t.is_deleted=0 AND t.branch_id IN ({ph})
+            ORDER BY t.code""", tuple(branch_ids))
+    if semester_id:
+        tts = [t for t in tts if t['semester_id'] == semester_id]
+    subs = db.query(
+        f"""SELECT DISTINCT cs.subject_code, cs.subject_name
+            FROM class_sessions cs JOIN timetables t ON t.id=cs.timetable_id
+            WHERE cs.is_deleted=0 AND t.is_deleted=0 AND t.branch_id IN ({ph})
+            ORDER BY cs.subject_name""", tuple(branch_ids))
+    return tts, subs
+
+
 @bp.route('/performance/bands')
 @role_required('hod')
 def performance_bands():
@@ -2591,15 +2613,37 @@ def performance_bands():
     semester_id = request.args.get('semester_id', type=int)
     branch_id = request.args.get('branch_id', type=int)
     form_id = request.args.get('form_id', type=int)
+    timetable_id = request.args.get('timetable_id', type=int)
+    subject_code = (request.args.get('subject_code') or '').strip()[:40] or None
     band_key = (request.args.get('band') or '').strip()
     if branch_id and branch_id not in branch_ids:
         branch_id = None
 
-    bands = _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id)
+    timetables, subjects = _band_filter_options(branch_ids, semester_id)
+    if timetable_id and timetable_id not in {t['id'] for t in timetables}:
+        timetable_id = None
+    if subject_code and subject_code not in {x['subject_code'] for x in subjects}:
+        subject_code = None
+
+    bands = _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id,
+                       timetable_id=timetable_id, subject_code=subject_code)
     valid_keys = {b['key'] for b in bands}
     if band_key not in valid_keys:
         band_key = next((b['key'] for b in bands if b['count']), bands[0]['key'])
     active = next(b for b in bands if b['key'] == band_key)
+
+    def _teacher_count(bs):
+        # Distinct teachers: one teacher with several forms counts once.
+        return len({r['teacher_user_id'] for b in bs for r in b['rows']
+                    if r.get('teacher_user_id')})
+
+    shown_total = _teacher_count(bands)
+    any_filter = any([academic_year_id, semester_id, branch_id, form_id,
+                      timetable_id, subject_code])
+    if any_filter:
+        all_total = _teacher_count(_band_data(branch_ids, None, None, None, None))
+    else:
+        all_total = shown_total
 
     return render_template(
         'hod_performance_bands.html', user=user, branches=branches,
@@ -2607,9 +2651,13 @@ def performance_bands():
         default_subject=DEFAULT_BAND_SUBJECT,
         default_message=_default_message_for(band_key),
         mail_ready=mailer.is_configured(),
+        semesters=db.query('SELECT id, number, label FROM semesters ORDER BY number'),
+        timetables=timetables, subjects=subjects,
+        shown_total=shown_total, all_total=all_total,
         filters={'academic_year_id': academic_year_id,
                  'semester_id': semester_id, 'branch_id': branch_id,
-                 'form_id': form_id})
+                 'form_id': form_id, 'timetable_id': timetable_id,
+                 'subject_code': subject_code})
 
 
 @bp.route('/performance/bands/send', methods=['POST'])
@@ -2630,12 +2678,15 @@ def performance_bands_send():
             return None
     academic_year_id, semester_id = _int('academic_year_id'), _int('semester_id')
     branch_id, form_id = _int('branch_id'), _int('form_id')
+    timetable_id = _int('timetable_id')
+    subject_code = (f.get('subject_code') or '').strip()[:40] or None
     if branch_id and branch_id not in branch_ids:
         branch_id = None
     band_key = (f.get('band') or '').strip()
     back = url_for('hod.performance_bands', band=band_key,
                    academic_year_id=academic_year_id, semester_id=semester_id,
-                   branch_id=branch_id, form_id=form_id)
+                   branch_id=branch_id, form_id=form_id,
+                   timetable_id=timetable_id, subject_code=subject_code)
 
     subject_tpl = ' '.join((f.get('subject') or '').split())[:150] or DEFAULT_BAND_SUBJECT
     message_tpl = (f.get('message') or '').strip()[:5000] or _default_message_for(band_key)
@@ -2647,7 +2698,8 @@ def performance_bands_send():
         flash('Tick at least one teacher to send the email.', 'error')
         return redirect(back)
 
-    bands = _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id)
+    bands = _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id,
+                       timetable_id=timetable_id, subject_code=subject_code)
     band = next((b for b in bands if b['key'] == band_key), None)
     if not band:
         flash('Unknown score band.', 'error')
