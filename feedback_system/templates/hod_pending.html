@@ -25,12 +25,13 @@
       </select></div>
     <noscript><button class="btn" type="submit">Show</button></noscript>
   </form>
-  {% if can_email and totals.with_pending %}
+  {% if can_email and totals.email_teachers %}
   <form method="post" action="{{ url_for('hod.pending_email', fid=form.id) }}" style="margin-top:.75rem"
-        onsubmit="return confirm('Email the pending-roll PDF to {{ totals.with_pending }} teacher(s)?')">
+        onsubmit="return confirm('Send ONE combined email (with one PDF) to each of {{ totals.email_teachers }} teacher(s), covering all their open Main, Lab and Second Faculty forms?')">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <input type="hidden" name="all" value="1">
-    <button class="btn btn-accent" type="submit">✉ Email all teachers with pending ({{ totals.with_pending }})</button>
+    <button class="btn btn-accent" type="submit">✉ Email all teachers with pending ({{ totals.email_teachers }})</button>
+    <span class="sub" style="margin-left:.5rem">One email per teacher, covering every open Main, Lab and Second Faculty form.</span>
   </form>
   {% endif %}
   {% if form %}
@@ -56,7 +57,9 @@
       {% for t in teachers %}
         <tr>
           <td class="wrap"><strong>{{ t.teacher_name }}</strong>
-            <div class="sub">{{ t.emp_code or '' }}{% if t.email %} · {{ t.email }}{% else %} · <em>no email on file</em>{% endif %}</div></td>
+            <div class="sub">{{ t.emp_code or '' }}{% if t.email %} · {{ t.email }}{% else %} · <em>no email on file</em>{% endif %}</div>
+            {% if t.also %}<div class="sub">The email also covers:
+              {% for a in t.also %}{{ a.label }} ({{ a.pending }} pending){{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}</td>
           <td class="wrap">{{ t.subjects|join(', ') or '—' }}</td>
           <td>{{ t.eligible }}</td>
           <td>{{ t.submitted }}</td>

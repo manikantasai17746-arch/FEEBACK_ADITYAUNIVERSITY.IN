@@ -1216,50 +1216,113 @@ def _hod_form_or_403(fid):
 # --------------------------------------------------------------------------- #
 # Pending submissions per teacher (read-only) + one-click reminder e-mail
 # --------------------------------------------------------------------------- #
-def _pending_pdf(form, entry, hod_name):
+_PENDING_GROUPS = (('main', 'Main Faculty Feedback'),
+                   ('second', 'Second Faculty Feedback'),
+                   ('lab', 'Lab Faculty Feedback'))
+
+
+def _deadline_text(form):
+    return services.format_deadline(form['deadline_at']) if form['deadline_at'] else None
+
+
+def _teacher_pending_sections(branch_ids):
+    """``{teacher_user_id: [section, ...]}`` for every OPEN form of these branches.
+
+    A teacher who is Main faculty, Lab faculty and/or Second faculty appears once,
+    with one section per form where students are still pending, so that they can
+    be sent ONE e-mail instead of one per form.  A section is
+    ``{'form', 'category', 'label', 'entry'}`` where ``entry`` comes from
+    ``services.pending_by_teacher`` (roll numbers only, no names).
+    """
+    if not branch_ids:
+        return {}
+    ph = ','.join('?' * len(branch_ids))
+    forms = db.query(
+        f"""SELECT id, title, category, deadline_at FROM feedback_forms
+            WHERE branch_id IN ({ph}) AND is_deleted=0 AND status='open'
+            ORDER BY id""", tuple(branch_ids))
+    labels = dict(_PENDING_GROUPS)
+    order = {k: i for i, (k, _label) in enumerate(_PENDING_GROUPS)}
+    by_teacher = {}
+    for f in forms:
+        f = dict(f)
+        cat = f.get('category') or 'main'
+        for e in services.pending_by_teacher(f['id']):
+            if not e['pending']:
+                continue
+            by_teacher.setdefault(e['teacher_user_id'], []).append(
+                {'form': f, 'category': cat, 'label': labels.get(cat, 'Feedback form'),
+                 'entry': e})
+    for secs in by_teacher.values():
+        secs.sort(key=lambda s: (order.get(s['category'], 99), s['form']['id']))
+    return by_teacher
+
+
+def _pending_pdf(sections, hod_name):
+    """ONE PDF for a teacher: the single-form layout for one form, a combined
+    one (a section per form) when the teacher has pending students in several."""
     from datetime import datetime
     from . import reports
-    return reports.build_pending_rolls_pdf(
-        entry['teacher_name'], entry['emp_code'], form['title'],
-        entry['subjects'], entry['sections'],
-        services.format_deadline(form['deadline_at']) if form['deadline_at'] else 'No deadline',
-        entry['pending_rolls'],
-        generated_at=datetime.now(services._local_tz()).strftime('%d %b %Y, %I:%M %p'),
-        hod_name=hod_name)
+    stamp = datetime.now(services._local_tz()).strftime('%d %b %Y, %I:%M %p')
+    first = sections[0]['entry']
+    if len(sections) == 1:
+        f = sections[0]['form']
+        return reports.build_pending_rolls_pdf(
+            first['teacher_name'], first['emp_code'], f['title'],
+            first['subjects'], first['sections'],
+            _deadline_text(f) or 'No deadline', first['pending_rolls'],
+            generated_at=stamp, hod_name=hod_name)
+    blocks = [{'form_title': s['form']['title'], 'category_label': s['label'],
+               'subjects': s['entry']['subjects'], 'sections': s['entry']['sections'],
+               'deadline_text': _deadline_text(s['form']) or 'No deadline',
+               'rolls': s['entry']['pending_rolls']} for s in sections]
+    return reports.build_pending_rolls_pdf_combined(
+        first['teacher_name'], first['emp_code'], blocks,
+        generated_at=stamp, hod_name=hod_name)
 
 
-def _email_pending(form, entry, hod_name):
-    """E-mail one teacher their pending roll numbers as a PDF. Returns a status word."""
+def _email_pending(sections, hod_name):
+    """E-mail ONE teacher a single message (and one PDF) covering every open form
+    where their students are still pending. Returns a status word."""
+    from html import escape
     from . import mailer
-    if not entry['pending']:
+    if not sections:
         return 'none_pending'
+    entry = sections[0]['entry']
     if not mailer.is_valid_email(entry['email']):
         return 'no_email'
-    pdf = _pending_pdf(form, entry, hod_name)
-    when = services.format_deadline(form['deadline_at']) if form['deadline_at'] else None
-    subject = f"Pending student feedback: {form['title']}"
-    lines = [f"Dear {entry['teacher_name']},", '',
-             f"{entry['pending']} of your {entry['eligible']} eligible students have not yet "
-             f"submitted the feedback form \"{form['title']}\".",
-             'The attached PDF lists their roll numbers only.']
-    if when:
-        lines.append(f'The form closes on {when}.')
-    lines += ['', 'Please remind these students to complete the form.', '',
-              f'- {hod_name}', 'Aditya University - Faculty Feedback System']
+    pdf = _pending_pdf(sections, hod_name)
+    lines = [f"Dear {entry['teacher_name']},", '']
+    if len(sections) == 1:
+        f = sections[0]['form']
+        subject = f"Pending student feedback: {f['title']}"
+        lines += [f"{entry['pending']} of your {entry['eligible']} eligible students have not yet "
+                  f"submitted the feedback form \"{f['title']}\".",
+                  'The attached PDF lists their roll numbers only.']
+        if _deadline_text(f):
+            lines.append(f'The form closes on {_deadline_text(f)}.')
+        lines += ['', 'Please remind these students to complete the form.']
+        pdf_name = f"pending_{f['id']}_{entry['emp_code'] or entry['teacher_user_id']}.pdf"
+    else:
+        subject = f'Pending student feedback: {len(sections)} forms'
+        lines += ['Some of your students have not yet submitted feedback. '
+                  'This one email covers all of your open feedback forms:', '']
+        for i, s in enumerate(sections, 1):
+            f, e = s['form'], s['entry']
+            closes = f", closes {_deadline_text(f)}" if _deadline_text(f) else ''
+            lines.append(f"{i}. {s['label']} - \"{f['title']}\": "
+                         f"{e['pending']} of {e['eligible']} students pending{closes}")
+        lines += ['', 'The attached PDF lists their roll numbers only, one section per form.',
+                  '', 'Please remind these students to complete the forms.']
+        pdf_name = f"pending_feedback_{entry['emp_code'] or entry['teacher_user_id']}.pdf"
+    lines += ['', f'- {hod_name}', 'Aditya University - Faculty Feedback System']
     text = '\n'.join(lines)
-    from html import escape
     html = ('<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto">'
             '<h3 style="color:#0B2F6B">Aditya University - Faculty Feedback</h3>'
             '<div style="white-space:pre-wrap">' + escape(text) + '</div></div>')
     ok = mailer.send_email(entry['email'], subject, text, html,
-                           attachments=[(f"pending_{form['id']}_{entry['emp_code'] or entry['teacher_user_id']}.pdf",
-                                         pdf, 'application/pdf')])
+                           attachments=[(pdf_name, pdf, 'application/pdf')])
     return 'sent' if ok else 'failed'
-
-
-_PENDING_GROUPS = (('main', 'Main Faculty Feedback'),
-                   ('second', 'Second Faculty Feedback'),
-                   ('lab', 'Lab Faculty Feedback'))
 
 
 def _pending_form_groups(forms):
@@ -1306,16 +1369,25 @@ def pending():
     if fid:
         form = _hod_form_or_403(fid)
         teachers = services.pending_by_teacher(fid)
+    can_email = bool(form and form['status'] == 'open')
+    # One e-mail per teacher across ALL open forms (Main / Second / Lab) of the
+    # department: show each teacher what else the e-mail will cover.
+    by_teacher = _teacher_pending_sections(branch_ids) if can_email else {}
+    for t in teachers:
+        t['also'] = [{'label': s['label'], 'pending': s['entry']['pending']}
+                     for s in by_teacher.get(t['teacher_user_id'], [])
+                     if s['form']['id'] != form['id']]
     totals = {'teachers': len(teachers),
               'pending': sum(t['pending'] for t in teachers),
-              'with_pending': sum(1 for t in teachers if t['pending'])}
+              'with_pending': sum(1 for t in teachers if t['pending']),
+              'email_teachers': len(by_teacher)}
     cat = (form['category'] if form else None) or 'main'
     return render_template('hod_pending.html', user=user, forms=forms, form=form,
                            groups=_pending_form_groups(forms),
                            form_category=dict(_PENDING_GROUPS).get(cat, 'Feedback form'),
                            teachers=teachers, totals=totals,
                            mail_ready=mailer.is_configured(),
-                           can_email=bool(form and form['status'] == 'open'))
+                           can_email=can_email)
 
 
 @bp.route('/pending/<int:fid>/teacher/<int:tid>.pdf')
@@ -1323,12 +1395,20 @@ def pending():
 def pending_pdf(fid, tid):
     """Preview/download the exact PDF that the e-mail button sends."""
     from flask import Response
+    user = current_user()
     form = _hod_form_or_403(fid)
     entry = next((t for t in services.pending_by_teacher(fid)
                   if t['teacher_user_id'] == tid), None)
     if not entry:
         abort(404)
-    pdf = _pending_pdf(form, entry, dict(current_user()).get('name') or 'HOD')
+    cat = form['category'] or 'main'
+    sections = [{'form': dict(form), 'category': cat,
+                 'label': dict(_PENDING_GROUPS).get(cat, 'Feedback form'), 'entry': entry}]
+    if form['status'] == 'open':
+        # same PDF the e-mail button sends: every open form of this teacher
+        sections = _teacher_pending_sections(
+            [b['id'] for b in _hod_branches(user)]).get(tid) or sections
+    pdf = _pending_pdf(sections, dict(user).get('name') or 'HOD')
     return Response(pdf, mimetype='application/pdf', headers={
         'Content-Disposition': f'inline; filename=pending_{fid}_{tid}.pdf'})
 
@@ -1336,32 +1416,40 @@ def pending_pdf(fid, tid):
 @bp.route('/pending/<int:fid>/email', methods=['POST'])
 @role_required('hod')
 def pending_email(fid):
-    """E-mail the PDF to one teacher (teacher_user_id) or to all with pending students."""
+    """E-mail the PDF to one teacher (teacher_user_id) or to all with pending students.
+
+    A teacher gets ONE e-mail however many open forms (Main / Lab / Second Faculty)
+    still have pending students for them - never one e-mail per form."""
     user = current_user()
     form = _hod_form_or_403(fid)
     back = url_for('hod.pending', form_id=fid)
     if form['status'] != 'open':
         flash('Reminders can only be sent while the form is open.', 'error')
         return redirect(back)
-    entries = services.pending_by_teacher(fid)
+    by_teacher = _teacher_pending_sections([b['id'] for b in _hod_branches(user)])
     if request.form.get('all'):
-        chosen = [e for e in entries if e['pending']]
+        chosen = sorted(by_teacher.values(),
+                        key=lambda secs: (secs[0]['entry']['teacher_name'] or '').lower())
     else:
         tid = request.form.get('teacher_user_id', type=int)
-        chosen = [e for e in entries if e['teacher_user_id'] == tid]
-        if not chosen:
+        if not any(e['teacher_user_id'] == tid for e in services.pending_by_teacher(fid)):
             flash('That teacher is not part of this form.', 'error')
+            return redirect(back)
+        chosen = [by_teacher[tid]] if tid in by_teacher else []
+        if not chosen:
+            flash('Nothing to send: all eligible students have submitted.', 'info')
             return redirect(back)
     if len(chosen) > 100:
         flash('Please send to at most 100 teachers at a time.', 'error')
         return redirect(back)
     hod_name = dict(user).get('name') or 'HOD'
     counts = {'sent': 0, 'failed': 0, 'no_email': 0, 'none_pending': 0}
-    for e in chosen:
-        counts[_email_pending(form, e, hod_name)] += 1
+    for secs in chosen:
+        counts[_email_pending(secs, hod_name)] += 1
     audit('hod.pending.email', 'feedback_forms', fid,
-          f"Pending-roll PDF e-mails: sent {counts['sent']}, failed {counts['failed']}, "
-          f"no email {counts['no_email']}")
+          f"Pending-roll PDF e-mails (one combined e-mail per teacher): sent {counts['sent']}, "
+          f"failed {counts['failed']}, no email {counts['no_email']}, "
+          f"forms covered {sum(len(s) for s in chosen)}")
     if counts['sent']:
         flash(f"Email with PDF sent to {counts['sent']} teacher(s).", 'success')
     if counts['none_pending']:

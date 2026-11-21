@@ -16,8 +16,8 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas as pdfcanvas
-from reportlab.platypus import (BaseDocTemplate, Frame, PageTemplate, Paragraph,
-                                Spacer, Table, TableStyle)
+from reportlab.platypus import (BaseDocTemplate, CondPageBreak, Frame, PageTemplate,
+                                Paragraph, Spacer, Table, TableStyle)
 
 NAVY = colors.HexColor('#1f3a68')
 NAVY_SOFT = colors.HexColor('#eef2f9')
@@ -215,6 +215,80 @@ def build_pending_rolls_pdf(teacher_name, emp_code, form_title, subjects, sectio
         grid = [[Paragraph(escape(str(r)), cell) for r in rolls[i:i + cols]]
                 + [''] * (cols - len(rolls[i:i + cols]))
                 for i in range(0, len(rolls), cols)]
+        table = Table(grid, colWidths=[doc.width / cols] * cols)
+        table.setStyle(TableStyle([
+            ('GRID', (0, 0), (-1, -1), 0.4, LINE),
+            ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white, NAVY_SOFT]),
+            ('TOPPADDING', (0, 0), (-1, -1), 5), ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        story.append(table)
+    doc.build(story, canvasmaker=_numbered_canvas(
+        'Faculty Feedback System - roll numbers only; no answers or names are shown'))
+    return buffer.getvalue()
+
+
+def build_pending_rolls_pdf_combined(teacher_name, emp_code, blocks, generated_at='',
+                                     hod_name=''):
+    """One teacher's pending lists across SEVERAL feedback forms in ONE PDF.
+
+    Used so a teacher who is Main, Lab and/or Second faculty gets a single
+    e-mail instead of one per form.  ``blocks`` is a list of dicts with the keys
+    ``form_title``, ``category_label``, ``subjects``, ``sections``,
+    ``deadline_text`` and ``rolls``.  Each form keeps its own section (the same
+    roll number can be pending in more than one form).  Roll numbers only - no
+    names and no answers.
+    """
+    from html import escape
+    styles = _styles()
+    buffer = BytesIO()
+    doc = BaseDocTemplate(
+        buffer, pagesize=A4,
+        leftMargin=16 * mm, rightMargin=16 * mm, topMargin=16 * mm, bottomMargin=16 * mm,
+        title='Pending feedback submissions', author='Faculty Feedback System')
+    frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='main',
+                  leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+    doc.addPageTemplates([PageTemplate(id='page', frames=[frame])])
+
+    section_head = ParagraphStyle('RSection', parent=styles['meta'], fontName='Helvetica-Bold',
+                                  fontSize=11.5, leading=15, textColor=NAVY,
+                                  spaceBefore=12, spaceAfter=3)
+    teacher = escape(teacher_name or 'Faculty') + (f' ({escape(str(emp_code))})' if emp_code else '')
+    story = [Paragraph('Pending feedback submissions', styles['title']),
+             Paragraph(f'Combined list for {len(blocks)} feedback form(s)', styles['subtitle'])]
+    meta = [('Faculty', teacher),
+            ('Forms with pending students', str(len(blocks)))]
+    if hod_name:
+        meta.append(('Sent by', escape(hod_name)))
+    if generated_at:
+        meta.append(('Generated', escape(generated_at)))
+    for k, v in meta:
+        story.append(Paragraph(f'<b>{k}:</b> {v}', styles['meta']))
+
+    for i, b in enumerate(blocks, 1):
+        rolls = b.get('rolls') or []
+        story.append(CondPageBreak(55 * mm))
+        story.append(Paragraph(
+            f"{i}. {escape(b.get('category_label') or 'Feedback form')} - "
+            f"{escape(b.get('form_title') or 'Feedback form')}", section_head))
+        for k, v in (('Subject', escape(', '.join(b.get('subjects') or [])) or '—'),
+                     ('Section', escape(', '.join(b.get('sections') or [])) or '—'),
+                     ('Deadline', escape(b.get('deadline_text') or 'No deadline')),
+                     ('Students pending', str(len(rolls)))):
+            story.append(Paragraph(f'<b>{k}:</b> {v}', styles['meta']))
+        story.append(Spacer(1, 5))
+        if not rolls:
+            story.append(Paragraph('No pending students - everyone has submitted.',
+                                   styles['empty']))
+            continue
+        story.append(Paragraph('Roll numbers who have not yet submitted:', styles['meta']))
+        story.append(Spacer(1, 4))
+        cols = 5
+        cell = ParagraphStyle('RollCellC', parent=styles['cell'], fontName='Helvetica-Bold',
+                              fontSize=10, leading=13, alignment=1)
+        grid = [[Paragraph(escape(str(r)), cell) for r in rolls[j:j + cols]]
+                + [''] * (cols - len(rolls[j:j + cols]))
+                for j in range(0, len(rolls), cols)]
         table = Table(grid, colWidths=[doc.width / cols] * cols)
         table.setStyle(TableStyle([
             ('GRID', (0, 0), (-1, -1), 0.4, LINE),
