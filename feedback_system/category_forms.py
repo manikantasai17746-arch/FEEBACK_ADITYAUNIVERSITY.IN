@@ -458,10 +458,21 @@ def _open_with_snapshot(actor, form_id, sc):
     return frozen
 
 
+def _refuse_manual_close_after_deadline(form):
+    """An open form whose deadline has passed is closed by the system, never by hand."""
+    if form['status'] == 'open' and services.deadline_passed(form):
+        raise ScopeError('deadline_passed',
+                         'The deadline has passed, so this form closes automatically.', 409)
+
+
 def close(actor, form_id):
-    """open -> closed.  Closed forms accept no submissions; history is kept."""
+    """open -> closed.  Closed forms accept no submissions; history is kept.
+
+    Allowed only before the deadline; after it the form closes itself
+    (``services.close_expired_forms``)."""
     form = _load_form(form_id)
     _category_of(form)
+    _refuse_manual_close_after_deadline(form)
     _require_actor(actor, scope_for_form_lenient(form))
     now = datetime.utcnow().isoformat(timespec='seconds')
     cur = db.get_db().execute(
@@ -492,6 +503,8 @@ def change_status(actor, form_id, status):
     current = form['status']
     if status == current:                    # already there: nothing to change or re-freeze
         return
+    if status == 'closed':                   # covers legacy (non-managed) forms too
+        _refuse_manual_close_after_deadline(form)
     try:
         category = _category_of(form)
         managed = is_session_scoped(form)

@@ -10,6 +10,7 @@ This directory indexes phase documentation. Existing handoff files remain in the
 | Phase 3 | `PHASE_3_HANDOFF.md` | Teacher Assignment Setup, rooms, lab status, v21 migration, routes/service behavior, tests, limitations. |
 | Phase 4 | `feedback_system/PHASE_4_HANDOFF.md` | Second Faculty assignment model, No-Lab guard, soft removal, tests, limitations. |
 | Phase 5B | `feedback_system/PHASE_5B_VERIFICATION_REPORT.md` | Category ownership, eligibility, anonymity verification, safety fixes, test gaps. |
+| Recent Forms search + close rule | `RECENT_FORMS_SEARCH_CLOSE_HANDOFF.md` (this folder) | Search box and close-only-before-deadline rule in the HOD Recent Forms table. |
 
 ## Missing / not located during inspection
 

@@ -7,12 +7,13 @@
     <div class="rf-bar">
       <div class="rf-chips" role="group" aria-label="Filter forms by status">
         {% set n_all = forms|length %}
-        <button type="button" class="rf-chip" data-flt="all" aria-pressed="true">All ({{ n_all }})</button>
-        <button type="button" class="rf-chip" data-flt="draft" aria-pressed="false">Draft ({{ forms|selectattr('status','equalto','draft')|list|length }})</button>
-        <button type="button" class="rf-chip" data-flt="open" aria-pressed="false">Open ({{ forms|selectattr('status','equalto','open')|list|length }})</button>
-        <button type="button" class="rf-chip" data-flt="closed" aria-pressed="false">Closed ({{ forms|selectattr('status','equalto','closed')|list|length }})</button>
+        <button type="button" class="rf-chip" data-flt="all" data-lbl="All" aria-pressed="true">All ({{ n_all }})</button>
+        <button type="button" class="rf-chip" data-flt="draft" data-lbl="Draft" aria-pressed="false">Draft ({{ forms|selectattr('status','equalto','draft')|list|length }})</button>
+        <button type="button" class="rf-chip" data-flt="open" data-lbl="Open" aria-pressed="false">Open ({{ forms|selectattr('status','equalto','open')|list|length }})</button>
+        <button type="button" class="rf-chip" data-flt="closed" data-lbl="Closed" aria-pressed="false">Closed ({{ forms|selectattr('status','equalto','closed')|list|length }})</button>
       </div>
       <span class="rf-sp"></span>
+      <span class="rf-search"><input type="search" id="rfQ" placeholder="Search by emp ID or subject…" aria-label="Search forms by employee ID or subject" autocomplete="off"><button type="button" class="rf-x" id="rfQx" aria-label="Clear search" hidden>&times;</button></span>
       <label class="rf-selall"><input type="checkbox" id="rfAll"> Select all drafts</label>
       <button type="submit" class="btn btn-primary btn-sm" id="rfPubSel" disabled>Publish selected (0)</button>
     </div>
@@ -22,10 +23,12 @@
         <tbody>
         {% for f in forms %}
         {% set dr = f.status == 'draft' %}
-        <tr data-status="{{ f.status }}">
+        {% set late = f.status == 'open' and f.deadline_passed %}
+        <tr data-status="{{ f.status }}" data-deadline="{{ f.deadline_at or '' }}"
+            data-q="{{ ([f.snapshot_subject_code or '', f.snapshot_subject_name or '', f.teachers|join(' ')]|join(' '))|lower }}">
           <td><input type="checkbox" name="form_ids" value="{{ f.id }}" {% if not dr %}disabled title="Only draft forms can be selected"{% endif %} aria-label="Select {{ f.title }}"></td>
           <td><span class="rf-t">{{ f.title }}</span>
-            <span class="rf-s">{{ f.snapshot_subject_code or '—' }}{% if f.snapshot_subject_name %} {{ f.snapshot_subject_name }}{% endif %} · {{ f.teachers|join(', ') if f.teachers else '—' }}</span></td>
+            <span class="rf-s rf-sub">{{ f.snapshot_subject_code or '—' }}{% if f.snapshot_subject_name %} {{ f.snapshot_subject_name }}{% endif %} · {{ f.teachers|join(', ') if f.teachers else '—' }}</span></td>
           <td>{{ (f.category or 'main')|capitalize }}</td>
           <td>{{ f.sections }} <span class="rf-s" style="display:inline">({{ f.students }} students)</span></td>
           <td><span class="badge badge-{{ f.status }}">{{ 'Published' if f.status == 'open' else f.status }}</span>
@@ -34,6 +37,9 @@
           <td class="rf-act">
             {% if dr %}
               <button type="button" class="btn btn-accent btn-sm" data-act="open" data-fid="{{ f.id }}" data-title="{{ f.title }}">Publish to students</button>
+            {% elif late %}
+              <button type="button" class="btn btn-ghost btn-sm" disabled title="The deadline has passed. This form closes automatically.">Close feedback</button>
+              <span class="rf-note rf-late">Deadline passed — closes automatically</span>
             {% elif f.status == 'open' %}
               <button type="button" class="btn btn-ghost btn-sm" data-act="closed" data-fid="{{ f.id }}" data-title="{{ f.title }}">Close feedback</button>
             {% else %}
@@ -44,6 +50,7 @@
         {% endfor %}
         </tbody>
       </table>
+      <p class="rf-empty" id="rfEmpty" hidden></p>
     </div>
   </form>
   <form method="post" id="rfStatusForm" hidden>
