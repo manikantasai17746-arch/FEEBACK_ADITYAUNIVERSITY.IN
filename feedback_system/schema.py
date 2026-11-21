@@ -812,4 +812,21 @@ MIGRATIONS = [
         "ALTER TABLE notifications ADD COLUMN form_id INTEGER REFERENCES feedback_forms(id) ON DELETE CASCADE",
         "CREATE UNIQUE INDEX IF NOT EXISTS ix_notifications_form_kind ON notifications(user_id, form_id, kind)",
     ]),
+    (28, "Student complaints", [
+        """CREATE TABLE IF NOT EXISTS student_complaints(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            branch_id INTEGER NOT NULL REFERENCES branches(id),
+            semester_id INTEGER NOT NULL REFERENCES semesters(id),
+            timetable_id INTEGER NOT NULL REFERENCES timetables(id),
+            academic_year_id INTEGER REFERENCES academic_years(id),
+            submission_key TEXT NOT NULL,
+            category TEXT NOT NULL,
+            description TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending'
+                CHECK(status IN ('pending', 'in_progress', 'resolved')),
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(student_user_id, submission_key))""",
+        "CREATE INDEX IF NOT EXISTS ix_complaints_branch_semester ON student_complaints(branch_id, semester_id)",
+    ]),
 ]

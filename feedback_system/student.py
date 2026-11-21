@@ -1,7 +1,7 @@
 """Student dashboard and feedback submission."""
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
-from . import authenticator, db, photos, services
+from . import authenticator, complaints, db, photos, services
 from .security import audit, current_user, is_safe_next, role_required
 
 bp = Blueprint('student', __name__, url_prefix='/student')
@@ -53,11 +53,21 @@ def dashboard():
                 'closed': [f for f in in_cat if f in closed]})
     chosen = request.args.get('cat')
     active_cat = next((h for h in history if h['key'] == chosen), history[0] if history else None)
+    report_context = None
+    if request.args.get('skip_issue') != '1':
+        report_context = complaints.report_context(user['id'], forms)
     return render_template('student_dashboard.html', user=user, ctx=ctx,
                            history=history, active_cat=active_cat,
                            pending=pending, submitted=submitted, closed=closed,
                            sections=sections,
+                           report=complaints.report_form(report_context) if report_context else None,
                            total=len(forms), year=_year_from_semester(ctx['semester'] if ctx else None))
+
+
+@bp.post('/complaints')
+@role_required('student')
+def report_issue():
+    return complaints.submit(current_user()['id'])
 
 
 # --------------------------------------------------------------------------- #

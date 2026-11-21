@@ -1,11 +1,23 @@
 """Dean portal — publication monitoring and department analytics."""
 from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
 
-from . import db
+from . import complaints, db
 from .security import (audit, current_user, role_required, scoped_branch_ids_or_none,
                        scoped_branches)
 
 bp = Blueprint('dean', __name__, url_prefix='/dean')
+
+
+@bp.get('/student-complaints')
+@role_required('dean')
+def student_complaints():
+    return complaints.staff_list(current_user())
+
+
+@bp.post('/student-complaints/<int:complaint_id>/status')
+@role_required('dean')
+def complaint_status(complaint_id):
+    return complaints.update_status(current_user(), complaint_id)
 
 
 def _dean_branches(user):

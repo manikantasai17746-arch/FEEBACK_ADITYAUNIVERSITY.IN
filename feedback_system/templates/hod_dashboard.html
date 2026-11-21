@@ -9,6 +9,7 @@
 <div class="ov-head">
   <h1 class="ov-title"><span aria-hidden="true">📊</span> Overview</h1>
   <p class="ov-sub">Department feedback status by category — Main, Second, and Lab stay separate.</p>
+  <a class="btn btn-ghost" href="{{ url_for('hod.student_complaints') }}">Student Complaints</a>
 </div>
 
 {% if stats.category_overview %}

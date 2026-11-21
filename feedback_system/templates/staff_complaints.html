@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Student Complaints — Faculty Feedback{% endblock %}
+{% block body %}
+<div class="page">
+  <div class="page-header"><h1>Student Complaints</h1></div>
+  <section class="card">
+    <form class="filter-bar" method="get" action="{{ url_for(list_endpoint) }}">
+      {% if dean %}
+      <div class="field">
+        <label for="complaint-department">Department</label>
+        <select id="complaint-department" name="department">
+          <option value="">All departments</option>
+          {% for department in departments %}
+          <option value="{{ department.id }}"{% if department.id == filters.get('department') %} selected{% endif %}>{{ department.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      <div class="field">
+        <label for="complaint-semester">Semester</label>
+        <select id="complaint-semester" name="semester">
+          <option value="">All semesters</option>
+          {% for semester in semesters %}
+          <option value="{{ semester.id }}"{% if semester.id == filters.get('semester') %} selected{% endif %}>{{ semester.number }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn" type="submit">Filter</button>
+      {% if filters %}<a class="btn btn-ghost" href="{{ url_for(list_endpoint) }}">Clear filters</a>{% endif %}
+    </form>
+    {% if rows %}
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            {% if dean %}<th scope="col">Department</th>{% endif %}
+            <th scope="col">Semester</th>
+            {% if dean %}<th scope="col">Assigned HOD</th>{% endif %}
+            <th scope="col">Category</th>
+            <th scope="col">Description</th>
+            <th scope="col">Date</th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for complaint in rows %}
+          <tr>
+            {% if dean %}<td>{{ complaint.department }}</td>{% endif %}
+            <td>{{ complaint.semester }}</td>
+            {% if dean %}<td>{{ complaint.hod_name or 'Unassigned' }}</td>{% endif %}
+            <td>{{ categories[complaint.category] }}</td>
+            <td class="wrap" style="white-space:pre-wrap;overflow-wrap:anywhere">{{ complaint.description }}</td>
+            <td>{{ complaint.created_at|deadline }}</td>
+            <td>
+              <form class="btn-row" method="post" action="{{ url_for(status_endpoint, complaint_id=complaint.id, **filters) }}">
+                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+                <input type="hidden" name="prior_status" value="{{ complaint.status }}">
+                <select name="status" aria-label="Status for complaint {{ complaint.id }}">
+                  {% for key, label in statuses.items() %}
+                  <option value="{{ key }}"{% if key == complaint.status %} selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-ghost btn-sm">Update</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="sub">{{ 'No complaints match these filters.' if filters else 'No student complaints yet.' }}</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
