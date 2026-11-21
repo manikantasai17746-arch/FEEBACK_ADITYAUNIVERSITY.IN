@@ -1246,6 +1246,8 @@ def _teacher_pending_sections(branch_ids):
     by_teacher = {}
     for f in forms:
         f = dict(f)
+        if services.deadline_passed(f):     # deadline over: no reminder is needed
+            continue
         cat = f.get('category') or 'main'
         for e in services.pending_by_teacher(f['id']):
             if not e['pending']:
@@ -1356,20 +1358,27 @@ def pending():
     forms = []
     if branch_ids:
         ph = ','.join('?' * len(branch_ids))
-        forms = db.query(
+        # Only forms still accepting feedback: closed forms and forms whose
+        # deadline has passed are not listed (nothing left to remind anyone about).
+        forms = [f for f in db.query(
             f"""SELECT id, title, status, category, deadline_at, subject_code, subject_name
                 FROM feedback_forms
-                WHERE branch_id IN ({ph}) AND is_deleted=0 AND status IN ('open','closed')
-                ORDER BY (status='open') DESC, created_at DESC, id DESC LIMIT 300""",
-            tuple(branch_ids))
+                WHERE branch_id IN ({ph}) AND is_deleted=0 AND status='open'
+                ORDER BY created_at DESC, id DESC LIMIT 300""",
+            tuple(branch_ids)) if not services.deadline_passed(f)]
     fid = request.args.get('form_id', type=int)
+    if fid:
+        _hod_form_or_403(fid)               # still 403/404 for another department's form
+        if fid not in {f['id'] for f in forms}:
+            fid = None                      # closed / expired form: not shown
     if fid is None and forms:
         fid = forms[0]['id']
     form, teachers = None, []
     if fid:
         form = _hod_form_or_403(fid)
         teachers = services.pending_by_teacher(fid)
-    can_email = bool(form and form['status'] == 'open')
+    can_email = bool(form and form['status'] == 'open'
+                     and not services.deadline_passed(form))
     # One e-mail per teacher across ALL open forms (Main / Second / Lab) of the
     # department: show each teacher what else the e-mail will cover.
     by_teacher = _teacher_pending_sections(branch_ids) if can_email else {}
@@ -1404,7 +1413,7 @@ def pending_pdf(fid, tid):
     cat = form['category'] or 'main'
     sections = [{'form': dict(form), 'category': cat,
                  'label': dict(_PENDING_GROUPS).get(cat, 'Feedback form'), 'entry': entry}]
-    if form['status'] == 'open':
+    if form['status'] == 'open' and not services.deadline_passed(form):
         # same PDF the e-mail button sends: every open form of this teacher
         sections = _teacher_pending_sections(
             [b['id'] for b in _hod_branches(user)]).get(tid) or sections
@@ -1423,7 +1432,7 @@ def pending_email(fid):
     user = current_user()
     form = _hod_form_or_403(fid)
     back = url_for('hod.pending', form_id=fid)
-    if form['status'] != 'open':
+    if form['status'] != 'open' or services.deadline_passed(form):
         flash('Reminders can only be sent while the form is open.', 'error')
         return redirect(back)
     by_teacher = _teacher_pending_sections([b['id'] for b in _hod_branches(user)])

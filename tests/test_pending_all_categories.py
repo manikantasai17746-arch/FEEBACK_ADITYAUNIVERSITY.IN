@@ -155,3 +155,32 @@ def test_combined_pdf_preview_and_builder(app, client):
     two = reports.build_pending_rolls_pdf_combined(
         'T', 'E1', [block, dict(block, category_label='Lab Faculty Feedback')])
     assert one[:5] == two[:5] == b'%PDF-' and len(two) > len(one)
+
+
+# --------------------------------------------------------------------------- #
+# Forms whose deadline is over are not shown and no reminder is sent for them
+# --------------------------------------------------------------------------- #
+def test_expired_and_closed_forms_are_hidden_and_not_e_mailed(app, client, monkeypatch):
+    c, sfa, fid = _three_forms(app, client)
+    main_mail, second_mail = _give_emails(app, sfa)
+    with app.app_context():       # Lab form: deadline passed but not swept yet; Second: closed
+        db.execute("UPDATE feedback_forms SET deadline_at='2020-01-01T00:00:00' WHERE id=?",
+                   (fid['lab'],))
+        db.execute("UPDATE feedback_forms SET status='closed' WHERE id=?", (fid['second'],))
+    html = c.get('/hod/pending').get_data(as_text=True)
+    assert 'value="%d"' % fid['main'] in html
+    assert 'value="%d"' % fid['lab'] not in html and 'value="%d"' % fid['second'] not in html
+    # a direct link to a hidden form falls back to an open one instead of showing it
+    assert 'value="%d" selected' % fid['lab'] not in c.get(
+        '/hod/pending?form_id=%d' % fid['lab']).get_data(as_text=True)
+    sent = _capture_mail(monkeypatch)
+    c.post('/hod/pending/%d/email' % fid['main'],
+           data={'_csrf': _csrf(c, '/hod/pending'), 'all': '1'})
+    to_main = [m for m in sent if m['to'] == main_mail]
+    assert len(to_main) == 1 and 'Lab Faculty Feedback' not in to_main[0]['text']
+    assert not [m for m in sent if m['to'] == second_mail]      # its only form is closed
+    # the e-mail route also refuses a form that is past its deadline
+    sent.clear()
+    c.post('/hod/pending/%d/email' % fid['lab'],
+           data={'_csrf': _csrf(c, '/hod/pending'), 'all': '1'})
+    assert sent == []
