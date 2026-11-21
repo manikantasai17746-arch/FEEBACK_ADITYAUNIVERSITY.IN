@@ -13,10 +13,14 @@
   <form method="get" class="btn-row" style="align-items:flex-end;gap:.75rem;flex-wrap:wrap">
     <div class="field" style="min-width:320px;margin:0"><label for="form_id">Feedback form</label>
       <select id="form_id" name="form_id" onchange="this.form.submit()">
-        {% for f in forms %}
-        <option value="{{ f.id }}" {{ 'selected' if form and form.id == f.id }}>
-          {{ f.title }}{% if f.subject_code %} · {{ f.subject_code }}{% endif %} — {{ f.status|capitalize }}{% if f.deadline_at %} (closes {{ f.deadline_at|deadline }}){% endif %}
-        </option>
+        {% for key, label, items in groups %}
+        <optgroup label="{{ label }}">
+          {% for f in items %}
+          <option value="{{ f.id }}" {{ 'selected' if form and form.id == f.id }}>
+            {{ f.title }}{% if f.subject_code %} · {{ f.subject_code }}{% endif %}{% if f.faculty %} · {{ f.faculty }}{% endif %} — {{ f.status|capitalize }}{% if f.deadline_at %} (closes {{ f.deadline_at|deadline }}){% endif %}
+          </option>
+          {% endfor %}
+        </optgroup>
         {% endfor %}
       </select></div>
     <noscript><button class="btn" type="submit">Show</button></noscript>
@@ -31,6 +35,7 @@
   {% endif %}
   {% if form %}
   <p class="sub" style="margin-top:.75rem">
+    <span class="badge">{{ form_category }}</span>
     <strong>{{ totals.pending }}</strong> pending across <strong>{{ totals.teachers }}</strong> teacher(s).
     {% if form.deadline_at %}Deadline: {{ form.deadline_at|deadline }}.{% endif %}
     {% if not can_email %}This form is {{ form.status }}, so reminder emails are disabled.{% endif %}

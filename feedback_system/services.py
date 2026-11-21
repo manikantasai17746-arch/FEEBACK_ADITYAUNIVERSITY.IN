@@ -359,7 +359,7 @@ def pending_by_teacher(form_id):
         return []
     second = (form['category'] or 'main') == 'second'
     rows = db.query("""SELECT cs.id AS session_id, cs.subject_code, cs.subject_name,
-            cs.teacher_user_id AS t1, sfa.second_teacher_user_id AS t2,
+            cs.teacher_user_id AS t1, sfa.second_teacher_user_id AS t2, sfa.id AS sfa_id,
             u.id AS student_id, u.roll AS roll, t.code AS timetable,
             CASE WHEN sb.id IS NULL THEN 0 ELSE 1 END AS done
         FROM form_sessions fs
@@ -371,8 +371,13 @@ def pending_by_teacher(form_id):
         LEFT JOIN second_faculty_assignments sfa
                ON sfa.session_id=cs.id AND sfa.status='confirmed'
         WHERE fs.form_id=?""", (form_id,))
+    # A second-faculty form belongs to ONE assignment: a session with several
+    # confirmed second faculty must not show them all under every second form.
+    own_sfa = form['second_faculty_assignment_id'] if second else None
     groups = {}
     for r in rows:
+        if own_sfa and r['sfa_id'] != own_sfa:
+            continue
         tid = r['t2'] if second else r['t1']
         if not tid:
             continue
