@@ -34,6 +34,18 @@
     <button class="btn" type="submit" id="photoSubmit" disabled>Save photo</button>
     {% if next_url %}<a class="btn btn-ghost" href="{{ next_url }}">Skip for now</a>{% endif %}
   </form>
+  {% if current_user.role == 'admin' %}
+  <div style="margin-top:1rem;display:flex;gap:.6rem;flex-wrap:wrap">
+    <a class="btn btn-ghost" href="{{ url_for('photos.admin_list') }}">← Back to photos</a>
+    {% if meta %}
+    <form method="post" action="{{ url_for('photos.admin_delete', emp_code=emp_code) }}"
+          onsubmit="return confirm('Remove this photo?')">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn btn-ghost" type="submit">Remove photo</button>
+    </form>
+    {% endif %}
+  </div>
+  {% endif %}
 </div>
 <script src="{{ url_for('static', filename='js/photo_upload.js') }}"></script>
 {% endblock %}

@@ -129,7 +129,8 @@ def test_full_first_login_order(app, client, box):
     r = client.get('/teacher/')
     assert r.status_code == 302 and '/setup/photo' in _loc(r)
     page = client.get('/setup/photo').get_data(as_text=True)
-    assert 'Step 3 of 4' in page and 'Choose a photo' in page and 'Skip for now' in page
+    assert 'Step 3 of 4' in page and 'Continue' in page
+    assert 'Choose a photo' not in page and 'photoInput' not in page   # admin adds photos
     with app.app_context():
         assert db.query('SELECT first_login_complete f FROM users WHERE emp_code=?',
                         (emp,), one=True)['f'] == 0
@@ -146,57 +147,52 @@ def test_full_first_login_order(app, client, box):
     assert '/teacher/assignment-setup' in _loc(client.get('/setup/photo'))
 
 
-def test_photo_upload_completes_the_flow_and_is_stored_by_emp_id(app, client, box):
+def test_teacher_cannot_upload_a_photo_during_setup(app, client, box):
     emp = _no_photo_teacher(app)
     _login(client, emp)
     _verify_email(client, box)
     _change_password(client)
     r = _post(client, '/setup/photo', action='upload',
               files={'photo': (io.BytesIO(_png()), 'me.png', 'image/png')})
-    assert r.status_code == 302 and '/teacher/assignment-setup' in _loc(r)
+    assert r.status_code == 200 and b'administrator' in r.data
     with app.app_context():
-        row = db.query('SELECT filename FROM employee_photos WHERE emp_code=?', (emp.upper(),), one=True)
-        assert row and row['filename'] == f'employee_photos/{emp.upper()}.png'
+        assert not db.query('SELECT 1 FROM employee_photos WHERE emp_code=?',
+                            (emp.upper(),), one=True)
         assert db.query('SELECT first_login_complete f FROM users WHERE emp_code=?',
-                        (emp,), one=True)['f'] == 1
+                        (emp,), one=True)['f'] == 0
+    assert '/setup/photo' in _loc(client.get('/teacher/'))      # setup still not finished
 
 
-def test_bad_upload_is_rejected_and_does_not_finish_setup(app, client, box):
+def test_continue_works_without_a_photo_and_shows_the_admin_photo_when_present(app, client, box):
     emp = _no_photo_teacher(app)
     _login(client, emp)
     _verify_email(client, box)
     _change_password(client)
-    r = _post(client, '/setup/photo', action='upload',
-              files={'photo': (io.BytesIO(b'GIF89a not really'), 'x.png', 'image/png')})
-    assert r.status_code == 200 and b'valid JPG or PNG' in r.data
-    assert '/setup/photo' in _loc(client.get('/teacher/'))
-    with app.app_context():
-        assert not db.query('SELECT 1 FROM employee_photos WHERE emp_code=?', (emp.upper(),), one=True)
-
-
-def test_continue_needs_a_photo_but_existing_photo_shows_a_preview(app, client, box):
-    emp = _no_photo_teacher(app)
-    _login(client, emp)
-    _verify_email(client, box)
-    _change_password(client)
-    r = _post(client, '/setup/photo', action='continue')           # nothing on file yet
-    assert r.status_code == 200 and b'upload a photo' in r.data
     with app.app_context():
         from feedback_system import photos
-        photos.save_photo(emp, _png(), None)
+        photos.save_photo(emp, _png(), None)                    # what the admin import does
     page = client.get('/setup/photo').get_data(as_text=True)
-    assert 'Keep this photo' in page and f'/employee-photo/{emp.upper()}' in page
+    assert f'/employee-photo/{emp.upper()}' in page and 'photoInput' not in page
     assert client.get(f'/employee-photo/{emp}').status_code == 200   # image is reachable mid-setup
     r = _post(client, '/setup/photo', action='continue')
     assert r.status_code == 302 and '/teacher/assignment-setup' in _loc(r)
 
 
-def test_legacy_static_photo_counts_as_existing(app, client, box):
+def test_continue_is_allowed_when_no_photo_is_on_file(app, client, box):
+    emp = _no_photo_teacher(app)
+    _login(client, emp)
+    _verify_email(client, box)
+    _change_password(client)
+    r = _post(client, '/setup/photo', action='continue')
+    assert r.status_code == 302 and '/teacher/assignment-setup' in _loc(r)
+
+
+def test_legacy_static_photo_is_shown_on_the_setup_step(app, client, box):
     _login(client, '6817')                                          # has static/img/teachers/6817.jpg
     _verify_email(client, box)
     _change_password(client)
     page = client.get('/setup/photo').get_data(as_text=True)
-    assert 'Keep this photo' in page
+    assert '/employee-photo/6817' in page and 'photoInput' not in page
 
 
 # ------------------------------------------------------------------ safety / regression
@@ -247,4 +243,5 @@ def test_photos_me_redirect_works(app, client):
                    (hash_password('Personal#Pass1'), emp))
     login(client, '/teacher/login', {'emp_code': emp, 'password': 'Personal#Pass1'})
     r = client.get('/photos/me')
-    assert r.status_code == 302 and f'/photos/manage/{emp.upper()}' in _loc(r)
+    # teachers have no photo page of their own any more: the admin adds the photo
+    assert r.status_code == 302 and '/profile' in _loc(r)

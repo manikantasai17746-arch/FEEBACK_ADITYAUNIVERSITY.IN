@@ -20,6 +20,7 @@
           <td>{{ t.sessions }}</td><td>{{ t.subjects }}</td>
           <td class="btn-row">
             <a class="btn btn-ghost btn-sm" href="{{ url_for('admin.teacher_detail', uid=t.id) }}">Assignments</a>
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('photos.manage', emp_code=t.emp_code, next=url_for('photos.admin_list')) }}">Photo</a>
             <form method="post" action="{{ url_for('admin.reset_password', uid=t.id) }}"
                   onsubmit="return confirm('Reset this teacher password to the default?')">
               <input type="hidden" name="_csrf" value="{{ csrf_token() }}">

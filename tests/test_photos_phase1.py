@@ -24,6 +24,14 @@ def _upload(client, emp, raw, filename='me.png', ctype='image/png'):
         content_type='multipart/form-data')
 
 
+def _admin_upload(app, emp, raw, filename='me.png', ctype='image/png'):
+    """Upload through the admin's own client (teachers can no longer upload)."""
+    c = app.test_client()
+    assert login(c, '/admin/login',
+                 {'email': 'admin@college.edu', 'password': 'admin123'}).status_code == 302
+    return _upload(c, emp, raw, filename, ctype)
+
+
 def _login_session(client, user_id, role):
     with client.session_transaction() as s:
         import time
@@ -121,7 +129,7 @@ def test_initials_helper():
 
 # ---------------------------------------------------------------- upload
 def test_upload_replace_and_serve(tclient, app, admin, monkeypatch):
-    r = _upload(tclient, '6817', _img('PNG'))
+    r = _admin_upload(app, '6817', _img('PNG'))
     assert r.status_code == 302
     with app.app_context():
         row = db.query('SELECT filename, mime FROM employee_photos WHERE emp_code=?',
@@ -150,14 +158,14 @@ def test_upload_replace_and_serve(tclient, app, admin, monkeypatch):
     again = tclient.get('/employee-photo/6817', headers={'If-None-Match': served.headers['ETag']})
     assert again.status_code == 304
     # replace with a JPEG -> still exactly one row, new extension
-    assert _upload(tclient, '6817', _img('JPEG'), 'me.jpg', 'image/jpeg').status_code == 302
+    assert _admin_upload(app, '6817', _img('JPEG'), 'me.jpg', 'image/jpeg').status_code == 302
     with app.app_context():
         rows = db.query('SELECT filename FROM employee_photos WHERE emp_code=?', ('6817',))
         assert len(rows) == 1 and rows[0]['filename'] == 'employee_photos/6817.jpg'
 
 
 def test_large_photo_is_downscaled(tclient, app):
-    _upload(tclient, '6817', _img('PNG', (2000, 1500)))
+    _admin_upload(app, '6817', _img('PNG', (2000, 1500)))
     with app.app_context():
         data = photos.get_photo('6817')['data']
     assert max(Image.open(io.BytesIO(data)).size) <= photos.MAX_SIDE
@@ -174,7 +182,7 @@ def test_bad_uploads_rejected(tclient, app, raw, name, ctype):
     with app.app_context():
         before = db.query('SELECT updated_at FROM employee_photos WHERE emp_code=?',
                           ('6817',), one=True)
-    r = _upload(tclient, '6817', raw, name, ctype)
+    r = _admin_upload(app, '6817', raw, name, ctype)
     assert r.status_code == 200                        # re-rendered with an error
     with app.app_context():
         after = db.query('SELECT updated_at FROM employee_photos WHERE emp_code=?',
@@ -182,25 +190,28 @@ def test_bad_uploads_rejected(tclient, app, raw, name, ctype):
     assert (before and before['updated_at']) == (after and after['updated_at'])
 
 
-def test_oversize_rejected(tclient, monkeypatch):
+def test_oversize_rejected(tclient, app, monkeypatch):
     monkeypatch.setattr(photos, 'MAX_UPLOAD_BYTES', 100)
-    assert _upload(tclient, '6817', _img('PNG')).status_code == 200
+    assert _admin_upload(app, '6817', _img('PNG')).status_code == 200
 
 
 # ---------------------------------------------------------------- authorization
-def test_teacher_cannot_manage_someone_else(tclient):
+def test_teacher_cannot_manage_any_photo_not_even_their_own(tclient):
     assert tclient.get('/photos/manage/6247').status_code == 403
-    html = tclient.get('/photos/manage/6817').get_data(as_text=True)
+    assert tclient.get('/photos/manage/6817').status_code == 403      # own photo too
+    html = tclient.get('/profile').get_data(as_text=True)
     tok = re.search(r'name="_csrf" value="([^"]+)"', html).group(1)
-    r = tclient.post('/photos/manage/6247', data={
-        '_csrf': tok, 'photo': (io.BytesIO(_img()), 'x.png', 'image/png')},
-        content_type='multipart/form-data')
-    assert r.status_code == 403
+    for emp in ('6247', '6817'):
+        r = tclient.post(f'/photos/manage/{emp}', data={
+            '_csrf': tok, 'photo': (io.BytesIO(_img()), 'x.png', 'image/png')},
+            content_type='multipart/form-data')
+        assert r.status_code == 403
 
 
 def test_student_cannot_upload(student_client):
     assert student_client.get('/photos/manage/6817').status_code == 403
     assert student_client.get('/photos/me').status_code == 403
+    assert student_client.get('/admin/photos').status_code in (302, 403)
     assert student_client.get('/employee-photo/6817').status_code == 200  # may view
 
 
@@ -238,8 +249,152 @@ def test_hod_scope_for_on_behalf_upload(app):
     assert c_in.get('/photos/manage/HXIN').status_code == 200
 
 
-def test_csrf_required_on_upload(tclient):
-    r = tclient.post('/photos/manage/6817', data={
+def test_csrf_required_on_upload(app):
+    c = app.test_client()
+    login(c, '/admin/login', {'email': 'admin@college.edu', 'password': 'admin123'})
+    r = c.post('/photos/manage/6817', data={
         'photo': (io.BytesIO(_img()), 'x.png', 'image/png')},
         content_type='multipart/form-data')
     assert r.status_code == 400
+
+
+def test_can_manage_rules(app):
+    with app.app_context():
+        teacher = {'role': 'teacher', 'emp_code': '6817'}
+        assert not photos.can_manage(teacher, '6817')             # no self-upload
+        assert not photos.can_manage(teacher, '6247')
+        assert photos.can_manage({'role': 'admin'}, '6817')
+        assert photos.can_manage({'role': 'dean', 'emp_code': 'D1'}, 'D1')
+        assert not photos.can_manage({'role': 'student', 'emp_code': '6817'}, '6817')
+
+
+# ---------------------------------------------------------------- admin: Excel import
+def _sheet(rows, header_row=7):
+    """Build a college-style photo sheet: S.No, Time Table, Emp.Code, Emp.Name, Photo."""
+    from openpyxl import Workbook
+    from openpyxl.drawing.image import Image as XLImage
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'BCA I Sem'
+    ws['A5'] = 'Class/Semester:BCA/I Sem'
+    for i, h in enumerate(['S.No', 'Time Table', 'Emp.Code', 'Emp.Name', 'Photo'], 1):
+        ws.cell(header_row, i, h)
+    r = header_row + 1
+    for code, name, raw in rows:
+        ws.cell(r, 1, r - header_row)
+        ws.cell(r, 2, 'Time Table-1')
+        ws.cell(r, 3, code)
+        ws.cell(r, 4, name)
+        if raw:
+            img = XLImage(io.BytesIO(raw))
+            img.width, img.height = 60, 70
+            ws.add_image(img, f'E{r}')
+        ws.row_dimensions[r].height = 60
+        r += 1
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()
+
+
+def _admin_client(app):
+    c = app.test_client()
+    assert login(c, '/admin/login',
+                 {'email': 'admin@college.edu', 'password': 'admin123'}).status_code == 302
+    return c
+
+
+def _import(c, data, name='photos.xlsx', overwrite=True):
+    html = c.get('/admin/photos/import').get_data(as_text=True)
+    tok = re.search(r'name="_csrf" value="([^"]+)"', html).group(1)
+    form = {'_csrf': tok, 'workbook': (io.BytesIO(data), name)}
+    if overwrite:
+        form['overwrite'] = '1'
+    return c.post('/admin/photos/import', data=form, content_type='multipart/form-data')
+
+
+def _two_teacher_codes(app):
+    with app.app_context():
+        rows = db.query("SELECT emp_code FROM users WHERE role='teacher' AND is_active=1 "
+                        "AND emp_code NOT IN ('6817') ORDER BY id LIMIT 3")
+        return [r['emp_code'] for r in rows]
+
+
+def test_admin_excel_import_matches_photos_by_emp_code(app):
+    a, b, c3 = _two_teacher_codes(app)
+    with app.app_context():
+        db.execute('DELETE FROM employee_photos WHERE emp_code IN (?,?,?)', (a, b, c3))
+    blue, red = _img('PNG', color=(20, 40, 220)), _img('PNG', color=(220, 30, 30))
+    data = _sheet([(a, 'A', blue), (b, 'B', red), ('ZZ9999', 'Nobody', blue), (c3, 'C', None)])
+    r = _import(_admin_client(app), data)
+    html = r.get_data(as_text=True)
+    assert r.status_code == 200
+    with app.app_context():
+        pa, pb = photos.get_photo(a), photos.get_photo(b)
+        assert pa and pb and not photos.photo_meta(c3)         # row without a picture
+        assert not photos.photo_meta('ZZ9999')                 # unknown code is not stored
+        assert Image.open(io.BytesIO(pa['data'])).convert('RGB').getpixel((5, 5))[2] > 150
+        assert Image.open(io.BytesIO(pb['data'])).convert('RGB').getpixel((5, 5))[0] > 150
+    assert 'ZZ9999' in html and c3 in html                     # reported back to the admin
+
+
+def test_admin_excel_import_overwrite_flag(app):
+    a = _two_teacher_codes(app)[0]
+    c = _admin_client(app)
+    _import(c, _sheet([(a, 'A', _img('PNG', color=(20, 40, 220)))]))
+    with app.app_context():
+        before = photos.get_photo(a)['data']
+    r = _import(c, _sheet([(a, 'A', _img('PNG', color=(220, 30, 30)))]), overwrite=False)
+    assert b'Skipped' in r.data
+    with app.app_context():
+        assert photos.get_photo(a)['data'] == before
+    _import(c, _sheet([(a, 'A', _img('PNG', color=(220, 30, 30)))]), overwrite=True)
+    with app.app_context():
+        assert photos.get_photo(a)['data'] != before
+
+
+def test_admin_excel_import_rejects_bad_files(app):
+    c = _admin_client(app)
+    assert _import(c, b'not a zip file', 'x.xlsx').status_code == 400
+    assert _import(c, _sheet([('6247', 'A', _img())]), 'x.csv').status_code == 400
+    from openpyxl import Workbook
+    wb = Workbook()
+    wb.active['A1'] = 'nothing useful'
+    out = io.BytesIO()
+    wb.save(out)
+    r = _import(c, out.getvalue())
+    assert r.status_code == 400 and b'Emp.Code' in r.data
+    html = c.get('/admin/photos/import').get_data(as_text=True)
+    r = c.post('/admin/photos/import', data={'workbook': (io.BytesIO(b'x'), 'x.xlsx')},
+               content_type='multipart/form-data')           # no CSRF token
+    assert r.status_code in (400, 403)
+
+
+def test_admin_photo_list_edit_and_remove(app):
+    a = _two_teacher_codes(app)[0]
+    c = _admin_client(app)
+    _import(c, _sheet([(a, 'A', _img())]))
+    html = c.get(f'/admin/photos?q={a}').get_data(as_text=True)
+    assert a in html and 'Photo added' in html
+    assert 'No employees match' in c.get(f'/admin/photos?q={a}&status=without').get_data(as_text=True)
+    page = c.get(f'/photos/manage/{a}').get_data(as_text=True)
+    assert 'Remove photo' in page                               # edit page offers removal
+    tok = re.search(r'name="_csrf" value="([^"]+)"', page).group(1)
+    assert c.post(f'/admin/photos/{a}/delete', data={'_csrf': tok}).status_code == 302
+    with app.app_context():
+        assert not photos.photo_meta(a)
+    assert c.post(f'/admin/photos/{a}/delete', data={}).status_code == 400   # CSRF
+
+
+def test_only_admin_can_reach_photo_admin_pages(app, tclient, student_client):
+    for client in (tclient, student_client, app.test_client()):
+        for path in ('/admin/photos', '/admin/photos/import'):
+            assert client.get(path).status_code in (302, 403)
+        assert client.post('/admin/photos/6817/delete', data={}).status_code in (302, 400, 403)
+
+
+def test_teacher_profile_is_read_only_for_photo(tclient):
+    html = tclient.get('/profile').get_data(as_text=True)
+    assert 'id="photoForm"' not in html and '/photos/manage/6817' not in html
+    assert 'administrator' in html
+    r = tclient.get('/photos/me')
+    assert r.status_code == 302 and '/profile' in r.headers['Location']
