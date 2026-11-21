@@ -1744,6 +1744,8 @@ def result_publish(fid):
     form = _hod_form_or_403(fid)
     if form['status'] == 'draft':
         flash('Publish the form before publishing its results.', 'error')
+    elif form['status'] == 'open':
+        flash('Close the form before publishing its results.', 'error')
     elif services.publish_results(fid, user['id']):
         audit('hod.results.publish', 'feedback_forms', fid, 'HOD published results to teacher')
         flash('Results published to the teacher.', 'success')
@@ -1768,6 +1770,7 @@ def result_unpublish(fid):
 def results_publish_selected():
     user = current_user()
     skip_zero = request.form.get('skip_zero') == '1'
+    include_open = request.form.get('include_open') == '1'
     published = skipped = 0
     for raw in request.form.getlist('form_ids'):
         try:
@@ -1777,6 +1780,9 @@ def results_publish_selected():
         form = services.get_form(fid)
         allowed = scoped_branch_ids_or_none(user) or []
         if not form or form['branch_id'] not in allowed or form['status'] == 'draft':
+            skipped += 1
+            continue
+        if form['status'] == 'open' and not include_open:
             skipped += 1
             continue
         if skip_zero:
