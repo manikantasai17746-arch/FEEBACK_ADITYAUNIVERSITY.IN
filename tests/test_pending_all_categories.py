@@ -4,7 +4,7 @@ import re
 
 import pytest
 
-from feedback_system import db, services
+from feedback_system import db, mailer, reports, services
 from feedback_system.security import hash_password
 from helpers import future_deadline
 from test_hod_feedback_second_and_results import (PW, _ensure_sfa, _login_hod,  # noqa: F401
@@ -79,3 +79,79 @@ def test_second_form_lists_only_its_own_second_faculty(app, client):
         db.get_db().commit()
         rows = services.pending_by_teacher(fid['second'])
     assert [r['teacher_user_id'] for r in rows] == [sfa['second_teacher_user_id']]
+
+
+# --------------------------------------------------------------------------- #
+# One e-mail per teacher, however many forms (Main / Lab / Second) are pending
+# --------------------------------------------------------------------------- #
+def _capture_mail(monkeypatch):
+    sent = []
+    monkeypatch.setattr(mailer, 'send_email',
+                        lambda to, subject, text, html=None, attachments=None:
+                        sent.append({'to': to, 'subject': subject, 'text': text,
+                                     'attachments': attachments}) or True)
+    return sent
+
+
+def _give_emails(app, sfa):
+    main_mail, second_mail = 'main.teacher@onemail.test', 'second.teacher@onemail.test'
+    with app.app_context():
+        db.execute('UPDATE users SET email=? WHERE id=?', (main_mail, sfa['main_teacher_user_id']))
+        db.execute('UPDATE users SET email=? WHERE id=?', (second_mail, sfa['second_teacher_user_id']))
+    return main_mail, second_mail
+
+
+def test_email_all_sends_one_mail_per_teacher_across_categories(app, client, monkeypatch):
+    c, sfa, fid = _three_forms(app, client)
+    main_mail, second_mail = _give_emails(app, sfa)
+    sent = _capture_mail(monkeypatch)
+    r = c.post('/hod/pending/%d/email' % fid['main'],
+               data={'_csrf': _csrf(c, '/hod/pending?form_id=%d' % fid['main']), 'all': '1'})
+    assert r.status_code == 302
+    recipients = [m['to'] for m in sent]
+    assert len(recipients) == len(set(recipients)), 'a teacher was e-mailed more than once'
+    to_main = [m for m in sent if m['to'] == main_mail]
+    to_second = [m for m in sent if m['to'] == second_mail]
+    assert len(to_main) == 1 and len(to_second) == 1
+    # the Main teacher's single mail covers BOTH their Main and Lab forms
+    assert 'Main Faculty Feedback' in to_main[0]['text'] and 'Lab Faculty Feedback' in to_main[0]['text']
+    # the Second faculty only has the Second form pending: normal single-form wording
+    assert 'Second Faculty' in to_second[0]['text']
+    assert 'Main Faculty Feedback' not in to_second[0]['text']
+    for m in (to_main[0], to_second[0]):
+        assert len(m['attachments']) == 1 and m['attachments'][0][1][:5] == b'%PDF-'
+    # roll numbers only travel in the PDF, never in the body
+    with app.app_context():
+        rolls = services.pending_by_teacher(fid['main'])[0]['pending_rolls']
+    assert rolls and not any(x in to_main[0]['text'] for x in rolls)
+
+
+def test_single_teacher_button_is_also_one_combined_mail(app, client, monkeypatch):
+    c, sfa, fid = _three_forms(app, client)
+    main_mail, _ = _give_emails(app, sfa)
+    sent = _capture_mail(monkeypatch)
+    # pressing "Email PDF" on the LAB form still sends one mail that includes Main
+    c.post('/hod/pending/%d/email' % fid['lab'],
+           data={'_csrf': _csrf(c, '/hod/pending?form_id=%d' % fid['lab']),
+                 'teacher_user_id': sfa['main_teacher_user_id']})
+    assert [m['to'] for m in sent] == [main_mail]
+    assert 'Main Faculty Feedback' in sent[0]['text'] and 'Lab Faculty Feedback' in sent[0]['text']
+
+
+def test_page_says_what_the_combined_email_covers(app, client):
+    c, sfa, fid = _three_forms(app, client)
+    html = c.get('/hod/pending?form_id=%d' % fid['main']).get_data(as_text=True)
+    assert 'The email also covers' in html and 'Lab Faculty Feedback (' in html
+    assert 'One email per teacher' in html
+
+
+def test_combined_pdf_preview_and_builder(app, client):
+    c, sfa, fid = _three_forms(app, client)
+    r = c.get('/hod/pending/%d/teacher/%d.pdf' % (fid['lab'], sfa['main_teacher_user_id']))
+    assert r.status_code == 200 and r.data[:5] == b'%PDF-'
+    block = {'form_title': 'F', 'category_label': 'Main Faculty Feedback', 'subjects': ['S'],
+             'sections': ['T1'], 'deadline_text': 'No deadline', 'rolls': ['R1', 'R2']}
+    one = reports.build_pending_rolls_pdf_combined('T', 'E1', [block])
+    two = reports.build_pending_rolls_pdf_combined(
+        'T', 'E1', [block, dict(block, category_label='Lab Faculty Feedback')])
+    assert one[:5] == two[:5] == b'%PDF-' and len(two) > len(one)
