@@ -13,6 +13,7 @@
 - Focused verification: `pytest -q tests/test_app.py -k 'invalid_landing_modal_login or admin_login_rejects_bad_credentials or admin_login_success'` — 7 passed.
 - Teacher Assignment Setup now includes a read-only, teacher-scoped eligible-student preview with search and pagination beside each editable room field. It reads active `session_students` records only and does not change room, assignment, student, or feedback data.
 - Preview verification: focused assignment setup tests — 4 passed; JavaScript syntax check passed. The browser UI module was not runnable in this environment because its Playwright/Chromium dependency was unavailable.
+- HOD Pending submissions now has a client-side search box (teacher, emp ID, email, subject, roll number); see `docs/PHASE_HANDOFFS/PENDING_SEARCH_HANDOFF.md`. No schema change. Verified: `tests/test_pending_search.py` (2 passed) plus `test_pending_all_categories.py` and `test_recent_forms_search_close.py` pass; `test_deadline_and_pending.py::test_hod_forms_displays_saved_deadline` fails identically on untouched HEAD (pre-existing). Run with a stub for `pyotp`, which was not installable in the build sandbox; browser UI not run.
 - The documentation branch was created from the observed `main` commit. Before merging, check whether `main` has advanced.
 
 ## 2. Completed phase evidence

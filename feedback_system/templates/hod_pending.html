@@ -1,5 +1,8 @@
 {% extends 'base.html' %}
 {% block title %}Pending submissions — HOD{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod_pending_search.css') }}">
+{% endblock %}
 {% block body %}
 <div class="perf-welcome">
   <div>
@@ -48,14 +51,18 @@
 {% if not forms %}
 <div class="card"><p class="sub">No feedback forms are open right now. Closed forms and forms past their deadline are not listed.</p></div>
 {% elif teachers %}
-<div class="card">
+<div class="card" id="pdSearchCard">
+  <div class="pd-toolbar">
+    <span class="pd-search"><input type="search" id="pdQ" placeholder="Search teacher, emp ID, email, subject or roll number…" aria-label="Search pending submissions by teacher, employee ID, email, subject or roll number" autocomplete="off"><button type="button" class="pd-x" id="pdQx" aria-label="Clear search" hidden>&times;</button></span>
+    <span class="sub pd-count" id="pdCount" aria-live="polite"></span>
+  </div>
   <div class="table-wrap">
-    <table class="data">
+    <table class="data" id="pdTable">
       <thead><tr><th>Teacher</th><th>Subject(s)</th><th>Eligible</th><th>Submitted</th>
         <th>Pending</th><th>Pending roll numbers</th><th>Actions</th></tr></thead>
       <tbody>
       {% for t in teachers %}
-        <tr>
+        <tr class="pd-row" data-q="{{ ([t.teacher_name or '', t.emp_code or '', t.email or '', t.subjects|join(' '), t.pending_rolls|join(' ')]|join(' '))|lower }}">
           <td class="wrap"><strong>{{ t.teacher_name }}</strong>
             <div class="sub">{{ t.emp_code or '' }}{% if t.email %} · {{ t.email }}{% else %} · <em>no email on file</em>{% endif %}</div>
             {% if t.also %}<div class="sub">The email also covers:
@@ -91,9 +98,13 @@
       {% endfor %}
       </tbody>
     </table>
+    <p class="sub pd-empty" id="pdEmpty" hidden></p>
   </div>
 </div>
 {% elif form %}
 <div class="card"><p class="sub">No teachers are linked to this form.</p></div>
 {% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hod_pending_search.js') }}"></script>
 {% endblock %}
