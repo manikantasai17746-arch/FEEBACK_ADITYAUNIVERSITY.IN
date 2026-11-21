@@ -84,6 +84,59 @@
     </div>
   </form>
 </div>
+
+<div class="card" id="imported-files">
+  <h2>Imported files</h2>
+  <p class="sub">Every timetable workbook imported so far. Deleting removes the timetables,
+    class sessions and student/teacher records the import created for that semester and
+    academic year, so a corrected file can be imported again. It needs a one-time code sent
+    to the deletion-approval e-mail (the same one used to remove an HOD or Dean).</p>
+  {% if imports %}
+  <div class="table-wrap"><table class="data">
+    <thead><tr><th>File</th><th>Semester</th><th>Academic year</th><th>Imported</th>
+      <th>Timetables</th><th>Sessions</th><th>Students</th><th>Teachers</th><th></th></tr></thead>
+    <tbody>
+    {% for i in imports %}
+    <tr>
+      <td style="max-width:15rem;white-space:normal;word-break:break-all">{{ i.filename }}
+        {% if i.status != 'completed' %}<span class="badge badge-draft">importing…</span>{% endif %}</td>
+      <td>{{ i.semester }}</td>
+      <td>{{ i.academic_year }}</td>
+      <td>{{ i.imported_at }}</td>
+      <td>{{ i.counts.timetables }}</td>
+      <td>{{ i.counts.sessions }}</td>
+      <td>{{ i.counts.students }}</td>
+      <td>{{ i.counts.teachers }}</td>
+      <td style="white-space:nowrap">
+        {% if i.status != 'completed' %}
+          <span class="muted">In progress</span>
+        {% elif i.blockers %}
+          <span class="muted" title="{% for label, n in i.blockers %}{{ n }} {{ label }}{% if not loop.last %}; {% endif %}{% endfor %}">
+            Locked — in use</span>
+        {% else %}
+          <form method="post" action="{{ url_for('admin.import_delete_request', import_id=i.id) }}"
+                onsubmit="return window.confirm('Delete the imported data for Semester {{ i.semester }}, {{ i.academic_year }}? A confirmation code will be e-mailed to the approval address.');">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="btn btn-danger btn-sm" type="submit">Delete…</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% if i.siblings and i.status == 'completed' and not i.blockers %}
+    <tr><td colspan="9" class="sub">⚠ {{ i.siblings }} other file(s) were also imported for this
+      semester and year; deleting removes the data of all of them.</td></tr>
+    {% endif %}
+    {% endfor %}
+    </tbody>
+  </table></div>
+  {% if imports|selectattr('blockers')|list %}
+  <p class="sub">“Locked” means feedback forms, results or HOD work already use that data. Remove
+    those first, or keep the import.</p>
+  {% endif %}
+  {% else %}
+  <p class="sub">No timetable has been imported yet.</p>
+  {% endif %}
+</div>
 <script>
 (function () {
   var form = document.getElementById('import-form');
