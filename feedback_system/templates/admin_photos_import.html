@@ -28,6 +28,7 @@
 {% if result and not result.problems %}
 <div class="card">
   <h2>Import finished</h2>
+  {% for w in result.warnings %}<div class="flash flash-error">{{ w }}</div>{% endfor %}
   <div class="table-wrap"><table class="data"><tbody>
     <tr><td>New photos added</td><td>{{ result.saved|length }}</td></tr>
     <tr><td>Existing photos replaced</td><td>{{ result.replaced|length }}</td></tr>

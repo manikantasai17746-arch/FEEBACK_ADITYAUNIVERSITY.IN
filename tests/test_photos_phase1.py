@@ -398,3 +398,115 @@ def test_teacher_profile_is_read_only_for_photo(tclient):
     assert 'administrator' in html
     r = tclient.get('/photos/me')
     assert r.status_code == 302 and '/profile' in r.headers['Location']
+
+
+def test_photo_url_is_not_browser_cached_across_import(app):
+    """After an import the same /employee-photo/<code> URL must show the new photo.
+
+    A fixed max-age made browsers keep the earlier initials avatar for minutes
+    even though the list already said "Photo added".
+    """
+    code = _two_teacher_codes(app)[0]
+    with app.app_context():
+        db.execute('DELETE FROM employee_photos WHERE emp_code=?', (code,))
+    c = _admin_client(app)
+    before = c.get(f'/employee-photo/{code}')
+    assert before.mimetype == 'image/svg+xml'
+    assert 'max-age' not in before.headers['Cache-Control']
+    _import(c, _sheet([(code, 'A', _img('PNG', color=(20, 40, 220)))]))
+    after = c.get(f'/employee-photo/{code}',
+                  headers={'If-None-Match': before.headers['ETag']})
+    assert after.status_code == 200 and after.mimetype == 'image/png'
+    assert 'max-age' not in after.headers['Cache-Control']
+    assert after.headers['ETag'] != before.headers['ETag']
+    # unchanged photo -> cheap 304
+    assert c.get(f'/employee-photo/{code}',
+                 headers={'If-None-Match': after.headers['ETag']}).status_code == 304
+
+
+def _incell_sheet(rows):
+    """College sheet whose pictures are Excel 365 'Place in Cell' images (richData)."""
+    import re as _re
+    import zipfile
+    base = _sheet([(code, name, None) for code, name, _ in rows])
+    zin = zipfile.ZipFile(io.BytesIO(base))
+    out = io.BytesIO()
+    n = len(rows)
+    ns = 'http://schemas.microsoft.com/office/spreadsheetml/2017/richdata'
+    with zipfile.ZipFile(out, 'w') as z:
+        for item in zin.namelist():
+            data = zin.read(item)
+            if item == 'xl/worksheets/sheet1.xml':
+                s = data.decode()
+                for i in range(n):          # E8, E9, ... -> vm=1.. pointing at the picture
+                    cell = f'E{8 + i}'
+                    s = s.replace('</row>', '</row>', 1)
+                    s = _re.sub(r'(<row r="%d"[^>]*>)' % (8 + i),
+                                r'\1<c r="%s" t="e" vm="%d"><v>#VALUE!</v></c>' % (cell, i + 1), s)
+                data = s.encode()
+            if item == '[Content_Types].xml':
+                data = data.decode().replace('</Types>', '<Default Extension="png" ContentType="image/png"/></Types>').encode() \
+                    if 'Extension="png"' not in data.decode() else data
+            z.writestr(item, data)
+        for i, (_, _, raw) in enumerate(rows):
+            z.writestr(f'xl/media/image{i + 1}.png', raw)
+        z.writestr('xl/richData/richValueRel.xml',
+                   '<richValueRels xmlns="%s/richvaluerel" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">%s</richValueRels>'
+                   % ('http://schemas.microsoft.com/office/spreadsheetml/2022/richvaluerel',
+                      ''.join(f'<rel r:id="rId{i + 1}"/>' for i in range(n))))
+        z.writestr('xl/richData/_rels/richValueRel.xml.rels',
+                   '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">%s</Relationships>'
+                   % ''.join(f'<Relationship Id="rId{i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="../media/image{i + 1}.png"/>' for i in range(n)))
+        z.writestr('xl/richData/rdrichvaluestructure.xml',
+                   '<rvStructures xmlns="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata" count="1"><s t="_localImage"><k n="_rvRel:LocalImageIdentifier" t="i"/><k n="CalcOrigin" t="i"/></s></rvStructures>')
+        z.writestr('xl/richData/rdrichvalue.xml',
+                   '<rvData xmlns="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata" count="%d">%s</rvData>'
+                   % (n, ''.join(f'<rv s="0"><v>{i}</v><v>5</v></rv>' for i in range(n))))
+        z.writestr('xl/metadata.xml',
+                   '<metadata xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:xlrd="http://schemas.microsoft.com/office/spreadsheetml/2017/richdata">'
+                   '<futureMetadata name="XLRICHVALUE" count="%d">%s</futureMetadata>'
+                   '<valueMetadata count="%d">%s</valueMetadata></metadata>'
+                   % (n, ''.join(f'<bk><extLst><ext uri="{{3e2802c4-a4d2-4d8b-9148-e3be6c30e623}}"><xlrd:rvb i="{i}"/></ext></extLst></bk>' for i in range(n)),
+                      n, ''.join(f'<bk><rc t="1" v="{i}"/></bk>' for i in range(n))))
+    return out.getvalue()
+
+
+def test_import_reads_place_in_cell_pictures(app):
+    a, b, _ = _two_teacher_codes(app)
+    with app.app_context():
+        db.execute('DELETE FROM employee_photos WHERE emp_code IN (?,?)', (a, b))
+    blue, red = _img('PNG', color=(20, 40, 220)), _img('PNG', color=(220, 30, 30))
+    data = _incell_sheet([(a, 'A', blue), (b, 'B', red)])
+    entries, no_image, problems = photos.read_photo_workbook(data)
+    assert not problems and not no_image and [e['emp_code'] for e in entries] == [a, b]
+    _import(_admin_client(app), data)
+    with app.app_context():
+        pa, pb = photos.get_photo(a), photos.get_photo(b)
+        assert Image.open(io.BytesIO(pa['data'])).convert('RGB').getpixel((5, 5))[2] > 150
+        assert Image.open(io.BytesIO(pb['data'])).convert('RGB').getpixel((5, 5))[0] > 150
+
+
+def test_import_warns_when_pictures_cannot_be_matched(app):
+    from openpyxl import Workbook
+    from openpyxl.drawing.image import Image as XLImage
+    from openpyxl.drawing.spreadsheet_drawing import AbsoluteAnchor
+    from openpyxl.drawing.xdr import XDRPoint2D, XDRPositiveSize2D
+    code = _two_teacher_codes(app)[0]
+    wb = Workbook(); ws = wb.active
+    for i, h in enumerate(['S.No', 'Time Table', 'Emp.Code', 'Emp.Name', 'Photo'], 1):
+        ws.cell(7, i, h)
+    ws.cell(8, 3, code); ws.cell(8, 4, 'X')
+    im = XLImage(io.BytesIO(_img('PNG')))
+    im.anchor = AbsoluteAnchor(pos=XDRPoint2D(5000000, 700000), ext=XDRPositiveSize2D(600000, 700000))
+    ws.add_image(im)
+    buf = io.BytesIO(); wb.save(buf)
+    result = photos.import_photo_workbook(buf.getvalue(), None)
+    assert result['no_image'] and result['warnings']
+
+
+def test_results_pages_use_shared_photo_route():
+    """No template may read static/img/teachers directly (that ignores imported photos)."""
+    import pathlib
+    tpl = pathlib.Path(photos.__file__).parent / 'templates'
+    bad = [p.name for p in tpl.rglob('*.html') if 'img/teachers/' in p.read_text(encoding='utf-8')]
+    assert not bad, bad

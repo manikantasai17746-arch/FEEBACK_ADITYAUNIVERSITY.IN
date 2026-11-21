@@ -2,7 +2,7 @@
 {% set r = c.row %}{% set mt = c.meta %}
 <div class="teacher-card">
   {% if teacher.emp_code %}
-  <img class="photo" src="{{ url_for('static', filename='img/teachers/' ~ teacher.emp_code ~ '.jpg') }}" alt="{{ tname }}"
+  <img class="photo" src="{{ url_for('photos.serve', emp_code=teacher.emp_code) }}" alt="{{ tname }}"
        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
   {% endif %}
   <div class="photo-fallback" aria-hidden="true" {% if teacher.emp_code %}style="display:none"{% endif %}>{{ initials }}</div>
