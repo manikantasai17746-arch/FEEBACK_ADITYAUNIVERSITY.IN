@@ -15,7 +15,8 @@ from . import category_forms, db, services
 from .feedback_categories import (LAB, MAIN, SECOND, ScopeError, eligible_count,
                                    eligible_students, resolve_scope)
 from .security import (audit, current_user, role_required,
-                       scoped_branch_ids_or_none, scoped_branches)
+                       scoped_branch_ids_or_none, scoped_branches,
+                       scoped_timetable_ids, timetable_scope_sql)
 
 bp = Blueprint('hod_feedback', __name__, url_prefix='/hod/feedback')
 
@@ -44,6 +45,9 @@ def _session_in_scope(user, session_id):
     allowed = scoped_branch_ids_or_none(user) or []
     if row.get('branch_id') not in allowed:
         return None
+    tts = scoped_timetable_ids(user)
+    if tts is not None and row.get('timetable_id') not in tts:
+        return None
     return row
 
 
@@ -53,6 +57,10 @@ def _list_main_sessions(branch_ids, subject_q=None, section_q=None, faculty_q=No
     ph = ','.join('?' * len(branch_ids))
     args = list(branch_ids)
     where = [f't.branch_id IN ({ph})', 'cs.is_deleted=0', 'cs.teacher_user_id IS NOT NULL']
+    _tt_sql, _tt_args = timetable_scope_sql(current_user(), 't.id')
+    if _tt_sql:
+        where.append(_tt_sql[5:])
+        args.extend(_tt_args)
     if subject_q:
         where.append('(cs.subject_code LIKE ? OR cs.subject_name LIKE ?)')
         like = f'%{subject_q}%'
@@ -345,6 +353,10 @@ def _list_lab_sessions(branch_ids, subject_q=None, section_q=None, faculty_q=Non
         'cs.teacher_user_id IS NOT NULL',
         "s.lab_status = 'available'",
     ]
+    _tt_sql, _tt_args = timetable_scope_sql(current_user(), 't.id')
+    if _tt_sql:
+        where.append(_tt_sql[5:])
+        args.extend(_tt_args)
     if subject_q:
         where.append('(cs.subject_code LIKE ? OR cs.subject_name LIKE ?)')
         like = f'%{subject_q}%'
@@ -602,6 +614,18 @@ def api_lab_create():
 # --------------------------------------------------------------------------- #
 # Module B — Second Faculty Feedback
 # --------------------------------------------------------------------------- #
+def _second_in_timetable_scope(user, assignment_id):
+    """True when the HOD's claimed timetables include this assignment's timetable."""
+    tts = scoped_timetable_ids(user)
+    if tts is None:
+        return True
+    row = db.query(
+        """SELECT cs.timetable_id FROM second_faculty_assignments sfa
+           JOIN class_sessions cs ON cs.id = sfa.session_id
+           WHERE sfa.id=?""", (assignment_id,), one=True)
+    return bool(row) and row['timetable_id'] in tts
+
+
 def _list_second_assignments(branch_ids, subject_q=None, section_q=None,
                              faculty_q=None, main_q=None):
     """Confirmed, non-removed second-faculty assignments in HOD branch scope.
@@ -619,6 +643,10 @@ def _list_second_assignments(branch_ids, subject_q=None, section_q=None,
         'sfa.removed_at IS NULL',
         'cs.is_deleted = 0',
     ]
+    _tt_sql, _tt_args = timetable_scope_sql(current_user(), 't.id')
+    if _tt_sql:
+        where.append(_tt_sql[5:])
+        args.extend(_tt_args)
     if subject_q:
         where.append('(cs.subject_code LIKE ? OR cs.subject_name LIKE ?)')
         like = f'%{subject_q}%'
@@ -762,7 +790,7 @@ def api_second_preview():
             sc = resolve_scope(SECOND, aid)
         except ScopeError as exc:
             return jsonify(ok=False, error=exc.message), exc.status
-        if sc['branch_id'] not in (branch_ids or []):
+        if sc['branch_id'] not in (branch_ids or []) or not _second_in_timetable_scope(user, aid):
             return jsonify(ok=False, error='Assignment outside your department scope.'), 403
         students = [
             {'roll': s.get('roll') or '', 'name': s.get('name') or ''}
@@ -821,7 +849,7 @@ def api_second_create():
     for aid in assignment_ids:
         try:
             sc = resolve_scope(SECOND, aid)
-            if sc['branch_id'] not in (branch_ids or []):
+            if sc['branch_id'] not in (branch_ids or []) or not _second_in_timetable_scope(user, aid):
                 errors.append({'assignment_id': aid, 'error': 'Outside your department scope.'})
                 continue
             title = title_in or category_forms.default_title(sc)

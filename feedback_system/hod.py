@@ -6,7 +6,8 @@ from flask import (Blueprint, abort, flash, redirect, render_template, request,
 from . import category_forms, complaints, db, services
 from .feedback_categories import ScopeError
 from .security import (audit, current_user, role_required, require_branch_access,
-                       scoped_branch_ids_or_none, scoped_branches, csrf_token)
+                       scoped_branch_ids_or_none, scoped_branches, csrf_token,
+                       scoped_timetable_ids)
 
 bp = Blueprint('hod', __name__, url_prefix='/hod')
 
@@ -48,27 +49,37 @@ def dashboard():
     }
     if branch_ids:
         ph = ','.join('?' * len(branch_ids))
+        _tts = scoped_timetable_ids(user)
+        if _tts is None:
+            tt_t = tt_c = tt_f = ''
+            tt_a = ()
+        else:
+            _tph = ','.join('?' * len(_tts)) or 'NULL'
+            tt_t = f' AND t.id IN ({_tph})'
+            tt_c = f' AND timetable_id IN ({_tph})'
+            tt_f = f' AND f.timetable_id IN ({_tph})'
+            tt_a = tuple(_tts)
         # All seven counters in ONE round trip (was seven separate queries).
         r = db.query(
             f"""SELECT
                   (SELECT COUNT(DISTINCT e.student_user_id) FROM enrollments e
                      JOIN timetables t ON t.id=e.timetable_id
-                    WHERE t.branch_id IN ({ph}) AND e.is_deleted=0) AS student_count,
+                    WHERE t.branch_id IN ({ph}) AND e.is_deleted=0{tt_t}) AS student_count,
                   (SELECT COUNT(DISTINCT cs.teacher_user_id) FROM class_sessions cs
                      JOIN timetables t ON t.id=cs.timetable_id
                     WHERE t.branch_id IN ({ph}) AND cs.is_deleted=0
-                      AND cs.teacher_user_id IS NOT NULL) AS faculty_count,
+                      AND cs.teacher_user_id IS NOT NULL{tt_t}) AS faculty_count,
                   (SELECT COUNT(*) FROM feedback_forms
-                    WHERE branch_id IN ({ph}) AND status='draft' AND is_deleted=0) AS forms_draft,
+                    WHERE branch_id IN ({ph}) AND status='draft' AND is_deleted=0{tt_c}) AS forms_draft,
                   (SELECT COUNT(*) FROM feedback_forms
-                    WHERE branch_id IN ({ph}) AND status='open' AND is_deleted=0) AS forms_open,
+                    WHERE branch_id IN ({ph}) AND status='open' AND is_deleted=0{tt_c}) AS forms_open,
                   (SELECT COUNT(*) FROM feedback_forms
-                    WHERE branch_id IN ({ph}) AND status='closed' AND is_deleted=0) AS forms_closed,
+                    WHERE branch_id IN ({ph}) AND status='closed' AND is_deleted=0{tt_c}) AS forms_closed,
                   (SELECT COUNT(*) FROM second_faculty_assignments
-                    WHERE branch_id IN ({ph}) AND status='confirmed') AS sfa_confirmed,
+                    WHERE branch_id IN ({ph}) AND status='confirmed'{tt_c}) AS sfa_confirmed,
                   (SELECT COUNT(*) FROM second_faculty_assignments
-                    WHERE branch_id IN ({ph}) AND status='unresolved') AS sfa_unresolved""",
-            tuple(branch_ids) * 7, one=True)
+                    WHERE branch_id IN ({ph}) AND status='unresolved'{tt_c}) AS sfa_unresolved""",
+            (tuple(branch_ids) + tt_a) * 7, one=True)
         for key in ('student_count', 'faculty_count', 'forms_draft', 'forms_open',
                     'forms_closed', 'sfa_confirmed', 'sfa_unresolved'):
             stats[key] = r[key]
@@ -81,15 +92,15 @@ def dashboard():
                        (SELECT COUNT(*) FROM form_eligible_students fes
                          WHERE fes.form_id=f.id) AS students
                 FROM feedback_forms f
-                WHERE f.branch_id IN ({ph}) AND f.is_deleted=0
+                WHERE f.branch_id IN ({ph}) AND f.is_deleted=0{tt_f}
                 ORDER BY f.created_at DESC, f.id DESC LIMIT 50""",
-            tuple(branch_ids))
+            tuple(branch_ids) + tt_a)
         _tm = services.form_teachers_map([f['id'] for f in stats['recent_forms']])
         stats['recent_forms'] = [dict(f, teachers=_tm.get(f['id'], []))
                                  for f in stats['recent_forms']]
 
         # Overview counts per feedback category (main / second / lab).
-        stats['category_overview'] = _category_overview(branch_ids)
+        stats['category_overview'] = _category_overview(branch_ids, scoped_timetable_ids(user))
 
     # "Teachers by Score Band" panel (same data as /hod/performance/bands).
     from . import mailer
@@ -103,27 +114,40 @@ def dashboard():
         mail_ready=mailer.is_configured())
 
 
-def _category_overview(branch_ids):
-    """Assignments, published forms, eligible, submitted, pending per category."""
+def _category_overview(branch_ids, timetable_ids=None):
+    """Assignments, published forms, eligible, submitted, pending per category.
+
+    ``timetable_ids`` (the HOD's claimed timetables) narrows every count to those
+    timetables; ``None`` means the whole branch scope (legacy / no allocations).
+    """
     if not branch_ids:
         return []
     ph = ','.join('?' * len(branch_ids))
+    if timetable_ids is None:
+        tt_t = tt_sfa = tt_f = ''
+        tt_args = ()
+    else:
+        tph = ','.join('?' * len(timetable_ids)) or 'NULL'
+        tt_t = f' AND t.id IN ({tph})'
+        tt_sfa = f' AND timetable_id IN ({tph})'
+        tt_f = f' AND f.timetable_id IN ({tph})'
+        tt_args = tuple(timetable_ids)
     # Main assignments = teaching sessions with a teacher in scope
     main_assign = db.query(
         f"""SELECT COUNT(*) c FROM class_sessions cs
             JOIN timetables t ON t.id=cs.timetable_id
-            WHERE t.branch_id IN ({ph}) AND cs.is_deleted=0 AND cs.teacher_user_id IS NOT NULL""",
-        tuple(branch_ids), one=True)['c']
+            WHERE t.branch_id IN ({ph}) AND cs.is_deleted=0 AND cs.teacher_user_id IS NOT NULL{tt_t}""",
+        tuple(branch_ids) + tt_args, one=True)['c']
     second_assign = db.query(
         f"""SELECT COUNT(*) c FROM second_faculty_assignments
-            WHERE branch_id IN ({ph}) AND status='confirmed'""",
-        tuple(branch_ids), one=True)['c']
+            WHERE branch_id IN ({ph}) AND status='confirmed'{tt_sfa}""",
+        tuple(branch_ids) + tt_args, one=True)['c']
     lab_assign = db.query(
         f"""SELECT COUNT(*) c FROM class_sessions cs
             JOIN timetables t ON t.id=cs.timetable_id
             JOIN teacher_subject_settings s ON s.session_id=cs.id AND s.lab_status='available'
-            WHERE t.branch_id IN ({ph}) AND cs.is_deleted=0""",
-        tuple(branch_ids), one=True)['c']
+            WHERE t.branch_id IN ({ph}) AND cs.is_deleted=0{tt_t}""",
+        tuple(branch_ids) + tt_args, one=True)['c']
 
     def form_stats(category):
         row = db.query(
@@ -131,22 +155,23 @@ def _category_overview(branch_ids):
                   SUM(CASE WHEN status='open' THEN 1 ELSE 0 END) AS published,
                   SUM(CASE WHEN status='draft' THEN 1 ELSE 0 END) AS draft
                 FROM feedback_forms
-                WHERE branch_id IN ({ph}) AND is_deleted=0 AND category=?""",
-            tuple(branch_ids) + (category,), one=True)
+                WHERE branch_id IN ({ph}) AND is_deleted=0 AND category=?
+                  {tt_sfa}""",
+            tuple(branch_ids) + (category,) + tt_args, one=True)
         published = int(row['published'] or 0)
         # Eligible / submitted on open forms via form_eligible_students + submissions
         elig = db.query(
             f"""SELECT COUNT(*) c FROM form_eligible_students fes
                 JOIN feedback_forms f ON f.id=fes.form_id
                 WHERE f.branch_id IN ({ph}) AND f.is_deleted=0 AND f.category=?
-                  AND f.status='open'""",
-            tuple(branch_ids) + (category,), one=True)['c']
+                  AND f.status='open'{tt_f}""",
+            tuple(branch_ids) + (category,) + tt_args, one=True)['c']
         sub = db.query(
             f"""SELECT COUNT(*) c FROM submissions s
                 JOIN feedback_forms f ON f.id=s.form_id
                 WHERE f.branch_id IN ({ph}) AND f.is_deleted=0 AND f.category=?
-                  AND f.status='open'""",
-            tuple(branch_ids) + (category,), one=True)['c']
+                  AND f.status='open'{tt_f}""",
+            tuple(branch_ids) + (category,) + tt_args, one=True)['c']
         pending = max(0, int(elig or 0) - int(sub or 0))
         return {
             'published': published,

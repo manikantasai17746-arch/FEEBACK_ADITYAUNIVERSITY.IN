@@ -301,3 +301,13 @@ One-time setup now runs **photo → new password → confirm e-mail → authenti
 
 - Tests (SQLite, real pyotp/segno, branch `feature/first-login-order`): `tests/test_first_login_phase2.py` 20 passed, `tests/test_account_setup.py` 10 passed. Full run `pytest tests --ignore=tests/test_student_default_password.py`: 855 passed, 3 failed, identical on untouched `main` (`test_authenticator_lost_device_cp3.py::test_every_failure_looks_the_same_to_the_browser[teacher]`, `test_deadline_and_pending.py::test_hod_forms_displays_saved_deadline`, `test_lost_device_sso_b3.py::test_start_page_shows_buttons_only_when_available`); not caused by this change and not fixed. PostgreSQL and the browser (Playwright) UI tests were not exercised.
 
+
+## HOD timetable-level scope fix (2026-11-21)
+
+An HOD who claimed only some timetables (`hod_allocations.timetable_id`) was shown department-wide data: the Main Faculty card counted every timetable of the branch (e.g. 111 instead of 19 for CSE Sem 3 T1-General) and the Main/Lab/Second Faculty lists showed every section (2501AI06: 17 sections / 1135 students instead of 3 / 212). Scope was resolved by branch only.
+
+Fix: `security.scoped_timetable_ids()` / `timetable_scope_sql()` return the HOD's claimed timetables (`None` = no restriction for admin/dean and for HODs without allocation rows, so the legacy department-scope fallback is unchanged). Applied to the HOD dashboard counters and category overview (`hod.py`), the Main/Lab/Second list queries, and the per-session/assignment scope checks used by preview and create (`hod_feedback.py`). No schema change.
+
+Not covered (still branch-scoped, follow-up needed): score bands / performance pages, results, comparison and complaint views for HODs.
+
+Tests: `tests/test_hod_timetable_scope.py` (3 pass; fail on the original code). HOD/Dean related suites pass. Full run: same 3 failures as on untouched `main` (listed above); PostgreSQL not exercised.

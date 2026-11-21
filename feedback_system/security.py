@@ -571,6 +571,38 @@ def scoped_branch_ids_or_none(user):
     return user_branch_ids(user['id'])
 
 
+def scoped_timetable_ids(user):
+    """Timetable ids an HOD has claimed in ``hod_allocations``.
+
+    Returns ``None`` (no timetable restriction) for admins, deans and HODs that
+    have no allocation rows (legacy department-scope fallback).  Otherwise a
+    list of timetable ids: an HOD who claimed only T1 must see only T1, even
+    though the branch scope covers every timetable of that department.
+    """
+    if not user or user['role'] != 'hod':
+        return None
+    cache = g.setdefault('_scoped_timetables', {})
+    uid = user['id']
+    if uid not in cache:
+        rows = db.query(
+            'SELECT DISTINCT timetable_id FROM hod_allocations WHERE hod_user_id=?',
+            (uid,))
+        cache[uid] = [r['timetable_id'] for r in rows] or None
+    return cache[uid]
+
+
+def timetable_scope_sql(user, column='t.id'):
+    """(sql_fragment, args) restricting ``column`` to the HOD's claimed timetables.
+
+    Empty fragment when no restriction applies.  Fragment starts with ``AND``.
+    """
+    ids = scoped_timetable_ids(user)
+    if ids is None:
+        return '', ()
+    ph = ','.join('?' * len(ids))
+    return f' AND {column} IN ({ph})', tuple(ids)
+
+
 def scoped_branches(user):
     """Branch rows (id, code, name) the HOD/Dean may see, in ONE query.
 
