@@ -153,6 +153,9 @@
        "All Phase N forms" posts to the phase route. HOD department scope is checked on the server. */
     var dlOv = $('#rfDl'), dlForm = $('#rfDlForm'), dlIn = $('#rfDlIn');
     if (dlOv && dlForm && dlIn) {
+      /* The page container is its own stacking layer (z-index 1), below the sticky header (z-index 50),
+         so a dialog left inside it is partly hidden behind the header. Attach it to <body> instead. */
+      document.body.appendChild(dlOv);
       var dlOne = '', dlStatus = '', dlHint = $('#rfDlH'), dlAllW = $('#rfDlAllW');
       var dlClose = function () { dlOv.classList.remove('on'); };
       var dlScope = function () { var r = dlForm.querySelector('input[name=scope]:checked'); return r ? r.value : 'current'; };

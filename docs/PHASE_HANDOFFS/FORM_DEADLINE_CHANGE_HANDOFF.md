@@ -20,3 +20,4 @@
 - Only Phase 1 / Phase 2 (stored `phase`) can be changed in bulk. Custom-named forms are changed one at a time.
 - A bulk change skips closed forms on purpose; reopen those individually.
 - Admin's own Forms page is unchanged (it already had a Change control).
+- The dialog is moved to `<body>` on load. `.container` is a stacking layer (`z-index:1`) below the sticky header (`z-index:50`), so a dialog left inside it had its top (title, first option) hidden behind the header. The same placement applies to the older confirm dialog `#rfOv` in this macro (not changed here).

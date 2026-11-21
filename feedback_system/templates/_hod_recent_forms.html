@@ -81,7 +81,7 @@
   </div>
 </div>
 <div class="rv-ov" id="rfDl" role="dialog" aria-modal="true" aria-labelledby="rfDlT">
-  <form method="post" class="rv-box" id="rfDlForm" style="max-width:480px"
+  <form method="post" class="rv-box" id="rfDlForm" style="max-width:480px;margin:auto"
         data-phase-url="{{ url_for('hod.form_deadline_phase') }}">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <input type="hidden" name="next" value="{{ next_url }}">
