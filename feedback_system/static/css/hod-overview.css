@@ -1,0 +1,95 @@
+/* ===== au-logo (HOD Overview) ===== */
+/* ===== Animated Aditya University logo (Overview header) ===== */
+body.role-hod .perf-welcome.au-head{align-items:center;flex-wrap:nowrap;padding-top:1.3rem;padding-bottom:1.3rem}
+.au-logo{flex:none;width:clamp(96px,12vw,136px);line-height:0;cursor:pointer;border-radius:12px;-webkit-tap-highlight-color:transparent}
+.au-logo:focus-visible{outline:3px solid var(--tt-link,#04529B);outline-offset:4px}
+.au-logo svg{display:block;width:100%;height:auto;overflow:visible}
+.au-logo .o{transform-origin:239.80px 185.84px}
+.au-logo .ring{transform:rotate(-90deg);transform-origin:239.80px 185.84px;stroke-dasharray:1;stroke-dashoffset:1;animation:aul-draw var(--d) cubic-bezier(.65,0,.35,1) var(--t) forwards}
+.au-logo .orb{opacity:0;animation:aul-orbit 3.4s cubic-bezier(.16,.7,.25,1) var(--t) forwards,aul-spin var(--s) linear calc(var(--t) + 3.4s) infinite;animation-direction:normal,reverse}
+.au-logo #aulg1{--t:1.5s;--a:55deg;--s:70s}
+.au-logo #aulg2{--t:2.1s;--a:-70deg;--s:46s;animation-direction:normal,normal}
+.au-logo #aulg3{--t:2.6s;--a:80deg;--s:30s}
+.au-logo .tw{opacity:0;animation:aul-star 1.6s ease-out forwards}
+.au-logo .core{opacity:0;animation:aul-fade 1.4s ease-out 3.1s forwards}
+.au-logo .sun{transform-origin:239.00px 186.50px;animation:aul-sunin 3.4s cubic-bezier(.16,.7,.25,1) 3.1s both,aul-spin 40s linear 6.5s infinite}
+.au-logo .word{opacity:0;animation:aul-rise 1.3s cubic-bezier(.2,.7,.2,1) 4.5s forwards}
+.au-logo .word2{animation-delay:5.2s}
+@keyframes aul-draw{to{stroke-dashoffset:0}99.9%{stroke-dasharray:1}100%{stroke-dashoffset:0;stroke-dasharray:none}}
+@keyframes aul-orbit{0%{opacity:0;transform:rotate(var(--a))}20%{opacity:1}100%{opacity:1;transform:rotate(0)}}
+@keyframes aul-star{0%{opacity:0;filter:drop-shadow(0 0 0 #be9337)}45%{opacity:1;filter:drop-shadow(0 0 3px #e8c971)}100%{opacity:1;filter:none}}
+@keyframes aul-spin{to{transform:rotate(360deg)}}
+@keyframes aul-fade{to{opacity:1}}
+@keyframes aul-sunin{from{transform:rotate(-40deg) scale(.88)}to{transform:rotate(0) scale(1)}}
+@keyframes aul-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* motion off: show the finished logo instead of an empty space */
+@media (prefers-reduced-motion:reduce){
+  body.role-hod .au-logo .ring{stroke-dashoffset:0}
+  body.role-hod .au-logo .core,body.role-hod .au-logo .word,body.role-hod .au-logo .tw,body.role-hod .au-logo .orb{opacity:1}
+}
+@media (max-width:520px){body.role-hod .perf-welcome.au-head{gap:.6rem}}
+
+/* ===== recent forms (HOD Overview) ===== */
+.rf-bar{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:.2rem 0 .8rem}
+.rf-chips{display:flex;flex-wrap:wrap;gap:6px}
+.rf-chip{border:1px solid var(--line,#dfe5ef);background:var(--card,#fff);color:var(--ink,#1f2733);border-radius:999px;padding:4px 12px;font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}
+.rf-chip[aria-pressed=true]{background:var(--navy,#1f3a68);border-color:var(--navy,#1f3a68);color:#fff}
+.rf-sp{flex:1}
+.rf-selall{display:flex;align-items:center;gap:7px;font-size:.86rem;font-weight:600;cursor:pointer}
+.rf-selall input,.rf-tbl input[type=checkbox]{width:17px;height:17px;accent-color:var(--navy,#1f3a68);cursor:pointer}
+.rf-tbl input[type=checkbox]:disabled{cursor:not-allowed;opacity:.35}
+.rf-wrap{overflow-x:auto;border:1px solid var(--line,#dfe5ef);border-radius:10px}
+.rf-tbl{width:100%;border-collapse:collapse;font-size:.88rem;min-width:720px}
+.rf-tbl th,.rf-tbl td{padding:10px 12px;border-bottom:1px solid var(--line,#dfe5ef);text-align:left;vertical-align:middle}
+.rf-tbl th{font-size:.74rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted,#5b6a82);background:var(--navy-soft,#eef2f9)}
+.rf-tbl tr:last-child td{border-bottom:0}
+.rf-tbl tr.rf-sel td{background:color-mix(in srgb,var(--accent,#2f6fed) 7%,transparent)}
+.rf-tbl .rf-t{font-weight:700}
+.rf-tbl .rf-s{display:block;font-size:.78rem;color:var(--muted,#5b6a82);font-weight:400}
+.rf-act{white-space:nowrap;text-align:right!important}
+.rf-note{font-size:.8rem;color:var(--muted,#5b6a82)}
+.rf-ov{position:fixed;inset:0;background:rgba(10,25,50,.55);display:none;align-items:center;justify-content:center;padding:14px;z-index:99999}
+.rf-ov.on{display:flex}
+.rf-box{background:var(--card,#fff);color:var(--ink,#1f2733);border-radius:14px;max-width:520px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35);overflow:hidden}
+.rf-box h3{margin:0;padding:16px 20px;border-bottom:1px solid var(--line,#dfe5ef);font-size:1.1rem}
+.rf-mb{padding:14px 20px;max-height:55vh;overflow:auto}
+.rf-mb ul{margin:.3rem 0 .9rem 1.1rem;padding:0;font-size:.9rem}
+.rf-mb label{display:block;font-weight:600;font-size:.85rem;margin:.5rem 0 4px}
+.rf-mb input[type=datetime-local]{width:100%;padding:9px 11px;border:1px solid var(--line,#dfe5ef);border-radius:8px;font:inherit;background:var(--card,#fff);color:var(--ink,#1f2733)}
+.rf-mf{display:flex;gap:8px;justify-content:flex-end;padding:12px 20px;border-top:1px solid var(--line,#dfe5ef);background:var(--bg,#fafbfd)}
+.rf-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0b2347;color:#fff;padding:10px 16px;border-radius:10px;font-size:.88rem;z-index:100001;display:none;max-width:90vw}
+.rf-toast.on{display:block}
+.rf-ov[hidden],#rfPubSel[hidden]{display:none!important}
+
+/* ===== pending (HOD Overview) ===== */
+.pd-ctl{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:flex-end;margin-bottom:.4rem}
+.pd-seg{display:inline-flex;border:1px solid var(--line,#dfe5ef);border-radius:10px;overflow:hidden;background:var(--card,#fff)}
+.pd-seg button{border:0;background:transparent;color:var(--ink,#1f2733);font:inherit;font-size:.88rem;font-weight:600;padding:9px 16px;cursor:pointer}
+.pd-seg button+button{border-left:1px solid var(--line,#dfe5ef)}
+.pd-seg button[aria-pressed=true]{background:var(--navy,#1f3a68);color:#fff}
+.pd-ctl label.pd-l{display:block;font-weight:600;font-size:.85rem;margin-bottom:4px}
+.pd-ctl select{min-width:340px;max-width:100%;padding:9px 11px;border:1px solid var(--line,#dfe5ef);border-radius:8px;font:inherit;background:var(--card,#fff);color:var(--ink,#1f2733)}
+.pd-formtag{font-size:.74rem;color:var(--muted,#5b6a82);display:block;font-weight:400}
+
+/* ===== score bands (HOD Overview) ===== */
+.bf-bar{display:flex;flex-wrap:wrap;gap:12px 14px;align-items:flex-end;margin:0 0 1rem;padding:12px 14px;border:1px solid var(--line,#dfe5ef);border-radius:12px;background:var(--navy-soft,#eef2f9)}
+.bf-f{position:relative;min-width:190px;flex:1 1 190px;max-width:260px}
+.bf-f>span.bf-l{display:block;font-size:.78rem;font-weight:700;color:var(--muted,#5b6a82);margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em}
+.bf-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;padding:9px 12px;border:1px solid var(--line,#dfe5ef);border-radius:8px;background:var(--card,#fff);color:var(--ink,#1f2733);font:inherit;font-size:.9rem;cursor:pointer}
+.bf-btn[aria-expanded=true]{border-color:var(--accent,#2f6fed);box-shadow:0 0 0 3px rgba(47,111,237,.15)}
+.bf-btn svg{flex:none;transition:transform .15s}
+.bf-btn[aria-expanded=true] svg{transform:rotate(180deg)}
+.bf-btn.on{border-color:var(--navy,#1f3a68);font-weight:600}
+.bf-pop{position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:60;background:var(--card,#fff);border:1px solid var(--line,#dfe5ef);border-radius:10px;box-shadow:0 12px 30px rgba(10,25,50,.2);max-height:260px;overflow:auto;padding:6px;min-width:220px}
+.bf-pop[hidden]{display:none}
+.bf-opt{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:6px;font-size:.88rem;cursor:pointer}
+.bf-opt:hover{background:var(--navy-soft,#eef2f9)}
+.bf-opt input{width:16px;height:16px;accent-color:var(--navy,#1f3a68);flex:none}
+.bf-opt.bf-all{font-weight:700;border-bottom:1px solid var(--line,#dfe5ef);border-radius:6px 6px 0 0;margin-bottom:3px}
+.bf-opt small{color:var(--muted,#5b6a82);margin-left:auto;font-size:.74rem}
+.bf-sum{flex-basis:100%;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:.86rem;color:var(--muted,#5b6a82)}
+.bf-sum strong{color:var(--ink,#1f2733)}
+.bf-empty{padding:18px;text-align:center;color:var(--muted,#5b6a82);background:var(--navy-soft,#eef2f9);border-radius:10px;font-size:.92rem}
+.band-tab.bf-zero{opacity:.5}
+.band-card[hidden],.band-compose[hidden],.band-selectall[hidden],.bf-empty[hidden]{display:none!important}
+

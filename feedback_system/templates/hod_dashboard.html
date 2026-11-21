@@ -1,34 +1,35 @@
 {% extends 'base.html' %}
 {% block title %}Overview — HOD Faculty Feedback{% endblock %}
-{% block bodyclass %}hod-overview{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hod_feedback.css') }}">
-<link rel="stylesheet" href="{{ url_for('static', filename='css/hod_overview.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod-overview.css') }}">
 {% endblock %}
 {% block body %}
+<<<<<<< HEAD
+{% from '_hod_bands.html' import hod_bands with context %}
+{% from '_hod_recent_forms.html' import hod_recent_forms with context %}
+<div class="perf-welcome au-head">
+  <div>
+    <h1 style="margin:0;display:flex;align-items:center;gap:.5rem">
+      <span aria-hidden="true">📊</span> Overview
+    </h1>
+    <p class="sub" style="margin:.35rem 0 0">Department feedback status by category — Main, Second, and Lab stay separate.</p>
+  </div>
+  <div class="au-logo" id="auLogo" role="button" tabindex="0" aria-label="Aditya University logo. Press to replay the animation" title="Click to replay">
+{% include 'partials/au_logo_anim.html' %}
+  </div>
+=======
 <div class="ov-head">
   <h1 class="ov-title"><span aria-hidden="true">📊</span> Overview</h1>
   <p class="ov-sub">Department feedback status by category — Main, Second, and Lab stay separate.</p>
   <a class="btn btn-ghost" href="{{ url_for('hod.student_complaints') }}">Student Complaints</a>
+>>>>>>> origin/main
 </div>
 
 {% if stats.category_overview %}
 <div class="nb-grid">
   {% for c in stats.category_overview %}
-  {% if c.key == 'main' %}
-    {% set cls = 'nb-main' %}
-    {% set href = url_for('hod_feedback.main_list') %}
-    {% set btn = 'Open Main' %}
-  {% elif c.key == 'second' %}
-    {% set cls = 'nb-second' %}
-    {% set href = url_for('hod_feedback.second_list') %}
-    {% set btn = 'Open Second' %}
-  {% else %}
-    {% set cls = 'nb-lab' %}
-    {% set href = url_for('hod_feedback.lab_list') %}
-    {% set btn = 'Open Lab' %}
-  {% endif %}
-  <div class="nb-sheet {{ cls }}">
+  <div class="nb-sheet nb-{{ c.key }}">
     <div class="nb-card">
       <p class="nb-note">Department feedback status</p>
       <h3 class="nb-title">{{ c.label }}</h3>
@@ -42,7 +43,13 @@
       </div>
       <hr>
       <div class="nb-foot">
-        <a class="btn btn-sm" href="{{ href }}">{{ btn }}</a>
+        {% if c.key == 'main' %}
+          <a class="btn btn-sm" href="{{ url_for('hod_feedback.main_list') }}">Open Main</a>
+        {% elif c.key == 'second' %}
+          <a class="btn btn-sm" href="{{ url_for('hod_feedback.second_list') }}">Open Second</a>
+        {% else %}
+          <a class="btn btn-sm" href="{{ url_for('hod_feedback.lab_list') }}">Open Lab</a>
+        {% endif %}
         <div class="nb-stamp" aria-hidden="true">
           <svg viewBox="0 0 200 200" focusable="false">
             <defs>
@@ -53,7 +60,8 @@
             <circle cx="100" cy="100" r="86" fill="none" stroke="#0b2f6b" stroke-width="1.5"/>
             <circle cx="100" cy="100" r="52" fill="#fff" stroke="#f26f21" stroke-width="3"/>
             <text font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="15" letter-spacing="1.6" fill="#0b2f6b"><textPath href="#nbTop{{ loop.index }}" startOffset="50%" text-anchor="middle">ADITYA UNIVERSITY</textPath></text>
-            <text font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="13" letter-spacing="1.4" fill="#0b2f6b"><textPath href="#nbBot{{ loop.index }}" startOffset="50%" text-anchor="middle">ANONYMOUS FEEDBACK</textPath></text>
+            <text font-family="Arial,sans-serif" font-weight="800" font-size="11" letter-spacing="1.8" fill="#f26f21"><textPath href="#nbBot{{ loop.index }}" startOffset="50%" text-anchor="middle">ANONYMOUS FEEDBACK</textPath></text>
+            <image href="{{ url_for('static', filename='img/aditya-emblem.png') }}" x="72" y="72" width="56" height="58" preserveAspectRatio="xMidYMid meet"/>
           </svg>
         </div>
       </div>
@@ -71,31 +79,28 @@
 </div>
 {% else %}
 
-<div class="ov-tiles">
-  <div class="ov-tile">
-    <div class="num">{{ stats.branches|length }}</div>
-    <div class="lbl">Departments</div>
-    <div class="sub">{% for b in stats.branches %}{{ b.code }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+<div class="perf-tiles perf-tiles-6">
+  <div class="perf-tile t-subjects">
+    <div><div class="num">{{ stats.branches|length }}</div><div class="lbl">Departments</div>
+      <div class="sub" style="font-size:.75rem">{% for b in stats.branches %}{{ b.code }}{% if not loop.last %}, {% endif %}{% endfor %}</div></div>
   </div>
-  <div class="ov-tile">
-    <div class="num">{{ stats.student_count }}</div>
-    <div class="lbl">Students</div>
+  <div class="perf-tile t-eligible">
+    <div><div class="num">{{ stats.student_count }}</div><div class="lbl">Students</div></div>
   </div>
-  <div class="ov-tile">
-    <div class="num">{{ stats.faculty_count }}</div>
-    <div class="lbl">Faculty</div>
+  <div class="perf-tile t-score">
+    <div><div class="num">{{ stats.faculty_count }}</div><div class="lbl">Faculty</div></div>
   </div>
-  <div class="ov-tile">
-    <div class="num">{{ stats.forms_draft }} / {{ stats.forms_open }} / {{ stats.forms_closed }}</div>
-    <div class="lbl">Forms (draft / open / closed)</div>
+  <div class="perf-tile">
+    <div>
+      <div class="num" id="rfTile">{{ stats.forms_draft }} / {{ stats.forms_open }} / {{ stats.forms_closed }}</div>
+      <div class="lbl">Forms (draft / open / closed)</div>
+    </div>
   </div>
-  <div class="ov-tile">
-    <div class="num">{{ stats.sfa_confirmed }}</div>
-    <div class="lbl">Second-faculty confirmed</div>
+  <div class="perf-tile t-responses">
+    <div><div class="num">{{ stats.sfa_confirmed }}</div><div class="lbl">Second-faculty confirmed</div></div>
   </div>
-  <div class="ov-tile">
-    <div class="num">{{ stats.sfa_unresolved }}</div>
-    <div class="lbl">Second-faculty unresolved</div>
+  <div class="perf-tile">
+    <div><div class="num">{{ stats.sfa_unresolved }}</div><div class="lbl">Second-faculty unresolved</div></div>
   </div>
 </div>
 
@@ -111,122 +116,25 @@
 </div>
 
 <div class="sec-panel" id="sec-recent" role="tabpanel" aria-labelledby="tab-recent">
-  <div class="card">
-    <h2 style="margin-top:0">📋 Recent Forms</h2>
-    {% if stats.recent_forms %}
-    <div style="overflow-x:auto">
-      <table class="marks-table">
-        <thead>
-          <tr>
-            <th>Form ID</th>
-            <th>Title</th>
-            <th>Category</th>
-            <th>Subject</th>
-            <th>Teacher(s)</th>
-            <th>Branch</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for f in stats.recent_forms %}
-          <tr>
-            <td>#{{ f.id }}</td>
-            <td>{{ f.title }}</td>
-            <td><span class="badge" style="background:#DCE9F8;color:#033C73">{{ f.category or 'main' }}</span></td>
-            <td>{{ f.snapshot_subject_code or '—' }}</td>
-            <td class="wrap">{{ f.teachers|join(', ') if f.teachers else '—' }}</td>
-            <td>{{ f.snapshot_branch or '—' }}</td>
-            <td>
-              {% if f.status == 'open' %}
-                <span class="score-pill">OPEN</span>
-              {% elif f.status == 'draft' %}
-                <span class="badge" style="background:#FBEFD5;color:#8A5A12">DRAFT</span>
-              {% elif f.status == 'closed' %}
-                <span class="badge" style="background:#FBE3E0;color:#C0362C">CLOSED</span>
-              {% else %}
-                <span class="badge">{{ f.status }}</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <p class="sub">No forms yet for your department(s).</p>
-    {% endif %}
-  </div>
+{{ hod_recent_forms(stats.recent_forms, url_for('hod.dashboard')) }}
 </div>
 
 <div class="sec-panel" id="sec-pending" role="tabpanel" aria-labelledby="tab-pending" hidden>
-  <div class="card">
-    <h2 style="margin-top:0">📝 Pending submissions</h2>
-    <p class="sub">Students who have not yet submitted on open forms, by category. Open the list to see who is pending, per teacher.</p>
-    {% if stats.category_overview %}
-    <div class="ov-pend">
-      {% for c in stats.category_overview %}
-      <div class="ov-pend-row">
-        <span>{{ c.label }}</span>
-        <strong>{{ c.pending }}</strong>
-        <span class="sub">pending of {{ c.eligible }} eligible</span>
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-    <a class="btn" href="{{ url_for('hod.pending') }}">Open pending submissions</a>
-  </div>
+  <div id="pdMount" class="card" style="margin-top:1.25rem" data-src="{{ url_for('hod.pending') }}">
+    <p class="sub">Loading pending submissions…</p></div>
 </div>
 
 <div class="sec-panel" id="sec-bands" role="tabpanel" aria-labelledby="tab-bands" hidden>
-  <div class="card">
-    <h2 style="margin-top:0">🎯 Teachers by Score Band</h2>
-    <p class="sub">Browse teachers by feedback score, grouped into bands. Open a band to see each teacher's result, and to email teachers from the same page.</p>
-    <a class="btn" href="{{ url_for('hod.performance_bands') }}">Open score bands</a>
-  </div>
+{{ hod_bands(bands, band_default, default_subject, band_messages, mail_ready) }}
 </div>
 
 <div class="sec-panel" id="sec-results" role="tabpanel" aria-labelledby="tab-results" hidden>
-  <div class="card">
-    <h2 style="margin-top:0">📄 Feedback Results</h2>
-    <p class="sub">Main, Second and Lab results stay separate. Teachers only see results you publish.</p>
-    <a class="btn" href="{{ url_for('hod.results') }}">Open feedback results</a>
-  </div>
+  <div id="rsMount" class="card" style="margin-top:1.25rem" data-src="{{ url_for('hod.results') }}">
+    <p class="sub">Loading feedback results…</p></div>
 </div>
 
-<script>
-(function () {
-  var tabs = [].slice.call(document.querySelectorAll('.sec-tab'));
-  function show(key) {
-    tabs.forEach(function (t) {
-      var on = t.getAttribute('data-sec') === key;
-      t.setAttribute('aria-selected', on ? 'true' : 'false');
-      t.tabIndex = on ? 0 : -1;
-      var panel = document.getElementById('sec-' + t.getAttribute('data-sec'));
-      if (panel) panel.hidden = !on;
-    });
-  }
-  tabs.forEach(function (t, i) {
-    t.addEventListener('click', function () {
-      show(t.getAttribute('data-sec'));
-      history.replaceState(null, '', '#' + t.getAttribute('data-sec'));
-    });
-    t.addEventListener('keydown', function (e) {
-      var n = e.key === 'ArrowRight' ? i + 1 : e.key === 'ArrowLeft' ? i - 1 : null;
-      if (n === null) return;
-      n = (n + tabs.length) % tabs.length;
-      tabs[n].focus();
-      show(tabs[n].getAttribute('data-sec'));
-      e.preventDefault();
-    });
-  });
-  var keys = ['recent', 'pending', 'bands', 'results'];
-  function fromHash() {
-    var h = (location.hash || '').replace('#', '');
-    show(keys.indexOf(h) >= 0 ? h : 'recent');
-  }
-  window.addEventListener('hashchange', fromHash);
-  fromHash();
-})();
-</script>
 {% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hod_overview.js') }}"></script>
 {% endblock %}

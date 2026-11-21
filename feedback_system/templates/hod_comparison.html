@@ -1,1 +1,14 @@
 {% extends '_comparison_index.html' %}
+{% from '_hod_bands.html' import hod_bands with context %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod-overview.css') }}">
+{% endblock %}
+{% block cmp_top %}
+{% if bands %}
+{{ hod_bands(bands, band_default, default_subject, band_messages, mail_ready, 'compare', filters_args) }}
+{% endif %}
+<h2 style="margin:22px 0 8px;font-size:1.1rem">All teachers &mdash; closed rounds by subject</h2>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hod_overview.js') }}"></script>
+{% endblock %}
