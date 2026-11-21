@@ -61,11 +61,16 @@ def dashboard():
                     'forms_closed', 'sfa_confirmed', 'sfa_unresolved'):
             stats[key] = r[key]
         stats['recent_forms'] = db.query(
-            f"""SELECT id, title, status, category, snapshot_subject_code,
-                       snapshot_branch, published_at, created_at
-                FROM feedback_forms
-                WHERE branch_id IN ({ph}) AND is_deleted=0
-                ORDER BY created_at DESC, id DESC LIMIT 15""",
+            f"""SELECT f.id, f.title, f.status, f.category, f.snapshot_subject_code,
+                       f.snapshot_subject_name, f.snapshot_branch, f.snapshot_timetable,
+                       f.published_at, f.closed_at, f.created_at, f.deadline_at,
+                       (SELECT COUNT(*) FROM form_sessions fs
+                         WHERE fs.form_id=f.id) AS sections,
+                       (SELECT COUNT(*) FROM form_eligible_students fes
+                         WHERE fes.form_id=f.id) AS students
+                FROM feedback_forms f
+                WHERE f.branch_id IN ({ph}) AND f.is_deleted=0
+                ORDER BY f.created_at DESC, f.id DESC LIMIT 50""",
             tuple(branch_ids))
         _tm = services.form_teachers_map([f['id'] for f in stats['recent_forms']])
         stats['recent_forms'] = [dict(f, teachers=_tm.get(f['id'], []))
@@ -74,7 +79,16 @@ def dashboard():
         # Overview counts per feedback category (main / second / lab).
         stats['category_overview'] = _category_overview(branch_ids)
 
-    return render_template('hod_dashboard.html', stats=stats, user=user)
+    # "Teachers by Score Band" panel (same data as /hod/performance/bands).
+    from . import mailer
+    bands = _band_data(branch_ids, None, None, None, None) if branch_ids else []
+    band_default = next((b['key'] for b in bands if b['count']),
+                        bands[0]['key'] if bands else None)
+    return render_template(
+        'hod_dashboard.html', stats=stats, user=user, bands=bands,
+        band_default=band_default, default_subject=DEFAULT_BAND_SUBJECT,
+        band_messages={b['key']: _default_message_for(b['key']) for b in bands},
+        mail_ready=mailer.is_configured())
 
 
 def _category_overview(branch_ids):
@@ -185,7 +199,11 @@ def forms():
             args.extend([like, like, like])
         sql = f"""SELECT id, title, status, category, snapshot_subject_code,
                          snapshot_subject_name, snapshot_branch, snapshot_timetable,
-                         published_at, closed_at, created_at, deadline_at
+                         published_at, closed_at, created_at, deadline_at,
+                         (SELECT COUNT(*) FROM form_sessions fs
+                           WHERE fs.form_id=feedback_forms.id) AS sections,
+                         (SELECT COUNT(*) FROM form_eligible_students fes
+                           WHERE fes.form_id=feedback_forms.id) AS students
                   FROM feedback_forms WHERE {' AND '.join(where)}
                   ORDER BY created_at DESC, id DESC"""
         forms_list = db.query(sql, tuple(args))
@@ -2565,10 +2583,19 @@ def comparison():
         branch_ids, academic_year_id=ay, semester_id=sem, q=q)
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
     semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
+    from . import mailer
+    bands = _band_data(branch_ids, None, ay, sem, None) if branch_ids else []
+    band_default = next((b['key'] for b in bands if b['count']),
+                        bands[0]['key'] if bands else None)
     return render_template(
         'hod_comparison.html', user=user, branches=branches, profiles=profiles,
         years=years, semesters=semesters,
-        filters={'academic_year_id': ay, 'semester_id': sem, 'q': q})
+        filters={'academic_year_id': ay, 'semester_id': sem, 'q': q},
+        filters_args={'academic_year_id': ay, 'semester_id': sem, 'q': q},
+        bands=bands, band_default=band_default,
+        default_subject=DEFAULT_BAND_SUBJECT,
+        band_messages={b['key']: _default_message_for(b['key']) for b in bands},
+        mail_ready=mailer.is_configured())
 
 
 @bp.route('/comparison/teacher/<int:teacher_id>')

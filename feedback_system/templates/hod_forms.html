@@ -1,6 +1,10 @@
 {% extends 'base.html' %}
 {% import '_macros.html' as m %}
+{% from '_hod_recent_forms.html' import hod_recent_forms with context %}
 {% block title %}Department Forms — HOD{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod-overview.css') }}">
+{% endblock %}
 {% block body %}
 <div class="perf-welcome">
   <div>
@@ -78,86 +82,9 @@
   </div>
 </form>
 
-<div class="card">
-  <h2 style="margin-top:0">📋 Feedback Forms
-    {% if branches|length == 1 %}({{ branches[0].code }} Department){% endif %}
-  </h2>
-  {% if forms %}
-  <div style="overflow-x:auto">
-    <table class="marks-table">
-      <thead>
-        <tr>
-          <th>Form ID</th>
-          <th>Title</th>
-          <th>Subject Code</th>
-          <th>Teacher(s)</th>
-          <th>Category</th>
-          <th>Status</th>
-          <th>Deadline</th>
-          <th>Created On</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for f in forms %}
-        <tr>
-          <td>#{{ f.id }}</td>
-          <td>{{ f.title }}</td>
-          <td>
-            {% if f.snapshot_subject_code %}
-            <span class="badge" style="background:#dbeafe;color:#1e40af">{{ f.snapshot_subject_code }}</span>
-            {% else %}—{% endif %}
-          </td>
-          <td class="wrap">{{ f.teachers|join(', ') if f.teachers else '—' }}</td>
-          <td><span class="badge" style="background:#ede9fe;color:#5b21b6">{{ f.category or 'main' }}</span></td>
-          <td>
-            {% if f.status == 'open' %}
-              <span class="score-pill">● Open</span>
-            {% elif f.status == 'draft' %}
-              <span class="badge" style="background:#fef3c7;color:#92400e">● Draft</span>
-            {% elif f.status == 'closed' %}
-              <span class="badge" style="background:#fee2e2;color:#991b1b">● Closed</span>
-            {% else %}
-              <span class="badge">{{ f.status }}</span>
-            {% endif %}
-          </td>
-          <td>{{ m.deadline_cell(f, url_for('hod.form_deadline', fid=f.id), url_for('hod.forms'), csrf_token()) }}</td>
-          <td class="sub">{{ f.created_at or '—' }}</td>
-          <td>
-            <div class="btn-row" style="gap:.35rem;flex-wrap:wrap">
-              {% if f.status == 'draft' %}
-              <form method="post" action="{{ url_for('hod.form_status', fid=f.id) }}" style="display:inline">
-                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                <input type="hidden" name="status" value="open">
-                <button type="submit" class="btn btn-sm" style="background:#16a34a;color:#fff">✓ Publish</button>
-              </form>
-              {% endif %}
-              {% if f.status == 'open' %}
-              <form method="post" action="{{ url_for('hod.form_status', fid=f.id) }}" style="display:inline">
-                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                <input type="hidden" name="status" value="closed">
-                <button type="submit" class="btn btn-sm" style="background:#dc2626;color:#fff">✕ Close</button>
-              </form>
-              {% endif %}
-              {% if f.status == 'draft' %}
-              <form method="post" action="{{ url_for('hod.form_status', fid=f.id) }}" style="display:inline">
-                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                <input type="hidden" name="status" value="closed">
-                <button type="submit" class="btn btn-sm btn-ghost">✕ Close</button>
-              </form>
-              {% endif %}
-              <a class="btn btn-ghost btn-sm" href="{{ url_for('hod.form_new') }}">👁 View</a>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  <p class="sub" style="margin-top:.75rem">Showing {{ forms|length }} form{% if forms|length != 1 %}s{% endif %}</p>
-  {% else %}
-  <p class="sub">No forms match the current filters. Use <strong>Create Feedback Form</strong> to add one.</p>
-  {% endif %}
-</div>
+{{ hod_recent_forms(forms, url_for('hod.forms'), '📋 Feedback Forms' ~ (' (' ~ branches[0].code ~ ' Department)' if branches|length == 1 else ''), url_for('hod.question_sets'), '0') }}
 {% endif %}
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/hod_overview.js') }}"></script>
 {% endblock %}

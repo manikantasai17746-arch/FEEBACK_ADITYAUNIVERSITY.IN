@@ -1,0 +1,71 @@
+{% macro hod_recent_forms(forms, next_url, title='📋 Recent Forms', edit_sets_url=none, top='1.25rem') %}
+<div class="card" style="margin-top:{{ top }}">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px"><h2 style="margin:0">{{ title }}</h2>{% if edit_sets_url %}<a class="btn btn-sm btn-edit-sets" href="{{ edit_sets_url }}">&#9998; Edit sets</a>{% endif %}</div>
+  {% if forms %}
+  <form method="post" action="{{ url_for('hod.forms_publish_selected') }}" id="rfForm">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="rf-bar">
+      <div class="rf-chips" role="group" aria-label="Filter forms by status">
+        {% set n_all = forms|length %}
+        <button type="button" class="rf-chip" data-flt="all" aria-pressed="true">All ({{ n_all }})</button>
+        <button type="button" class="rf-chip" data-flt="draft" aria-pressed="false">Draft ({{ forms|selectattr('status','equalto','draft')|list|length }})</button>
+        <button type="button" class="rf-chip" data-flt="open" aria-pressed="false">Open ({{ forms|selectattr('status','equalto','open')|list|length }})</button>
+        <button type="button" class="rf-chip" data-flt="closed" aria-pressed="false">Closed ({{ forms|selectattr('status','equalto','closed')|list|length }})</button>
+      </div>
+      <span class="rf-sp"></span>
+      <label class="rf-selall"><input type="checkbox" id="rfAll"> Select all drafts</label>
+      <button type="submit" class="btn btn-primary btn-sm" id="rfPubSel" disabled>Publish selected (0)</button>
+    </div>
+    <div class="rf-wrap">
+      <table class="rf-tbl">
+        <thead><tr><th style="width:34px"></th><th>Form</th><th>Type</th><th>Sections</th><th>Status</th><th class="rf-act">Action</th></tr></thead>
+        <tbody>
+        {% for f in forms %}
+        {% set dr = f.status == 'draft' %}
+        <tr data-status="{{ f.status }}">
+          <td><input type="checkbox" name="form_ids" value="{{ f.id }}" {% if not dr %}disabled title="Only draft forms can be selected"{% endif %} aria-label="Select {{ f.title }}"></td>
+          <td><span class="rf-t">{{ f.title }}</span>
+            <span class="rf-s">{{ f.snapshot_subject_code or '—' }}{% if f.snapshot_subject_name %} {{ f.snapshot_subject_name }}{% endif %} · {{ f.teachers|join(', ') if f.teachers else '—' }}</span></td>
+          <td>{{ (f.category or 'main')|capitalize }}</td>
+          <td>{{ f.sections }} <span class="rf-s" style="display:inline">({{ f.students }} students)</span></td>
+          <td><span class="badge badge-{{ f.status }}">{{ 'Published' if f.status == 'open' else f.status }}</span>
+            {% if f.status == 'open' and f.deadline_at %}<span class="rf-s">closes {{ f.deadline_at }}</span>{% endif %}
+            {% if f.status == 'closed' %}<span class="rf-s">deadline {{ f.deadline_at or 'none' }}</span>{% endif %}</td>
+          <td class="rf-act">
+            {% if dr %}
+              <button type="button" class="btn btn-accent btn-sm" data-act="open" data-fid="{{ f.id }}" data-title="{{ f.title }}">Publish to students</button>
+            {% elif f.status == 'open' %}
+              <button type="button" class="btn btn-ghost btn-sm" data-act="closed" data-fid="{{ f.id }}" data-title="{{ f.title }}">Close feedback</button>
+            {% else %}
+              <button type="button" class="btn btn-ghost btn-sm" data-act="open" data-fid="{{ f.id }}" data-title="{{ f.title }}">Reopen</button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+  <form method="post" id="rfStatusForm" hidden>
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="status" id="rfStatusVal">
+    <input type="hidden" name="next" value="{{ next_url }}">
+  </form>
+  {% else %}
+  <p class="sub">No forms yet for your department(s).</p>
+  {% endif %}
+</div>
+<div class="rv-ov" id="rfOv" role="dialog" aria-modal="true" aria-labelledby="rfMt">
+  <div class="rv-box" style="max-width:480px">
+    <div class="rv-body">
+      <h3 id="rfMt" style="margin-top:0">Confirm</h3>
+      <p id="rfMs"></p>
+    </div>
+    <div class="rv-foot">
+      <button type="button" class="btn btn-ghost" id="rfNo">Cancel</button>
+      <button type="button" class="btn btn-accent" id="rfYes">Confirm</button>
+    </div>
+  </div>
+</div>
+
+{% endmacro %}

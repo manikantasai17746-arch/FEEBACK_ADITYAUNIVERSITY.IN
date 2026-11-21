@@ -1,0 +1,83 @@
+{% macro hod_bands(bands, band_default, default_subject, band_messages, mail_ready, mode='result', fargs=none) %}
+<div id="score-bands" class="card" style="margin-top:1.25rem">
+  <h2 style="margin-top:0">🎯 Teachers by Score Band</h2>
+  <p class="sub" style="margin:-.4rem 0 1rem">Click a band to see the teachers whose feedback score falls in that range, highest first.
+    {% if mode == 'compare' %}Use <strong>Compare performance</strong> to see that teacher's performance across rounds.{% else %}Use <strong>View result</strong> to open a teacher's full result.{% endif %}</p>
+  <div class="band-tabs">
+    {% for b in bands %}
+    <a class="band-tab band-{{ loop.index }} {{ 'active' if b.key == band_default }}" href="#" data-band="{{ b.key }}">
+      <span class="band-label">{{ b.label }}</span>
+      <span class="band-count">{{ b.count }} teacher{{ '' if b.count == 1 else 's' }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+{% for b in bands %}
+<div class="card band-panel band-{{ loop.index }}" data-band-panel="{{ b.key }}" style="margin-top:1rem" {% if b.key != band_default %}hidden{% endif %}>
+  <h2 style="margin-top:0">{{ b.label }} <span class="muted">· {{ b.count }}</span></h2>
+  {% if b.rows %}
+  <form class="band-form" method="post" action="{{ url_for('hod.performance_bands_send') }}"
+        onsubmit="return confirm('Send this email to the ticked teachers?');">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="band" value="{{ b.key }}">
+    <label class="band-selectall"><input type="checkbox" class="band-all" checked> Select all teachers in this band</label>
+    <div class="band-grid">
+      {% for r in b.rows %}
+      {% set tname = r.teacher_name or 'Faculty' %}
+      {% set initials = (tname.replace('.', '').split()[1:]|map('first')|join('')|upper)[:2] or (tname.split()|map('first')|join('')|upper)[:2] %}
+      <div class="band-card">
+        <div class="band-photo">
+          {% if r.teacher_emp_code %}
+          <img src="{{ url_for('static', filename='img/teachers/' ~ r.teacher_emp_code ~ '.jpg') }}" alt="{{ tname }}"
+               onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+          {% endif %}
+          <div class="band-initials" {% if r.teacher_emp_code %}style="display:none"{% endif %}>{{ initials }}</div>
+        </div>
+        <div class="band-info">
+          <div class="band-name">{{ tname }}</div>
+          <div class="band-sub">{{ r.subject_code or '' }} {{ r.subject_name or '' }}</div>
+          <div class="band-sub">{{ r.valid_responses or r.response_count or 0 }} response(s)</div>
+        </div>
+        <div class="band-score">{{ '%.2f'|format(r.overall_score) }}%</div>
+        <label class="band-pick">
+          {% if r.teacher_email %}
+          <input type="checkbox" class="band-cb" name="teacher_user_id" value="{{ r.teacher_user_id }}" checked>
+          <span>{{ r.teacher_email }}</span>
+          {% else %}
+          <input type="checkbox" disabled> <span class="band-noemail">No email on file</span>
+          {% endif %}
+        </label>
+        {% if mode == 'compare' %}
+        <a class="btn btn-sm btn-accent" href="{{ url_for('hod.comparison_teacher', teacher_id=r.teacher_user_id, **(fargs or {})) }}">📈 Compare performance</a>
+        {% else %}
+        <a class="btn btn-sm btn-accent" href="{{ url_for('hod.performance_detail', teacher_id=r.teacher_user_id) }}">👁 View result</a>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="band-compose">
+      <h3 style="margin:.2rem 0 .5rem">✉ Email to ticked teachers</h3>
+      {% if not mail_ready %}
+      <div class="flash flash-warning">Email sending is not set up on the server yet (MAIL_USER / MAIL_APP_PASSWORD).</div>
+      {% endif %}
+      <div class="field"><label>Subject</label>
+        <input type="text" class="band-subject" name="subject" maxlength="150" value="{{ default_subject }}" style="width:100%"></div>
+      <div class="field"><label>Message (a default is filled in; you can rewrite it)</label>
+        <textarea class="band-message" name="message" rows="8" maxlength="5000" style="width:100%">{{ band_messages[b.key] }}</textarea>
+        <p class="sub" style="margin:.3rem 0 0">Placeholders filled for each teacher:
+          <code>{name}</code> <code>{score}</code> <code>{subject}</code> <code>{hod}</code></p></div>
+      <div class="btn-row">
+        <button type="submit" class="btn btn-accent">✉ Send email</button>
+        <button type="button" class="btn btn-ghost band-reset">Restore default message</button>
+        <span class="band-count-sel sub"></span>
+      </div>
+    </div>
+  </form>
+  {% else %}
+  <p class="sub">No teachers in this score band yet.</p>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% endmacro %}
