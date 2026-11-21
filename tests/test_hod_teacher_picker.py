@@ -40,8 +40,9 @@ def test_picker_page_and_main_list_links(app, client):
     # Main now uses the dedicated create flow (Create button and per-row Select).
     assert '/hod/feedback/main/create' in page
     assert '/hod/feedback/main/create?session_id=' in page
-    assert '/hod/forms/new?category=lab' in c.get('/hod/feedback/lab').get_data(as_text=True)
-    assert '/hod/forms/new?category=second' in c.get('/hod/feedback/second').get_data(as_text=True)
+    # Lab and Second now use the same create wizard as Main.
+    assert '/hod/feedback/lab/create' in c.get('/hod/feedback/lab').get_data(as_text=True)
+    assert '/hod/feedback/second/create' in c.get('/hod/feedback/second').get_data(as_text=True)
 
 
 def test_picker_api_groups_subject_then_teacher(app, client):

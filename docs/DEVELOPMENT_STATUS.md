@@ -332,3 +332,17 @@ Known / not done:
 - Closing "Edit sets" clears the per-form trash exclusions (indices can shift).
 - Score bands, performance, results, comparison and complaint pages for HODs remain branch-scoped, not timetable-scoped.
 - Test environment: `pyotp` and `segno` were not installable here; a local RFC 6238 stand-in for `pyotp` was used outside the repo.
+
+## HOD Second and Lab create flow uses the Main wizard (2026-11-21)
+
+`/hod/feedback/second/create` and `/hod/feedback/lab/create` now run the same Select -> Preview -> Questions -> Confirm wizard as Main. The wizard script `static/js/hod_feedback_main.js` takes `data-kind="main|second|lab"` (default `main`, so the Main page and its template are unchanged); the markup for Second and Lab lives in `templates/hod_feedback/_create_wizard.html`, included by thin `second_create.html` / `lab_create.html`. No route, URL, blueprint, CSS or schema change.
+
+- Select: three panels (subjects | table | "Your selection"). Second columns: Main faculty, Second faculty, Section, Branch, Eligible (rows keyed by `second_faculty_assignments.id`, never merged by employee). Lab columns: Main faculty, Lab faculty ("Main faculty lab teaching" when no separate lab faculty), Section, Room, Eligible, Live lab forms (rows keyed by `class_sessions.id`, `lab_status='available'` only).
+- Questions step: same options as Main (shared/own sets, per-form trash, extra rating/written questions, Edit sets popup, Phase 1/Phase 2/Custom name, deadline, instructions, authenticator checkbox).
+- Backend (`hod_feedback.py`): `api_second_create` / `api_lab_create` now accept `exclude_questions`, `extra_questions`, `phase`, `auth_required` through the shared `_wizard_options()` (same rules as Main; `category_forms.create_form` already enforced phase rules per category). Create pages get the question-set/presets/overview URLs via `_wizard_context()`. Second preview adds `teacher_name` / `section_code`; Second and Lab previews now look up student names (`_students_with_names`, as Main does). `second_create` / `lab_create` accept `?assignment_id=` / `?session_id=` to preselect one row (scope re-checked server-side).
+- List pages: "Create Second form" / "Create Lab form" and each row's "Select" open the wizard (Select preselects that row) instead of the legacy `/hod/forms/new`, which still exists.
+- Fixes the old `[data-back]` / `history.back()` clash on these two pages and the blank preview names noted above. `static/js/hod_feedback_second.js` is no longer loaded (left in place).
+
+Tests: new `tests/test_hod_feedback_wizard_second_lab.py` (11); `tests/test_hod_teacher_picker.py` link assertion updated. `pytest` and `pyotp` could not be installed in the sandbox (no network), so tests were run with a throwaway stand-in runner and a `pyotp` stub kept outside the repo: new file 11/11, plus test_hod_feedback_lab 8/8, test_hod_feedback_second_and_results 8/8, test_hod_feedback_main 7/7, test_hod_timetable_scope 9/9, test_hod_teacher_picker 5/5, test_hod_dean_second_faculty 11/11, test_hod_category_pdf 5/5. The full suite and a real pytest run were NOT done. The wizard script was smoke-tested in Node with a stub DOM (row rendering for main/second/lab, preselect), not in a real browser.
+
+Not done: browser walk-through of the new pages; PostgreSQL not exercised; closing "Edit sets" still clears per-form trash exclusions (same as Main).

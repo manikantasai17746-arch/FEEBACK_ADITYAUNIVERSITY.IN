@@ -177,6 +177,63 @@ def _apply_form_question_changes(questions, exclude, extra):
     return out
 
 
+def _wizard_options(data, questions):
+    """Options the shared create wizard sends for every category (Main, Second, Lab).
+
+    Returns ``(questions, phase, title, auth_required, error)``.  Mirrors what the Main
+    create API does so the three wizards behave identically: per-form question
+    tweaks, Phase 1 / Phase 2 / custom name, and the authenticator-code switch."""
+    questions = _apply_form_question_changes(
+        questions, data.get('exclude_questions'), data.get('extra_questions'))
+    if not questions:
+        return None, None, None, None, 'Keep at least one question in the form.'
+    title_in = (data.get('title') or '').strip()
+    phase = None
+    phase_choice = (data.get('phase') or '').strip().lower()
+    if phase_choice in services.PHASE_LABELS:
+        phase = phase_choice
+        title_in = services.PHASE_LABELS[phase]
+    else:
+        phase = services.phase_from_title(title_in)
+        if phase:
+            title_in = services.PHASE_LABELS[phase]
+    auth_required = data.get('auth_required')
+    auth_required = None if auth_required is None else bool(auth_required)
+    return questions, phase, title_in, auth_required, None
+
+
+def _wizard_context(user, **extra):
+    """Template context shared by the Second and Lab create wizards."""
+    ctx = dict(
+        question_sets_json=json.dumps(_question_sets_payload(user['id'])),
+        presets_json=json.dumps(services.SCALE_PRESETS),
+        default_instructions=services.DEFAULT_INSTRUCTIONS,
+        api_qsets=url_for('hod.api_question_set_create'),
+        api_qsets_list=url_for('hod_feedback.api_question_sets'),
+        overview_url=url_for('hod.dashboard'),
+        forms_url=url_for('hod.forms'),
+    )
+    ctx.update(extra)
+    return ctx
+
+
+def _students_with_names(sc):
+    """Eligible students as ``[{'roll', 'name'}]`` for the authorised preview.
+
+    ``eligible_students()`` does not return names, so look them up (same approach as
+    the Main preview).  Imported students whose name equals the roll are shown once."""
+    elig = eligible_students(sc)
+    uids = [x['id'] for x in elig if x.get('id') is not None]
+    names = {}
+    for i in range(0, len(uids), 400):
+        chunk = uids[i:i + 400]
+        for r in db.query(
+                f"SELECT id, name FROM users WHERE id IN ({','.join('?' * len(chunk))})",
+                tuple(chunk)):
+            names[r['id']] = r['name'] or ''
+    return [{'roll': x.get('roll') or '', 'name': names.get(x.get('id'), '')} for x in elig]
+
+
 def _parse_deadline(raw):
     if raw is None or str(raw).strip() == '':
         return None, None
@@ -538,15 +595,18 @@ def lab_create():
     if not branch_ids:
         flash('No department scope assigned. Contact Admin.', 'warning')
         return redirect(url_for('hod.dashboard'))
-    sets = _question_sets_payload(user['id'])
+    preselect = None
+    pre_raw = request.args.get('session_id', type=int)
+    if pre_raw and _session_in_scope(user, pre_raw):
+        preselect = pre_raw
     return render_template(
         'hod_feedback/lab_create.html',
         branches=branches,
-        question_sets_json=json.dumps(sets),
-        default_instructions=services.DEFAULT_INSTRUCTIONS,
+        preselect_id=preselect,
         api_sessions=url_for('hod_feedback.api_lab_sessions'),
         api_preview=url_for('hod_feedback.api_lab_preview'),
         api_create=url_for('hod_feedback.api_lab_create'),
+        **_wizard_context(user),
     )
 
 
@@ -592,10 +652,7 @@ def api_lab_preview():
             sc = resolve_scope(LAB, sid)
         except ScopeError as exc:
             return jsonify(ok=False, error=exc.message), exc.status
-        students = [
-            {'roll': s.get('roll') or '', 'name': s.get('name') or ''}
-            for s in eligible_students(sc)
-        ]
+        students = _students_with_names(sc)
         out.append({
             'session_id': sid,
             'subject_code': sc.get('subject_code'),
@@ -634,7 +691,9 @@ def api_lab_create():
     if not questions:
         return jsonify(ok=False, error='That question set has no questions.'), 400
 
-    title_in = (data.get('title') or '').strip()
+    questions, phase, title_in, auth_required, qerr = _wizard_options(data, questions)
+    if qerr:
+        return jsonify(ok=False, error=qerr), 400
     instructions = (data.get('instructions') if data.get('instructions') is not None
                     else services.DEFAULT_INSTRUCTIONS)
     deadline_at, derr = _parse_deadline(data.get('deadline_at'))
@@ -657,6 +716,8 @@ def api_lab_create():
                 user, LAB, sid, title, questions,
                 instructions=instructions or '',
                 deadline_at=deadline_at,
+                auth_required=auth_required,
+                phase=phase,
             )
             published = False
             eligible = 0
@@ -809,15 +870,23 @@ def second_create():
     if not branch_ids:
         flash('No department scope assigned. Contact Admin.', 'warning')
         return redirect(url_for('hod.dashboard'))
-    sets = _question_sets_payload(user['id'])
+    preselect = None
+    pre_raw = request.args.get('assignment_id', type=int)
+    if pre_raw:
+        try:
+            sc = resolve_scope(SECOND, pre_raw)
+            if sc['branch_id'] in (branch_ids or []) and _second_in_timetable_scope(user, pre_raw):
+                preselect = pre_raw
+        except ScopeError:
+            preselect = None
     return render_template(
         'hod_feedback/second_create.html',
         branches=branches,
-        question_sets_json=json.dumps(sets),
-        default_instructions=services.DEFAULT_INSTRUCTIONS,
+        preselect_id=preselect,
         api_sessions=url_for('hod_feedback.api_second_list'),
         api_preview=url_for('hod_feedback.api_second_preview'),
         api_create=url_for('hod_feedback.api_second_create'),
+        **_wizard_context(user),
     )
 
 
@@ -863,10 +932,7 @@ def api_second_preview():
             return jsonify(ok=False, error=exc.message), exc.status
         if sc['branch_id'] not in (branch_ids or []) or not _second_in_timetable_scope(user, aid):
             return jsonify(ok=False, error='Assignment outside your department scope.'), 403
-        students = [
-            {'roll': s.get('roll') or '', 'name': s.get('name') or ''}
-            for s in eligible_students(sc)
-        ]
+        students = _students_with_names(sc)
         out.append({
             'assignment_id': aid,
             'session_id': sc.get('session_id'),
@@ -874,6 +940,8 @@ def api_second_preview():
             'subject_name': sc.get('subject_name'),
             'faculty_name': sc.get('faculty_name'),
             'faculty_emp_code': sc.get('faculty_emp_code'),
+            'teacher_name': sc.get('faculty_name'),
+            'section_code': sc.get('section_code') or sc.get('timetable'),
             'eligible_count': eligible_count(sc),
             'students': students,
         })
@@ -906,7 +974,9 @@ def api_second_create():
     if not questions:
         return jsonify(ok=False, error='That question set has no questions.'), 400
 
-    title_in = (data.get('title') or '').strip()
+    questions, phase, title_in, auth_required, qerr = _wizard_options(data, questions)
+    if qerr:
+        return jsonify(ok=False, error=qerr), 400
     instructions = (data.get('instructions') if data.get('instructions') is not None
                     else services.DEFAULT_INSTRUCTIONS)
     deadline_at, derr = _parse_deadline(data.get('deadline_at'))
@@ -928,6 +998,8 @@ def api_second_create():
                 user, SECOND, aid, title, questions,
                 instructions=instructions or '',
                 deadline_at=deadline_at,
+                auth_required=auth_required,
+                phase=phase,
             )
             published = False
             eligible = 0

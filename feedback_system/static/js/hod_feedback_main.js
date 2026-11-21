@@ -8,6 +8,10 @@
   var qList = A('data-api-qsets-list');
   var overviewUrl = A('data-overview-url') || '/hod/', formsUrl = A('data-forms-url') || '/hod/forms';
   var preselect = parseInt(A('data-preselect'), 10) || null;
+  // One wizard for all three feedback types: 'main' (default), 'second' or 'lab'.
+  // Second rows are keyed by second_faculty_assignments.id, Main and Lab rows by class_sessions.id.
+  var kind = A('data-kind') || 'main';
+  var COLS = { main: 5, second: 6, lab: 7 }[kind] || 5;
   var qsets = [], presets = {};
   try { qsets = JSON.parse(A('data-question-sets') || '[]'); } catch (e) { qsets = []; }
   try { presets = JSON.parse(A('data-presets') || '{}'); } catch (e) { presets = {}; }
@@ -72,7 +76,7 @@
     return baseRows().filter(function (r) {
       if (r.subject_code !== activeSubject) return false;
       if (!q) return true;
-      return (r.section + ' ' + r.teacher_name + ' ' + r.emp).toLowerCase().indexOf(q) !== -1;
+      return (r.section + ' ' + r.teacher_name + ' ' + r.emp + ' ' + (r.main_name || '') + ' ' + (r.main_emp || '')).toLowerCase().indexOf(q) !== -1;
     });
   }
   function renderSubjects() {
@@ -97,12 +101,24 @@
     var allOn = vis.length && vis.every(function (r) { return selected[r.sid]; });
     $('hfToggleAll').textContent = allOn ? 'Unselect all' : 'Select all';
     $('hfToggleAll').disabled = !vis.length;
-    if (!vis.length) { tb.innerHTML = '<tr><td colspan="5" class="sub">No sections match.</td></tr>'; return; }
+    if (!vis.length) { tb.innerHTML = '<tr><td colspan="' + COLS + '" class="sub">No sections match.</td></tr>'; return; }
+    function person(name, emp) { return '<strong>' + esc(name) + '</strong>' + (emp ? ' <small>(' + esc(emp) + ')</small>' : ''); }
     tb.innerHTML = vis.map(function (r) {
-      var on = !!selected[r.sid];
-      return '<tr class="' + (on ? 'is-on' : '') + '" data-sid="' + r.sid + '"><td><input type="checkbox" data-sid="' + r.sid + '"' + (on ? ' checked' : '') + ' aria-label="Select ' + esc(r.teacher_name) + ' ' + esc(r.section) + '"></td>' +
-        '<td><strong>' + esc(r.teacher_name) + '</strong> <small>(' + esc(r.emp) + ')</small>' + (r.live ? ' <span class="hfc-live">' + r.live + ' live</span>' : '') + '</td>' +
-        '<td>' + esc(r.section) + '</td><td>' + esc(r.branch) + '</td><td><strong>' + (r.eligible || 0) + '</strong></td></tr>';
+      var on = !!selected[r.sid], cells;
+      var live = r.live ? ' <span class="hfc-live">' + r.live + ' live</span>' : '';
+      if (kind === 'second') {
+        cells = '<td>' + person(r.main_name, r.main_emp) + '</td><td>' + person(r.teacher_name, r.emp) + live + '</td>' +
+          '<td>' + esc(r.section) + '</td><td>' + esc(r.branch) + '</td><td><strong>' + (r.eligible || 0) + '</strong></td>';
+      } else if (kind === 'lab') {
+        cells = '<td>' + person(r.main_name, r.main_emp) + '</td>' +
+          '<td>' + (r.lab_separate ? person(r.teacher_name, r.emp) : '<span class="sub">Main faculty lab teaching</span>') + '</td>' +
+          '<td>' + esc(r.section) + '</td><td>' + esc(r.room || '—') + '</td><td><strong>' + (r.eligible || 0) + '</strong></td>' +
+          '<td>' + (r.live ? '<span class="hfc-live">' + r.live + ' draft/open</span>' : '<span class="hfc-tag">none</span>') + '</td>';
+      } else {
+        cells = '<td>' + person(r.teacher_name, r.emp) + live + '</td>' +
+          '<td>' + esc(r.section) + '</td><td>' + esc(r.branch) + '</td><td><strong>' + (r.eligible || 0) + '</strong></td>';
+      }
+      return '<tr class="' + (on ? 'is-on' : '') + '" data-sid="' + r.sid + '"><td><input type="checkbox" data-sid="' + r.sid + '"' + (on ? ' checked' : '') + ' aria-label="Select ' + esc(r.teacher_name) + ' ' + esc(r.section) + '"></td>' + cells + '</tr>';
     }).join('');
     tb.querySelectorAll('tr[data-sid]').forEach(function (tr) {
       tr.addEventListener('click', function (e) {
@@ -156,13 +172,32 @@
         alertBox('');
         rows = [];
         (data.subjects || []).forEach(function (sub) {
-          (sub.teachers || []).forEach(function (t) {
-            (t.sections || []).forEach(function (s) {
-              rows.push({ sid: s.session_id, subject_code: sub.subject_code, subject_name: sub.subject_name,
-                teacher_name: t.teacher_name, emp: t.teacher_emp_code || '', section: s.section_code,
-                branch: s.branch_code, eligible: s.eligible_count || 0, live: s.live_main_forms || 0 });
+          if (kind === 'second') {
+            (sub.assignments || []).forEach(function (a) {
+              rows.push({ sid: a.assignment_id, subject_code: sub.subject_code, subject_name: sub.subject_name,
+                teacher_name: a.second_name || a.second_emp_code || '', emp: a.second_emp_code || '',
+                main_name: a.main_name || '', main_emp: a.main_emp_code || '',
+                section: a.section_code, branch: a.branch_code, room: a.room || '',
+                eligible: a.eligible_count || 0, live: a.live_forms || 0 });
             });
-          });
+          } else if (kind === 'lab') {
+            (sub.sessions || []).forEach(function (s) {
+              var separate = !!s.lab_teacher_name;
+              rows.push({ sid: s.session_id, subject_code: sub.subject_code, subject_name: sub.subject_name,
+                teacher_name: s.lab_teacher_name || s.teacher_name || '', emp: s.lab_emp_code || s.teacher_emp_code || '',
+                lab_separate: separate, main_name: s.teacher_name || '', main_emp: s.teacher_emp_code || '',
+                section: s.section_code, branch: s.branch_code, room: s.room || '',
+                eligible: s.eligible_count || 0, live: s.live_lab_forms || 0 });
+            });
+          } else {
+            (sub.teachers || []).forEach(function (t) {
+              (t.sections || []).forEach(function (s) {
+                rows.push({ sid: s.session_id, subject_code: sub.subject_code, subject_name: sub.subject_name,
+                  teacher_name: t.teacher_name, emp: t.teacher_emp_code || '', section: s.section_code,
+                  branch: s.branch_code, eligible: s.eligible_count || 0, live: s.live_main_forms || 0 });
+              });
+            });
+          }
         });
         var pre = preselect && rows.filter(function (r) { return r.sid === preselect; })[0];
         if (preselect && !pre) { mode = 'all'; preselect = null; }
@@ -190,12 +225,19 @@
   function loadPreview() {
     var ids = selectedIds(); if (!ids.length) return;
     alertBox('Loading eligible students…', 'loading');
-    var q = ids.map(function (id) { return 'session_id=' + encodeURIComponent(id); }).join('&');
+    var idParam = kind === 'second' ? 'assignment_id' : 'session_id';
+    var q = ids.map(function (id) { return idParam + '=' + encodeURIComponent(id); }).join('&');
     fetch(apiPreview + '?' + q, { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d.ok) { alertBox(d.error || 'Preview failed.', 'error'); return; }
         alertBox(''); previews = d.previews || [];
+        // Same order as the ids we sent; fill labels from the selected row if the API omits them.
+        previews.forEach(function (p, i) {
+          var r = selected[ids[i]] || {};
+          if (!p.teacher_name) p.teacher_name = p.faculty_name || r.teacher_name || '';
+          if (!p.section_code) p.section_code = r.section || '';
+        });
         var SHOW = 8;
         $('hfPreview').innerHTML = previews.map(function (p) {
           var all = p.students || [], shown = all.slice(0, SHOW);
@@ -318,8 +360,8 @@
     if (publish && !deadline) { alertBox('Set a deadline in the Questions step before publishing.', 'error'); return; }
     busy = true; alertBox(publish ? 'Publishing…' : 'Saving draft…', 'loading');
     var phase = $('hfPhase').value;
-    post(apiCreate, {
-      session_ids: ids, question_set_id: curSet.id,
+    var payload = {
+      question_set_id: curSet.id,
       exclude_questions: Object.keys(excluded).map(Number),
       extra_questions: cleanExtras(),
       phase: phase === 'custom' ? '' : phase,
@@ -328,7 +370,9 @@
       deadline_at: deadline || null,
       auth_required: !!$('hfAuth').checked,
       publish: !!publish
-    }).then(function (res) {
+    };
+    if (kind === 'second') payload.assignment_ids = ids; else payload.session_ids = ids;
+    post(apiCreate, payload).then(function (res) {
       busy = false; var d = res.data;
       if (!d.ok) { alertBox(d.error || ((d.errors && d.errors[0] && d.errors[0].error) || 'Create failed.'), 'error'); return; }
       var n = (d.created || []).length, errs = d.errors || [];
