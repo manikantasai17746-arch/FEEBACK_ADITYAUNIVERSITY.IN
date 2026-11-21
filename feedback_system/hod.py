@@ -86,7 +86,7 @@ def dashboard():
         stats['recent_forms'] = db.query(
             f"""SELECT f.id, f.title, f.status, f.category, f.snapshot_subject_code,
                        f.snapshot_subject_name, f.snapshot_branch, f.snapshot_timetable,
-                       f.published_at, f.closed_at, f.created_at, f.deadline_at,
+                       f.published_at, f.closed_at, f.created_at, f.deadline_at, f.phase,
                        (SELECT COUNT(*) FROM form_sessions fs
                          WHERE fs.form_id=f.id) AS sections,
                        (SELECT COUNT(*) FROM form_eligible_students fes
@@ -237,7 +237,7 @@ def forms():
             args.extend([like, like, like])
         sql = f"""SELECT id, title, status, category, snapshot_subject_code,
                          snapshot_subject_name, snapshot_branch, snapshot_timetable,
-                         published_at, closed_at, created_at, deadline_at,
+                         published_at, closed_at, created_at, deadline_at, phase,
                          (SELECT COUNT(*) FROM form_sessions fs
                            WHERE fs.form_id=feedback_forms.id) AS sections,
                          (SELECT COUNT(*) FROM form_eligible_students fes
@@ -854,6 +854,48 @@ def form_deadline(fid):
             flash('Deadline extended and the form is open again.', 'success')
     else:
         flash('Deadline updated.', 'success')
+    return redirect(back)
+
+
+@bp.route('/forms/deadline-phase', methods=['POST'])
+@role_required('hod')
+def form_deadline_phase():
+    """One new deadline for every Draft / Published form of a phase (Phase 1 or
+    Phase 2) in the HOD's department(s).  Closed forms are left unchanged so that
+    extending a phase never reopens forms that are already finished."""
+    user = current_user()
+    back = request.form.get('next') or url_for('hod.forms')
+    phase = (request.form.get('phase') or '').strip().lower()
+    if phase not in services.PHASE_LABELS:
+        abort(400)
+    label = services.PHASE_LABELS[phase]
+    iso = services.parse_deadline_input(request.form.get('deadline_at'))
+    err = services.deadline_error(iso)
+    if err:
+        flash(err, 'error')
+        return redirect(back)
+    branch_ids = scoped_branch_ids_or_none(user) or []
+    rows = []
+    if branch_ids:
+        ph = ','.join('?' * len(branch_ids))
+        rows = db.query(
+            f"""SELECT id, status FROM feedback_forms
+                WHERE branch_id IN ({ph}) AND is_deleted=0 AND phase=?
+                  AND status IN ('draft','open','closed')""",
+            tuple(branch_ids) + (phase,))
+    targets = [r for r in rows if r['status'] in ('draft', 'open')]
+    skipped = len(rows) - len(targets)
+    if not targets:
+        flash(f'No draft or published {label} forms to change.', 'error')
+        return redirect(back)
+    for r in targets:
+        services.set_form_deadline(r['id'], iso)
+    audit('hod.form.deadline_phase', 'feedback_forms', targets[0]['id'],
+          f'{label}: deadline -> {iso} UTC for {len(targets)} form(s), {skipped} closed left unchanged')
+    flash(f'Deadline updated for {len(targets)} {label} form(s).', 'success')
+    if skipped:
+        flash(f'{skipped} closed {label} form(s) were left unchanged. '
+              'Change those one by one if they should reopen.', 'warning')
     return redirect(back)
 
 

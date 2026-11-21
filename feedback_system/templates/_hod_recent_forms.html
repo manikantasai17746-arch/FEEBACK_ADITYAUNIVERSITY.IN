@@ -48,6 +48,7 @@
             {% if f.status != 'archived' %}
               <div style="margin-top:6px"><button type="button" class="btn btn-ghost btn-sm rf-dl" data-dl="{{ url_for('hod.form_deadline', fid=f.id) }}"
                       data-title="{{ f.title }}" data-status="{{ f.status }}"
+                      data-phase="{{ f.phase or '' }}" data-phase-label="{{ {'phase1': 'Phase 1', 'phase2': 'Phase 2'}.get(f.phase, '') }}"
                       data-val="{{ f.deadline_at|deadline_input if f.deadline_at else '' }}">&#128339; Change deadline</button></div>
             {% endif %}
           </td>
@@ -80,15 +81,23 @@
   </div>
 </div>
 <div class="rv-ov" id="rfDl" role="dialog" aria-modal="true" aria-labelledby="rfDlT">
-  <form method="post" class="rv-box" id="rfDlForm" style="max-width:480px">
+  <form method="post" class="rv-box" id="rfDlForm" style="max-width:480px"
+        data-phase-url="{{ url_for('hod.form_deadline_phase') }}">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
     <input type="hidden" name="next" value="{{ next_url }}">
+    <input type="hidden" name="phase" id="rfDlPhase" value="">
     <div class="rv-body">
       <h3 id="rfDlT" style="margin-top:0">Change deadline</h3>
       <p id="rfDlS" class="sub" style="margin-top:0"></p>
+      <div class="field" id="rfDlScope" role="radiogroup" aria-label="Apply the new deadline to">
+        <label class="opt" style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <input type="radio" name="scope" value="current" checked> <span>This form only (current)</span></label>
+        <label class="opt" id="rfDlAllW" style="display:flex;gap:8px;align-items:center" hidden>
+          <input type="radio" name="scope" value="phase"> <span>All <strong id="rfDlPh"></strong> forms in my department</span></label>
+      </div>
       <div class="field"><label for="rfDlIn">New deadline <span class="req">*</span></label>
         <input type="datetime-local" id="rfDlIn" name="deadline_at" required></div>
-      <p class="hint" id="rfDlH" hidden>This form is closed. Saving a new future deadline will open it again for students.</p>
+      <p class="hint" id="rfDlH" hidden></p>
     </div>
     <div class="rv-foot">
       <button type="button" class="btn btn-ghost" id="rfDlNo">Cancel</button>
