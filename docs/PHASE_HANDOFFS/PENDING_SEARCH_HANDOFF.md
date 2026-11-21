@@ -3,9 +3,9 @@
 **Goal:** let the HOD find a teacher quickly in the Pending submissions table (dashboard panel and `/hod/pending`).
 
 **Behaviour**
-- Client-side live search over the rows already on the page. It matches teacher name, emp ID, email, subject(s) and pending roll numbers (`data-q` on each `tr.pd-row`, lower-cased).
+- Client-side live search over the rows already on the page. It matches employee name, emp ID and subject name only (`data-q` on each `tr.pd-row`, lower-cased). Roll numbers and email are deliberately NOT searched.
 - Shows "x of y teacher(s)", an empty-state message and a clear (x) button; Esc clears; Enter never submits.
-- Teacher name and subject text are highlighted. A roll-number hit opens that row's "Show N roll number(s)" list and highlights the matching numbers.
+- Teacher name and subject text are highlighted.
 - View-only: no route, query, email or PDF behaviour changed. "Email all teachers with pending" still covers every teacher, whatever the search shows.
 
 **Files**

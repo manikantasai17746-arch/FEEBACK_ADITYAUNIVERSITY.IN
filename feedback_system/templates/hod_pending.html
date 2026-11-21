@@ -53,7 +53,7 @@
 {% elif teachers %}
 <div class="card" id="pdSearchCard">
   <div class="pd-toolbar">
-    <span class="pd-search"><input type="search" id="pdQ" placeholder="Search teacher, emp ID, email, subject or roll number…" aria-label="Search pending submissions by teacher, employee ID, email, subject or roll number" autocomplete="off"><button type="button" class="pd-x" id="pdQx" aria-label="Clear search" hidden>&times;</button></span>
+    <span class="pd-search"><input type="search" id="pdQ" placeholder="Search by emp ID, name or subject…" aria-label="Search pending submissions by employee ID, employee name or subject" autocomplete="off"><button type="button" class="pd-x" id="pdQx" aria-label="Clear search" hidden>&times;</button></span>
     <span class="sub pd-count" id="pdCount" aria-live="polite"></span>
   </div>
   <div class="table-wrap">
@@ -62,7 +62,7 @@
         <th>Pending</th><th>Pending roll numbers</th><th>Actions</th></tr></thead>
       <tbody>
       {% for t in teachers %}
-        <tr class="pd-row" data-q="{{ ([t.teacher_name or '', t.emp_code or '', t.email or '', t.subjects|join(' '), t.pending_rolls|join(' ')]|join(' '))|lower }}">
+        <tr class="pd-row" data-q="{{ ([t.teacher_name or '', t.emp_code or '', t.subjects|join(' ')]|join(' '))|lower }}">
           <td class="wrap"><strong>{{ t.teacher_name }}</strong>
             <div class="sub">{{ t.emp_code or '' }}{% if t.email %} · {{ t.email }}{% else %} · <em>no email on file</em>{% endif %}</div>
             {% if t.also %}<div class="sub">The email also covers:

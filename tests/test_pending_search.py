@@ -24,6 +24,13 @@ def test_pending_page_has_search_and_row_text(app, client):
     assert rows, 'no searchable teacher rows rendered'
     assert any(emp.lower() in r for r in rows)
     assert all(r == r.lower() for r in rows)
+    # only emp ID, name and subject are searchable: no email, no roll numbers
+    joined = ' '.join(rows)
+    assert '@' not in joined
+    rolls = re.findall(r'<span class="badge">([^<]+)</span>', html)
+    rolls = [r.lower() for r in rolls if r not in ('Main Faculty Feedback', 'Second Faculty Feedback',
+                                                   'Lab Faculty Feedback')]
+    assert all(r not in joined for r in rolls), 'roll numbers must not be searchable'
 
 
 def test_dashboard_loads_search_assets(app, client):

@@ -1,6 +1,6 @@
 /* HOD Pending submissions: live search over the teacher rows.
    Delegated on document because the dashboard loads the panel lazily (fetch + innerHTML).
-   Matches teacher name, emp ID, email, subject(s) and pending roll numbers (data-q on each row).
+   Matches employee name, emp ID and subject name (data-q on each row).
    View-only: nothing is submitted or changed. */
 (function () {
   'use strict';
@@ -25,24 +25,13 @@
       if (ok) shown++;
       mark(r.querySelector('td:nth-child(1) > strong'), term);
       mark(r.querySelector('td:nth-child(2)'), term);
-      /* roll-number hit: open the list and highlight the matching numbers */
-      var det = r.querySelector('details');
-      if (det) {
-        var hit = false;
-        [].slice.call(det.querySelectorAll('.badge')).forEach(function (b) {
-          var m = !!term && b.textContent.toLowerCase().indexOf(term) > -1;
-          b.classList.toggle('pd-hit', m);
-          if (m) hit = true;
-        });
-        if (ok && hit) det.open = true;
-      }
     });
     var cnt = card.querySelector('#pdCount'), empty = card.querySelector('#pdEmpty'), clr = card.querySelector('#pdQx');
     if (cnt) cnt.textContent = term ? shown + ' of ' + rows.length + ' teacher(s)' : '';
     if (empty) {
       empty.hidden = shown > 0;
       empty.textContent = shown > 0 ? '' : 'No teachers match “' + box.value.trim() +
-        '”. Try a name, employee ID, email, subject or roll number.';
+        '”. Try an employee ID, name or subject.';
     }
     if (clr) clr.hidden = !term;
   }
