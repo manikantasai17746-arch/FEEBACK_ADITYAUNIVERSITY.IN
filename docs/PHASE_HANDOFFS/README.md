@@ -41,3 +41,4 @@ Keep old reports as historical evidence. Add a dated follow-up rather than silen
 - Enrollment for all five roles (all-roles upgrade, Checkpoint 2): `AUTHENTICATOR_CP1_HANDOFF.md` §16
 - Lost-device recovery (all-roles upgrade, Checkpoint 3): `AUTHENTICATOR_CP1_HANDOFF.md` §17
 - Design and operations guide (secret, backup codes, recovery, roles, configuration): `../AUTHENTICATOR_RECOVERY.md`
+- First-login order for Teacher / HOD / Dean (photo → password → e-mail → authenticator → Assignment Setup): `FIRST_LOGIN_ORDER_HANDOFF.md`
