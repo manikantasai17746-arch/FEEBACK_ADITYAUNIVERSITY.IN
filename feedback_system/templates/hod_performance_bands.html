@@ -1,98 +1,184 @@
 {% extends 'base.html' %}
 {% block title %}Performance by Score Band — HOD{% endblock %}
+{% block head %}
+<style>
+  /* Page-scoped styles (kept out of shared CSS). */
+  .sbp .band-1{--bc:#dc2626}.sbp .band-2{--bc:#f97316}.sbp .band-3{--bc:#eab308}
+  .sbp .band-4{--bc:#2563eb}.sbp .band-5{--bc:#16a34a}.sbp .band-6{--bc:#7c3aed}
+  .sbp-head h1{margin:0;font-size:1.6rem}
+  .sbp-head .sub{margin:.35rem 0 0}
+  .sbp-filters{background:#f3f6fb;border:1px solid #dde4ef;border-radius:12px;padding:14px;margin:1rem 0}
+  .sbp-fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+  .sbp-fgrid label{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:700;display:flex;flex-direction:column;gap:5px}
+  .sbp-fgrid select{padding:9px 10px;border:1px solid #cfd8e6;border-radius:10px;background:#fff;font:inherit;font-size:.9rem;text-transform:none;letter-spacing:0;color:var(--ink,#1f2733);min-width:0}
+  .sbp-fbar{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin-top:10px;font-size:.85rem;color:var(--muted)}
+  .sbp-pill{border:2px solid #0b2347;border-radius:999px;padding:4px 14px;background:#fff;font-weight:700;color:#0b2347;text-decoration:none;font-size:.82rem}
+  .sbp-pill:hover{text-decoration:none;background:#eef2f9}
+  .sbp-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+  .sbp-tile{display:flex;flex-direction:column;gap:3px;padding:12px 14px;border-radius:12px;border:2px solid var(--bc);background:#fff;color:var(--bc);text-decoration:none}
+  .sbp-tile:hover{text-decoration:none;transform:translateY(-1px)}
+  .sbp-tile .l{font-weight:800;font-size:.95rem}
+  .sbp-tile .c{font-size:.8rem;color:var(--muted)}
+  .sbp-tile.on{background:color-mix(in srgb,var(--bc) 12%,#fff);box-shadow:0 0 0 3px color-mix(in srgb,var(--bc) 22%,transparent)}
+  .sbp-panel{margin-top:1rem;padding:1.4rem 1.5rem}
+  .sbp-panel h2{margin:0 0 .6rem;font-size:1.35rem}
+  .sbp-panel h2 .muted{font-size:.9rem;font-weight:700;color:var(--muted)}
+  .sbp-all{display:flex;align-items:center;gap:8px;font-size:.88rem;margin:.1rem 0 1rem;cursor:pointer}
+  .sbp .band-grid{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}
+  .sbp .band-card{border:2px solid #dde4ef;border-left:2px solid #dde4ef;background:#fff;border-radius:12px}
+  .sbp .band-card .band-score{color:var(--bc)}
+  .sbp .band-card .band-initials{background:var(--bc)}
+  .sbp .band-card .btn{background:var(--au-orange,#f36c21);color:#fff;border:0;border-radius:999px}
+  .sbp .band-pick{font-size:.8rem;color:var(--ink,#1f2733);word-break:break-all}
+  .sbp-compose{margin-top:1.4rem;padding-top:1rem;border-top:1px solid #dde4ef}
+  .sbp-compose h3{margin:.2rem 0 .8rem;font-size:1.05rem}
+  .sbp-compose .sbp-lbl{display:block;font-size:.82rem;font-weight:600;margin:.6rem 0 4px}
+  .sbp-compose input[type=text],.sbp-compose textarea{width:100%;padding:10px 12px;border:1px solid #cfd8e6;border-radius:10px;font:inherit;background:#fff;color:var(--ink,#1f2733);box-sizing:border-box}
+  .sbp-btns{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:12px}
+  .sbp-outline{border:2px solid #0b2347;border-radius:999px;padding:7px 16px;background:#fff;color:#0b2347;font:inherit;font-weight:700;font-size:.88rem;cursor:pointer}
+  .sbp-outline:hover{background:#eef2f9}
+  .sbp-counter{font-size:.85rem;color:var(--muted)}
+  .sbp-btns .btn-accent:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+  .sbp-lead{font-size:.82rem;color:var(--muted)}
+</style>
+{% endblock %}
 {% block body %}
 {% set fargs = {'academic_year_id': filters.academic_year_id, 'semester_id': filters.semester_id,
-                'branch_id': filters.branch_id, 'form_id': filters.form_id} %}
-<div class="container page">
-  <div class="page-header">
+                'branch_id': filters.branch_id, 'form_id': filters.form_id,
+                'timetable_id': filters.timetable_id, 'subject_code': filters.subject_code} %}
+<div class="container page sbp">
+  <div class="card sbp-head">
     <h1>🎯 Teachers by Score Band</h1>
-    <nav class="subnav">
-      <a href="{{ url_for('hod.performance', **fargs) }}">← Performance</a>
-      <a href="{{ url_for('hod.dashboard') }}">Dashboard</a>
-    </nav>
-  </div>
-  <p class="sub">Click a band to see the teachers whose feedback score falls in that range, highest first.
-    Use <strong>View result</strong> to open a teacher's full result.</p>
+    <p class="sub">Click a band to see the teachers whose feedback score falls in that range, highest first.
+      Use <strong>View result</strong> to open a teacher's full result.</p>
 
-  <div class="band-tabs">
-    {% for b in bands %}
-    <a class="band-tab band-{{ loop.index }} {{ 'active' if b.key == band_key }}"
-       href="{{ url_for('hod.performance_bands', band=b.key, **fargs) }}">
-      <span class="band-label">{{ b.label }}</span>
-      <span class="band-count">{{ b.count }} teacher{{ '' if b.count == 1 else 's' }}</span>
-    </a>
-    {% endfor %}
+    <form method="get" action="{{ url_for('hod.performance_bands') }}" class="sbp-filters" id="sbp-filter-form">
+      <input type="hidden" name="band" value="{{ band_key }}">
+      {% if filters.academic_year_id %}<input type="hidden" name="academic_year_id" value="{{ filters.academic_year_id }}">{% endif %}
+      {% if filters.form_id %}<input type="hidden" name="form_id" value="{{ filters.form_id }}">{% endif %}
+      <div class="sbp-fgrid">
+        <label>Department
+          <select name="branch_id" onchange="this.form.submit()">
+            <option value="">All departments</option>
+            {% for b in branches %}<option value="{{ b.id }}" {% if filters.branch_id == b.id %}selected{% endif %}>{{ b.name or b.code }}</option>{% endfor %}
+          </select></label>
+        <label>Semester
+          <select name="semester_id" onchange="this.form.submit()">
+            <option value="">All semesters</option>
+            {% for s in semesters %}<option value="{{ s.id }}" {% if filters.semester_id == s.id %}selected{% endif %}>{{ s.label or ('Semester ' ~ s.number) }}</option>{% endfor %}
+          </select></label>
+        <label>Timetable
+          <select name="timetable_id" onchange="this.form.submit()">
+            <option value="">All timetables</option>
+            {% for t in timetables %}<option value="{{ t.id }}" {% if filters.timetable_id == t.id %}selected{% endif %}>{{ t.code }}{% if t.name %} · {{ t.name }}{% endif %}</option>{% endfor %}
+          </select></label>
+        <label>Subject
+          <select name="subject_code" onchange="this.form.submit()">
+            <option value="">All subjects</option>
+            {% for x in subjects %}<option value="{{ x.subject_code }}" {% if filters.subject_code == x.subject_code %}selected{% endif %}>{{ x.subject_code }} · {{ x.subject_name }}</option>{% endfor %}
+          </select></label>
+      </div>
+      <noscript><button type="submit" class="btn btn-sm">Apply filters</button></noscript>
+      <div class="sbp-fbar">
+        <span>Showing <strong>{{ shown_total }}</strong> of <strong>{{ all_total }}</strong> teachers</span>
+        <a class="sbp-pill" href="{{ url_for('hod.performance_bands') }}">Clear filters</a>
+      </div>
+    </form>
+
+    <div class="sbp-tiles">
+      {% for b in bands %}
+      <a class="sbp-tile band-{{ loop.index }} {{ 'on' if b.key == band_key }}"
+         href="{{ url_for('hod.performance_bands', band=b.key, **fargs) }}">
+        <span class="l">{{ b.label }}</span>
+        <span class="c">{{ b.count }} teacher{{ '' if b.count == 1 else 's' }}</span>
+      </a>
+      {% endfor %}
+    </div>
   </div>
 
-  <div class="card" style="margin-top:1rem">
-    <h2 style="margin-top:0">{{ active.label }} <span class="muted">· {{ active.count }}</span></h2>
+  <div class="card sbp-panel band-{{ bands.index(active) + 1 }}">
+    <h2>{{ active.label }} <span class="muted">· {{ active.count }}</span></h2>
     {% if active.rows %}
     <form method="post" action="{{ url_for('hod.performance_bands_send') }}" id="band-mail-form"
           onsubmit="return confirm('Send this email to the ticked teachers?');">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <input type="hidden" name="band" value="{{ band_key }}">
       {% for k, v in fargs.items() if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
-      <label class="band-selectall"><input type="checkbox" id="band-all" checked> Select all teachers in this band</label>
-    <div class="band-grid">
-      {% for r in active.rows %}
-      {% set tname = r.teacher_name or 'Faculty' %}
-      {% set initials = (tname.split()|map('first')|join('')|upper)[:2] %}
-      <div class="band-card">
-        <div class="band-photo">
-          {% if r.teacher_emp_code %}
-          <img src="{{ url_for('photos.serve', emp_code=r.teacher_emp_code) }}"
-               alt="{{ tname }}"
-               onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-          {% endif %}
-          <div class="band-initials" {% if r.teacher_emp_code %}style="display:none"{% endif %}>{{ initials }}</div>
-        </div>
-        <div class="band-info">
-          <div class="band-name">{{ tname }}</div>
-          <div class="band-sub">{{ r.subject_code or '' }} {{ r.subject_name or '' }}</div>
-          <div class="band-sub">{{ r.valid_responses or r.response_count or 0 }} response(s)</div>
-        </div>
-        <div class="band-score">{{ '%.2f'|format(r.overall_score) }}%</div>
-        <label class="band-pick">
-          {% if r.teacher_email %}
-          <input type="checkbox" class="band-cb" name="teacher_user_id" value="{{ r.teacher_user_id }}" checked>
-          Email: {{ r.teacher_email }}
-          {% else %}
-          <input type="checkbox" disabled> <span class="band-noemail">No email on file</span>
-          {% endif %}
-        </label>
-        <a class="btn btn-sm btn-accent"
-           href="{{ url_for('hod.performance_detail', teacher_id=r.teacher_user_id) }}">👁 View result</a>
-      </div>
-      {% endfor %}
-    </div>
 
-    <div class="band-compose">
-      <h3 style="margin:.2rem 0 .5rem">✉ Email to ticked teachers</h3>
-      {% if not mail_ready %}
-      <div class="flash flash-warning">Email sending is not set up on the server yet
-        (MAIL_USER / MAIL_APP_PASSWORD). Messages cannot be delivered until it is.</div>
-      {% endif %}
-      <div class="field"><label for="band-subject">Subject</label>
-        <input type="text" id="band-subject" name="subject" maxlength="150" value="{{ default_subject }}" style="width:100%"></div>
-      <div class="field"><label for="band-message">Message (a default is filled in; you can rewrite it)</label>
-        <textarea id="band-message" name="message" rows="9" maxlength="5000" style="width:100%">{{ default_message }}</textarea>
-        <p class="sub" style="margin:.3rem 0 0">Placeholders filled for each teacher:
-          <code>{name}</code> <code>{score}</code> <code>{subject}</code> <code>{hod}</code></p></div>
-      <div class="btn-row">
-        <button type="submit" class="btn btn-accent">✉ Send email</button>
-        <button type="button" class="btn btn-ghost" id="band-reset">Restore default message</button>
+      <label class="sbp-all"><input type="checkbox" id="band-all" checked> Select all teachers in this band</label>
+
+      <div class="band-grid">
+        {% for r in active.rows %}
+        {% set tname = r.teacher_name or 'Faculty' %}
+        {% set initials = (tname.replace('.', '').split()[1:]|map('first')|join('')|upper)[:2] or (tname.split()|map('first')|join('')|upper)[:2] %}
+        <div class="band-card">
+          <div class="band-photo">
+            {% if r.teacher_emp_code %}
+            <img src="{{ url_for('photos.serve', emp_code=r.teacher_emp_code) }}" alt="{{ tname }}"
+                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            {% endif %}
+            <div class="band-initials" {% if r.teacher_emp_code %}style="display:none"{% endif %}>{{ initials }}</div>
+          </div>
+          <div class="band-info">
+            <div class="band-name">{{ tname }}</div>
+            <div class="band-sub">{{ r.subject_code or '' }} {{ r.subject_name or '' }}</div>
+            <div class="band-sub">{{ r.valid_responses or r.response_count or 0 }} response(s)</div>
+          </div>
+          <div class="band-score">{{ '%.2f'|format(r.overall_score) }}%</div>
+          <label class="band-pick">
+            {% if r.teacher_email %}
+            <input type="checkbox" class="band-cb" name="teacher_user_id" value="{{ r.teacher_user_id }}" checked>
+            <span>{{ r.teacher_email }}</span>
+            {% else %}
+            <input type="checkbox" disabled> <span class="band-noemail">No email on file</span>
+            {% endif %}
+          </label>
+          <a class="btn btn-sm btn-accent" href="{{ url_for('hod.performance_detail', teacher_id=r.teacher_user_id) }}">👁 View result</a>
+        </div>
+        {% endfor %}
       </div>
-    </div>
+
+      <div class="sbp-compose">
+        <h3>✉ Email to ticked teachers</h3>
+        {% if not mail_ready %}
+        <div class="flash flash-warning">Email sending is not set up on the server yet
+          (MAIL_USER / MAIL_APP_PASSWORD). Messages cannot be delivered until it is.</div>
+        {% endif %}
+        <label class="sbp-lbl" for="band-subject">Subject</label>
+        <input type="text" id="band-subject" name="subject" maxlength="150" value="{{ default_subject }}">
+
+        <label class="sbp-lbl" for="band-message">Message (a default is filled in; you can rewrite it)</label>
+        <textarea id="band-message" name="message" rows="9" maxlength="5000">{{ default_message }}</textarea>
+        <p class="sbp-lead" style="margin:.4rem 0 0">Placeholders filled for each teacher:
+          <code>{name}</code> <code>{score}</code> <code>{subject}</code> <code>{hod}</code></p>
+
+        <div class="sbp-btns">
+          <button type="submit" class="btn btn-accent" id="band-send">✉ Send email</button>
+          <button type="button" class="sbp-outline" id="band-reset">Restore default message</button>
+          <span class="sbp-counter" id="band-counter"></span>
+        </div>
+      </div>
     </form>
     <script>
     (function(){
       var all=document.getElementById('band-all');
-      var cbs=document.querySelectorAll('.band-cb');
-      all.addEventListener('change',function(){cbs.forEach(function(c){c.checked=all.checked;});});
-      cbs.forEach(function(c){c.addEventListener('change',function(){
-        all.checked=Array.prototype.every.call(cbs,function(x){return x.checked;});});});
+      var cbs=[].slice.call(document.querySelectorAll('.band-cb'));
+      var counter=document.getElementById('band-counter');
+      var send=document.getElementById('band-send');
+      function sync(){
+        var n=cbs.filter(function(c){return c.checked;}).length;
+        counter.textContent=n+' of '+cbs.length+' with email selected';
+        send.disabled=(n===0);
+        all.checked=(cbs.length>0 && n===cbs.length);
+        all.indeterminate=(n>0 && n<cbs.length);
+      }
+      all.addEventListener('change',function(){
+        cbs.forEach(function(c){c.checked=all.checked;}); sync();
+      });
+      cbs.forEach(function(c){c.addEventListener('change',sync);});
       var msg=document.getElementById('band-message'), def=msg.value;
       document.getElementById('band-reset').addEventListener('click',function(){msg.value=def;});
+      sync();
     })();
     </script>
     {% else %}

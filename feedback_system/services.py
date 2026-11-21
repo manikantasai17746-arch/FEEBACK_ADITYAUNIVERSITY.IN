@@ -1594,14 +1594,22 @@ def auto_publish_required(eligible, pct=None):
     return max(1, int(eligible * pct // 100))
 
 
+# Results are released to teachers ONLY by an explicit HOD publish action.
+# Auto-publish at the response threshold is switched off so that no teacher
+# sees results before the HOD has published them. The threshold helpers above
+# are kept (and tested) so the rule can be re-enabled deliberately if ever needed.
+AUTO_PUBLISH_ENABLED = False
+
+
 def maybe_auto_publish(form_id):
     """Publish a form's results to the teacher once enough students responded.
 
-    Runs after every successful submission. Does nothing if the form is a
-    draft/deleted, already published, or was deliberately unpublished by an
-    HOD/admin (their decision is never overridden). Returns True only when
-    this call published the results.
+    Disabled (``AUTO_PUBLISH_ENABLED`` is False): the HOD must publish results
+    before teachers can see them, regardless of how many students responded.
+    Returns True only when this call published the results.
     """
+    if not AUTO_PUBLISH_ENABLED:
+        return False
     form = get_form(form_id)
     if not form or form['status'] == 'draft' \
             or not form['session_id']:
