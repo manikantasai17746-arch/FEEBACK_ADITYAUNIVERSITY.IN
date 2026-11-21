@@ -1257,10 +1257,36 @@ def _email_pending(form, entry, hod_name):
     return 'sent' if ok else 'failed'
 
 
+_PENDING_GROUPS = (('main', 'Main Faculty Feedback'),
+                   ('second', 'Second Faculty Feedback'),
+                   ('lab', 'Lab Faculty Feedback'))
+
+
+def _pending_form_groups(forms):
+    """Group the pending-page dropdown by feedback category (Main / Second / Lab)."""
+    tm = services.form_teachers_map([f['id'] for f in forms])
+    by_cat = {}
+    for f in forms:
+        f = dict(f)
+        cat = (f.get('category') or 'main')
+        cat = cat if cat in dict(_PENDING_GROUPS) else 'other'
+        names = [t.split(' (')[0] for t in tm.get(f['id'], [])]
+        # forms made by the HOD wizard already carry the faculty name in the title
+        f['faculty'] = ', '.join(tm.get(f['id'], [])) \
+            if tm.get(f['id']) and not all(n and n in (f['title'] or '') for n in names) else ''
+        by_cat.setdefault(cat, []).append(f)
+    groups = [(k, label, by_cat[k]) for k, label in _PENDING_GROUPS if by_cat.get(k)]
+    if by_cat.get('other'):
+        groups.append(('other', 'Other forms', by_cat['other']))
+    return groups
+
+
 @bp.route('/pending')
 @role_required('hod')
 def pending():
-    """Per teacher: who has NOT submitted yet (roll numbers only)."""
+    """Per teacher: who has NOT submitted yet (roll numbers only).
+
+    Covers every category (Main, Second Faculty and Lab Faculty forms)."""
     from . import mailer
     user = current_user()
     branch_ids = [b['id'] for b in _hod_branches(user)]
@@ -1268,7 +1294,7 @@ def pending():
     if branch_ids:
         ph = ','.join('?' * len(branch_ids))
         forms = db.query(
-            f"""SELECT id, title, status, deadline_at, subject_code, subject_name
+            f"""SELECT id, title, status, category, deadline_at, subject_code, subject_name
                 FROM feedback_forms
                 WHERE branch_id IN ({ph}) AND is_deleted=0 AND status IN ('open','closed')
                 ORDER BY (status='open') DESC, created_at DESC, id DESC LIMIT 300""",
@@ -1283,7 +1309,10 @@ def pending():
     totals = {'teachers': len(teachers),
               'pending': sum(t['pending'] for t in teachers),
               'with_pending': sum(1 for t in teachers if t['pending'])}
+    cat = (form['category'] if form else None) or 'main'
     return render_template('hod_pending.html', user=user, forms=forms, form=form,
+                           groups=_pending_form_groups(forms),
+                           form_category=dict(_PENDING_GROUPS).get(cat, 'Feedback form'),
                            teachers=teachers, totals=totals,
                            mail_ready=mailer.is_configured(),
                            can_email=bool(form and form['status'] == 'open'))

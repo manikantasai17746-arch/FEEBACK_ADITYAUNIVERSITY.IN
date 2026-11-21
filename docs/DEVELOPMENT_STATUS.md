@@ -340,3 +340,10 @@ Known / not done:
 - **Unchanged:** no schema change, no new dependency, Reopen/Publish behaviour.
 - **Tests:** new `tests/test_recent_forms_search_close.py` (4 tests). `pytest` could not be installed in the build sandbox (no network), so the new tests and 12 related existing modules were run with a small stand-in runner, identical results before and after the change. Run `pytest -q` on your machine for the real suite. A headless-Chromium check of the page behaviour was run separately.
 - **Files:** `feedback_system/category_forms.py`, `feedback_system/hod.py`, `feedback_system/templates/_hod_recent_forms.html`, `feedback_system/static/js/hod_overview.js`, `feedback_system/static/css/hod-overview.css`, `tests/test_recent_forms_search_close.py`.
+
+## HOD Pending submissions: Main, Second Faculty and Lab Faculty forms (2026-11-21)
+
+- The "Feedback form" dropdown on `/hod/pending` (also embedded in the HOD overview "Pending submissions" tab) is now grouped into **Main / Second Faculty / Lab Faculty Feedback**, and each entry shows the faculty name when the form title does not already contain it. The selected form shows its category badge. Previously all categories were listed but looked identical (for example several "Phase 1 · 2501CS10" entries).
+- Fix: `services.pending_by_teacher()` for a **second-faculty form** now counts only that form's own `second_faculty_assignment_id`. Before, a session with several confirmed second faculty listed all of them under every second form.
+- Files: `feedback_system/hod.py`, `feedback_system/services.py`, `feedback_system/templates/hod_pending.html`, `tests/test_pending_all_categories.py`. No schema change.
+- Not changed: the pending-roll PDF and reminder e-mail still use the form title only.
