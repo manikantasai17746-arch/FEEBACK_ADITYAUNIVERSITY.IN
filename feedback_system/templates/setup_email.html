@@ -3,7 +3,7 @@
 {% block body %}
 <div class="auth-page">
   <div class="auth-card">
-    <div class="eyebrow">Step 1 of {{ 4 if current_user.role == 'teacher' else 2 }} · One-time setup</div>
+    <div class="eyebrow">{% if current_user.role == 'teacher' %}{{ step_label or 'One-time setup' }}{% else %}Step 1 of 2 · One-time setup{% endif %}</div>
     <h2>Confirm your email</h2>
     <p class="sub" style="margin-bottom:1.2rem">Hi <strong>{{ current_user.name }}</strong>! Confirm your email so we can reach you for password resets.
       {% if current_user.role == 'student' %}Use your <strong>college Microsoft account</strong>. Your feedback stays <strong>anonymous</strong>.{% endif %}</p>

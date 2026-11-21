@@ -115,6 +115,78 @@ def _home_for(role):
     }.get(role, 'auth.student_login')
 
 
+# --------------------------------------------------------------------------- #
+# One-time first-login order for Teacher / HOD / Dean:
+#   1. photo   2. new password   3. confirm e-mail   4. authenticator app
+#   5. Teacher Assignment Setup (teachers only; HOD/Dean have no step 5)
+# For HOD/Dean, "confirm e-mail" is their existing onboarding page (e-mail code, then
+# claiming their scope). Step 4 only appears for roles listed in
+# AUTHENTICATOR_ENFORCE_ROLES (see authenticator.enforcement_state).
+# --------------------------------------------------------------------------- #
+_FIRST_LOGIN_ROLES = ('teacher', 'hod', 'dean')
+
+
+def _setup_on():
+    return bool(current_app.config.get('REQUIRE_ACCOUNT_SETUP', True))
+
+
+def _photo_step_pending(user):
+    """The photo step has not been done yet.
+
+    ``first_login_complete`` now means "photo step done" for all three roles. HOD/Dean
+    accounts that already finished onboarding were never flagged, so they count as done.
+    """
+    role = user.get('role')
+    if role == 'teacher':
+        return not user.get('first_login_complete')
+    if role in ('hod', 'dean'):
+        return not user.get('first_login_complete') and not user.get('onboarding_complete')
+    return False
+
+
+def _pending_first_login_step(user):
+    """First unfinished one-time step before the authenticator: photo, password, email."""
+    role = user.get('role')
+    if role not in _FIRST_LOGIN_ROLES:
+        return None
+    setup_on = _setup_on()
+    if setup_on and _photo_step_pending(user):
+        return 'photo'
+    if user.get('must_change_password'):
+        return 'password'
+    if role == 'teacher':
+        if setup_on and not (user.get('email') or '').strip():
+            return 'email'
+    elif not user.get('onboarding_complete'):
+        return 'email'
+    return None
+
+
+def _step_url(user, step, next_url=None):
+    if step == 'photo':
+        return url_for('auth.setup_photo')
+    if step == 'password':
+        return url_for('auth.change_password')
+    if user['role'] == 'teacher':
+        return url_for('auth.setup_email', next=next_url)
+    return url_for('hod.onboarding' if user['role'] == 'hod' else 'dean.onboarding')
+
+
+def _step_label(user, step):
+    """'Step 2 of 5 · One-time setup' for a first-login page, or None."""
+    if user.get('role') not in _FIRST_LOGIN_ROLES:
+        return None
+    steps = ['photo', 'password', 'email']
+    state, _until = authenticator.enforcement_state(user['role'], current_app.config)
+    if state != 'off':
+        steps.append('authenticator')
+    if user['role'] == 'teacher':
+        steps.append('assignment')
+    if step not in steps:
+        return None
+    return f'Step {steps.index(step) + 1} of {len(steps)} · One-time setup'
+
+
 def _authenticator_gate(user):
     """Per-role authenticator enforcement. A redirect when the role must enrol now.
 
@@ -162,23 +234,25 @@ def _enforce_account_setup():
     if not user or user['role'] not in ('student', 'teacher', 'hod', 'dean'):
         return None
 
-    # Teachers follow a fixed one-time order (Phase 2):
-    #   1. confirm e-mail with a code   2. replace the default password
-    #   3. photo step                   4. Teacher Assignment Setup page
-    # The photo step is only enforced while account setup is switched on.
-    if role == 'teacher':
-        setup_on = current_app.config.get('REQUIRE_ACCOUNT_SETUP', True)
-        if setup_on and not (user.get('email') or '').strip():
-            return redirect(url_for('auth.setup_email', next=request.full_path.rstrip('?')
-                                    if request.method == 'GET' else None))
-        if user.get('must_change_password'):
-            return redirect(url_for('auth.change_password'))
-        if setup_on:
+    # Teacher / HOD / Dean follow one fixed order: photo -> new password -> confirm
+    # e-mail (HOD/Dean: their onboarding page) -> authenticator -> (teachers) Teacher
+    # Assignment Setup. Photo and e-mail are only enforced while account setup is on.
+    if role in _FIRST_LOGIN_ROLES:
+        step = _pending_first_login_step(user)
+        if step:
+            # Remember that this session is a first login, so the last step can land
+            # a teacher on Teacher Assignment Setup.
+            session['first_login_flow'] = 1
+            return redirect(_step_url(user, step, request.full_path.rstrip('?')
+                                      if request.method == 'GET' else None))
+        if _setup_on():
             gate = _authenticator_gate(user)
             if gate:
                 return gate
-        if setup_on and not user.get('first_login_complete'):
-            return redirect(url_for('auth.setup_photo'))
+        if session.get('first_login_flow') and request.method == 'GET':
+            session.pop('first_login_flow', None)
+            if role == 'teacher' and request.endpoint != 'teacher.assignment_setup':
+                return redirect(url_for('teacher.assignment_setup'))
         return None
 
     # Password change is always enforced for any other role that has the flag.
@@ -197,18 +271,6 @@ def _enforce_account_setup():
         gate = _authenticator_gate(user)
         if gate:
             return gate
-
-    # HOD / Dean first-login onboarding (email verify + scope claim).
-    if role in ('hod', 'dean'):
-        # current_user() already loaded these columns this request: reuse them
-        # instead of a second identical users lookup on every HOD/Dean page.
-        if not user.get('onboarding_complete'):
-            ep = 'hod.onboarding' if role == 'hod' else 'dean.onboarding'
-            return redirect(url_for(ep))
-        if current_app.config.get('REQUIRE_ACCOUNT_SETUP', True):
-            gate = _authenticator_gate(user)
-            if gate:
-                return gate
     return None
 
 
@@ -246,6 +308,11 @@ def _grant_enrollment_proofs():
 @role_required('student', 'teacher')
 def setup_email():
     user = current_user()
+    if user['role'] == 'teacher':
+        # Photo and the new password come before the e-mail step; no skipping ahead.
+        step = _pending_first_login_step(user)
+        if step in ('photo', 'password'):
+            return redirect(_step_url(user, step))
     if (user.get('email') or '').strip() and request.method == 'GET':
         return redirect(url_for(_home_for(user['role'])))
     if request.method == 'POST' and (user.get('email') or '').strip():
@@ -268,13 +335,18 @@ def setup_email():
                 return redirect(url_for('auth.verify_email', next=request.form.get('next') or None))
             flash(problem, 'error')
     return render_template('setup_email.html', sso_providers=sso.providers_for(user['role']),
-                           college_email=_student_email_rule(user))
+                           college_email=_student_email_rule(user),
+                           step_label=_step_label(user, 'email'))
 
 
 @bp.route('/setup/email/verify', methods=['GET', 'POST'])
 @role_required('student', 'teacher')
 def verify_email():
     user = current_user()
+    if user['role'] == 'teacher':
+        step = _pending_first_login_step(user)
+        if step in ('photo', 'password'):
+            return redirect(_step_url(user, step))
     row = verification.pending(user['id'], 'verify_email')
     if not row:
         flash('That code has expired. Please enter your email again.', 'warning')
@@ -304,7 +376,8 @@ def verify_email():
             flash('That code is not correct or has expired.', 'error')
             if not verification.pending(user['id'], 'verify_email'):
                 return redirect(url_for('auth.setup_email'))
-    return render_template('verify_email.html', email=row['email'])
+    return render_template('verify_email.html', email=row['email'],
+                           step_label=_step_label(user, 'email'))
 
 
 # --------------------------------------------------------------------------- #
@@ -354,11 +427,15 @@ def _no_store(resp):
 
 def render_backup_codes(codes, *, reason, user):
     """Render the one-time backup-code page. The codes exist only in this response."""
+    continue_url = (url_for('student.dashboard') if user['role'] == 'student' and reason == 'enrolled'
+                    else url_for('account_security.index'))
+    if reason == 'enrolled' and session.pop('first_login_flow', None) and user['role'] == 'teacher':
+        # Last one-time step before Teacher Assignment Setup.
+        continue_url = url_for('teacher.assignment_setup')
     resp = make_response(render_template(
         'backup_codes.html', codes=codes, reason=reason,
         # A student who has just finished setup goes straight to My Feedback.
-        continue_url=(url_for('student.dashboard') if user['role'] == 'student' and reason == 'enrolled'
-                      else url_for('account_security.index')),
+        continue_url=continue_url,
         home_url=url_for(_home_for(user['role']))))
     return _no_store(resp)
 
@@ -407,15 +484,23 @@ def setup_authenticator():
         return redirect(url_for('auth.setup_email'))
     if authenticator.is_active(user['id']):
         return redirect(url_for('account_security.index'))
+    step = _pending_first_login_step(user)
+    if step == 'photo':
+        return redirect(_step_url(user, step))          # the photo step always comes first
     if _on_temporary_password(user):
         flash('Change your temporary password first, then set up the authenticator app.', 'warning')
         return redirect(url_for('auth.change_password'))
+    if step:
+        # The e-mail step (HOD/Dean: onboarding) comes before the authenticator app.
+        return redirect(_step_url(user, step))
     state, until = authenticator.enforcement_state(role, current_app.config)
     ms_ok = (role == 'student' and 'microsoft' in sso.providers_for('student')
              and email == (_student_email_rule(user) or '').lower())
     ctx = dict(role=role, email=email, microsoft_ok=ms_ok,
                mandatory=(state == 'required' or authenticator.needs_reenrollment(user['id'])),
-               home_url=url_for(_home_for(role)))
+               home_url=url_for(_home_for(role)),
+               step_label=(_step_label(user, 'authenticator')
+                           if session.get('first_login_flow') else None))
 
     action = request.form.get('action') if request.method == 'POST' else None
     if action == 'password':
@@ -596,26 +681,21 @@ def sso_callback(provider):
 
 
 # --------------------------------------------------------------------------- #
-# Teacher first-login photo step (Phase 2)
+# First-login photo step (Teacher / HOD / Dean) - the FIRST one-time step
 # --------------------------------------------------------------------------- #
 @bp.route('/setup/photo', methods=['GET', 'POST'])
-@role_required('teacher')
+@role_required('teacher', 'hod', 'dean')
 def setup_photo():
-    """Last onboarding step: show the photo the admin loaded for this teacher.
+    """First onboarding step: show the photo the admin loaded for this person.
 
-    Teachers do not choose their own photo: the college supplies it and the admin
+    Faculty do not choose their own photo: the college supplies it and the admin
     uploads it (Admin -> Photos). This step only shows what is on file (or the
-    initials avatar) and lets the teacher continue.
+    initials avatar) and lets the person continue.
     """
     from . import photos
     user = current_user()
-    if user.get('first_login_complete'):
-        return redirect(url_for('teacher.assignment_setup'))
-    # Steps cannot be skipped: send them to whichever earlier step is still open.
-    if not (user.get('email') or '').strip():
-        return redirect(url_for('auth.setup_email'))
-    if user.get('must_change_password'):
-        return redirect(url_for('auth.change_password'))
+    if not _photo_step_pending(user):
+        return redirect(url_for(_home_for(user['role'])))
     code = photos.normalize_emp(user.get('emp_code'))
     if request.method == 'POST':
         if (request.form.get('action') or 'continue') == 'upload' or request.files.get('photo'):
@@ -625,15 +705,18 @@ def setup_photo():
             return _finish_first_login(user, skipped=not (code and photos.has_any_photo(code)))
     return render_template(
         'setup_photo.html', emp_code=code, designation=user.get('designation'),
-        has_photo=bool(code and photos.has_any_photo(code)))
+        has_photo=bool(code and photos.has_any_photo(code)),
+        step_label=_step_label(user, 'photo'))
 
 
 def _finish_first_login(user, skipped):
+    """The photo step is done; the gate sends the person to the next pending step."""
     db.execute('UPDATE users SET first_login_complete=1 WHERE id=?', (user['id'],))
-    audit('teacher.first_login_complete', 'users', user['id'],
+    audit(f"{user['role']}.first_login_complete", 'users', user['id'],
           'Photo step skipped' if skipped else 'Photo step done')
-    flash('Setup complete. Now review your subjects, rooms and labs.', 'success')
-    return redirect(url_for('teacher.assignment_setup'))
+    session['first_login_flow'] = 1
+    flash('Photo confirmed. Please continue with the next setup step.', 'success')
+    return redirect(url_for(_home_for(user['role'])))
 
 
 # --------------------------------------------------------------------------- #
@@ -1091,6 +1174,8 @@ def logout():
 @role_required('student', 'teacher', 'admin', 'hod', 'dean')
 def change_password():
     user = current_user()
+    if user['role'] in _FIRST_LOGIN_ROLES and _setup_on() and _photo_step_pending(user):
+        return redirect(_step_url(user, 'photo'))      # the photo step comes first
     if request.method == 'POST':
         from_profile = request.form.get('from') == 'profile' and user['role'] in (
             'teacher', 'hod', 'dean')
@@ -1118,4 +1203,6 @@ def change_password():
             return redirect(url_for(home))
         if from_profile:
             return redirect(url_for('photos.profile'))
-    return render_template('change_password.html')
+    return render_template('change_password.html',
+                           step_label=(_step_label(user, 'password')
+                                       if user.get('must_change_password') else None))

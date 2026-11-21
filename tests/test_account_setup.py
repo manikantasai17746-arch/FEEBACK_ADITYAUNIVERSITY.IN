@@ -125,13 +125,16 @@ def test_mail_failure_does_not_save_email(app, client, sent, monkeypatch):
 
 # ----------------------------------------------------------------------------- teacher default password
 def test_teacher_on_default_password_must_change_it(app, client, sent):
+    """Order: photo -> new password -> confirm e-mail -> Teacher Assignment Setup."""
     _set_teacher_password(app, 'teacher@123')
     login(client, '/teacher/login', {'emp_code': '6817', 'password': 'teacher@123'})
-    _confirm_email(client, sent, 't@gmail.com')
+    r = client.get('/teacher/')
+    assert r.status_code == 302 and '/setup/photo' in r.headers['Location']
+    assert _post(client, '/setup/photo', action='continue').status_code == 302
     r = client.get('/teacher/')
     assert r.status_code == 302 and '/change-password' in r.headers['Location']
     html = client.get('/change-password').get_data(as_text=True)
-    assert 'still using the default password' in html
+    assert 'still using the default password' in html and 'Step 2 of' in html
     tok = get_csrf(html)
     same = client.post('/change-password', data={'current_password': 'teacher@123',
         'new_password': 'teacher@123', 'confirm_password': 'teacher@123', '_csrf': tok})
@@ -139,20 +142,25 @@ def test_teacher_on_default_password_must_change_it(app, client, sent):
     done = client.post('/change-password', data={'current_password': 'teacher@123',
         'new_password': 'MyNewPass#9', 'confirm_password': 'MyNewPass#9', '_csrf': tok})
     assert done.status_code == 302
-    # Phase 2: the photo step comes next, then the dashboard is open.
+    # The e-mail step comes next; once confirmed the teacher lands on Assignment Setup.
     r = client.get('/teacher/')
-    assert r.status_code == 302 and '/setup/photo' in r.headers['Location']
-    assert _post(client, '/setup/photo', action='skip').status_code == 302
+    assert r.status_code == 302 and '/setup/email' in r.headers['Location']
+    assert _confirm_email(client, sent, 't@gmail.com').status_code == 302
+    r = client.get('/teacher/')
+    assert r.status_code == 302 and '/teacher/assignment-setup' in r.headers['Location']
     assert client.get('/teacher/').status_code == 200
 
 
 def test_teacher_with_own_password_is_not_forced(app, client, sent):
     _set_teacher_password(app, 'Personal#Pass1')
     login(client, '/teacher/login', {'emp_code': '6817', 'password': 'Personal#Pass1'})
-    _confirm_email(client, sent, 't@gmail.com')
-    r = client.get('/teacher/')                       # photo step is still pending
+    r = client.get('/teacher/')                       # photo is the first step
     assert r.status_code == 302 and '/setup/photo' in r.headers['Location']
-    assert _post(client, '/setup/photo', action='skip').status_code == 302
+    assert _post(client, '/setup/photo', action='continue').status_code == 302
+    r = client.get('/teacher/')                       # no password change: straight to e-mail
+    assert r.status_code == 302 and '/setup/email' in r.headers['Location']
+    assert _confirm_email(client, sent, 't@gmail.com').status_code == 302
+    assert client.get('/teacher/').status_code == 302     # one-time landing on Assignment Setup
     assert client.get('/teacher/').status_code == 200
     assert client.get('/change-password').status_code == 200
 

@@ -1778,6 +1778,11 @@ def onboarding():
         (user['id'],), one=True)
     if row and row['onboarding_complete']:
         return redirect(url_for('hod.dashboard'))
+    # One-time order: photo and the new password come before e-mail onboarding.
+    from .auth import _pending_first_login_step, _step_url
+    _step = _pending_first_login_step(user)
+    if _step in ('photo', 'password'):
+        return redirect(_step_url(user, _step))
 
     email_verified = bool(row and row['email_verified'])
     step = request.args.get('step', 'email' if not email_verified else 'scopes')

@@ -4,10 +4,10 @@
 {% block body %}
 <div class="auth-page">
   <div class="auth-card" style="max-width:560px">
-    <div class="eyebrow">Step 3 of 4 · One-time setup</div>
+    <div class="eyebrow">{{ step_label or 'One-time setup' }}</div>
     <h2>Your profile photo</h2>
     {% if has_photo %}
-    <p class="sub">This is the photo the university has on file for you. Students and the HOD
+    <p class="sub">This is the photo the university has on file for you. {% if current_user.role == 'teacher' %}Students and the HOD{% else %}Faculty and students{% endif %}
       will see it next to your name.</p>
     {% else %}
     <p class="sub">No photo is on file for you yet. Your photo is added by the university
