@@ -33,6 +33,7 @@
         <a href="{{ url_for('admin.results') }}">Results</a>
         <a href="{{ url_for('admin.students') }}">Students</a>
         <a href="{{ url_for('admin.teachers') }}">Teachers</a>
+                <a href="{{ url_for('photos.admin_list') }}">Photos</a>
         <a href="{{ url_for('admin.reports') }}">Reports</a>
         <a href="{{ url_for('admin.import_excel') }}">Import</a>
       {% elif current_user and current_user.role == 'teacher' %}
