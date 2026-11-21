@@ -198,6 +198,191 @@ def release_timetable_import(conn, import_id):
     conn.commit()
 
 
+# --------------------------------------------------------------------------- #
+# Reviewing and deleting imported timetable data
+#
+# The import is additive and does NOT tag rows with the file that produced them, so
+# several workbooks imported for the same semester + academic year cannot be told
+# apart afterwards.  Deletion is therefore scoped to a (semester, academic year)
+# pair: it removes everything the imports for that pair created.
+# --------------------------------------------------------------------------- #
+_SCOPE_TIMETABLES = (
+    "SELECT t.id FROM timetables t "
+    "JOIN semesters s ON s.id = t.semester_id "
+    "JOIN academic_years ay ON ay.id = t.academic_year_id "
+    "WHERE s.number = ? AND ay.name = ?")
+_SCOPE_SESSIONS = (
+    f"SELECT cs.id FROM class_sessions cs WHERE cs.timetable_id IN ({_SCOPE_TIMETABLES})")
+
+# Data that other features build on top of an import.  If any of it exists for the
+# scope the import is locked: deleting it would orphan feedback, results or HOD work.
+# (label, SQL counting the dependent rows; each takes (semester, year) twice or once)
+_BLOCKERS = (
+    ('feedback form(s), including archived ones',
+     f"SELECT COUNT(*) FROM feedback_forms WHERE timetable_id IN ({_SCOPE_TIMETABLES}) "
+     f"OR session_id IN ({_SCOPE_SESSIONS})", 4),
+    ('form-to-session link(s)',
+     f"SELECT COUNT(*) FROM form_sessions WHERE session_id IN ({_SCOPE_SESSIONS})", 2),
+    ('student submission(s)',
+     f"SELECT COUNT(*) FROM submissions WHERE session_id IN ({_SCOPE_SESSIONS})", 2),
+    ('feedback response(s)',
+     f"SELECT COUNT(*) FROM feedback_responses WHERE session_id IN ({_SCOPE_SESSIONS})", 2),
+    ('published result(s)',
+     f"SELECT COUNT(*) FROM result_publications WHERE session_id IN ({_SCOPE_SESSIONS})", 2),
+    ('second-faculty assignment(s)',
+     f"SELECT COUNT(*) FROM second_faculty_assignments WHERE timetable_id IN "
+     f"({_SCOPE_TIMETABLES}) OR session_id IN ({_SCOPE_SESSIONS})", 4),
+    ('lab faculty assignment(s)',
+     f"SELECT COUNT(*) FROM lab_faculty_assignments WHERE session_id IN ({_SCOPE_SESSIONS})", 2),
+    ('teacher room/lab setting(s)',
+     f"SELECT COUNT(*) FROM teacher_subject_settings WHERE session_id IN ({_SCOPE_SESSIONS})", 2),
+    ('HOD allocation(s)',
+     f"SELECT COUNT(*) FROM hod_allocations WHERE timetable_id IN ({_SCOPE_TIMETABLES})", 2),
+    ('student complaint(s)',
+     f"SELECT COUNT(*) FROM student_complaints WHERE timetable_id IN ({_SCOPE_TIMETABLES})", 2),
+)
+
+# Every (table, column) that points at users.id.  A student/teacher account created by
+# an import is only removed when none of these still reference it.  A test compares this
+# list with the live schema so a future table cannot be forgotten.
+USER_REFERENCES = (
+    ('allocation_history', 'actor_user_id'), ('audit_log', 'actor_user_id'),
+    ('class_sessions', 'teacher_user_id'),
+    ('dean_hod_assignments', 'created_by'), ('dean_hod_assignments', 'hod_user_id'),
+    ('dean_hod_assignments', 'dean_user_id'),
+    ('email_codes', 'user_id'), ('employee_photos', 'uploaded_by'),
+    ('enrollments', 'student_user_id'), ('feedback_forms', 'created_by'),
+    ('feedback_requirements', 'created_by'), ('form_drafts', 'student_user_id'),
+    ('form_eligible_students', 'student_user_id'),
+    ('hod_allocations', 'created_by'), ('hod_allocations', 'hod_user_id'),
+    ('improvement_action_log', 'actor_user_id'), ('improvement_actions', 'created_by'),
+    ('improvement_actions', 'owner_user_id'), ('lab_batch_students', 'student_user_id'),
+    ('lab_faculty_assignments', 'created_by'),
+    ('lab_faculty_assignments', 'lab_teacher_user_id'),
+    ('lab_faculty_assignments', 'main_teacher_user_id'),
+    ('notifications', 'user_id'), ('question_sets', 'owner_user_id'),
+    ('result_publications', 'unpublished_by'), ('result_publications', 'published_by'),
+    ('second_faculty_assignments', 'second_teacher_user_id'),
+    ('second_faculty_assignments', 'main_teacher_user_id'),
+    ('second_faculty_import_batches', 'imported_by'),
+    ('session_students', 'student_user_id'),
+    ('student_authenticators', 'user_id'), ('student_backup_codes', 'user_id'),
+    ('student_complaints', 'student_user_id'), ('submissions', 'student_user_id'),
+    ('teacher_subject_settings', 'updated_by'),
+    ('teacher_subject_settings', 'teacher_user_id'),
+    ('user_department_scopes', 'user_id'),
+)
+
+
+def timetable_import_scope_counts(conn, semester, academic_year):
+    """What an import for this semester + academic year put into the system."""
+    p = (semester, academic_year)
+    one = lambda sql, n=1: conn.execute(sql, p * n).fetchone()[0]    # noqa: E731
+    return {
+        'timetables': one(f"SELECT COUNT(*) FROM ({_SCOPE_TIMETABLES}) x"),
+        'sessions': one(f"SELECT COUNT(*) FROM ({_SCOPE_SESSIONS}) x"),
+        'students': one(
+            f"SELECT COUNT(DISTINCT student_user_id) FROM enrollments "
+            f"WHERE timetable_id IN ({_SCOPE_TIMETABLES})"),
+        'teachers': one(
+            f"SELECT COUNT(DISTINCT teacher_user_id) FROM class_sessions "
+            f"WHERE timetable_id IN ({_SCOPE_TIMETABLES})"),
+        'assignments': conn.execute(
+            "SELECT COUNT(*) FROM assignments WHERE semester=? AND academic_year=?",
+            p).fetchone()[0],
+    }
+
+
+def timetable_import_blockers(conn, semester, academic_year):
+    """[(label, count)] of dependent data that makes this import un-deletable."""
+    found = []
+    for label, sql, times in _BLOCKERS:
+        n = conn.execute(sql, (semester, academic_year) * (times // 2)).fetchone()[0]
+        if n:
+            found.append((label, n))
+    return found
+
+
+def list_timetable_imports(conn):
+    """Every recorded workbook import (newest first) with what its semester holds now."""
+    rows = conn.execute(
+        """SELECT id, filename, semester, academic_year, status, started_ts
+           FROM timetable_imports ORDER BY started_ts DESC, id DESC""").fetchall()
+    cache, out = {}, []
+    for r in rows:
+        key = (r[2], r[3])
+        if key not in cache:
+            cache[key] = (timetable_import_scope_counts(conn, *key),
+                          timetable_import_blockers(conn, *key))
+        counts, blockers = cache[key]
+        out.append({'id': r[0], 'filename': r[1], 'semester': r[2], 'academic_year': r[3],
+                    'status': r[4], 'started_ts': r[5], 'counts': counts,
+                    'blockers': blockers,
+                    'imported_at': time.strftime('%d %b %Y, %H:%M UTC', time.gmtime(r[5])),
+                    'siblings': sum(1 for x in rows if (x[2], x[3]) == key) - 1})
+    return out
+
+
+def get_timetable_import(conn, import_id):
+    row = conn.execute(
+        "SELECT id, filename, semester, academic_year, status, started_ts "
+        "FROM timetable_imports WHERE id=?", (import_id,)).fetchone()
+    return None if row is None else {
+        'id': row[0], 'filename': row[1], 'semester': row[2], 'academic_year': row[3],
+        'status': row[4], 'started_ts': row[5]}
+
+
+def delete_timetable_import(conn, semester, academic_year):
+    """Remove all imported timetable data for one semester + academic year.
+
+    Deletes the timetables, class sessions, enrollments, eligibility rows and legacy
+    assignments, forgets the recorded files (so the workbook may be imported again) and
+    removes student/teacher accounts that exist only because of the import (no other
+    record references them).  Refuses when feedback/results depend on the data.
+
+    The caller owns the transaction: commit on success, roll back on any exception.
+    Returns a dict of what was removed.
+    """
+    blockers = timetable_import_blockers(conn, semester, academic_year)
+    if blockers:
+        raise ValueError('This import is in use: ' +
+                         ', '.join(f'{n} {label}' for label, n in blockers))
+    p = (semester, academic_year)
+    # Accounts the import may have created; decided after their links are gone.
+    candidates = sorted({r[0] for r in conn.execute(
+        f"""SELECT student_user_id FROM enrollments WHERE timetable_id IN ({_SCOPE_TIMETABLES})
+            UNION SELECT student_user_id FROM session_students
+                  WHERE session_id IN ({_SCOPE_SESSIONS})
+            UNION SELECT teacher_user_id FROM class_sessions
+                  WHERE timetable_id IN ({_SCOPE_TIMETABLES}) AND teacher_user_id IS NOT NULL""",
+        p * 3).fetchall()})
+
+    removed = {}
+    def run(name, sql, params):
+        cur = conn.execute(sql, params)
+        removed[name] = cur.rowcount if cur.rowcount is not None else 0
+
+    run('eligibility', f"DELETE FROM session_students WHERE session_id IN ({_SCOPE_SESSIONS})",
+        p)
+    run('enrollments', f"DELETE FROM enrollments WHERE timetable_id IN ({_SCOPE_TIMETABLES})", p)
+    run('sessions', f"DELETE FROM class_sessions WHERE timetable_id IN ({_SCOPE_TIMETABLES})", p)
+    run('timetables', f"DELETE FROM timetables WHERE id IN ({_SCOPE_TIMETABLES})", p)
+    run('assignments', "DELETE FROM assignments WHERE semester=? AND academic_year=?", p)
+    run('files', "DELETE FROM timetable_imports WHERE semester=? AND academic_year=?", p)
+
+    unused = ' AND '.join(
+        f'NOT EXISTS (SELECT 1 FROM {t} WHERE {c} = users.id)' for t, c in USER_REFERENCES)
+    removed['accounts'] = 0
+    for i in range(0, len(candidates), 500):
+        chunk = candidates[i:i + 500]
+        marks = ','.join('?' for _ in chunk)
+        cur = conn.execute(
+            f"DELETE FROM users WHERE role IN ('student','teacher') AND id IN ({marks}) "
+            f"AND {unused}", tuple(chunk))
+        removed['accounts'] += cur.rowcount or 0
+    return removed
+
+
 def _norm_header(value):
     return re.sub(r'\s+', ' ', str(value or '')).strip().lower()
 

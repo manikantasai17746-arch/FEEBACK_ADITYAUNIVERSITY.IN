@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hod-overview.css') }}">
 {% endblock %}
 {% block body %}
+<<<<<<< HEAD
 {% from '_hod_bands.html' import hod_bands with context %}
 {% from '_hod_recent_forms.html' import hod_recent_forms with context %}
 <div class="perf-welcome au-head">
@@ -17,6 +18,12 @@
   <div class="au-logo" id="auLogo" role="button" tabindex="0" aria-label="Aditya University logo. Press to replay the animation" title="Click to replay">
 {% include 'partials/au_logo_anim.html' %}
   </div>
+=======
+<div class="ov-head">
+  <h1 class="ov-title"><span aria-hidden="true">📊</span> Overview</h1>
+  <p class="ov-sub">Department feedback status by category — Main, Second, and Lab stay separate.</p>
+  <a class="btn btn-ghost" href="{{ url_for('hod.student_complaints') }}">Student Complaints</a>
+>>>>>>> origin/main
 </div>
 
 {% if stats.category_overview %}

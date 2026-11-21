@@ -965,13 +965,15 @@ def import_excel():
 
     from .import_data import (ImportErrorReport, claim_timetable_import,
                               complete_timetable_import, import_timetable,
-                              read_workbook, release_timetable_import,
-                              summarize, validate_semester_year)
+                              list_timetable_imports, read_workbook,
+                              release_timetable_import, summarize,
+                              validate_semester_year)
 
     form = {'semester': request.form.get('semester', ''),
             'academic_year': request.form.get('academic_year') or _current_academic_year()}
     ctx = {'user': current_user(), 'form': form, 'preview': None, 'result': None,
-           'problems': [], 'years': services.academic_years()}
+           'problems': [], 'years': services.academic_years(),
+           'imports': list_timetable_imports(db.get_db())}
     if request.method == 'GET':
         return render_template('admin_import.html', **ctx)
 
@@ -1029,7 +1031,122 @@ def import_excel():
     ctx['result'] = dict(stats, semester=semester, academic_year=year,
                          warnings=report['warnings'], filename=upload.filename)
     ctx['years'] = services.academic_years()
+    ctx['imports'] = list_timetable_imports(db.get_db())     # now includes the new file
     return render_template('admin_import.html', **ctx)
+
+
+def _import_delete_purpose(import_id):
+    return f'delete_import:{import_id}'
+
+
+def _completed_import_or_redirect(import_id):
+    """(row, None) for a deletable import, else (None, redirect response)."""
+    from .import_data import get_timetable_import
+    row = get_timetable_import(db.get_db(), import_id)
+    if not row:
+        flash('That imported file no longer exists.', 'error')
+        return None, redirect(url_for('admin.import_excel'))
+    if row['status'] != 'completed':
+        flash('Only completed imports can be deleted.', 'error')
+        return None, redirect(url_for('admin.import_excel'))
+    return row, None
+
+
+@bp.route('/import/<int:import_id>/delete/request', methods=['POST'])
+@admin_only
+def import_delete_request(import_id):
+    """Step 1: e-mail a one-time code to the deletion-approval address (HOD/Dean office)."""
+    from .import_data import timetable_import_blockers
+    row, bounce = _completed_import_or_redirect(import_id)
+    if bounce:
+        return bounce
+    blockers = timetable_import_blockers(db.get_db(), row['semester'], row['academic_year'])
+    if blockers:
+        flash('This import cannot be deleted because it is in use: ' +
+              ', '.join(f'{n} {label}' for label, n in blockers) + '.', 'error')
+        return redirect(url_for('admin.import_excel'))
+    recipients = _delete_otp_recipients()
+    if not recipients:
+        flash('Deletion is disabled: set DELETE_OTP_EMAIL in the environment '
+              '(the address that receives the confirmation code).', 'error')
+        return redirect(url_for('admin.import_excel'))
+    admin = current_user()
+    purpose = _import_delete_purpose(import_id)
+    try:
+        code = verification.issue(admin['id'], purpose, ', '.join(recipients))
+    except verification.Cooldown as c:
+        flash(f'A code was just sent. Wait {c.seconds}s before requesting another.', 'error')
+        return redirect(url_for('admin.import_delete_confirm', import_id=import_id))
+    files = [r['filename'] for r in db.query(
+        'SELECT filename FROM timetable_imports WHERE semester=? AND academic_year=?',
+        (row['semester'], row['academic_year']))]
+    subject, text, html = mailer.delete_import_code_email(
+        code, row['semester'], row['academic_year'], files,
+        admin['email'] or admin['username'], verification.CODE_TTL_SECONDS // 60)
+    if not all([mailer.send_email(r, subject, text, html) for r in recipients]):
+        verification.discard(admin['id'], purpose)
+        flash('Could not send the confirmation code. Check the mail settings and try again.',
+              'error')
+        return redirect(url_for('admin.import_excel'))
+    audit('admin.import_delete_requested', 'timetable_imports', import_id,
+          f"Deletion code sent for semester {row['semester']}, {row['academic_year']}")
+    flash('A confirmation code was sent to the deletion-approval e-mail.', 'success')
+    return redirect(url_for('admin.import_delete_confirm', import_id=import_id))
+
+
+@bp.route('/import/<int:import_id>/delete', methods=['GET', 'POST'])
+@admin_only
+def import_delete_confirm(import_id):
+    """Step 2: enter the code; only a correct one deletes the imported data."""
+    from .import_data import (delete_timetable_import, list_timetable_imports,
+                              timetable_import_scope_counts)
+    row, bounce = _completed_import_or_redirect(import_id)
+    if bounce:
+        return bounce
+    admin = current_user()
+    purpose = _import_delete_purpose(import_id)
+    conn = db.get_db()
+    if request.method == 'GET':
+        pending = verification.pending(admin['id'], purpose)
+        if not pending:
+            flash('Request a confirmation code first.', 'error')
+            return redirect(url_for('admin.import_excel'))
+        masked = ', '.join(_mask_email(e.strip()) for e in pending['email'].split(','))
+        files = [i for i in list_timetable_imports(conn)
+                 if (i['semester'], i['academic_year']) == (row['semester'], row['academic_year'])]
+        counts = timetable_import_scope_counts(conn, row['semester'], row['academic_year'])
+        return render_template('admin_import_delete.html', user=admin, row=row, files=files,
+                               counts=counts, masked=masked)
+
+    if not verification.check(admin['id'], purpose, request.form.get('code')):
+        audit('admin.import_delete_failed', 'timetable_imports', import_id,
+              'Wrong or expired code')
+        flash('Wrong or expired code. Request a new code and try again.', 'error')
+        return redirect(url_for('admin.import_excel'))
+    try:
+        removed = delete_timetable_import(conn, row['semester'], row['academic_year'])
+        conn.commit()
+    except ValueError as exc:                 # became in use after the code was issued
+        conn.rollback()
+        flash(f'{exc}.', 'error')
+        return redirect(url_for('admin.import_excel'))
+    except Exception as exc:
+        current_app.logger.exception('Deleting imported timetable data failed')
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        flash(f'Deletion failed and was rolled back: {exc}', 'error')
+        return redirect(url_for('admin.import_excel'))
+    audit('admin.import_deleted', 'timetable_imports', import_id,
+          f"Deleted imported data for semester {row['semester']}, {row['academic_year']}: "
+          f"{removed['timetables']} timetables, {removed['sessions']} sessions, "
+          f"{removed['enrollments']} enrollments, {removed['accounts']} accounts")
+    flash(f"Imported data for Semester {row['semester']}, {row['academic_year']} was "
+          f"permanently deleted ({removed['timetables']} timetables, {removed['sessions']} "
+          f"class sessions, {removed['accounts']} student/teacher accounts). "
+          "You can import a corrected file now.", 'success')
+    return redirect(url_for('admin.import_excel'))
 
 
 # --------------------------------------------------------------------------- #

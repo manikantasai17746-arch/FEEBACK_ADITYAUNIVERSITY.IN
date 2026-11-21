@@ -1,0 +1,27 @@
+<section class="card mb" aria-labelledby="report-college-issue">
+  <h2 class="stu-h2" id="report-college-issue">Report a College Issue</h2>
+  <p class="sub">Optional · {{ report.context.department }} · Semester {{ report.context.semester }}</p>
+  {% if complaint_error %}<div class="flash flash-error" role="alert">{{ complaint_error }}</div>{% endif %}
+  <form method="post" action="{{ url_for('student.report_issue') }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="submission_key" value="{{ report.submission_key }}">
+    <div class="field">
+      <label for="issue-category">Complaint category</label>
+      <select name="category" id="issue-category" required>
+        <option value="">Choose a category</option>
+        {% for key, label in report.categories.items() %}
+        <option value="{{ key }}"{% if report.category == key %} selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="issue-description">Describe the issue</label>
+      <textarea id="issue-description" name="description" rows="4" maxlength="{{ report.maximum }}" required
+                placeholder="For example, the lights in room 204 are out.">{{ report.description }}</textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn" type="submit">Submit complaint</button>
+      <a class="btn btn-ghost" href="{{ url_for('student.dashboard', skip_issue=1, cat=request.args.get('cat')) }}">Skip for now</a>
+    </div>
+  </form>
+</section>

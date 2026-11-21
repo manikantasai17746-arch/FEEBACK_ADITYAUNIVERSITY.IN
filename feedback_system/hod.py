@@ -3,12 +3,24 @@ import json
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    url_for)
 
-from . import category_forms, db, services
+from . import category_forms, complaints, db, services
 from .feedback_categories import ScopeError
 from .security import (audit, current_user, role_required, require_branch_access,
                        scoped_branch_ids_or_none, scoped_branches, csrf_token)
 
 bp = Blueprint('hod', __name__, url_prefix='/hod')
+
+
+@bp.get('/student-complaints')
+@role_required('hod')
+def student_complaints():
+    return complaints.staff_list(current_user())
+
+
+@bp.post('/student-complaints/<int:complaint_id>/status')
+@role_required('hod')
+def complaint_status(complaint_id):
+    return complaints.update_status(current_user(), complaint_id)
 
 
 def _hod_branches(user):

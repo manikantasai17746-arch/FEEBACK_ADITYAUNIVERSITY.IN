@@ -238,6 +238,32 @@ def delete_forms_code_email(code, count, requested_by, minutes):
     return subject, text, html
 
 
+def delete_import_code_email(code, semester, academic_year, filenames, requested_by, minutes):
+    """Return (subject, text, html) for deleting a semester's imported timetable data."""
+    from html import escape
+    subject = f'Confirm deletion of imported timetable data - Semester {semester}, {academic_year}'
+    files = ', '.join(filenames) or 'imported timetable'
+    text = (f'An administrator ({requested_by}) asked to PERMANENTLY DELETE the imported '
+            f'timetable data for Semester {semester}, {academic_year} (files: {files}).\n\n'
+            'This removes the timetables, class sessions and student/teacher records that '
+            'were created by the import. It cannot be undone.\n\n'
+            f'Confirmation code:\n\n    {code}\n\n'
+            f'The code expires in {minutes} minutes. If you did not expect this, do not share '
+            'the code - nothing will be deleted.\n\n'
+            '- Aditya University - Faculty Feedback System')
+    html = (f'<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto">'
+            f'<h2 style="color:#B3261E">Confirm timetable import deletion</h2>'
+            f'<p>An administrator (<b>{escape(requested_by)}</b>) asked to '
+            f'<b>permanently delete</b> the imported timetable data for '
+            f'<b>Semester {semester}, {escape(academic_year)}</b>.</p>'
+            f'<p style="color:#5A6473">Files: {escape(files)}</p>'
+            f'<p style="font-size:32px;letter-spacing:8px;font-weight:700;color:#B3261E;'
+            f'background:#FDECEA;padding:14px 18px;border-radius:10px;text-align:center">{code}</p>'
+            f'<p style="color:#5A6473">Expires in {minutes} minutes. If you did not expect this, '
+            f'do not share the code.</p></div>')
+    return subject, text, html
+
+
 def account_removed_email(role, name, emp_id):
     """Return (subject, text, html) telling a HOD/Dean their account was removed."""
     from html import escape

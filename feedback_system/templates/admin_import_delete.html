@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+{% block title %}Confirm import deletion — Admin{% endblock %}
+{% block body %}
+<div class="container page">
+  <div class="page-header"><h1>Confirm permanent deletion</h1></div>
+  <div class="card" style="border-left:4px solid #B3261E;max-width:640px">
+    <p>You are about to <strong>permanently delete</strong> the imported timetable data for
+      <strong>Semester {{ row.semester }}, {{ row.academic_year }}</strong>. This cannot be undone.</p>
+    <ul>
+      <li>{{ counts.timetables }} timetable(s) and {{ counts.sessions }} class session(s)</li>
+      <li>{{ counts.students }} student enrollment(s) and {{ counts.teachers }} teacher(s) linked to them</li>
+      <li>Student/teacher accounts created by the import are removed only when nothing else
+        (other semesters, feedback, notifications, security setup) refers to them.</li>
+    </ul>
+    <p class="muted">Files removed from the list:
+      {% for f in files %}<strong>{{ f.filename }}</strong>{% if not loop.last %}, {% endif %}{% endfor %}.
+      Existing forms and feedback are not touched; deletion is refused if any depend on this data.</p>
+    <p class="muted">A 6-digit confirmation code was sent to the deletion-approval e-mail
+      ({{ masked }}). It expires in 10 minutes.</p>
+    <form method="post" action="{{ url_for('admin.import_delete_confirm', import_id=row.id) }}">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <label>Confirmation code
+        <input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required autocomplete="off"></label>
+      <div style="margin-top:.75rem">
+        <button class="btn btn-danger" type="submit">Delete permanently</button>
+        <a class="btn" href="{{ url_for('admin.import_excel') }}">Cancel</a>
+      </div>
+    </form>
+    <form method="post" action="{{ url_for('admin.import_delete_request', import_id=row.id) }}" style="margin-top:.75rem">
+      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+      <button class="btn small" type="submit">Resend code</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
