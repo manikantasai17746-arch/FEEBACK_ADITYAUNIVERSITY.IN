@@ -60,6 +60,15 @@ body.role-hod .perf-welcome.au-head{align-items:center;flex-wrap:nowrap;padding-
 .rf-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0b2347;color:#fff;padding:10px 16px;border-radius:10px;font-size:.88rem;z-index:100001;display:none;max-width:90vw}
 .rf-toast.on{display:block}
 .rf-ov[hidden],#rfPubSel[hidden]{display:none!important}
+.rf-search{position:relative;display:inline-flex;align-items:center}
+.rf-search input{width:280px;max-width:100%;padding:6px 30px 6px 12px;border:1px solid var(--line,#dfe5ef);border-radius:999px;font:inherit;font-size:.86rem;background:var(--card,#fff);color:var(--ink,#1f2733)}
+.rf-search input::-webkit-search-cancel-button{display:none}
+.rf-x{position:absolute;right:8px;border:0;background:none;cursor:pointer;font-size:1.1rem;line-height:1;color:var(--muted,#5b6a82)}
+.rf-x[hidden]{display:none}
+.rf-tbl mark{background:#fff0a8;color:inherit;border-radius:3px;padding:0 1px}
+.rf-late{display:block;color:#9a2a1e;font-weight:600;margin-top:4px}
+.rf-empty{padding:1.4rem;text-align:center;color:var(--muted,#5b6a82);margin:0}
+.rf-empty[hidden]{display:none}
 
 /* ===== pending (HOD Overview) ===== */
 .pd-ctl{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:flex-end;margin-bottom:.4rem}

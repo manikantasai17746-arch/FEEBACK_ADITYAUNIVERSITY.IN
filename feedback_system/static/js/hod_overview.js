@@ -51,20 +51,67 @@
   var rf = document.getElementById('rfForm');
   if (rf) {
     var rows = $$('tbody tr', rf), chips = $$('.rf-chip', rf), all = $('#rfAll'), pub = $('#rfPubSel');
-    function drafts() { return $$('input[name=form_ids]:not(:disabled)', rf); }
+    var qBox = $('#rfQ'), qClr = $('#rfQx'), emptyMsg = $('#rfEmpty'), flt = 'all', term = '';
+    rows.forEach(function (r) { var s = r.querySelector('.rf-sub'); if (s) s.setAttribute('data-orig', s.textContent); });
+    function esc(t) { return t.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+    function mark(el) {                       /* highlight the search term in the subject / faculty line */
+      var t = el.getAttribute('data-orig'), i = term ? t.toLowerCase().indexOf(term) : -1;
+      el.innerHTML = i < 0 ? esc(t) : esc(t.slice(0, i)) + '<mark>' + esc(t.slice(i, i + term.length)) + '</mark>' + esc(t.slice(i + term.length));
+    }
+    function drafts() { return $$('input[name=form_ids]:not(:disabled)', rf).filter(function (c) { return !c.closest('tr').hidden; }); }
     function upd() {
-      var d = drafts(), n = d.filter(function (c) { return c.checked; }).length;
+      var d = drafts(), n = $$('input[name=form_ids]:checked:not(:disabled)', rf).length;
       pub.disabled = !n; pub.textContent = 'Publish selected (' + n + ')';
       if (all) { all.checked = d.length > 0 && n === d.length; all.indeterminate = n > 0 && n < d.length; }
       rows.forEach(function (r) { var c = r.querySelector('input[name=form_ids]'); r.classList.toggle('rf-sel', !!(c && c.checked && !c.disabled)); });
     }
+    function matches(r) { return !term || (r.getAttribute('data-q') || '').indexOf(term) > -1; }
+    function apply() {                        /* status chip + search together; counts follow the search */
+      var counts = { all: 0, draft: 0, open: 0, closed: 0 }, shown = 0;
+      rows.forEach(function (r) {
+        var st = r.getAttribute('data-status'), m = matches(r);
+        if (m) { counts.all++; if (counts[st] !== undefined) counts[st]++; }
+        var vis = m && (flt === 'all' || st === flt);
+        r.hidden = !vis; if (vis) shown++;
+        var c = r.querySelector('input[name=form_ids]');
+        if (c && !vis) c.checked = false;     /* never publish a draft the person cannot see */
+        var sub = r.querySelector('.rf-sub'); if (sub) mark(sub);
+      });
+      chips.forEach(function (c) { var k = c.getAttribute('data-flt'); c.textContent = c.getAttribute('data-lbl') + ' (' + counts[k] + ')'; });
+      if (emptyMsg) {
+        emptyMsg.hidden = shown > 0;
+        emptyMsg.textContent = term ? 'No forms match \u201c' + qBox.value.trim() + '\u201d. Try an employee ID or a subject code or name.' : 'No forms in this status.';
+      }
+      if (qClr) qClr.hidden = !term;
+      upd();
+    }
     chips.forEach(function (c) {
       c.addEventListener('click', function () {
-        var f = c.getAttribute('data-flt');
+        flt = c.getAttribute('data-flt');
         chips.forEach(function (x) { x.setAttribute('aria-pressed', x === c ? 'true' : 'false'); });
-        rows.forEach(function (r) { r.hidden = f !== 'all' && r.getAttribute('data-status') !== f; });
+        apply();
       });
     });
+    if (qBox) {
+      qBox.addEventListener('input', function () { term = qBox.value.trim().toLowerCase(); apply(); });
+      qBox.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
+      qClr.addEventListener('click', function () { qBox.value = ''; term = ''; apply(); qBox.focus(); });
+    }
+    /* Close is allowed only before the deadline: a page left open past it disables the button
+       (the server refuses too, and closes the form by itself). */
+    function lateSweep() {
+      rows.forEach(function (r) {
+        var dl = r.getAttribute('data-deadline'), b = r.querySelector('[data-act=closed]');
+        if (!b || !dl) return;
+        var t = Date.parse(dl.length === 10 ? dl + 'T00:00:00Z' : (/[zZ]|[+-]\d\d:?\d\d$/.test(dl) ? dl : dl + 'Z'));
+        if (isNaN(t) || t > Date.now()) return;
+        b.disabled = true; b.removeAttribute('data-act');
+        b.title = 'The deadline has passed. This form closes automatically.';
+        var n = document.createElement('span'); n.className = 'rf-note rf-late';
+        n.textContent = 'Deadline passed \u2014 closes automatically'; b.parentNode.appendChild(n);
+      });
+    }
+    lateSweep(); setInterval(lateSweep, 30000);
     if (all) all.addEventListener('change', function () { drafts().forEach(function (c) { c.checked = all.checked; }); upd(); });
     rf.addEventListener('change', function (e) { if (e.target.name === 'form_ids') upd(); });
 

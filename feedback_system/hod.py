@@ -96,7 +96,8 @@ def dashboard():
                 ORDER BY f.created_at DESC, f.id DESC LIMIT 50""",
             tuple(branch_ids) + tt_a)
         _tm = services.form_teachers_map([f['id'] for f in stats['recent_forms']])
-        stats['recent_forms'] = [dict(f, teachers=_tm.get(f['id'], []))
+        stats['recent_forms'] = [dict(f, teachers=_tm.get(f['id'], []),
+                                      deadline_passed=services.deadline_passed(f))
                                  for f in stats['recent_forms']]
 
         # Overview counts per feedback category (main / second / lab).
@@ -245,7 +246,9 @@ def forms():
                   ORDER BY created_at DESC, id DESC"""
         forms_list = db.query(sql, tuple(args))
         _tm = services.form_teachers_map([f['id'] for f in forms_list])
-        forms_list = [dict(f, teachers=_tm.get(f['id'], [])) for f in forms_list]
+        forms_list = [dict(f, teachers=_tm.get(f['id'], []),
+                           deadline_passed=services.deadline_passed(f))
+                      for f in forms_list]
         # Counts (unfiltered by status/search for tiles) - one query, not four.
         c = db.query(
             f"""SELECT COUNT(*) AS total,
