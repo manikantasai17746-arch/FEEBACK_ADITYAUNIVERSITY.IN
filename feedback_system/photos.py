@@ -197,6 +197,110 @@ def _cell_code(value):
     return normalize_emp(str(value))
 
 
+def _incell_images(raw):
+    """Pictures inserted with Excel's "Place in Cell" / IMAGE().
+
+    openpyxl cannot see these (they live in ``xl/richData`` and the cell only
+    carries a ``vm`` pointer), so without this such rows were reported as
+    "no picture".  Returns ``{sheet title: {row number: image bytes}}``.
+    Best effort: any structural surprise yields an empty result.
+    """
+    import posixpath
+    import zipfile
+    from xml.etree import ElementTree as ET
+
+    def local(tag):
+        return tag.rsplit('}', 1)[-1]
+
+    try:
+        z = zipfile.ZipFile(io.BytesIO(raw))
+        names = set(z.namelist())
+        if 'xl/richData/richValueRel.xml' not in names or 'xl/metadata.xml' not in names:
+            return {}
+
+        def parse(name):
+            return ET.fromstring(z.read(name))
+
+        # richValueRel index -> media path
+        rels = {}
+        relf = 'xl/richData/_rels/richValueRel.xml.rels'
+        if relf in names:
+            for r in parse(relf):
+                rels[r.get('Id')] = posixpath.normpath(
+                    posixpath.join('xl/richData', r.get('Target', '')))
+        rel_ids = []
+        for el in parse('xl/richData/richValueRel.xml'):
+            rel_ids.append(next((v for k, v in el.attrib.items()
+                                 if local(k) == 'id'), None))
+
+        # which <v> of a rich value holds the image index
+        img_pos = 0
+        if 'xl/richData/rdrichvaluestructure.xml' in names:
+            for s in parse('xl/richData/rdrichvaluestructure.xml'):
+                keys = [k.get('n') for k in s if local(k.tag) == 'k']
+                if any(k and k.endswith('LocalImageIdentifier') for k in keys):
+                    img_pos = next(i for i, k in enumerate(keys)
+                                   if k and k.endswith('LocalImageIdentifier'))
+                    break
+        rich = []                                   # rich value index -> rel index
+        if 'xl/richData/rdrichvalue.xml' in names:
+            for rv in parse('xl/richData/rdrichvalue.xml'):
+                vals = [v.text for v in rv if local(v.tag) == 'v']
+                rich.append(int(vals[img_pos]) if len(vals) > img_pos and vals[img_pos] is not None
+                            and str(vals[img_pos]).isdigit() else None)
+
+        # metadata: vm (1-based) -> futureMetadata block -> rich value index
+        meta = parse('xl/metadata.xml')
+        future = []
+        for fm in meta:
+            if local(fm.tag) == 'futureMetadata':
+                for bk in fm:
+                    i = next((e.get('i') for e in bk.iter() if local(e.tag) == 'rvb'), None)
+                    future.append(int(i) if i is not None else None)
+        vmeta = []
+        for vm in meta:
+            if local(vm.tag) == 'valueMetadata':
+                for bk in vm:
+                    rc = next((e for e in bk if local(e.tag) == 'rc'), None)
+                    vmeta.append(int(rc.get('v')) if rc is not None else None)
+
+        def vm_to_media(vm):
+            if vm < 1 or vm > len(vmeta) or vmeta[vm - 1] is None:
+                return None
+            fi = vmeta[vm - 1]
+            rv = future[fi] if fi < len(future) and future[fi] is not None else fi
+            ri = rich[rv] if rv < len(rich) else None
+            rid = rel_ids[ri] if ri is not None and ri < len(rel_ids) else None
+            path = rels.get(rid)
+            return z.read(path) if path in names else None
+
+        # sheet title -> worksheet part
+        wb_rels = {r.get('Id'): r.get('Target') for r in
+                   parse('xl/_rels/workbook.xml.rels')}
+        out = {}
+        for sh in parse('xl/workbook.xml').iter():
+            if local(sh.tag) != 'sheet':
+                continue
+            rid = next((v for k, v in sh.attrib.items() if local(k) == 'id'), None)
+            target = (wb_rels.get(rid) or '').lstrip('/')
+            part = target if target.startswith('xl/') else posixpath.join('xl', target)
+            if part not in names:
+                continue
+            rows = {}
+            for c in parse(part).iter():
+                if local(c.tag) == 'c' and c.get('vm'):
+                    m = re.match(r'[A-Z]+(\d+)$', c.get('r', ''))
+                    if m and int(m.group(1)) not in rows:
+                        data = vm_to_media(int(c.get('vm')))
+                        if data:
+                            rows[int(m.group(1))] = data
+            if rows:
+                out[sh.get('name')] = rows
+        return out
+    except Exception:
+        return {}
+
+
 def read_photo_workbook(raw):
     """Read the college sheet. Returns (entries, no_image, problems).
 
@@ -216,6 +320,7 @@ def read_photo_workbook(raw):
                         'password-protected file?']
     entries, no_image, seen = [], [], set()
     found_header = False
+    incell = _incell_images(raw)
     for ws in wb.worksheets:
         head = None
         for row in ws.iter_rows(min_row=1, max_row=40):
@@ -252,6 +357,9 @@ def read_photo_workbook(raw):
             except Exception:
                 continue
             by_code.setdefault(listed[row_no][0], (row_no, data))
+        for row_no, data in incell.get(ws.title, {}).items():
+            if row_no in listed:
+                by_code.setdefault(listed[row_no][0], (row_no, data))
         for row_no, (code, name) in listed.items():
             if code in seen:
                 continue
@@ -276,7 +384,20 @@ def import_photo_workbook(raw, actor_id, overwrite=True):
     """Apply the college sheet. Returns a result dict for the admin page."""
     entries, no_image, problems = read_photo_workbook(raw)
     result = {'problems': problems, 'saved': [], 'replaced': [], 'skipped': [],
-              'unmatched': [], 'invalid': [], 'no_image': no_image}
+              'unmatched': [], 'invalid': [], 'no_image': no_image, 'warnings': []}
+    if no_image and not problems:
+        try:
+            import zipfile
+            media = [n for n in zipfile.ZipFile(io.BytesIO(raw)).namelist()
+                     if n.startswith('xl/media/')]
+        except Exception:
+            media = []
+        if len(media) > len(entries):
+            result['warnings'].append(
+                f'The file contains {len(media)} pictures but only {len(entries)} could be '
+                f'matched to an Emp.Code row. Pictures must sit on the row of their teacher '
+                f'(Insert → Pictures → Place Over Cells, or Place in Cell). Pictures that '
+                f'float freely on the sheet, or are grouped, cannot be matched.')
     for e in entries:
         emp = find_employee(e['emp_code'])
         if not emp:

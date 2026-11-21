@@ -24,7 +24,7 @@
 <div class="teacher-card">
     {% if profile and profile.emp_code %}
   <img class="photo"
-       src="{{ url_for('static', filename='img/teachers/' ~ profile.emp_code ~ '.jpg') }}"
+       src="{{ url_for('photos.serve', emp_code=profile.emp_code) }}"
        alt="{{ tname }}"
        onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
   {% endif %}

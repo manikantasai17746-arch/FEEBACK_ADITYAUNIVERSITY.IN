@@ -40,7 +40,7 @@
       <div class="band-card">
         <div class="band-photo">
           {% if r.teacher_emp_code %}
-          <img src="{{ url_for('static', filename='img/teachers/' ~ r.teacher_emp_code ~ '.jpg') }}"
+          <img src="{{ url_for('photos.serve', emp_code=r.teacher_emp_code) }}"
                alt="{{ tname }}"
                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
           {% endif %}
