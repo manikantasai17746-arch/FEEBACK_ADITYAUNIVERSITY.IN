@@ -23,6 +23,8 @@
   <div class="tile warn"><div class="num">{{ closed|length }}</div><div class="lbl">Closed</div></div>
 </div>
 
+{% if report %}{% include 'partials/student_issue_form.html' %}{% endif %}
+
 {% if not sections %}
 <div class="card">
   {{ m.empty('No feedback forms yet.', 'New forms will appear here when your administrator publishes them.') }}

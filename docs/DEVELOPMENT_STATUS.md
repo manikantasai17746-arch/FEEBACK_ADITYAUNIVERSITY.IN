@@ -280,3 +280,7 @@ Submitting feedback keeps the university loader active through the navigation to
 ## Student feedback notifications (2026-11-20)
 
 Publishing Main Faculty, Lab, or Second Faculty feedback records notices for eligible students. My Feedback and Notifications check for outstanding forms during their final 24 hours and record one reminder per form. See the [notification handoff](PHASE_HANDOFFS/STUDENT_FEEDBACK_NOTIFICATIONS_HANDOFF.md).
+
+## Student Complaints (2026-11-21)
+
+My Feedback offers an optional college issue report after the student completes their eligible published forms. HODs review their departments' complaints, and Deans review complaints across departments. Both can update statuses. See the [Student Complaints handoff](PHASE_HANDOFFS/STUDENT_COMPLAINTS_HANDOFF.md).
