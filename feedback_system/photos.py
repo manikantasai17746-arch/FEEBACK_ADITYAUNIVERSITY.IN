@@ -341,7 +341,11 @@ def _avatar_svg(label):
 
 
 def _cache_headers(resp, etag):
-    resp.headers['Cache-Control'] = 'private, max-age=300, must-revalidate'
+    # ``no-cache`` = the browser may keep a copy but must ask the server (cheap
+    # 304 via the ETag) before every reuse.  A fixed ``max-age`` made a browser
+    # that had already shown the initials avatar keep showing it for minutes after
+    # a photo was imported / replaced, even though the photo was saved.
+    resp.headers['Cache-Control'] = 'private, no-cache'
     resp.headers['ETag'] = f'"{etag}"'
     resp.headers['X-Content-Type-Options'] = 'nosniff'
     return resp
@@ -356,12 +360,18 @@ def serve(emp_code):
     code = normalize_emp(emp_code)
     if not code:
         abort(404)
-    photo = get_photo(code)
-    if photo:
-        etag = hashlib.md5(photo['data']).hexdigest()
+    meta = photo_meta(code)
+    if meta:
+        # ETag from metadata so an unchanged photo is answered with a 304
+        # without loading the image bytes from the database.
+        etag = hashlib.md5(
+            f"{meta['filename']}|{meta['size_bytes']}|{meta['updated_at']}".encode()
+        ).hexdigest()
         if request.headers.get('If-None-Match', '').strip('"') == etag:
             return _cache_headers(Response(status=304), etag)
-        return _cache_headers(Response(photo['data'], mimetype=photo['mime']), etag)
+        photo = get_photo(code)
+        if photo:
+            return _cache_headers(Response(photo['data'], mimetype=photo['mime']), etag)
     legacy = _legacy_static_path(code)
     if legacy:
         with open(legacy, 'rb') as fh:
