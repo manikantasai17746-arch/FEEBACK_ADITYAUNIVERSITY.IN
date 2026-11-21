@@ -5,6 +5,10 @@
 **Documentation branch:** `docs/ai-agent-knowledge-base`  
 **Source baseline inspected:** GitHub `main` at `78c3cb9baa38b1e0168e9d4be2e63953e80216cd` (latest commit observed during preparation).
 
+## HOD pending reminders (2026-11-21)
+
+The HOD Pending submissions view now lists open forms with eligible non-submitters. A single request queues consolidated teacher emails across the HOD's authorized forms. Migration 29 and a scheduled reminder worker are required. See [HOD bulk reminder operations and verification](PHASE_HANDOFFS/HOD_BULK_REMINDERS.md).
+
 ## 1. Current state
 
 - Phases 3, 4, and 5B have handoff/verification documentation in the repository.

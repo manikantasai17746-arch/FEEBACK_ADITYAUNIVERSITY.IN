@@ -3,7 +3,7 @@ import json
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    url_for)
 
-from . import category_forms, complaints, db, services
+from . import category_forms, complaints, db, reminders, services
 from .feedback_categories import ScopeError
 from .security import (audit, current_user, role_required, require_branch_access,
                        scoped_branch_ids_or_none, scoped_branches, csrf_token,
@@ -1260,30 +1260,42 @@ def pending():
     """Per teacher: who has NOT submitted yet (roll numbers only)."""
     from . import mailer
     user = current_user()
-    branch_ids = [b['id'] for b in _hod_branches(user)]
-    forms = []
-    if branch_ids:
-        ph = ','.join('?' * len(branch_ids))
-        forms = db.query(
-            f"""SELECT id, title, status, deadline_at, subject_code, subject_name
-                FROM feedback_forms
-                WHERE branch_id IN ({ph}) AND is_deleted=0 AND status IN ('open','closed')
-                ORDER BY (status='open') DESC, created_at DESC, id DESC LIMIT 300""",
-            tuple(branch_ids))
+    forms = reminders.pending_forms(user)
     fid = request.args.get('form_id', type=int)
-    if fid is None and forms:
-        fid = forms[0]['id']
-    form, teachers = None, []
-    if fid:
-        form = _hod_form_or_403(fid)
-        teachers = services.pending_by_teacher(fid)
+    if fid is not None:
+        _pending_form_or_403(fid)
+    form = next((f for f in forms if f['id'] == fid), forms[0] if forms else None)
+    teachers = services.pending_by_teacher(form['id'], user) if form else []
     totals = {'teachers': len(teachers),
               'pending': sum(t['pending'] for t in teachers),
               'with_pending': sum(1 for t in teachers if t['pending'])}
     return render_template('hod_pending.html', user=user, forms=forms, form=form,
-                           teachers=teachers, totals=totals,
+                           teachers=teachers, totals=totals, run=reminders.latest_run(user['id']),
                            mail_ready=mailer.is_configured(),
                            can_email=bool(form and form['status'] == 'open'))
+
+
+@bp.post('/pending/email-all')
+@role_required('hod')
+def pending_email_all():
+    user = current_user()
+    previous = request.form.get('previous_run', type=int)
+    if previous is None or previous < 0:
+        abort(400)
+    if reminders.enqueue(user['id'], previous):
+        audit('hod.pending.bulk', 'reminder_runs', None, 'Queued department reminders')
+        flash('Bulk reminders queued.', 'success')
+    else:
+        flash('This reminder request was already queued. See the latest run below.', 'info')
+    return redirect(url_for('hod.pending'))
+
+
+def _pending_form_or_403(fid):
+    form = _hod_form_or_403(fid)
+    timetables = scoped_timetable_ids(current_user())
+    if timetables is not None and form['timetable_id'] not in timetables:
+        abort(403)
+    return form
 
 
 @bp.route('/pending/<int:fid>/teacher/<int:tid>.pdf')
@@ -1291,8 +1303,8 @@ def pending():
 def pending_pdf(fid, tid):
     """Preview/download the exact PDF that the e-mail button sends."""
     from flask import Response
-    form = _hod_form_or_403(fid)
-    entry = next((t for t in services.pending_by_teacher(fid)
+    form = _pending_form_or_403(fid)
+    entry = next((t for t in services.pending_by_teacher(fid, current_user())
                   if t['teacher_user_id'] == tid), None)
     if not entry:
         abort(404)
@@ -1306,12 +1318,12 @@ def pending_pdf(fid, tid):
 def pending_email(fid):
     """E-mail the PDF to one teacher (teacher_user_id) or to all with pending students."""
     user = current_user()
-    form = _hod_form_or_403(fid)
+    form = _pending_form_or_403(fid)
     back = url_for('hod.pending', form_id=fid)
-    if form['status'] != 'open':
+    if form['status'] != 'open' or services.deadline_passed(form):
         flash('Reminders can only be sent while the form is open.', 'error')
         return redirect(back)
-    entries = services.pending_by_teacher(fid)
+    entries = services.pending_by_teacher(fid, current_user())
     if request.form.get('all'):
         chosen = [e for e in entries if e['pending']]
     else:

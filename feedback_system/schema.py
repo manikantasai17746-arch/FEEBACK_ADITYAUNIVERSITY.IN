@@ -829,4 +829,24 @@ MIGRATIONS = [
             UNIQUE(student_user_id, submission_key))""",
         "CREATE INDEX IF NOT EXISTS ix_complaints_branch_semester ON student_complaints(branch_id, semester_id)",
     ]),
+    (29, "Durable HOD bulk reminder runs and delivery receipts", [
+        """CREATE TABLE reminder_runs(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hod_id INTEGER NOT NULL REFERENCES users(id),
+            previous_run INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'queued',
+            UNIQUE(hod_id, previous_run))""",
+        """CREATE TABLE reminder_forms(
+            run_id INTEGER NOT NULL REFERENCES reminder_runs(id),
+            teacher_id INTEGER NOT NULL REFERENCES users(id),
+            form_id INTEGER NOT NULL REFERENCES feedback_forms(id),
+            PRIMARY KEY(run_id, teacher_id, form_id))""",
+        """CREATE TABLE reminder_deliveries(
+            run_id INTEGER NOT NULL REFERENCES reminder_runs(id),
+            teacher_id INTEGER NOT NULL REFERENCES users(id),
+            status TEXT NOT NULL DEFAULT 'queued',
+            sending_at TEXT,
+            PRIMARY KEY(run_id, teacher_id))""",
+        "CREATE INDEX ix_reminder_work ON reminder_deliveries(run_id, status, teacher_id)",
+    ]),
 ]

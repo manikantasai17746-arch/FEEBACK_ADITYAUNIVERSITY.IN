@@ -177,54 +177,68 @@ def build_pending_rolls_pdf(teacher_name, emp_code, form_title, subjects, sectio
 
     Portrait A4, roll numbers laid out in a grid so the page stays short.
     """
-    styles = _styles()
+    return build_pending_forms_pdf('Pending feedback submissions', teacher_name, emp_code, [{
+        'title': form_title, 'subjects': subjects, 'sections': sections,
+        'deadline': deadline_text, 'rolls': rolls,
+    }], generated_at, hod_name)
+
+
+def build_pending_forms_pdf(title, teacher_name, emp_code, forms, generated_at='', hod_name=''):
+    """Group one teacher's pending rolls by form within a single attachment."""
+    from reportlab.lib.utils import simpleSplit
+
     buffer = BytesIO()
-    doc = BaseDocTemplate(
-        buffer, pagesize=A4,
-        leftMargin=16 * mm, rightMargin=16 * mm, topMargin=16 * mm, bottomMargin=16 * mm,
-        title='Pending feedback submissions', author='Faculty Feedback System')
-    frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='main',
-                  leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
-    doc.addPageTemplates([PageTemplate(id='page', frames=[frame])])
+    canvas = pdfcanvas.Canvas(buffer, pagesize=A4, pageCompression=1)
+    canvas.setTitle(title)
+    canvas.setAuthor('Faculty Feedback System')
+    width, height = A4
+    margin = 16 * mm
+    usable = width - 2 * margin
+    top = height - margin
+    bottom = margin + 12
+    y = top
 
-    from html import escape
-    story = [Paragraph('Pending feedback submissions', styles['title']),
-             Paragraph(escape(form_title or 'Feedback form'), styles['subtitle'])]
-    teacher = escape(teacher_name or 'Faculty') + (f' ({escape(str(emp_code))})' if emp_code else '')
-    meta = [('Faculty', teacher),
-            ('Subject', escape(', '.join(subjects)) if subjects else '—'),
-            ('Section', escape(', '.join(sections)) if sections else '—'),
-            ('Deadline', escape(deadline_text or 'No deadline')),
-            ('Students pending', str(len(rolls)))]
+    def end_page():
+        canvas.setFillColor(MUTED)
+        canvas.setFont('Helvetica', 8)
+        canvas.drawString(margin, margin / 2, 'Faculty Feedback System | Pending submissions')
+        canvas.drawRightString(width - margin, margin / 2, str(canvas.getPageNumber()))
+        canvas.showPage()
+
+    def line(text, bold=False, size=10):
+        nonlocal y
+        font = 'Helvetica-Bold' if bold else 'Helvetica'
+        for part in simpleSplit(str(text), font, size, usable):
+            if y < bottom + size:
+                end_page()
+                y = top
+            canvas.setFillColor(NAVY if bold else INK)
+            canvas.setFont(font, size)
+            canvas.drawString(margin, y, part)
+            y -= size + 4
+
+    line(title, bold=True, size=16)
+    teacher = teacher_name or 'Faculty'
+    line(f'{teacher} ({emp_code})' if emp_code else teacher)
     if hod_name:
-        meta.append(('Sent by', escape(hod_name)))
+        line(f'Sent by: {hod_name}')
     if generated_at:
-        meta.append(('Generated', escape(generated_at)))
-    for k, v in meta:
-        story.append(Paragraph(f'<b>{k}:</b> {v}', styles['meta']))
-    story.append(Spacer(1, 10))
-
-    if not rolls:
-        story.append(Paragraph('No pending students - everyone has submitted.', styles['empty']))
-    else:
-        story.append(Paragraph('Roll numbers who have not yet submitted:', styles['meta']))
-        story.append(Spacer(1, 4))
-        cols = 5
-        cell = ParagraphStyle('RollCell', parent=styles['cell'], fontName='Helvetica-Bold',
-                              fontSize=10, leading=13, alignment=1)
-        grid = [[Paragraph(escape(str(r)), cell) for r in rolls[i:i + cols]]
-                + [''] * (cols - len(rolls[i:i + cols]))
-                for i in range(0, len(rolls), cols)]
-        table = Table(grid, colWidths=[doc.width / cols] * cols)
-        table.setStyle(TableStyle([
-            ('GRID', (0, 0), (-1, -1), 0.4, LINE),
-            ('ROWBACKGROUNDS', (0, 0), (-1, -1), [colors.white, NAVY_SOFT]),
-            ('TOPPADDING', (0, 0), (-1, -1), 5), ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ]))
-        story.append(table)
-    doc.build(story, canvasmaker=_numbered_canvas(
-        'Faculty Feedback System - roll numbers only; no answers or names are shown'))
+        line(f'Generated: {generated_at}')
+    for form in forms:
+        if y < bottom + 100:
+            end_page()
+            y = top
+        y -= 8
+        line(form['title'] or 'Feedback form', bold=True, size=12)
+        line('Subject: ' + ', '.join(form['subjects']))
+        line('Section: ' + ', '.join(form['sections']))
+        line('Deadline: ' + form['deadline'])
+        rolls = form['rolls']
+        line(f'Pending roll numbers ({len(rolls)})', bold=True)
+        for start in range(0, len(rolls), 6):
+            line('    '.join(str(roll) for roll in rolls[start:start + 6]))
+    end_page()
+    canvas.save()
     return buffer.getvalue()
 
 

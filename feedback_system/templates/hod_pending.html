@@ -10,7 +10,7 @@
 </div>
 
 <div class="card">
-  <form method="get" class="btn-row" style="align-items:flex-end;gap:.75rem;flex-wrap:wrap">
+  <form action="{{ url_for('hod.pending') }}" method="get" class="btn-row" style="align-items:flex-end;gap:.75rem;flex-wrap:wrap">
     <div class="field" style="min-width:320px;margin:0"><label for="form_id">Feedback form</label>
       <select id="form_id" name="form_id" onchange="this.form.submit()">
         {% for f in forms %}
@@ -21,26 +21,35 @@
       </select></div>
     <noscript><button class="btn" type="submit">Show</button></noscript>
   </form>
-  {% if can_email and totals.with_pending %}
-  <form method="post" action="{{ url_for('hod.pending_email', fid=form.id) }}" style="margin-top:.75rem"
-        onsubmit="return confirm('Email the pending-roll PDF to {{ totals.with_pending }} teacher(s)?')">
+  {% if forms %}
+  <form method="post" action="{{ url_for('hod.pending_email_all') }}" style="margin-top:.75rem">
     <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <input type="hidden" name="all" value="1">
-    <button class="btn btn-accent" type="submit">✉ Email all teachers with pending ({{ totals.with_pending }})</button>
+    <input type="hidden" name="previous_run" value="{{ run.id if run else 0 }}">
+    <button class="btn btn-accent" type="submit" {{ 'disabled' if run and run.status != 'done' }}>Email all teachers with pending submissions</button>
+    <span class="sub">Across all {{ forms|length }} open forms listed here.</span>
   </form>
+  {% endif %}
+  {% if run %}
+  <p role="status">Reminder run #{{ run.id }} · {{ {'queued':'Queued','ready':'Processing','done':'Finished'}[run.status] }}
+    · Sent {{ run.counts.get('sent', 0) }} · Failed {{ run.counts.get('failed', 0) }}
+    · Skipped (no valid email) {{ run.counts.get('no_email', 0) }}
+    {% if run.counts.cleared %} · No longer pending or eligible {{ run.counts.cleared }}{% endif %}
+    {% if run.counts.unconfirmed %} · Delivery unconfirmed {{ run.counts.unconfirmed }}{% endif %}
+    <a href="{{ url_for('hod.pending', form_id=form.id if form else none) }}">Refresh status</a>
+  </p>
   {% endif %}
   {% if form %}
   <p class="sub" style="margin-top:.75rem">
     <strong>{{ totals.pending }}</strong> pending across <strong>{{ totals.teachers }}</strong> teacher(s).
     {% if form.deadline_at %}Deadline: {{ form.deadline_at|deadline }}.{% endif %}
     {% if not can_email %}This form is {{ form.status }}, so reminder emails are disabled.{% endif %}
-    {% if not mail_ready %}<br><em>Mail is not configured (MAIL_USER / MAIL_APP_PASSWORD); emails are only printed to the server console locally.</em>{% endif %}
+    {% if not mail_ready %}<br><em>Mail is not configured (MAIL_USER / MAIL_APP_PASSWORD); configure SMTP on the reminder worker before sending.</em>{% endif %}
   </p>
   {% endif %}
 </div>
 
 {% if not forms %}
-<div class="card"><p class="sub">No open or closed forms in your department yet.</p></div>
+<div class="card"><p class="sub">No open forms with pending submissions in your scope.</p></div>
 {% elif teachers %}
 <div class="card">
   <div class="table-wrap">

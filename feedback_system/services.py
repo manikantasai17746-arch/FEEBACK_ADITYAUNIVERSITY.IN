@@ -343,40 +343,88 @@ def not_submitted_students_for_form(form_id):
         ORDER BY u.roll""", (form_id, form_id))
 
 
-def pending_by_teacher(form_id):
-    """Pending (not yet submitted) eligible students of a form, grouped by teacher.
+# Completion rows are shared by the dropdown, individual PDFs, and the worker.
+# The live session membership and optional frozen snapshot match submit_feedback.
+_REMINDER_STUDENT_JOINS = """JOIN users u ON u.id=ss.student_user_id AND u.role='student' AND u.is_active=1
+    LEFT JOIN submissions sb ON sb.form_id=f.id AND sb.student_user_id=u.id"""
+_REMINDER_SNAPSHOT = """ AND (f.category IN ('subject_only','any') OR
+           NOT EXISTS (SELECT 1 FROM form_eligible_students e WHERE e.form_id=f.id)
+           OR EXISTS (SELECT 1 FROM form_eligible_students e
+                      WHERE e.form_id=f.id AND e.student_user_id=u.id))"""
 
-    Read-only: it never writes to ``submissions`` or ``answers``, and it only
-    exposes roll numbers plus counts - no names and no answer content.
 
-    A student is pending for a teacher when the student sits in one of that
-    teacher's covered sessions and has no submission for the form.  For
-    second-faculty forms the teacher is the confirmed second faculty member.
-    Returns a list of dicts sorted by teacher name.
-    """
-    form = get_form(form_id)
-    if not form:
-        return []
-    second = (form['category'] or 'main') == 'second'
-    rows = db.query("""SELECT cs.id AS session_id, cs.subject_code, cs.subject_name,
-            cs.teacher_user_id AS t1, sfa.second_teacher_user_id AS t2,
-            u.id AS student_id, u.roll AS roll, t.code AS timetable,
-            CASE WHEN sb.id IS NULL THEN 0 ELSE 1 END AS done
-        FROM form_sessions fs
+def reminder_sessions(user=None, *, open_only=True, student_details=False):
+    """Scoped form/session/faculty relations, before expanding student rosters."""
+    from .security import scoped_branch_ids_or_none, timetable_scope_sql
+    students = (
+        "JOIN session_students ss ON ss.session_id=cs.id " + _REMINDER_STUDENT_JOINS
+        if student_details else ""
+    )
+    sql = f"""FROM feedback_forms f
+        JOIN form_sessions fs ON fs.form_id=f.id
         JOIN class_sessions cs ON cs.id=fs.session_id AND cs.is_deleted=0
-        JOIN timetables t ON t.id=cs.timetable_id
-        JOIN session_students ss ON ss.session_id=cs.id
-        JOIN users u ON u.id=ss.student_user_id AND u.is_active=1
-        LEFT JOIN submissions sb ON sb.form_id=fs.form_id AND sb.student_user_id=u.id
-        LEFT JOIN second_faculty_assignments sfa
-               ON sfa.session_id=cs.id AND sfa.status='confirmed'
-        WHERE fs.form_id=?""", (form_id,))
+        JOIN timetables t ON t.id=cs.timetable_id AND t.is_deleted=0
+        {SFA_JOIN_SQL}
+        LEFT JOIN users faculty ON faculty.id={FACULTY_OF_FORM_SQL} AND faculty.is_active=1
+        {students}
+        WHERE f.is_deleted=0
+          AND (faculty.id IS NOT NULL OR f.category IN ('subject_only','any')
+               OR (COALESCE(f.category,'main')='main' AND (f.scope='subject' OR f.session_id IS NULL)))
+          AND (COALESCE(f.category,'main') NOT IN ('lab','second') OR
+               EXISTS (SELECT 1 FROM teacher_subject_settings ts
+                       WHERE ts.session_id=cs.id AND ts.lab_status='available'))
+          AND (COALESCE(f.category,'main') NOT IN ('second','lab') OR f.session_id=cs.id
+               OR (f.category='second' AND f.session_id IS NULL))
+          AND (COALESCE(f.category,'main')<>'second' OR
+               (sfa.status='confirmed' AND sfa.removed_at IS NULL AND sfa.session_id=cs.id
+                AND TRIM(COALESCE(sfa.second_emp_code,''))<>''
+                AND sfa.second_teacher_user_id<>cs.teacher_user_id
+                AND (sfa.main_teacher_user_id IS NULL OR sfa.main_teacher_user_id=cs.teacher_user_id)))"""
+    if student_details:
+        sql += " AND faculty.id IS NOT NULL" + _REMINDER_SNAPSHOT
+    args = ()
+    if open_only:
+        sql += " AND f.status='open' AND (f.deadline_at IS NULL OR f.deadline_at>?)"
+        args = (_utc_now_iso(),)
+    if user is not None:
+        branches = tuple(scoped_branch_ids_or_none(user) or ())
+        ph = ','.join('?' * len(branches)) or 'NULL'
+        sql += f' AND f.branch_id IN ({ph}) AND t.branch_id IN ({ph})'
+        args += branches + branches
+        for column in ('f.timetable_id', 't.id'):
+            clause, params = timetable_scope_sql(user, column)
+            sql += clause
+            args += params
+    return sql, args
+
+
+def qualifying_reminder_sessions(user):
+    sql, args = reminder_sessions(user)
+    return (sql + " AND EXISTS (SELECT 1 FROM session_students ss " + _REMINDER_STUDENT_JOINS
+            + " WHERE ss.session_id=cs.id AND sb.id IS NULL " + _REMINDER_SNAPSHOT + ")", args)
+
+
+def reminder_rows(form_ids, user=None, *, pending_teacher=None):
+    sql, args = reminder_sessions(user, open_only=pending_teacher is not None, student_details=True)
+    ph = ','.join('?' * len(form_ids))
+    sql += f' AND f.id IN ({ph})'
+    args += tuple(form_ids)
+    if pending_teacher is not None:
+        sql += " AND sb.id IS NULL AND faculty.id=?"
+        args += (pending_teacher,)
+    return db.query("""SELECT f.id AS form_id, f.title, f.category, f.deadline_at,
+            faculty.id AS teacher_id, faculty.name AS teacher_name, faculty.emp_code, faculty.email,
+            cs.subject_code, cs.subject_name, u.id AS student_id, u.roll, t.code AS timetable,
+            CASE WHEN sb.id IS NULL THEN 0 ELSE 1 END AS done """ + sql, args)
+
+
+def pending_by_teacher(form_id, user=None):
+    """Completion details for the individual form page and PDF actions."""
+    rows = reminder_rows([form_id], user)
     groups = {}
     for r in rows:
-        tid = r['t2'] if second else r['t1']
-        if not tid:
-            continue
-        g = groups.setdefault(tid, {'teacher_user_id': tid, 'eligible': set(),
+        tid = r['teacher_id']
+        g = groups.setdefault(tid, {'teacher_user_id': tid, 'faculty': r, 'eligible': set(),
                                     'submitted': set(), 'pending': {},
                                     'subjects': {}, 'sections': set()})
         g['eligible'].add(r['student_id'])
@@ -387,20 +435,14 @@ def pending_by_teacher(form_id):
             g['submitted'].add(r['student_id'])
         else:
             g['pending'][r['student_id']] = r['roll']
-    if not groups:
-        return []
-    ids = list(groups)
-    ph = ','.join('?' * len(ids))
-    info = {t['id']: t for t in db.query(
-        f'SELECT id, name, emp_code, email FROM users WHERE id IN ({ph})', tuple(ids))}
     out = []
     for tid, g in groups.items():
-        t = info.get(tid)
+        t = g['faculty']
         out.append({
             'teacher_user_id': tid,
-            'teacher_name': (t['name'] if t else None) or 'Unknown faculty',
-            'emp_code': t['emp_code'] if t else None,
-            'email': ((t['email'] if t else None) or '').strip(),
+            'teacher_name': t['teacher_name'] or 'Unknown faculty',
+            'emp_code': t['emp_code'],
+            'email': (t['email'] or '').strip(),
             'eligible': len(g['eligible']),
             'submitted': len(g['submitted']),
             'pending': len(g['pending']),
