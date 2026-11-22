@@ -354,7 +354,7 @@ def faculty_scores_for_branches(
                ff.snapshot_subject_name AS subject_name,
                ff.snapshot_branch AS branch_code,
                ff.category,
-               ff.academic_year_id, ff.semester_id, ff.branch_id,
+               ff.academic_year_id, ff.semester_id, ff.branch_id, ff.timetable_id,
                u.id AS teacher_user_id,
                u.name AS teacher_name, u.emp_code AS teacher_emp_code,
                (SELECT COUNT(*) FROM submissions s WHERE s.form_id = ff.id) AS response_count
