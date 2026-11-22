@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% block title %}Round comparison — {{ teacher.name }} — HOD{% endblock %}
+{% block head %}
+<style>
+  .rc-wrap{max-width:1100px;margin:0 auto;padding:1rem}
+  .rc-back{font-size:.9rem}
+  .rc-card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1rem 1.1rem;margin:1rem 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+  .rc-card h2{font-size:1.05rem;margin:0 0 .15rem}
+  .rc-meta{font-size:.82rem;color:#475569;margin:0 0 .8rem}
+  .rc-tag{display:inline-block;background:#0b2f6b;color:#fff;border-radius:999px;padding:.1rem .55rem;font-size:.7rem;font-weight:700;margin-right:.35rem}
+  .rc-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem}
+  .rc-stat{background:#f1f5f9;border-radius:10px;padding:.7rem .8rem}
+  .rc-stat .n{font-size:1.35rem;font-weight:800;color:#0f172a}
+  .rc-stat .l{font-size:.75rem;color:#475569}
+  .improved{color:#15803d;font-weight:700}
+  .declined{color:#b91c1c;font-weight:700}
+  .nochange,.none{color:#64748b;font-weight:600}
+  .rc-note{font-size:.85rem;color:#475569;margin:.5rem 0 0}
+  .rc-chart{width:100%;height:auto;display:block;margin-top:.5rem}
+  .rc-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .rc-table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:520px}
+  .rc-table th,.rc-table td{padding:.5rem .45rem;border-bottom:1px solid #e2e8f0;text-align:left;white-space:nowrap}
+  .rc-table th{font-size:.75rem;color:#475569;text-transform:uppercase;letter-spacing:.03em}
+  .rc-table td.wrap{white-space:normal}
+  .rc-legend{display:flex;gap:1rem;flex-wrap:wrap;font-size:.8rem;color:#475569;margin:.4rem 0}
+  .rc-legend i{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-right:.35rem}
+  @media (max-width:600px){
+    .rc-wrap{padding:.6rem}
+    .rc-card{padding:.85rem}
+    .rc-stat .n{font-size:1.15rem}
+  }
+</style>
+{% endblock %}
+{% block body %}
+<div class="rc-wrap">
+  <p class="rc-back"><a href="{{ url_for('hod.comparison') }}">← Back to comparison</a></p>
+  <h1 style="margin:.2rem 0 0;font-size:1.4rem">{{ teacher.name }} <span class="muted">({{ teacher.emp_code }})</span></h1>
+  <p class="rc-meta">Each card is one subject, one class and one category (Main, Second or Lab). Different subjects, classes and categories are never combined.</p>
+
+  {% if not cards %}
+  <div class="rc-card"><p class="rc-meta" style="margin:0">No closed feedback rounds with responses for this teacher in your scope.</p></div>
+  {% endif %}
+
+  {% for c in cards %}
+  {% set s = c.series %}{% set h = c.headline %}{% set rk = c.rank %}
+  <section class="rc-card">
+    <h2>{{ s.subject_name }} <span class="muted">· {{ s.subject_code }}</span></h2>
+    <p class="rc-meta"><span class="rc-tag">{{ s.category_label }}</span> Class {{ s.timetable_id or '—' }} · {{ s.rounds|length }} round{{ '' if s.rounds|length == 1 else 's' }}</p>
+
+    <div class="rc-stats">
+      <div class="rc-stat"><div class="n">{{ '%.2f'|format(h.latest_score) }}%</div><div class="l">Latest completed round (Round {{ h.latest_round_no }})</div></div>
+      <div class="rc-stat"><div class="n">{% if h.previous_score is not none %}{{ '%.2f'|format(h.previous_score) }}%{% else %}—{% endif %}</div><div class="l">Previous round{% if h.previous_round_no %} (Round {{ h.previous_round_no }}){% endif %}</div></div>
+      <div class="rc-stat"><div class="n {{ h.trend }}">{% if h.change is not none %}{{ '%+.2f'|format(h.change) }} pts{% else %}—{% endif %}</div><div class="l">Change ({{ {'improved':'improved','declined':'declined','nochange':'no change'}.get(h.trend, '') }})</div></div>
+      <div class="rc-stat"><div class="n">{{ '%.2f'|format(h.average) }}%</div><div class="l">Average across {{ s.rounds|length }} round{{ '' if s.rounds|length == 1 else 's' }}</div></div>
+      <div class="rc-stat"><div class="n">{% if rk.rank %}#{{ rk.rank }} of {{ rk.of }}{% else %}—{% endif %}</div><div class="l">Rank by latest score<br><span style="font-size:.7rem">{{ rk.scope }}</span></div></div>
+    </div>
+    {% if h.message %}<p class="rc-note">{{ h.message }}</p>{% endif %}
+
+    {% set ch = c.chart %}
+    <div class="rc-legend">
+      <span><i style="background:#0b2f6b"></i>{{ teacher.name }}</span>
+      {% if ch.dept_dots %}<span><i style="background:#f97316;border-top:2px dashed #f97316;height:0"></i>Department average (same subject, class and category)</span>{% endif %}
+    </div>
+    <svg class="rc-chart" viewBox="0 0 {{ ch.width }} {{ ch.height }}" role="img" aria-label="Score trend across rounds">
+      {% for t in ch.ticks %}
+        <line x1="{{ ch.pad_l }}" x2="{{ ch.width - ch.pad_r }}" y1="{{ t.y }}" y2="{{ t.y }}" stroke="#e2e8f0"/>
+        <text x="{{ ch.pad_l - 8 }}" y="{{ t.y + 4 }}" text-anchor="end" font-size="11" fill="#64748b">{{ t.value }}%</text>
+      {% endfor %}
+      {% if ch.dept_line %}<polyline points="{{ ch.dept_line }}" fill="none" stroke="#f97316" stroke-width="2" stroke-dasharray="6 4"/>{% endif %}
+      {% if ch.dots|length > 1 %}<polyline points="{{ ch.teacher_line }}" fill="none" stroke="#0b2f6b" stroke-width="3"/>{% endif %}
+      {% for d in ch.dots %}
+        <circle cx="{{ d.x }}" cy="{{ d.y }}" r="5" fill="#0b2f6b"/>
+        <text x="{{ d.x }}" y="{{ d.y - 10 }}" text-anchor="middle" font-size="12" font-weight="700" fill="#0b2f6b">{{ '%.1f'|format(d.score) }}%</text>
+        <text x="{{ d.x }}" y="{{ ch.height - 12 }}" text-anchor="middle" font-size="12" fill="#475569">{{ d.label }}</text>
+      {% endfor %}
+      {% for d in ch.dept_dots %}<circle cx="{{ d.x }}" cy="{{ d.y }}" r="4" fill="#f97316"/>{% endfor %}
+    </svg>
+
+    <h3 style="font-size:.95rem;margin:1rem 0 .3rem">Round-by-round</h3>
+    <div class="rc-scroll">
+      <table class="rc-table">
+        <thead><tr><th>Round</th><th>Published</th><th>Score</th><th>Change</th><th>Department average</th><th>Responses</th></tr></thead>
+        <tbody>
+        {% for r in s.rounds %}
+          <tr>
+            <td><strong>Round {{ r.round_no }}</strong></td>
+            <td>{{ r.published_at or '—' }}</td>
+            <td><strong>{{ '%.2f'|format(r.score) }}%</strong></td>
+            <td class="{{ r.trend }}">{% if r.change is not none %}{{ '%+.2f'|format(r.change) }}{% else %}—{% endif %}</td>
+            <td>{% if s.dept_average.get(r.round_no) is not none %}{{ '%.2f'|format(s.dept_average[r.round_no]) }}%{% else %}—{% endif %}</td>
+            <td>{{ r.responses }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size:.95rem;margin:1rem 0 .3rem">Question-wise comparison{% if c.questions.from_round %} (Round {{ c.questions.from_round }} → Round {{ c.questions.to_round }}){% endif %}</h3>
+    {% if c.questions.rows %}
+    <div class="rc-scroll">
+      <table class="rc-table">
+        <thead><tr><th>Question</th><th>Round {{ c.questions.from_round }}</th><th>Round {{ c.questions.to_round }}</th><th>Change</th></tr></thead>
+        <tbody>
+        {% for q in c.questions.rows %}
+          <tr>
+            <td class="wrap">{{ q.text }}</td>
+            <td>{{ '%.2f'|format(q.from) }} / 5</td>
+            <td>{{ '%.2f'|format(q.to) }} / 5</td>
+            <td class="{{ q.trend }}">{{ '%+.2f'|format(q.change) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="rc-note">{{ 'No matching questions between the last two rounds.' if s.rounds|length >= 2 else 'Question-wise comparison appears when a second round is completed.' }}</p>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+{% endblock %}

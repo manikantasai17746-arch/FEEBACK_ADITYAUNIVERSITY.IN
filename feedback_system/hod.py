@@ -2950,6 +2950,92 @@ def comparison():
         mail_ready=mailer.is_configured())
 
 
+
+def _round_rows(branch_ids, academic_year_id=None, semester_id=None):
+    """Every scored form in scope, with its class (timetable) id, for the round comparison."""
+    from . import scoring
+    rows = [dict(r) for r in scoring.faculty_scores_for_branches(
+        branch_ids, academic_year_id=academic_year_id, semester_id=semester_id, min_responses=1)]
+    ids = [r['form_id'] for r in rows]
+    if ids:
+        ph = ','.join('?' * len(ids))
+        tt = {x['id']: x['timetable_id'] for x in db.query(
+            f'SELECT id, timetable_id FROM feedback_forms WHERE id IN ({ph})', tuple(ids))}
+        for r in rows:
+            r['timetable_id'] = tt.get(r['form_id'])
+    return rows
+
+
+def _chart_geometry(series):
+    """SVG coordinates for one series: teacher line, department-average line, round dots."""
+    import math
+    rounds = series['rounds']
+    dept = series['dept_average']
+    values = [r['score'] for r in rounds] + list(dept.values())
+    lo = max(0, math.floor(min(values) / 5) * 5 - 5)
+    hi = min(100, math.ceil(max(values) / 5) * 5 + 5)
+    if hi <= lo:
+        hi = lo + 10
+    width, height, pad_l, pad_r, pad_t, pad_b = 640, 260, 48, 24, 20, 40
+    n = len(rounds)
+
+    def x_at(i):
+        if n == 1:
+            return (pad_l + width - pad_r) / 2
+        return pad_l + i * (width - pad_l - pad_r) / (n - 1)
+
+    def y_at(v):
+        return pad_t + (hi - v) / (hi - lo) * (height - pad_t - pad_b)
+
+    teacher_pts = [(x_at(i), y_at(r['score']), r) for i, r in enumerate(rounds)]
+    dept_pts = [(x_at(i), y_at(dept[r['round_no']]))
+                for i, r in enumerate(rounds) if r['round_no'] in dept]
+    ticks = []
+    step = 5 if hi - lo <= 40 else 10
+    for v in range(lo, hi + 1, step):
+        ticks.append({'value': v, 'y': round(y_at(v), 1)})
+    return {
+        'width': width, 'height': height, 'pad_l': pad_l, 'pad_r': pad_r,
+        'baseline': round(height - pad_b, 1),
+        'ticks': ticks,
+        'teacher_line': ' '.join(f'{x:.1f},{y:.1f}' for x, y, _ in teacher_pts),
+        'dept_line': ' '.join(f'{x:.1f},{y:.1f}' for x, y in dept_pts),
+        'dots': [{'x': round(x, 1), 'y': round(y, 1), 'label': f"Round {r['round_no']}",
+                  'score': r['score']} for x, y, r in teacher_pts],
+        'dept_dots': [{'x': round(x, 1), 'y': round(y, 1)} for x, y in dept_pts],
+    }
+
+
+@bp.route('/comparison/rounds/<int:teacher_id>')
+@role_required('hod')
+def comparison_rounds(teacher_id):
+    """Round-by-round comparison: one card per teacher + subject + class + category."""
+    from . import round_comparison as rc
+    user = current_user()
+    branches = _hod_branches(user)
+    branch_ids = [b['id'] for b in branches]
+    if not branch_ids:
+        abort(403)
+    ay, sem, _q = _comparison_args()
+    all_series = rc.build_series(_round_rows(branch_ids, ay, sem))
+    mine = [s for s in all_series if s['teacher_user_id'] == teacher_id]
+    teacher = db.query('SELECT id, name, emp_code FROM users WHERE id=?', (teacher_id,), one=True)
+    if not teacher:
+        abort(404)
+    cards = []
+    for s in mine:
+        s['dept_average'] = rc.department_average_by_round(all_series, s)
+        cards.append({
+            'series': s,
+            'headline': rc.headline(s),
+            'rank': rc.department_rank(all_series, s),
+            'questions': rc.question_comparison(s),
+            'chart': _chart_geometry(s),
+        })
+    return render_template(
+        'hod_round_comparison.html', user=user, teacher=teacher, cards=cards,
+        filters={'academic_year_id': ay, 'semester_id': sem})
+
 @bp.route('/comparison/teacher/<int:teacher_id>')
 @role_required('hod')
 def comparison_teacher(teacher_id):
