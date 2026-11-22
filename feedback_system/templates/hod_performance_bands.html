@@ -40,19 +40,30 @@
   .sbp-counter{font-size:.85rem;color:var(--muted)}
   .sbp-btns .btn-accent:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
   .sbp-lead{font-size:.82rem;color:var(--muted)}
+  .sbp-cats{display:flex;gap:.5rem;flex-wrap:wrap;margin:.6rem 0 .2rem}
+  .sbp-cat{padding:.45rem 1rem;border-radius:999px;border:1px solid #cbd5e1;background:#fff;color:#0b2f6b;font-weight:600;text-decoration:none}
+  .sbp-cat.on{background:#0b2f6b;color:#fff;border-color:#0b2f6b}
 </style>
 {% endblock %}
 {% block body %}
 {% set fargs = {'academic_year_id': filters.academic_year_id, 'semester_id': filters.semester_id,
                 'branch_id': filters.branch_id, 'form_id': filters.form_id,
-                'timetable_id': filters.timetable_id, 'subject_code': filters.subject_code} %}
+                'timetable_id': filters.timetable_id, 'subject_code': filters.subject_code, 'category': category} %}
 <div class="container page sbp">
   <div class="card sbp-head">
     <h1>🎯 Teachers by Score Band</h1>
     <p class="sub">Click a band to see the teachers whose feedback score falls in that range, highest first.
       Use <strong>View result</strong> to open a teacher's full result.</p>
 
+    {% set base = {'academic_year_id': filters.academic_year_id, 'semester_id': filters.semester_id, 'branch_id': filters.branch_id, 'form_id': filters.form_id, 'timetable_id': filters.timetable_id, 'subject_code': filters.subject_code, 'band': band_key} %}
+    <div class="sbp-cats">
+      <a class="sbp-cat{% if not category %} on{% endif %}" href="{{ url_for('hod.performance_bands', **base) }}">All</a>
+      <a class="sbp-cat{% if category == 'main' %} on{% endif %}" href="{{ url_for('hod.performance_bands', category='main', **base) }}">Main Faculty</a>
+      <a class="sbp-cat{% if category == 'second' %} on{% endif %}" href="{{ url_for('hod.performance_bands', category='second', **base) }}">Second Faculty</a>
+      <a class="sbp-cat{% if category == 'lab' %} on{% endif %}" href="{{ url_for('hod.performance_bands', category='lab', **base) }}">Lab Faculty</a>
+    </div>
     <form method="get" action="{{ url_for('hod.performance_bands') }}" class="sbp-filters" id="sbp-filter-form">
+      {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
       <input type="hidden" name="band" value="{{ band_key }}">
       {% if filters.academic_year_id %}<input type="hidden" name="academic_year_id" value="{{ filters.academic_year_id }}">{% endif %}
       {% if filters.form_id %}<input type="hidden" name="form_id" value="{{ filters.form_id }}">{% endif %}

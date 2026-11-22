@@ -2556,7 +2556,7 @@ def _default_message_for(band_key):
 
 
 def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id,
-               timetable_id=None, subject_code=None):
+               timetable_id=None, subject_code=None, category=None):
     """All score bands with their rows (each row carries the teacher's email)."""
     from . import scoring
     scope_ids = [branch_id] if branch_id else branch_ids
@@ -2568,6 +2568,8 @@ def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id,
             timetable_ids=[timetable_id] if timetable_id else None,
             subject_codes=[subject_code] if subject_code else None)
     rows = [dict(r) for r in rows if r.get('overall_score') is not None]
+    if category:
+        rows = [r for r in rows if r.get('category') == category]
     ids = sorted({r['teacher_user_id'] for r in rows if r.get('teacher_user_id')})
     emails = {}
     if ids:
@@ -2621,6 +2623,9 @@ def performance_bands():
     form_id = request.args.get('form_id', type=int)
     timetable_id = request.args.get('timetable_id', type=int)
     subject_code = (request.args.get('subject_code') or '').strip()[:40] or None
+    category = (request.args.get('category') or '').strip().lower()
+    if category not in ('main', 'second', 'lab'):
+        category = ''
     band_key = (request.args.get('band') or '').strip()
     if branch_id and branch_id not in branch_ids:
         branch_id = None
@@ -2632,7 +2637,7 @@ def performance_bands():
         subject_code = None
 
     bands = _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id,
-                       timetable_id=timetable_id, subject_code=subject_code)
+                       timetable_id=timetable_id, subject_code=subject_code, category=category or None)
     valid_keys = {b['key'] for b in bands}
     if band_key not in valid_keys:
         band_key = next((b['key'] for b in bands if b['count']), bands[0]['key'])
@@ -2645,9 +2650,9 @@ def performance_bands():
 
     shown_total = _teacher_count(bands)
     any_filter = any([academic_year_id, semester_id, branch_id, form_id,
-                      timetable_id, subject_code])
+                      timetable_id, subject_code, category])
     if any_filter:
-        all_total = _teacher_count(_band_data(branch_ids, None, None, None, None))
+        all_total = _teacher_count(_band_data(branch_ids, None, None, None, None, category=category or None))
     else:
         all_total = shown_total
 
@@ -2659,11 +2664,11 @@ def performance_bands():
         mail_ready=mailer.is_configured(),
         semesters=db.query('SELECT id, number, label FROM semesters ORDER BY number'),
         timetables=timetables, subjects=subjects,
-        shown_total=shown_total, all_total=all_total,
+        shown_total=shown_total, all_total=all_total, category=category,
         filters={'academic_year_id': academic_year_id,
                  'semester_id': semester_id, 'branch_id': branch_id,
                  'form_id': form_id, 'timetable_id': timetable_id,
-                 'subject_code': subject_code})
+                 'subject_code': subject_code, 'category': category})
 
 
 @bp.route('/performance/bands/send', methods=['POST'])
