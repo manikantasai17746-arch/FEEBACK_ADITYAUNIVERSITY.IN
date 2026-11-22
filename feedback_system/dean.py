@@ -1245,6 +1245,32 @@ def action_edit(aid):
                            action=action, logs=logs, hods=hods)
 
 
+@bp.route('/actions/<int:aid>/delete', methods=['POST'])
+@role_required('dean')
+def action_delete(aid):
+    """Delete an improvement action (including one a HOD raised) and its discussion log.
+
+    Same scope as editing: the action must belong to one of the Dean's departments (or
+    have no department).  POST only; CSRF is enforced for every POST by init_csrf()."""
+    user = current_user()
+    branch_ids = {b['id'] for b in _dean_branches(user)}
+    action = db.query('SELECT id, title, branch_id, status, raised_by_role '
+                      'FROM improvement_actions WHERE id=?', (aid,), one=True)
+    if not action:
+        abort(404)
+    if action['branch_id'] and action['branch_id'] not in branch_ids:
+        abort(403)
+    conn = db.get_db()
+    conn.execute('DELETE FROM improvement_action_log WHERE action_id=?', (aid,))
+    conn.execute('DELETE FROM improvement_actions WHERE id=?', (aid,))
+    conn.commit()
+    audit('dean.action_delete', 'improvement_actions', aid,
+          f'{action["status"]}; raised_by={action["raised_by_role"] or "dean"}; '
+          f'title={(action["title"] or "")[:120]}')
+    flash('Action deleted.', 'success')
+    return redirect(url_for('dean.actions'))
+
+
 @bp.route('/performance')
 @role_required('dean')
 def performance():

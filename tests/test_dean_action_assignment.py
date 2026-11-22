@@ -173,3 +173,89 @@ def test_hod_actions_requires_hod_login(app):
     assert c.get('/hod/actions').status_code == 302
     dean = _login(app, '/dean/login', 'ADEAN')
     assert dean.get('/hod/actions').status_code == 403
+
+
+# --------------------------------------------------------------------------- #
+# Dean can delete improvement actions, including ones a HOD raised
+# --------------------------------------------------------------------------- #
+def _insert_action(title, branch_id, raised_by='dean', owner=None):
+    aid = db_module.insert_id(
+        """INSERT INTO improvement_actions(branch_id, title, status, priority, owner_user_id,
+               raised_by_role) VALUES(?,?,'planned','medium',?,?)""",
+        (branch_id, title, owner, raised_by))
+    db_module.execute(
+        "INSERT INTO improvement_action_log(action_id, note, kind) VALUES(?,?,'reply')",
+        (aid, 'a reply'))
+    return aid
+
+
+def _delete(c, aid, csrf=True):
+    tok = get_csrf(c.get('/dean/actions').get_data(as_text=True))
+    data = {'_csrf': tok} if csrf else {}
+    return c.post(f'/dean/actions/{aid}/delete', data=data, follow_redirects=False)
+
+
+def test_dean_deletes_an_action_and_its_log(app, seeded):
+    (_h1, b1) = seeded['hods'][0]
+    with app.app_context():
+        aid = _insert_action('Delete me (dean)', b1)
+    dean = _login(app, '/dean/login', 'ADEAN')
+    html = dean.get('/dean/actions').get_data(as_text=True)
+    assert f'/dean/actions/{aid}/delete' in html            # Delete button is listed
+    assert _delete(dean, aid).status_code == 302
+    with app.app_context():
+        assert db_module.query('SELECT id FROM improvement_actions WHERE id=?', (aid,), one=True) is None
+        assert db_module.query('SELECT id FROM improvement_action_log WHERE action_id=?', (aid,)) == []
+        log = db_module.query("SELECT detail FROM audit_log WHERE action='dean.action_delete' "
+                              "AND entity_id=?", (aid,), one=True)
+        assert log and 'Delete me (dean)' in log['detail']
+
+
+def test_dean_can_delete_an_action_raised_by_a_hod(app, seeded):
+    (h1, b1) = seeded['hods'][0]
+    with app.app_context():
+        aid = _insert_action('Raised by HOD1', b1, raised_by='hod', owner=h1)
+    dean = _login(app, '/dean/login', 'ADEAN')
+    assert 'Raised by HOD' in dean.get('/dean/actions').get_data(as_text=True)
+    assert _delete(dean, aid).status_code == 302
+    with app.app_context():
+        assert db_module.query('SELECT id FROM improvement_actions WHERE id=?', (aid,), one=True) is None
+    # and it is gone from the HOD's own list too
+    hod1 = _login(app, '/hod/login', 'AHOD1')
+    assert 'Raised by HOD1' not in hod1.get('/hod/actions').get_data(as_text=True)
+
+
+def test_delete_needs_post_and_csrf_and_keeps_the_action(app, seeded):
+    (_h, b1) = seeded['hods'][0]
+    with app.app_context():
+        aid = _insert_action('Keep me', b1)
+    dean = _login(app, '/dean/login', 'ADEAN')
+    assert dean.get(f'/dean/actions/{aid}/delete').status_code == 405
+    assert _delete(dean, aid, csrf=False).status_code in (400, 403)
+    with app.app_context():
+        assert db_module.query('SELECT id FROM improvement_actions WHERE id=?', (aid,), one=True)
+
+
+def test_delete_is_limited_to_the_deans_own_departments(app, seeded):
+    (_h3, b3) = seeded['hods'][2]                      # HOD3 / its department is not this Dean's
+    with app.app_context():
+        aid = _insert_action('Other department', b3)
+        assert db_module.query('SELECT id FROM improvement_actions WHERE id=?', (aid,), one=True)
+    dean = _login(app, '/dean/login', 'ADEAN')
+    assert _delete(dean, aid).status_code == 403
+    assert dean.post('/dean/actions/999999/delete',
+                     data={'_csrf': get_csrf(dean.get('/dean/actions').get_data(as_text=True))}
+                     ).status_code == 404
+    with app.app_context():
+        assert db_module.query('SELECT id FROM improvement_actions WHERE id=?', (aid,), one=True)
+
+
+def test_hod_cannot_use_the_dean_delete_route(app, seeded):
+    (_h, b1) = seeded['hods'][0]
+    with app.app_context():
+        aid = _insert_action('HOD must not delete', b1)
+    hod1 = _login(app, '/hod/login', 'AHOD1')
+    r = hod1.post(f'/dean/actions/{aid}/delete', data={}, follow_redirects=False)
+    assert r.status_code in (302, 400, 403)
+    with app.app_context():
+        assert db_module.query('SELECT id FROM improvement_actions WHERE id=?', (aid,), one=True)

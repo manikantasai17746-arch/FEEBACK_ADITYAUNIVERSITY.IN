@@ -85,7 +85,7 @@
   function bindDialog(dlg) {
     dlg.addEventListener('close', function () {
       doc.documentElement.classList.remove('rd-lock');
-      if (lastTrigger && doc.contains(lastTrigger)) { try { lastTrigger.focus(); } catch (e) {} }
+      if (lastTrigger && doc.contains(lastTrigger)) { try { lastTrigger.focus({ preventScroll: true }); } catch (e) {} }   // keep the page where it was
     });
     dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });   // backdrop
   }
@@ -94,21 +94,23 @@
   var rd = $('#result-dialog');
   if (rd) {
     bindDialog(rd);
-    var slot = $('[data-rd-slot]', rd);
+    var slot = $('[data-rd-slot]', rd), seq = 0;
     doc.addEventListener('click', function (e) {
       var a = e.target.closest && e.target.closest('a[data-result-url]');
       if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.button) return;
       e.preventDefault();
+      var mine = ++seq;                                // only the latest click may open the popup
       fetch(a.dataset.resultUrl, { credentials: 'same-origin', headers: { 'X-Requested-With': 'fetch' } })
         .then(function (r) { if (!r.ok) throw new Error(r.status); return r.text(); })
         .then(function (html) {
+          if (mine !== seq || rd.open) return;         // superseded by a newer click, or already open
           slot.innerHTML = html;                       // server-rendered, auto-escaped template
           wireResult(slot);
           openDialog(rd, a);
           var x = $('[data-rd-close]', slot); if (x) x.focus();
           slot.scrollTop = 0;
         })
-        .catch(function () { window.location.href = a.href; });   // full page still works
+        .catch(function () { if (mine === seq) window.location.href = a.href; });   // full page still works
     });
   }
   function wireResult(root) {
