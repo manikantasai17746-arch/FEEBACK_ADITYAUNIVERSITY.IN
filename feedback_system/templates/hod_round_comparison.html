@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Round comparison — {{ teacher.name }} — HOD{% endblock %}
+{% block title %}Round comparison — {{ teacher.name }} — {{ 'Dean' if request.blueprint == 'dean' else 'HOD' }}{% endblock %}
 {% block head %}
 <style>
   .rc-wrap{max-width:1100px;margin:0 auto;padding:1rem}
@@ -39,7 +39,7 @@
 {% endblock %}
 {% block body %}
 <div class="rc-wrap">
-  <p class="rc-back"><a href="{{ url_for('hod.comparison') }}">← Back to comparison</a></p>
+  <p class="rc-back"><a href="{{ url_for(request.blueprint ~ '.comparison') }}">← Back to comparison</a></p>
   {% set tname = teacher.name or 'Faculty' %}
   {% set initials = (tname.split()|map('first')|join('')|upper)[:2] %}
   <div class="rc-head">

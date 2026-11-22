@@ -142,3 +142,57 @@ def test_other_roles_cannot_open_the_pages(app):
     client = app.test_client()
     assert client.get('/hod/comparison').status_code in (302, 401, 403)
     assert client.get('/dean/comparison').status_code in (302, 401, 403)
+
+
+# --------------------------------------------------------------------------- #
+# Dean-level Multi-round Comparison: score bands, department filter, rounds page
+# --------------------------------------------------------------------------- #
+def _dean_client(app, monkeypatch, code):
+    branches = [{'id': 1, 'code': 'CSE', 'name': 'Computer Science'},
+                {'id': 2, 'code': 'ECE', 'name': 'Electronics'}]
+    monkeypatch.setattr(dean, '_dean_branches', lambda user: branches)
+    with app.app_context():
+        uid = _user('dean', code)
+        teacher_id = _user('teacher', code + '_T')
+    for r in ROWS:
+        r['teacher_user_id'] = teacher_id
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess['uid'] = uid
+    return client, teacher_id
+
+
+def test_dean_comparison_shows_bands_and_filters(app, monkeypatch, fake_scores):
+    client, teacher_id = _dean_client(app, monkeypatch, 'CMP_DEAN_B')
+    html = client.get('/dean/comparison').get_data(as_text=True)
+    assert 'Teachers by Score Band' in html
+    assert 'Compare performance' in html
+    assert f'/dean/comparison/rounds/{teacher_id}' in html
+    # Semester / category / department pills are present.
+    assert 'All semesters' in html and 'Main Faculty' in html and 'Lab Faculty' in html
+    assert 'All departments' in html and '>CSE<' in html and '>ECE<' in html
+    # The Dean page must not carry the HOD e-mail form.
+    assert 'performance_bands_send' not in html and '/hod/performance/bands/send' not in html
+
+
+def test_dean_comparison_ignores_out_of_scope_department(app, monkeypatch, fake_scores):
+    client, _ = _dean_client(app, monkeypatch, 'CMP_DEAN_S')
+    # branch 99 is not one of the Dean's departments: treated as "all departments".
+    page = client.get('/dean/comparison?branch_id=99')
+    assert page.status_code == 200
+    assert 'Teachers by Score Band' in page.get_data(as_text=True)
+    # A real department filter and an unknown category both render safely.
+    assert client.get('/dean/comparison?branch_id=1&category=lab').status_code == 200
+    assert client.get('/dean/comparison?category=bogus').status_code == 200
+
+
+def test_dean_round_comparison_page(app, monkeypatch, fake_scores):
+    client, teacher_id = _dean_client(app, monkeypatch, 'CMP_DEAN_R')
+    monkeypatch.setattr(hod, '_round_rows', lambda ids, ay=None, sem=None: [
+        dict(r, timetable_id=1, category='main') for r in ROWS])
+    page = client.get(f'/dean/comparison/rounds/{teacher_id}')
+    assert page.status_code == 200
+    html = page.get_data(as_text=True)
+    assert 'Back to comparison' in html and '/dean/comparison' in html
+    assert '/hod/comparison' not in html
+    assert client.get('/dean/comparison/rounds/999999').status_code == 404
