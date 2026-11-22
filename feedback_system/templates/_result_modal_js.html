@@ -1,9 +1,9 @@
-<div id="rm-overlay" hidden style="position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1000;display:flex;align-items:flex-start;justify-content:center;padding:2.5vh 0;overflow:auto"></div>
+<div id="rm-overlay" hidden style="position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:1000;align-items:flex-start;justify-content:center;padding:2.5vh 0;overflow:auto"></div>
 <script>
 (function(){
   var ov=document.getElementById('rm-overlay');
   if(!ov) return;
-  function close(){ ov.hidden=true; ov.innerHTML=''; document.body.style.overflow=''; }
+  function close(){ ov.hidden=true; ov.style.display='none'; ov.innerHTML=''; document.body.style.overflow=''; }
   function items(){ return [].slice.call(ov.querySelectorAll('[data-rm-list] .rm-cm')); }
   function state(){ return ov.dataset.filter || 'all'; }
   function apply(){
@@ -26,7 +26,7 @@
       if(!r.ok) throw new Error('HTTP '+r.status); return r.text();
     }).then(function(html){
       ov.innerHTML=html; ov.dataset.filter='all'; ov.dataset.shown=5;
-      ov.hidden=false; document.body.style.overflow='hidden'; apply();
+      ov.hidden=false; ov.style.display='flex'; document.body.style.overflow='hidden'; apply();
     }).catch(function(){ alert('Could not open this result. Please try again.'); });
   }
   document.addEventListener('click',function(e){
