@@ -953,7 +953,7 @@ html.dark-mode .ms-row:hover{background:#1e293b}
 .band-card .band-score{color:var(--bc)}
 .band-card .band-initials{background:var(--bc)}
 .band-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
-.band-card{display:grid;grid-template-columns:64px 1fr auto;gap:6px 12px;align-items:center;
+.band-card{display:grid;grid-template-columns:84px minmax(0,1fr) auto;gap:6px 12px;align-items:center;
   padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}
 .band-card .btn{grid-column:1 / -1;justify-content:center}
 .band-photo{width:84px;height:104px;flex:0 0 84px}
