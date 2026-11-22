@@ -1,4 +1,4 @@
-﻿"""HOD portal — department-scoped form management and results."""
+"""HOD portal — department-scoped form management and results."""
 import json
 from flask import (Blueprint, abort, flash, redirect, render_template, request,
                    url_for)
@@ -2792,7 +2792,7 @@ def performance_result(form_id):
     branch_ids = [b['id'] for b in branches]
     if not branch_ids:
         abort(403)
-    rows = [dict(r) for r in scoring.faculty_scores_for_branches(branch_ids, form_id=form_id)]
+    rows = [dict(r) for r in scoring.faculty_scores_for_branches(branch_ids, form_id=form_id, min_responses=1)]
     if not rows:
         abort(404)
     row = rows[0]
