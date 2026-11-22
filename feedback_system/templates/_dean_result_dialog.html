@@ -1,0 +1,101 @@
+{# Dean result popup body. Rendered by dean.performance_result and injected into
+   <dialog id="result-dialog"> by static/js/dean-performance.js.  Real data only:
+   scores, question averages and anonymous comment text + stars. No student identity,
+   no submission time, no section - the application does not expose them here. #}
+<div class="rd" data-page="5">
+{% for c in cards %}
+{% set r = c.row %}{% set mt = c.meta %}
+<section class="rd-card" aria-labelledby="rd-h-{{ loop.index }}">
+  <header class="rd-head">
+    <div class="rd-av">
+      {% if teacher.emp_code %}<img src="{{ url_for('photos.serve', emp_code=teacher.emp_code) }}" alt="" data-fallback>{% endif %}
+      <span class="rd-ini" {% if teacher.emp_code %}hidden{% endif %}>{{ initials }}</span>
+    </div>
+    <div class="rd-who">
+      <h2 id="rd-h-{{ loop.index }}" class="rd-name">{{ teacher.name }}</h2>
+      <p class="rd-sub">{{ r.subject_code or '' }} {{ r.subject_name or '' }} · {{ mt.branch_code or r.branch_code or '—' }}
+        {% if mt.semester %}· Sem {{ mt.semester }}{% endif %}{% if mt.timetable %}· {{ mt.timetable }}{% endif %}
+        {% if mt.academic_year %}· {{ mt.academic_year }}{% endif %}</p>
+    </div>
+    <div class="rd-score">
+      <strong>{% if c.score is not none %}{{ '%.2f'|format(c.score) }}%{% else %}N/A{% endif %}</strong>
+      <small>feedback score</small>
+    </div>
+    {% if loop.first %}<button type="button" class="rd-x" data-rd-close aria-label="Close">×</button>{% endif %}
+  </header>
+
+  <div class="rd-body">
+    <div class="rd-top">
+      <div><b>{{ c.responded }}</b><span>responses</span></div>
+      <div><b>{{ '%.2f'|format(c.avg5) if c.avg5 is not none else '—' }}</b><span>average / 5</span></div>
+      <div><b class="rd-band">{{ c.band_label or '—' }}</b><span>band</span></div>
+      <div><b>{{ c.eligible }}</b><span>eligible</span></div>
+    </div>
+
+    {% if loop.first %}
+    <h3 class="rd-h">Score by feedback category</h3>
+    <p class="rd-note">Each bar is one feedback form of this teacher (Main, Lab or Second Faculty)
+      for the same period.</p>
+    {% for k in categories %}
+    <div class="rd-cat{{ ' is-current' if k.current }}">
+      <div><span>{{ k.label }}{% if k.subject %} · {{ k.subject }}{% endif %}</span><b>{{ ('%.1f%%'|format(k.score)) if k.score is not none else 'N/A' }}</b></div>
+      <i><u style="width:{{ k.score if k.score is not none else 0 }}%"></u></i>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    {% if c.score is none %}
+    <p class="rd-note">{{ r.reason or 'Not enough responses to show question results for this form yet.' }}</p>
+    {% else %}
+    <h3 class="rd-h">Question-wise results</h3>
+    <div class="rd-scroll">
+    <table class="rd-table">
+      <thead><tr><th scope="col">#</th><th scope="col">Question</th><th scope="col">Avg / 5</th><th scope="col">Answers</th></tr></thead>
+      <tbody>
+      {% for q in r.criteria %}
+        <tr><td>{{ loop.index }}</td><td>{{ q.text }}</td>
+          <td>{% if q.score is none %}N/A{% else %}{{ '%.2f'|format(q.score / 20) }}{% endif %}</td>
+          <td>{{ q.valid_answers }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    {% endif %}
+
+    <h3 class="rd-h">Student comments ({{ c.comments|length }})</h3>
+    <p class="rd-note">Comments are anonymous. Roll numbers, names, sections and dates are never shown.
+      Tags come from the star rating the student gave with the comment.</p>
+    {% if c.comments %}
+    <div class="rd-filters" role="group" aria-label="Filter comments">
+      <button type="button" class="on" data-f="all" aria-pressed="true">All ({{ c.comments|length }})</button>
+      <button type="button" data-f="pos" aria-pressed="false">Positive ({{ c.tag_counts.pos }})</button>
+      <button type="button" data-f="neu" aria-pressed="false">Neutral ({{ c.tag_counts.neu }})</button>
+      <button type="button" data-f="need" aria-pressed="false">Needs improvement ({{ c.tag_counts.need }})</button>
+    </div>
+    <div class="rd-comments" data-comments>
+      {% for cm in c.comments %}
+      <blockquote class="rd-c rd-{{ cm.tag }}" data-tag="{{ cm.tag }}">
+        &ldquo;{{ cm.text }}&rdquo;
+        <small>{% if cm.stars %}<span class="rd-stars" aria-label="{{ cm.stars }} of 5 stars">{% for i in range(1, 6) %}<span class="{{ 'on' if i <= cm.stars }}">★</span>{% endfor %}</span>{% endif %}
+          <em>{{ cm.tag_label }}</em><span>Anonymous student</span></small>
+      </blockquote>
+      {% endfor %}
+    </div>
+    <p class="rd-note" data-empty hidden>No comments with this tag.</p>
+    <button type="button" class="rd-more" data-more hidden>Show more comments</button>
+    {% else %}
+    <p class="rd-note">No written comments were submitted for this form.</p>
+    {% endif %}
+  </div>
+</section>
+{% else %}
+<p class="rd-note">No results found.</p>
+{% endfor %}
+<footer class="rd-foot">
+  {% if cards and cards[0].row.form_id %}
+  <a class="rd-btn" href="{{ url_for('dean.action_new', teacher_id=teacher.id, form_id=cards[0].row.form_id) }}">＋ Create improvement action</a>
+  {% endif %}
+  <button type="button" class="rd-btn" data-rd-print>⬇ Print / Save as PDF</button>
+  <button type="button" class="rd-btn p" data-rd-close>Close</button>
+</footer>
+</div>

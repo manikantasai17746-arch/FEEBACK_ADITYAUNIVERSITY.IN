@@ -32,6 +32,14 @@
     </form>
   </div>
 
+  {% if filters.branch_id or filters.hod_id %}
+  <div class="dz-note" id="scope-banner">
+    <strong>Filtered view:</strong>
+    {% if dept %}department {{ dept.code }}{% endif %}{% if dept and hod_pick %} · {% endif %}{% if hod_pick %}HOD {{ hod_pick.name }}{% endif %}.
+    <a href="{{ url_for('dean.performance', academic_year_id=filters.academic_year_id, semester_id=filters.semester_id) }}">Show all departments</a>
+  </div>
+  {% endif %}
+
   <div class="dz-stats">
     <div class="dz-stat"><small>Faculty</small><strong>{{ summary.faculty }}</strong></div>
     <div class="dz-stat"><small>Feedback forms</small><strong>{{ summary.forms }}</strong></div>
@@ -54,13 +62,16 @@
     {% endfor %}
   </div>
 
+  <div id="teachers" class="dz-anchor">
   {% if active %}
   <div class="dz-card" style="margin-top:1rem">
     <h2 style="margin-top:0">{{ active.label }} <span class="muted">· {{ active.count }}</span>
-      <a class="dz-btn" style="float:right;font-size:.8rem" href="{{ url_for('dean.performance', **fargs) }}">Show all faculty</a></h2>
+      <a class="dz-btn" style="float:right;font-size:.8rem" href="{{ url_for('dean.performance', **fargs) }}">Show all faculty</a>
+      <a class="dz-btn" style="float:right;font-size:.8rem;margin-right:.4rem" href="{{ url_for('dean.actions_bulk', band=band_key, **fargs) }}">Send review requests to HODs</a></h2>
     {% if active.rows %}
     <form method="post" action="{{ url_for('dean.performance_bands_send') }}" id="band-mail-form"
-          onsubmit="return confirm('Send this email to the ticked teachers?');">
+          data-hod-url="{{ url_for('dean.performance_bands_email_hod') }}"
+          data-hod-subject="{{ hod_subject }}" data-hod-message="{{ hod_message }}">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <input type="hidden" name="band" value="{{ band_key }}">
       {% for k, v in fargs.items() if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
@@ -69,7 +80,11 @@
       {% for r in active.rows %}
       {% set tname = r.teacher_name or 'Faculty' %}
       {% set initials = (tname.split()|map('first')|join('')|upper)[:2] %}
-      <div class="band-card">
+      <div class="band-card" data-form="{{ r.form_id }}" data-teacher="{{ tname }}"
+           data-email="{{ r.teacher_email or '' }}" data-hod-id="{{ r.hod_id or '' }}"
+           data-hod="{{ r.hod_name or '' }}" data-subject="{{ r.subject_code or '' }} {{ r.subject_name or '' }}"
+           data-score="{{ '%.2f'|format(r.overall_score) }}"
+           data-owners="{{ r.owner_options|tojson|forceescape }}">
         <div class="band-photo">
           {% if r.teacher_emp_code %}
           <img src="{{ url_for('photos.serve', emp_code=r.teacher_emp_code) }}"
@@ -93,8 +108,11 @@
           <input type="checkbox" disabled> <span class="band-noemail">No email on file</span>
           {% endif %}
         </label>
-        <a class="btn btn-sm btn-accent"
-           href="{{ url_for('dean.performance_detail', teacher_id=r.teacher_user_id) }}">👁 View result</a>
+        <div class="band-actions">
+          <a class="btn btn-sm btn-accent" data-result-url="{{ url_for('dean.performance_result', teacher_id=r.teacher_user_id, form_id=r.form_id) }}"
+             href="{{ url_for('dean.performance_detail', teacher_id=r.teacher_user_id) }}">👁 View result</a>
+          {% if r.teacher_email %}<button type="button" class="btn btn-sm btn-ghost" data-mail-teacher>✉ Mail teacher</button>{% endif %}
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -111,23 +129,21 @@
         <textarea id="band-message" name="message" rows="9" maxlength="5000" style="width:100%">{{ default_message }}</textarea>
         <p class="sub" style="margin:.3rem 0 0">Placeholders filled for each teacher:
           <code>{name}</code> <code>{score}</code> <code>{subject}</code> <code>{dean}</code> <code>{hod}</code></p></div>
+      <fieldset class="act-opts">
+        <label><input type="checkbox" name="create_action" value="1" data-act-toggle> Also create an improvement action for each delivered teacher (assigned to their HOD)</label>
+        <div class="act-fields" data-act-fields hidden>
+          <label>Priority <select name="priority"><option value="low">Low</option><option value="medium">Medium</option><option value="high" selected>High</option><option value="critical">Critical</option></select></label>
+          <label>Due date <input type="date" name="due_date" min="{{ today }}"></label>
+        </div>
+      </fieldset>
       <div class="btn-row">
-        <button type="submit" class="btn btn-accent">✉ Send email</button>
+        <button type="submit" class="btn btn-accent" data-send-teachers>✉ Send email to ticked teachers</button>
+        <button type="button" class="btn btn-ok" data-open-hod>✉ Email HOD about ticked teachers</button>
         <button type="button" class="btn btn-ghost" id="band-reset">Restore default message</button>
       </div>
+      <div class="mail-result" data-result role="status" aria-live="polite" hidden></div>
     </div>
     </form>
-    <script>
-    (function(){
-      var all=document.getElementById('band-all');
-      var cbs=document.querySelectorAll('.band-cb');
-      all.addEventListener('change',function(){cbs.forEach(function(c){c.checked=all.checked;});});
-      cbs.forEach(function(c){c.addEventListener('change',function(){
-        all.checked=Array.prototype.every.call(cbs,function(x){return x.checked;});});});
-      var msg=document.getElementById('band-message'), def=msg.value;
-      document.getElementById('band-reset').addEventListener('click',function(){msg.value=def;});
-    })();
-    </script>
     {% else %}
     <div class="dz-empty">No teachers in this score band for the selected filters.</div>
     {% endif %}
@@ -156,7 +172,8 @@
           <div><b>{% if r.hidden or r.overall_score is none %}N/A{% else %}{{ '%.1f'|format(r.overall_score) }}{% endif %}</b><span>Score /100</span></div>
         </div>
         {% if r.teacher_user_id %}
-        <a class="dz-view" href="{{ url_for('dean.performance_detail', teacher_id=r.teacher_user_id) }}">View</a>
+        <a class="dz-view" data-result-url="{{ url_for('dean.performance_result', teacher_id=r.teacher_user_id, form_id=r.form_id) }}"
+           href="{{ url_for('dean.performance_detail', teacher_id=r.teacher_user_id) }}">View</a>
         {% else %}<span class="dz-view off">View</span>{% endif %}
       </div>
     </div>
@@ -166,5 +183,42 @@
   <div class="dz-card"><div class="dz-empty">No published feedback forms for the selected department and filters yet.</div></div>
   {% endif %}
   {% endif %}
+  </div>
 </div>
+
+<dialog id="result-dialog" class="rd-dialog" aria-label="Teacher result"><div class="rd-slot" data-rd-slot></div></dialog>
+
+{% if active and active.rows %}
+<dialog id="mail-dialog" class="rd-dialog rd-mail" aria-labelledby="md-title">
+  <form method="post" action="{{ url_for('dean.performance_bands_send') }}" data-mail-form novalidate>
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="band" value="{{ band_key }}">
+    <input type="hidden" name="require_text" value="1">
+    <input type="hidden" name="form_id" value="">
+    <input type="hidden" name="submit_token" value="">
+    {% for k, v in fargs.items() if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}
+    <div class="md-head"><h2 id="md-title" data-md-title>Mail teacher</h2><button type="button" class="rd-x" data-md-close aria-label="Close">×</button></div>
+    <div class="md-body">
+      <p class="md-to" data-md-to></p>
+      <div class="field"><label for="md-subject">Subject</label><input id="md-subject" name="subject" maxlength="150" style="width:100%"></div>
+      <div class="field"><label for="md-message">Message</label><textarea id="md-message" name="message" rows="7" maxlength="5000" style="width:100%"></textarea></div>
+      <p class="md-hint" data-md-hint></p>
+      <fieldset class="act-opts">
+        <label><input type="checkbox" name="create_action" value="1" data-act-toggle> Also create an improvement action</label>
+        <div class="act-fields" data-act-fields hidden>
+          <label data-owner-wrap>Owner <select name="owner_user_id" data-owner></select></label>
+          <label>Priority <select name="priority"><option value="low">Low</option><option value="medium">Medium</option><option value="high" selected>High</option><option value="critical">Critical</option></select></label>
+          <label>Due date <input type="date" name="due_date" min="{{ today }}"></label>
+        </div>
+      </fieldset>
+      <div class="mail-result" data-result role="status" aria-live="polite" hidden></div>
+    </div>
+    <div class="md-foot">
+      <button type="button" class="rd-btn" data-md-close>Cancel</button>
+      <button type="submit" class="rd-btn p" data-md-send>✉ Send</button>
+    </div>
+  </form>
+</dialog>
+{% endif %}
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/dean-performance.js') }}" defer></script>{% endblock %}
