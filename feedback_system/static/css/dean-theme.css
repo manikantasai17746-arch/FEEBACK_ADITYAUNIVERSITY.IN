@@ -492,11 +492,14 @@ body.role-dean .dd-bar { width: 26px; position: relative; border-radius: 6px 6px
 body.role-dean .dd-bar b { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); font-size: .75rem; font-weight: 600; color: var(--tt-muted); padding-bottom: 2px; }
 body.role-dean .dd-xl { display: flex; }
 body.role-dean .dd-xl span { flex: 1; min-width: 92px; text-align: center; font-size: .85rem; font-weight: 600; color: var(--tt-ink); padding-top: 8px; }
-body.role-dean .dd-donut { display: flex; gap: 1.4rem; align-items: center; flex-wrap: wrap; justify-content: center; }
+body.role-dean .dd-donut { --submitted-color: var(--tt-blue); display: flex; gap: 1.4rem; align-items: center; flex-wrap: wrap; justify-content: center; }
 body.role-dean .dd-donut-w { position: relative; width: 190px; height: 190px; flex: none; }
 body.role-dean .dd-donut-w svg { transform: rotate(-90deg); }
 body.role-dean .dd-donut-w .trk { stroke: var(--tt-line); }
-body.role-dean .dd-donut-w .val { stroke: var(--tt-ok); }
+body.role-dean .dd-donut-mid { --submitted-color: #66b96c; }
+body.role-dean .dd-donut-high { --submitted-color: #15803d; }
+body.role-dean .dd-donut-w .val { stroke: var(--submitted-color); }
+body.role-dean .dd-donut .c-s { background: var(--submitted-color); }
 body.role-dean .dd-donut-c { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
 body.role-dean .dd-donut-c b { font: 700 1.9rem/1.1 var(--tt-display); color: var(--tt-ink); }
 body.role-dean .dd-donut-c span { font-size: .85rem; color: var(--tt-muted); }
