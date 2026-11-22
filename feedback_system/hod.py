@@ -2697,7 +2697,7 @@ def performance_bands_send():
     subject_tpl = ' '.join((f.get('subject') or '').split())[:150] or DEFAULT_BAND_SUBJECT
     message_tpl = (f.get('message') or '').strip()[:5000] or _default_message_for(band_key)
     try:
-        selected = {int(x) for x in f.getlist('teacher_user_id')}
+        selected = {int(x) for x in f.getlist('form_id')}
     except ValueError:
         selected = set()
     if not selected:
@@ -2711,33 +2711,24 @@ def performance_bands_send():
         flash('Unknown score band.', 'error')
         return redirect(back)
 
-    # Only teachers inside this band and the HOD's own department can be
-    # mailed, whatever the form posted.
-    per_teacher = {}
-    for r in band['rows']:
-        tid = r.get('teacher_user_id')
-        if tid in selected:
-            per_teacher.setdefault(tid, []).append(r)
-    if len(per_teacher) > 100:
-        flash('Please send to at most 100 teachers at a time.', 'error')
+    # One e-mail per ticked card. A card is one teacher's result for ONE subject,
+    # so every teacher gets a mail that names only that subject and only its score.
+    chosen = [r for r in band['rows'] if r.get('form_id') in selected]
+    if len(chosen) > 100:
+        flash('Please send at most 100 e-mails at a time.', 'error')
         return redirect(back)
-
     hod_name = dict(user).get('name') or 'HOD'
     sent = failed = no_email = 0
-    for trows in per_teacher.values():
-        to = (trows[0].get('teacher_email') or '').strip()
+    for r in chosen:
+        to = (r.get('teacher_email') or '').strip()
         if not mailer.is_valid_email(to):
             no_email += 1
             continue
-        score = round(sum(x['overall_score'] for x in trows) / len(trows), 2)
-        subs = []
-        for x in trows:
-            label = (x.get('subject_name') or x.get('subject_code') or '').strip()
-            if label and label not in subs:
-                subs.append(label)
-        values = {'{name}': trows[0].get('teacher_name') or 'Faculty',
+        score = round(float(r['overall_score']), 2)
+        subject_label = (r.get('subject_name') or r.get('subject_code') or 'your subject').strip()
+        values = {'{name}': r.get('teacher_name') or 'Faculty',
                   '{score}': f'{score:.2f}',
-                  '{subject}': ', '.join(subs) or 'your subject',
+                  '{subject}': subject_label,
                   '{hod}': hod_name}
 
         def _fill(t):
@@ -2788,6 +2779,50 @@ def performance_detail(teacher_id):
         'hod_performance_detail.html',
         user=user, teacher=teacher, profile=profile, rows=rows,
         cards=_detail_cards(rows, teacher_id), branches=branches)
+
+
+@bp.route('/performance/result/<int:form_id>')
+@role_required('hod')
+def performance_result(form_id):
+    """One teacher's result for ONE subject (one form), as a popup fragment."""
+    from . import scoring
+    from .dean import _detail_cards
+    user = current_user()
+    branches = _hod_branches(user)
+    branch_ids = [b['id'] for b in branches]
+    if not branch_ids:
+        abort(403)
+    rows = [dict(r) for r in scoring.faculty_scores_for_branches(branch_ids, form_id=form_id)]
+    if not rows:
+        abort(404)
+    row = rows[0]
+    cards = _detail_cards([row], row.get('teacher_user_id'))
+    card = cards[0] if cards else {'comments': [], 'score': None, 'responded': 0,
+                                   'distribution': [], 'row': row}
+    score = card.get('score')
+    band_label = ''
+    if score is not None:
+        band_label = next((label for _k, label, lo, hi in SCORE_BANDS
+                           if (lo is None or score > lo) and (hi is None or score <= hi)), '')
+    comments = []
+    for cm in card.get('comments') or []:
+        st = cm.get('stars')
+        if st is None:
+            tag = 'none'
+        elif st >= 4:
+            tag = 'pos'
+        elif st == 3:
+            tag = 'neu'
+        else:
+            tag = 'needs'
+        comments.append({'text': cm.get('text') or '', 'stars': st, 'tag': tag})
+    return render_template(
+        'hod_result_modal.html', row=row, card=card, score=score,
+        avg5=(round(score / 20, 2) if score is not None else None),
+        band_label=band_label, comments=comments,
+        teacher_name=row.get('teacher_name') or 'Faculty',
+        emp_code=row.get('teacher_emp_code'),
+        initials=(''.join(p[0] for p in (row.get('teacher_name') or 'F').split()[:2]).upper()))
 
 
 @bp.route('/performance/compare')

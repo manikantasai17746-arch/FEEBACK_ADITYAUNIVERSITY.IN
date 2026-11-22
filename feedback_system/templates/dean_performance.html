@@ -87,7 +87,7 @@
         <div class="band-score">{{ '%.2f'|format(r.overall_score) }}%</div>
         <label class="band-pick">
           {% if r.teacher_email %}
-          <input type="checkbox" class="band-cb" name="teacher_user_id" value="{{ r.teacher_user_id }}" checked>
+          <input type="checkbox" class="band-cb" name="form_id" value="{{ r.form_id }}" checked>
           Email: {{ r.teacher_email }}
           {% else %}
           <input type="checkbox" disabled> <span class="band-noemail">No email on file</span>

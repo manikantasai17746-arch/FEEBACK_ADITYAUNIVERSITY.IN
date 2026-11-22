@@ -1314,7 +1314,7 @@ def performance_bands_send():
     subject_tpl = ' '.join((f.get('subject') or '').split())[:150] or DEFAULT_BAND_SUBJECT
     message_tpl = (f.get('message') or '').strip()[:5000] or _dean_default_message(band_key)
     try:
-        selected = {int(x) for x in f.getlist('teacher_user_id')}
+        selected = {int(x) for x in f.getlist('form_id')}
     except ValueError:
         selected = set()
     if not selected:
@@ -1325,30 +1325,25 @@ def performance_bands_send():
     if not band:
         flash('Unknown score band.', 'error')
         return redirect(back)
-    per_teacher = {}
-    for r in band['rows']:          # only teachers inside this band AND the Dean's scope
-        if r.get('teacher_user_id') in selected:
-            per_teacher.setdefault(r['teacher_user_id'], []).append(r)
-    if len(per_teacher) > 100:
-        flash('Please send to at most 100 teachers at a time.', 'error')
+    # One e-mail per ticked card. A card is one teacher's result for ONE subject,
+    # so every teacher gets a mail that names only that subject and only its score.
+    chosen = [r for r in band['rows'] if r.get('form_id') in selected]   # only the Dean's scope
+    if len(chosen) > 100:
+        flash('Please send at most 100 e-mails at a time.', 'error')
         return redirect(back)
     dean_name = dict(user).get('name') or 'Dean'
     sent = failed = no_email = 0
-    for trows in per_teacher.values():
-        to = (trows[0].get('teacher_email') or '').strip()
+    for r in chosen:
+        to = (r.get('teacher_email') or '').strip()
         if not mailer.is_valid_email(to):
             no_email += 1
             continue
-        score = round(sum(x['overall_score'] for x in trows) / len(trows), 2)
-        subs = []
-        for x in trows:
-            label = (x.get('subject_name') or x.get('subject_code') or '').strip()
-            if label and label not in subs:
-                subs.append(label)
-        values = {'{name}': trows[0].get('teacher_name') or 'Faculty',
+        score = round(float(r['overall_score']), 2)
+        subject_label = (r.get('subject_name') or r.get('subject_code') or 'your subject').strip()
+        values = {'{name}': r.get('teacher_name') or 'Faculty',
                   '{score}': f'{score:.2f}',
-                  '{subject}': ', '.join(subs) or 'your subject',
-                  '{dean}': dean_name, '{hod}': trows[0].get('hod_names') or ''}
+                  '{subject}': subject_label,
+                  '{dean}': dean_name, '{hod}': r.get('hod_names') or ''}
 
         def _fill(t):
             for k, v in values.items():
@@ -1401,14 +1396,7 @@ def performance_detail(teacher_id):
 def _all_comments(form_id, session_ids):
     """Every anonymous written comment of a form (this teacher's sessions only)."""
     from . import services
-    out, page = [], 1
-    while True:
-        pg = services.suggestions_paged(form_id, page=page, per_page=100,
-                                        session_ids=session_ids)
-        out.extend(pg['comments'])
-        if page >= pg['pages'] or page >= 50:
-            return out
-        page += 1
+    return services.comments_with_stars(form_id, session_ids)
 
 
 def _detail_cards(rows, teacher_id=None):

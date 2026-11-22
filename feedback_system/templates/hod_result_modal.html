@@ -1,0 +1,111 @@
+<style>
+  .rm-modal{background:#fff;border-radius:14px;width:min(640px,94vw);max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);font-family:inherit;color:#0f172a}
+  .rm-head{display:flex;align-items:center;gap:.75rem;padding:1rem 1.1rem;background:#fdecec;border-radius:14px 14px 0 0;position:sticky;top:0;z-index:1}
+  .rm-avatar{width:44px;height:44px;border-radius:50%;background:#dc2626;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:0 0 44px;overflow:hidden}
+  .rm-avatar img{width:100%;height:100%;object-fit:cover}
+  .rm-head h2{font-size:1rem;margin:0}
+  .rm-head p{margin:0;font-size:.8rem;color:#475569}
+  .rm-score{margin-left:auto;text-align:right;color:#dc2626;font-weight:800;font-size:1.35rem;line-height:1}
+  .rm-score span{display:block;font-size:.7rem;font-weight:500;color:#475569;margin-top:.2rem}
+  .rm-x{background:none;border:0;font-size:1.3rem;cursor:pointer;margin-left:.5rem;color:#334155}
+  .rm-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;padding:.9rem 1.1rem}
+  .rm-stats div{background:#f1f5f9;border-radius:10px;padding:.6rem .8rem}
+  .rm-stats strong{display:block;font-size:1.05rem}
+  .rm-stats span{font-size:.75rem;color:#475569}
+  .rm-sec{padding:.4rem 1.1rem 1rem}
+  .rm-sec h3{font-size:.95rem;margin:.6rem 0 .5rem}
+  .rm-table{width:100%;border-collapse:collapse;font-size:.85rem}
+  .rm-table th,.rm-table td{padding:.5rem .3rem;border-bottom:1px solid #e2e8f0;text-align:left}
+  .rm-table th:last-child,.rm-table td:last-child{text-align:right}
+  .rm-toggle{width:100%;text-align:left;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:.7rem .9rem;font-weight:600;cursor:pointer;color:#0f172a}
+  .rm-note{font-size:.75rem;color:#64748b;margin:.5rem 0 .3rem}
+  .rm-filters{display:flex;flex-wrap:wrap;gap:.4rem;margin:.5rem 0}
+  .rm-filters button{border:1px solid #cbd5e1;background:#fff;border-radius:999px;padding:.3rem .7rem;font-size:.78rem;cursor:pointer}
+  .rm-filters button.on{background:#0b2f6b;color:#fff;border-color:#0b2f6b}
+  .rm-filters button:disabled{opacity:.5;cursor:default}
+  .rm-cm{border:1px solid #e2e8f0;border-left:4px solid #94a3b8;border-radius:10px;padding:.6rem .8rem;margin:.5rem 0;font-size:.88rem}
+  .rm-cm.pos{border-left-color:#22c55e}.rm-cm.neu{border-left-color:#eab308}.rm-cm.needs{border-left-color:#ef4444}
+  .rm-meta{font-size:.75rem;margin-top:.3rem;display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;color:#64748b}
+  .rm-stars{color:#f59e0b;letter-spacing:1px}
+  .rm-tag{font-weight:700}
+  .rm-tag.pos{color:#15803d}.rm-tag.neu{color:#a16207}.rm-tag.needs{color:#b91c1c}
+  .rm-more{width:100%;margin-top:.5rem;border:1px solid #cbd5e1;background:#fff;border-radius:10px;padding:.55rem;cursor:pointer;font-size:.85rem}
+  .rm-foot{display:flex;gap:.5rem;justify-content:flex-end;flex-wrap:wrap;padding:.8rem 1.1rem;border-top:1px solid #e2e8f0;position:sticky;bottom:0;background:#fff;border-radius:0 0 14px 14px}
+  .rm-foot button{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:.5rem .8rem;cursor:pointer;font-size:.85rem}
+  .rm-foot .rm-primary{background:#0b2f6b;color:#fff;border-color:#0b2f6b}
+  .rm-empty{font-size:.85rem;color:#64748b;margin:.4rem 0}
+</style>
+<div class="rm-modal" role="dialog" aria-modal="true" aria-labelledby="rm-title" data-limit="5">
+  <div class="rm-head">
+    <div class="rm-avatar">
+      {% if emp_code %}<img src="{{ url_for('photos.serve', emp_code=emp_code) }}" alt="{{ teacher_name }}"
+           onerror="this.remove()">{% endif %}
+      <span>{{ initials }}</span>
+    </div>
+    <div>
+      <h2 id="rm-title">{{ teacher_name }}</h2>
+      <p>{{ row.subject_code or '' }} {{ row.subject_name or '' }}{% if card.meta and card.meta.branch_name %} · {{ card.meta.branch_name }}{% endif %}</p>
+    </div>
+    <div class="rm-score">{% if score is not none %}{{ '%.2f'|format(score) }}%{% else %}N/A{% endif %}<span>feedback score</span></div>
+    <button type="button" class="rm-x" data-rm-close aria-label="Close">×</button>
+  </div>
+
+  {% if score is none %}
+  <div class="rm-sec"><p class="rm-empty">{{ row.reason or 'Not enough responses to show results for this form yet.' }}</p></div>
+  {% else %}
+  <div class="rm-stats">
+    <div><strong>{{ card.responded }}</strong><span>responses</span></div>
+    <div><strong>{{ '%.2f'|format(avg5) }}</strong><span>average / 5</span></div>
+    <div><strong>{{ band_label }}</strong><span>band</span></div>
+  </div>
+
+  <div class="rm-sec">
+    <h3>Question-wise average</h3>
+    <table class="rm-table">
+      <thead><tr><th>#</th><th>Question</th><th>Avg / 5</th></tr></thead>
+      <tbody>
+        {% for q in row.criteria %}
+        <tr><td>{{ loop.index }}</td><td>{{ q.text }}</td>
+          <td><strong>{% if q.score is none %}N/A{% else %}{{ '%.2f'|format(q.score / 20) }}{% endif %}</strong></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  <div class="rm-sec">
+    <button type="button" class="rm-toggle" data-rm-toggle aria-expanded="true">Hide student comments ({{ comments|length }})</button>
+    <div data-rm-wrap>
+      <p class="rm-note">Comments are anonymous. Roll numbers and student names are never shown.</p>
+      <p class="rm-note"><a href="javascript:void(0)" data-rm-howto>How is a comment tagged?</a> Positive = 4–5 stars · Neutral = 3 stars · Needs improvement = 1–2 stars.</p>
+      <div class="rm-filters">
+        <button type="button" class="on" data-rm-filter="all">All ({{ comments|length }})</button>
+        <button type="button" data-rm-filter="pos">Positive ({{ comments|selectattr('tag', 'equalto', 'pos')|list|length }})</button>
+        <button type="button" data-rm-filter="neu">Neutral ({{ comments|selectattr('tag', 'equalto', 'neu')|list|length }})</button>
+        <button type="button" data-rm-filter="needs">Needs improvement ({{ comments|selectattr('tag', 'equalto', 'needs')|list|length }})</button>
+        <button type="button" disabled title="Flagging comments is not available yet">⚑ Flagged (0)</button>
+      </div>
+      <div data-rm-list>
+        {% for cm in comments %}
+        <div class="rm-cm {{ cm.tag if cm.tag != 'none' else '' }}" data-tag="{{ cm.tag }}">
+          <div>&ldquo;{{ cm.text }}&rdquo;</div>
+          <div class="rm-meta">
+            {% if cm.stars %}<span class="rm-stars">{% for i in range(1, 6) %}{{ '★' if i <= cm.stars else '☆' }}{% endfor %}</span>
+            <span class="rm-tag {{ cm.tag }}">{{ {'pos':'Positive','neu':'Neutral','needs':'Needs improvement'}[cm.tag] }}</span>
+            {% else %}<span class="rm-tag">Not rated</span>{% endif %}
+            <span>Anonymous student</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      <p class="rm-empty" data-rm-none hidden>No comments in this group.</p>
+      <button type="button" class="rm-more" data-rm-more hidden></button>
+    </div>
+  </div>
+
+  <div class="rm-foot">
+    <button type="button" data-rm-toggle>💬 Student comments</button>
+    <button type="button" onclick="window.print()">⬇ Download PDF</button>
+    <button type="button" class="rm-primary" data-rm-close>Close</button>
+  </div>
+</div>

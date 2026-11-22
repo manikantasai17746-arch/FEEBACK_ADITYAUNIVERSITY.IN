@@ -1550,6 +1550,17 @@ def suggestions_paged(form_id, page=1, per_page=10, session_ids=None):
             'page': page, 'pages': pages, 'per_page': per_page}
 
 
+def comments_with_stars(form_id, session_ids=None, limit=1000):
+    """Anonymous written comments of a form, each with the 1-5 star rating its writer gave.
+
+    Only text and stars are read from the anonymous view; no student is identified."""
+    clause, args = _scope_clause(session_ids)
+    rows = db.query("""SELECT text_value, comment_stars FROM anonymous_answers
+        WHERE form_id=? AND text_value IS NOT NULL AND TRIM(text_value)<>''""" + clause +
+        ' ORDER BY ' + _COMMENT_ORDER + ' LIMIT ?', (form_id,) + args + (limit,))
+    return [{'text': r['text_value'], 'stars': r['comment_stars']} for r in rows]
+
+
 # --------------------------------------------------------------------------- #
 # Publication
 # --------------------------------------------------------------------------- #

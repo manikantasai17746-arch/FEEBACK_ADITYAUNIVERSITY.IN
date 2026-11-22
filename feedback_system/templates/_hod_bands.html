@@ -42,7 +42,7 @@
         <div class="band-score">{{ '%.2f'|format(r.overall_score) }}%</div>
         <label class="band-pick">
           {% if r.teacher_email %}
-          <input type="checkbox" class="band-cb" name="teacher_user_id" value="{{ r.teacher_user_id }}" checked>
+          <input type="checkbox" class="band-cb" name="form_id" value="{{ r.form_id }}" checked>
           <span>{{ r.teacher_email }}</span>
           {% else %}
           <input type="checkbox" disabled> <span class="band-noemail">No email on file</span>
@@ -51,7 +51,7 @@
         {% if mode == 'compare' %}
         <a class="btn btn-sm btn-accent" href="{{ url_for('hod.comparison_teacher', teacher_id=r.teacher_user_id, **(fargs or {})) }}">📈 Compare performance</a>
         {% else %}
-        <a class="btn btn-sm btn-accent" href="{{ url_for('hod.performance_detail', teacher_id=r.teacher_user_id) }}">👁 View result</a>
+        <button type="button" class="btn btn-sm btn-accent js-view-result" data-url="{{ url_for('hod.performance_result', form_id=r.form_id) }}">👁 View result</button>
         {% endif %}
       </div>
       {% endfor %}
