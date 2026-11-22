@@ -956,8 +956,8 @@ html.dark-mode .ms-row:hover{background:#1e293b}
 .band-card{display:grid;grid-template-columns:64px 1fr auto;gap:6px 12px;align-items:center;
   padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}
 .band-card .btn{grid-column:1 / -1;justify-content:center}
-.band-photo{width:64px;height:64px}
-.band-photo img,.band-initials{width:64px;height:64px;border-radius:50%;object-fit:cover}
+.band-photo{width:84px;height:104px;flex:0 0 84px}
+.band-photo img,.band-initials{width:84px;height:104px;border-radius:8px;object-fit:cover;object-position:center top;border:1px solid #cbd5e1;box-shadow:0 1px 3px rgba(15,23,42,.18)}
 .band-initials{display:flex;align-items:center;justify-content:center;background:#1558C0;color:#fff;font-weight:700;font-size:1.2rem}
 .band-name{font-weight:700}
 .band-sub{font-size:.8rem;color:var(--muted)}
