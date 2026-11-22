@@ -2819,7 +2819,7 @@ def performance_result(form_id):
     return render_template(
         'hod_result_modal.html', row=row, card=card, score=score,
         avg5=(round(score / 20, 2) if score is not None else None),
-        band_label=band_label, comments=comments,
+        band_label=band_label, comments=comments, category_label=({'main': 'Main Faculty', 'second': 'Second Faculty', 'lab': 'Lab Faculty'}).get(row.get('category'), ''),
         teacher_name=row.get('teacher_name') or 'Faculty',
         emp_code=row.get('teacher_emp_code'),
         initials=(''.join(p[0] for p in (row.get('teacher_name') or 'F').split()[:2]).upper()))

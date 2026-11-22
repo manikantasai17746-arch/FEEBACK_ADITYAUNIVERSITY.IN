@@ -4,7 +4,7 @@
   .rm-avatar{width:68px;height:68px;border-radius:50%;background:#dc2626;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:0 0 68px;overflow:hidden;border:2px solid #fff}
   .rm-avatar img{display:block;width:100%;height:100%;object-fit:cover;object-position:center top}
   .rm-head h2{font-size:1rem;margin:0}
-  .rm-head p{margin:0;font-size:.8rem;color:#475569}
+  .rm-head p{margin:0;font-size:.8rem;color:#475569}  .rm-cat{display:inline-block;background:#0b2f6b;color:#fff;border-radius:999px;padding:.1rem .55rem;font-size:.7rem;font-weight:700}
   .rm-score{margin-left:auto;text-align:right;color:#dc2626;font-weight:800;font-size:1.35rem;line-height:1}
   .rm-score span{display:block;font-size:.7rem;font-weight:500;color:#475569;margin-top:.2rem}
   .rm-x{background:none;border:0;font-size:1.3rem;cursor:pointer;margin-left:.5rem;color:#334155}
@@ -43,7 +43,7 @@
     </div>
     <div>
       <h2 id="rm-title">{{ teacher_name }}</h2>
-      <p>{{ row.subject_code or '' }} {{ row.subject_name or '' }}{% if card.meta and card.meta.branch_name %} · {{ card.meta.branch_name }}{% endif %}</p>
+      <p>{% if category_label %}<span class="rm-cat">{{ category_label }}</span> | {% endif %}{{ row.subject_code or '' }} {{ row.subject_name or '' }}{% if card.meta and card.meta.branch_name %} · {{ card.meta.branch_name }}{% endif %}</p>
     </div>
     <div class="rm-score">{% if score is not none %}{{ '%.2f'|format(score) }}%{% else %}N/A{% endif %}<span>feedback score</span></div>
     <button type="button" class="rm-x" data-rm-close aria-label="Close">×</button>
