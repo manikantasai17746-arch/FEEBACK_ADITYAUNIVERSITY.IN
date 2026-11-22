@@ -5,6 +5,12 @@
 {% endblock %}
 {% block cmp_top %}
 {% if bands %}
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .8rem">
+  <a class="btn btn-sm {{ 'btn-accent' if not category else 'btn-ghost' }}" href="{{ url_for('hod.comparison', **filters_args) }}">All</a>
+  <a class="btn btn-sm {{ 'btn-accent' if category == 'main' else 'btn-ghost' }}" href="{{ url_for('hod.comparison', category='main', **filters_args) }}">Main Faculty</a>
+  <a class="btn btn-sm {{ 'btn-accent' if category == 'second' else 'btn-ghost' }}" href="{{ url_for('hod.comparison', category='second', **filters_args) }}">Second Faculty</a>
+  <a class="btn btn-sm {{ 'btn-accent' if category == 'lab' else 'btn-ghost' }}" href="{{ url_for('hod.comparison', category='lab', **filters_args) }}">Lab Faculty</a>
+</div>
 {{ hod_bands(bands, band_default, default_subject, band_messages, mail_ready, 'compare', filters_args) }}
 {% endif %}
 <h2 style="margin:22px 0 8px;font-size:1.1rem">All teachers &mdash; closed rounds by subject</h2>

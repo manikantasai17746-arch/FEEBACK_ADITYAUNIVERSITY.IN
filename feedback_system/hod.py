@@ -2936,7 +2936,10 @@ def comparison():
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
     semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
     from . import mailer
-    bands = _band_data(branch_ids, None, ay, sem, None) if branch_ids else []
+    category = (request.args.get('category') or '').strip().lower()
+    if category not in ('main', 'second', 'lab'):
+        category = ''
+    bands = _band_data(branch_ids, None, ay, sem, None, category=category or None) if branch_ids else []
     band_default = next((b['key'] for b in bands if b['count']),
                         bands[0]['key'] if bands else None)
     return render_template(
@@ -2944,7 +2947,7 @@ def comparison():
         years=years, semesters=semesters,
         filters={'academic_year_id': ay, 'semester_id': sem, 'q': q},
         filters_args={'academic_year_id': ay, 'semester_id': sem, 'q': q},
-        bands=bands, band_default=band_default,
+        bands=bands, band_default=band_default, category=category,
         default_subject=DEFAULT_BAND_SUBJECT,
         band_messages={b['key']: _default_message_for(b['key']) for b in bands},
         mail_ready=mailer.is_configured())
