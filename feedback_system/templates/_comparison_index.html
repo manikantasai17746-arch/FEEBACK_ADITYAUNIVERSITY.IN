@@ -17,6 +17,7 @@
   {% block cmp_top %}{% endblock %}
 
   <form method="get" class="card" style="margin-bottom:1rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:end">
+    {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
     <label>Academic year<br>
       <select name="academic_year_id">
         <option value="">All</option>

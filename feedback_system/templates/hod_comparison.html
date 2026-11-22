@@ -5,6 +5,13 @@
 {% endblock %}
 {% block cmp_top %}
 {% if bands %}
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .5rem;align-items:center">
+  <span class="muted" style="font-size:.85rem">Semester:</span>
+  <a class="btn btn-sm {{ 'btn-accent' if not filters.semester_id else 'btn-ghost' }}" href="{{ url_for('hod.comparison', academic_year_id=filters.academic_year_id, q=filters.q or None, category=category or None) }}">All semesters</a>
+  {% for sem in semesters %}
+  <a class="btn btn-sm {{ 'btn-accent' if filters.semester_id == sem.id else 'btn-ghost' }}" href="{{ url_for('hod.comparison', semester_id=sem.id, academic_year_id=filters.academic_year_id, q=filters.q or None, category=category or None) }}">Sem {{ sem.number }}</a>
+  {% endfor %}
+</div>
 <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .8rem">
   <a class="btn btn-sm {{ 'btn-accent' if not category else 'btn-ghost' }}" href="{{ url_for('hod.comparison', **filters_args) }}">All</a>
   <a class="btn btn-sm {{ 'btn-accent' if category == 'main' else 'btn-ghost' }}" href="{{ url_for('hod.comparison', category='main', **filters_args) }}">Main Faculty</a>
