@@ -952,12 +952,12 @@ html.dark-mode .ms-row:hover{background:#1e293b}
 .band-card{border-left:6px solid var(--bc);background:color-mix(in srgb,var(--bc) 6%,#fff)}
 .band-card .band-score{color:var(--bc)}
 .band-card .band-initials{background:var(--bc)}
-.band-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
-.band-card{display:grid;grid-template-columns:84px minmax(0,1fr) auto;gap:6px 12px;align-items:center;
+.band-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+.band-card{display:grid;grid-template-columns:72px minmax(0,1fr) auto;gap:6px 12px;align-items:center;
   padding:12px;border:1px solid var(--line);border-radius:12px;background:#fff}
 .band-card .btn{grid-column:1 / -1;justify-content:center}
-.band-photo{width:84px;height:104px;flex:0 0 84px}
-.band-photo img,.band-initials{width:84px;height:104px;border-radius:8px;object-fit:cover;object-position:center top;border:1px solid #cbd5e1;box-shadow:0 1px 3px rgba(15,23,42,.18)}
+.band-photo{width:72px;height:90px;flex:0 0 72px}
+.band-photo img,.band-initials{width:72px;height:90px;border-radius:8px;object-fit:cover;object-position:center top;border:1px solid #cbd5e1;box-shadow:0 1px 3px rgba(15,23,42,.18)}
 .band-initials{display:flex;align-items:center;justify-content:center;background:#1558C0;color:#fff;font-weight:700;font-size:1.2rem}
 .band-name{font-weight:700}
 .band-sub{font-size:.8rem;color:var(--muted)}
