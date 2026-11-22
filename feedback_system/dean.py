@@ -2064,23 +2064,90 @@ def _comparison_args():
             (request.args.get('q') or '').strip())
 
 
+def _comparison_filter_args(extra=None):
+    """Filters carried through every Dean comparison link (None values are dropped by url_for)."""
+    ay, sem, q = _comparison_args()
+    args = {'academic_year_id': ay, 'semester_id': sem, 'q': q or None,
+            'branch_id': request.args.get('branch_id', type=int),
+            'hod_id': request.args.get('hod_id', type=int),
+            'category': _performance_category(request.args)}
+    args.update(extra or {})
+    return args
+
+
 @bp.route('/comparison')
 @role_required('dean')
 def comparison():
-    """Every teacher with closed rounds, with subject-wise round-to-round change."""
+    """Every teacher with closed rounds, with subject-wise round-to-round change.
+
+    Dean-level version of the HOD page: same semester / category pills and
+    score-band cards, plus Department and HOD filters because a Dean oversees
+    several departments.  Scope always comes from the Dean's own assignments.
+    """
     from . import analytics
     user = current_user()
     branches = _dean_branches(user)
     branch_ids = [b['id'] for b in branches]
     ay, sem, q = _comparison_args()
+    category = _performance_category(request.args)
+    branch_id = request.args.get('branch_id', type=int)
+    if branch_id not in branch_ids:
+        branch_id = None
+    hods = _band_hods(user)
+    hod_id = request.args.get('hod_id', type=int)
+    hod_pick = next((h for h in hods if h['id'] == hod_id), None)
+    if not hod_pick:
+        hod_id = None
+    scope_ids = [branch_id] if branch_id else branch_ids
+    if hod_pick:
+        scope_ids = [b for b in scope_ids if b in hod_pick['branch_ids']]
     profiles = analytics.build_teacher_profiles(
-        branch_ids, academic_year_id=ay, semester_id=sem, q=q)
+        scope_ids, academic_year_id=ay, semester_id=sem, q=q) if scope_ids else []
+    bands, _b, _h = _dean_band_data(user, branch_id, hod_id, ay, sem, category)
+    band_default = next((b['key'] for b in bands if b['count']),
+                        bands[0]['key'] if bands else None)
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
     semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
+    filters = {'academic_year_id': ay, 'semester_id': sem, 'q': q,
+               'branch_id': branch_id, 'hod_id': hod_id}
     return render_template(
         'dean_comparison.html', user=user, branches=branches, profiles=profiles,
-        years=years, semesters=semesters,
-        filters={'academic_year_id': ay, 'semester_id': sem, 'q': q})
+        years=years, semesters=semesters, filters=filters,
+        filters_args={k: v for k, v in dict(filters, q=q or None,
+                                            category=category).items() if v},
+        bands=bands, band_default=band_default, category=category or '',
+        hods=hods)
+
+
+@bp.route('/comparison/rounds/<int:teacher_id>')
+@role_required('dean')
+def comparison_rounds(teacher_id):
+    """Round-by-round comparison: one card per teacher + subject + class + category."""
+    from . import round_comparison as rc
+    from .hod import _round_rows, _chart_geometry
+    user = current_user()
+    branch_ids = [b['id'] for b in _dean_branches(user)]
+    if not branch_ids:
+        abort(403)
+    ay, sem, _q = _comparison_args()
+    all_series = rc.build_series(_round_rows(branch_ids, ay, sem))
+    mine = [s for s in all_series if s['teacher_user_id'] == teacher_id]
+    teacher = db.query('SELECT id, name, emp_code FROM users WHERE id=?', (teacher_id,), one=True)
+    if not teacher or not mine:
+        abort(404)
+    cards = []
+    for s in mine:
+        s['dept_average'] = rc.department_average_by_round(all_series, s)
+        cards.append({
+            'series': s,
+            'headline': rc.headline(s),
+            'rank': rc.department_rank(all_series, s),
+            'questions': rc.question_comparison(s),
+            'chart': _chart_geometry(s),
+        })
+    return render_template(
+        'hod_round_comparison.html', user=user, teacher=teacher, cards=cards,
+        filters={'academic_year_id': ay, 'semester_id': sem})
 
 
 @bp.route('/comparison/teacher/<int:teacher_id>')

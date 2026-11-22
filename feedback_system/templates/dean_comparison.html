@@ -1,1 +1,49 @@
 {% extends '_comparison_index.html' %}
+{% from '_dean_comparison_bands.html' import dean_comparison_bands with context %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hod-overview.css') }}">
+{% endblock %}
+{% block cmp_top %}
+{# Every pill keeps the other active filters; only its own filter changes. #}
+{% set base = {'academic_year_id': filters.academic_year_id, 'q': filters.q or None, 'branch_id': filters.branch_id,
+               'hod_id': filters.hod_id, 'category': category or None} %}
+{% if bands %}
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .5rem;align-items:center">
+  <span class="muted" style="font-size:.85rem">Semester:</span>
+  <a class="btn btn-sm {{ 'btn-accent' if not filters.semester_id else 'btn-ghost' }}" href="{{ url_for('dean.comparison', **base) }}">All semesters</a>
+  {% for sem in semesters %}
+  <a class="btn btn-sm {{ 'btn-accent' if filters.semester_id == sem.id else 'btn-ghost' }}" href="{{ url_for('dean.comparison', semester_id=sem.id, **base) }}">Sem {{ sem.number }}</a>
+  {% endfor %}
+</div>
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .5rem;align-items:center">
+  <span class="muted" style="font-size:.85rem">Department:</span>
+  {% set nb = dict(base, branch_id=None) %}
+  <a class="btn btn-sm {{ 'btn-accent' if not filters.branch_id else 'btn-ghost' }}" href="{{ url_for('dean.comparison', semester_id=filters.semester_id, **nb) }}">All departments</a>
+  {% for b in branches %}
+  <a class="btn btn-sm {{ 'btn-accent' if filters.branch_id == b.id else 'btn-ghost' }}" href="{{ url_for('dean.comparison', semester_id=filters.semester_id, **dict(nb, branch_id=b.id)) }}">{{ b.code }}</a>
+  {% endfor %}
+</div>
+{% if hods %}
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .5rem;align-items:center">
+  <span class="muted" style="font-size:.85rem">HOD:</span>
+  {% set nh = dict(base, hod_id=None) %}
+  <a class="btn btn-sm {{ 'btn-accent' if not filters.hod_id else 'btn-ghost' }}" href="{{ url_for('dean.comparison', semester_id=filters.semester_id, **nh) }}">All HODs</a>
+  {% for h in hods %}
+  <a class="btn btn-sm {{ 'btn-accent' if filters.hod_id == h.id else 'btn-ghost' }}" href="{{ url_for('dean.comparison', semester_id=filters.semester_id, **dict(nh, hod_id=h.id)) }}">{{ h.name }}</a>
+  {% endfor %}
+</div>
+{% endif %}
+{% set nc = dict(base, category=None) %}
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .8rem">
+  <a class="btn btn-sm {{ 'btn-accent' if not category else 'btn-ghost' }}" href="{{ url_for('dean.comparison', semester_id=filters.semester_id, **nc) }}">All</a>
+  <a class="btn btn-sm {{ 'btn-accent' if category == 'main' else 'btn-ghost' }}" href="{{ url_for('dean.comparison', semester_id=filters.semester_id, **dict(nc, category='main')) }}">Main Faculty</a>
+  <a class="btn btn-sm {{ 'btn-accent' if category == 'second' else 'btn-ghost' }}" href="{{ url_for('dean.comparison', semester_id=filters.semester_id, **dict(nc, category='second')) }}">Second Faculty</a>
+  <a class="btn btn-sm {{ 'btn-accent' if category == 'lab' else 'btn-ghost' }}" href="{{ url_for('dean.comparison', semester_id=filters.semester_id, **dict(nc, category='lab')) }}">Lab Faculty</a>
+</div>
+{{ dean_comparison_bands(bands, band_default, filters_args) }}
+{% endif %}
+<h2 style="margin:22px 0 8px;font-size:1.1rem">All teachers &mdash; closed rounds by subject</h2>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dean_comparison.js') }}"></script>
+{% endblock %}
