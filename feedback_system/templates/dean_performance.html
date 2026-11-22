@@ -193,7 +193,7 @@
   </div>
 </div>
 
-<dialog id="result-dialog" class="rd-dialog" aria-label="Teacher result"><div class="rd-slot" data-rd-slot></div></dialog>
+{% include '_dean_result_dialog_host.html' %}
 
 {% if active and active.rows %}
 <dialog id="mail-dialog" class="rd-dialog rd-mail" aria-labelledby="md-title">

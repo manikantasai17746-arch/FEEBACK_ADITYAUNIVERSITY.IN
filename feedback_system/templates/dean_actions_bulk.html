@@ -70,7 +70,8 @@
             <td>{{ r.valid_responses or r.response_count or 0 }}</td>
             <td><strong>{{ '%.1f'|format(r.overall_score) }}%</strong></td>
             <td>{% if r.open_action %}<span class="badge">Action open</span>{% endif %}
-              <a class="btn btn-ghost btn-sm" href="{{ url_for('dean.performance_detail', teacher_id=r.teacher_user_id) }}">View result</a></td>
+              <a class="btn btn-ghost btn-sm" data-result-url="{{ url_for('dean.performance_result', teacher_id=r.teacher_user_id, form_id=r.form_id) }}"
+                 href="{{ url_for('dean.performance_detail', teacher_id=r.teacher_user_id) }}">View result</a></td>
           </tr>
         {% endfor %}
         </tbody>
@@ -99,4 +100,7 @@
     {% endif %}
   </div>
 </div>
+{# Result popup host: outside the <form>, so opening it can never submit or reset the letter. #}
+{% include '_dean_result_dialog_host.html' %}
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/dean-performance.js') }}" defer></script>{% endblock %}
