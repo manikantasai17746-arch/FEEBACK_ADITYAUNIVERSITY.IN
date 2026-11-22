@@ -28,7 +28,9 @@
         <tr class="{% if a.due_date and a.status not in ('completed','cancelled') and a.due_date < now_iso %}overdue{% endif %}">
           <td class="wrap">{{ a.title }}
             {% if a.hod_reply %}<div class="sub" style="margin-top:.3rem"><span class="badge badge-open">HOD replied</span> {{ a.hod_reply[:140] }}{{ '…' if a.hod_reply|length > 140 }}</div>
-            {% elif a.owner_user_id and a.teacher_user_id and a.status in ('planned','in_progress') %}<div class="sub"><span class="badge">Waiting for HOD reply</span></div>{% endif %}</td>
+            {% elif a.owner_user_id and a.teacher_user_id and a.status in ('planned','in_progress') %}<div class="sub"><span class="badge">Waiting for HOD reply</span></div>{% endif %}
+            {% if a.raised_by_role == 'hod' %}<div class="sub" style="margin-top:.3rem"><span class="badge badge-open">Raised by HOD</span> {{ a.creator_name or '' }}</div>{% endif %}
+            {% if a.status == 'completed' and not a.closed_at %}<div class="sub" style="margin-top:.3rem"><span class="badge">Resolved — awaiting your confirmation</span></div>{% endif %}</td>
           <td class="wrap">{{ a.teacher_name or '—' }}</td>
           <td>{{ a.branch_code or '—' }}</td>
           <td><span class="badge">{{ a.status }}</span></td>

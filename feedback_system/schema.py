@@ -829,4 +829,23 @@ MIGRATIONS = [
             UNIQUE(student_user_id, submission_key))""",
         "CREATE INDEX IF NOT EXISTS ix_complaints_branch_semester ON student_complaints(branch_id, semester_id)",
     ]),
+    # ------------------------------------------------------------------ v29
+    # HOD can raise an improvement action to the Dean.  Purely additive: the existing
+    # status values (planned / in_progress / completed / cancelled) are reused.
+    #  * raised_by_role  'hod' for an action a HOD raised for the Dean; NULL = Dean-raised
+    #                    (every row created before this version).
+    #  * closed_at       set only when the Dean closes the action.  'completed' with a NULL
+    #                    closed_at = "resolved, awaiting confirmation".
+    #  * log.kind        'reply' (a discussion message) or 'status' (activity line); NULL on
+    #                    older rows, which the pages classify from their note/status.
+    (29, "HOD-raised improvement actions: direction, Dean confirmation, thread message kind", [
+        "ALTER TABLE improvement_actions ADD COLUMN raised_by_role TEXT",
+        "ALTER TABLE improvement_actions ADD COLUMN closed_at TEXT",
+        "ALTER TABLE improvement_action_log ADD COLUMN kind TEXT",
+        # Before this version 'completed' was final, so those rows count as closed.
+        "UPDATE improvement_actions SET closed_at=COALESCE(completed_at, updated_at) "
+        "WHERE status='completed' AND closed_at IS NULL",
+        "CREATE INDEX IF NOT EXISTS ix_ia_creator ON improvement_actions(created_by, raised_by_role)",
+        "CREATE INDEX IF NOT EXISTS ix_ia_owner ON improvement_actions(owner_user_id)",
+    ]),
 ]

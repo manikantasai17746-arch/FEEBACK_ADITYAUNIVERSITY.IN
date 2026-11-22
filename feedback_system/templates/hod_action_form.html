@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% block title %}New action for Dean — HOD{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/hod-actions.css') }}">{% endblock %}
+{% block body %}
+<div class="container page hax">
+  <div class="page-header">
+    <h1>New action for Dean</h1>
+    <nav class="subnav"><a href="{{ url_for('hod.my_actions', tab='raised') }}">← My Actions</a></nav>
+  </div>
+  <form method="post" class="hax-form">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="field"><label for="f-title">Title *</label>
+      <input id="f-title" type="text" name="title" required maxlength="200" value="{{ values.title or '' }}"></div>
+    <div class="field"><label for="f-desc">Description</label>
+      <textarea id="f-desc" name="description" rows="4" maxlength="2000">{{ values.description or '' }}</textarea></div>
+    {% if branches|length > 1 %}
+    <div class="field"><label for="f-branch">Department</label>
+      <select id="f-branch" name="branch_id">
+        <option value="">— Choose —</option>
+        {% for b in branches %}<option value="{{ b.id }}" {{ 'selected' if values.branch_id == b.id|string }}>{{ b.code }} — {{ b.name }}</option>{% endfor %}
+      </select>
+      <small>Used when you do not pick a form. A form’s own department always wins.</small></div>
+    {% endif %}
+    <div class="field"><label for="f-teacher">Teacher (optional)</label>
+      <select id="f-teacher" name="teacher_id">
+        <option value="">— None —</option>
+        {% for t in teachers %}<option value="{{ t.id }}" {{ 'selected' if values.teacher_id == t.id|string }}>{{ t.name }}{% if t.emp_code %} ({{ t.emp_code }}){% endif %}</option>{% endfor %}
+      </select>
+      <small>Only teachers of your own department are listed.</small></div>
+    <div class="field"><label for="f-form">Feedback form (optional)</label>
+      <select id="f-form" name="form_id">
+        <option value="">— None —</option>
+        {% for f in forms %}<option value="{{ f.id }}" data-teacher="{{ f.teacher_user_id or '' }}" {{ 'selected' if values.form_id == f.id|string }}>{{ f.title }}{% if f.subject_code %} · {{ f.subject_code }}{% endif %}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label for="f-prio">Priority</label>
+      <select id="f-prio" name="priority">
+        {% for p in ['low','medium','high','critical'] %}<option value="{{ p }}" {{ 'selected' if values.priority == p }}>{{ p|title }}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label for="f-due">Due date</label>
+      <input id="f-due" type="date" name="due_date" value="{{ values.due_date or '' }}"></div>
+    <button class="hax-btn send" type="submit">Raise action</button>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script nonce="{{ csp_nonce }}">
+(function () {
+  var t = document.getElementById('f-teacher'), f = document.getElementById('f-form');
+  if (!t || !f) return;
+  function filter() {
+    Array.prototype.forEach.call(f.options, function (o) {
+      if (!o.value) return;
+      var ok = !t.value || !o.dataset.teacher || o.dataset.teacher === t.value;
+      o.hidden = !ok; o.disabled = !ok;
+      if (!ok && o.selected) f.value = '';
+    });
+  }
+  t.addEventListener('change', filter); filter();
+})();
+</script>
+{% endblock %}

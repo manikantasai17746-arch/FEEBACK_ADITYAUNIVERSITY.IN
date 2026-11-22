@@ -34,7 +34,8 @@
         {% for s in ['planned','in_progress','completed','cancelled'] %}
         <option value="{{ s }}" {{ 'selected' if action and action.status == s }}>{{ s }}</option>
         {% endfor %}
-      </select></div>
+      </select>
+      <small class="muted">Saving as “completed” closes the action and confirms a HOD’s “resolved”.</small></div>
     <div class="field"><label>Priority</label>
       <select name="priority">
         {% for p in ['low','medium','high','critical'] %}
@@ -57,8 +58,8 @@
     <div class="field"><label>Due date</label>
       <input type="date" name="due_date" value="{{ action.due_date if action and action.due_date else (prefill.due_date if prefill and not action else '') }}"></div>
     {% if action %}
-    <div class="field"><label>Change note</label>
-      <input type="text" name="note" placeholder="Optional note for the audit log"></div>
+    <div class="field"><label>Note / reply</label>
+      <input type="text" name="note" maxlength="500" placeholder="Optional. Shown to the HOD in the discussion and kept in the log"></div>
     {% endif %}
     <button class="btn btn-ok" type="submit">Save</button>
   </form>

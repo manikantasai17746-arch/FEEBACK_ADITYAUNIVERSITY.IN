@@ -672,10 +672,12 @@ def actions():
         ph = ','.join('?' * len(branch_ids))
         rows = db.query(
             f"""SELECT ia.*, b.code AS branch_code, b.name AS branch_name,
-                       tu.name AS teacher_name, tu.emp_code AS teacher_emp_code
+                       tu.name AS teacher_name, tu.emp_code AS teacher_emp_code,
+                       cu.name AS creator_name
                 FROM improvement_actions ia
                 LEFT JOIN branches b ON b.id = ia.branch_id
                 LEFT JOIN users tu ON tu.id = ia.teacher_user_id
+                LEFT JOIN users cu ON cu.id = ia.created_by
                 WHERE ia.branch_id IN ({ph}) OR ia.branch_id IS NULL
                 ORDER BY
                   CASE ia.status
@@ -1009,8 +1011,8 @@ def action_new():
                     """INSERT INTO improvement_actions
                        (branch_id, title, description, status, priority,
                         owner_user_id, owner_name, due_date, created_by,
-                        created_at, updated_at)
-                       VALUES(?,?,?,?,?,?,?,?,?,?,?)""",
+                        created_at, updated_at, closed_at)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (branch_id,
                      title,
                      (request.form.get('description') or '').strip()[:2000],
@@ -1019,7 +1021,8 @@ def action_new():
                      owner_id,
                      owner_name,
                      (request.form.get('due_date') or '').strip() or None,
-                     user['id'], now, now))
+                     user['id'], now, now,
+                     now if request.form.get('status') == 'completed' else None))
                 note = 'Created' + (f' and assigned to {owner_name}' if owner_id else '')
                 db.get_db().execute(
                     """INSERT INTO improvement_action_log
@@ -1079,11 +1082,15 @@ def action_edit(aid):
             completed_at = now
         elif new_status != 'completed':
             completed_at = None
+        # Saving as 'completed' is the Dean closing the action; that also confirms an
+        # action a HOD marked as resolved.  Any other status re-opens it.
+        closed_at = (action['closed_at'] or now) if new_status == 'completed' else None
         conn = db.get_db()
         conn.execute(
             """UPDATE improvement_actions SET
                title=?, description=?, status=?, priority=?, owner_user_id=?,
-               owner_name=?, due_date=?, branch_id=?, updated_at=?, completed_at=?
+               owner_name=?, due_date=?, branch_id=?, updated_at=?, completed_at=?,
+               closed_at=?
                WHERE id=?""",
             ((request.form.get('title') or action['title']).strip()[:200],
              (request.form.get('description') or '').strip()[:2000],
@@ -1093,14 +1100,20 @@ def action_edit(aid):
              owner_name,
              (request.form.get('due_date') or '').strip() or None,
              new_branch,
-             now, completed_at, aid))
+             now, completed_at, closed_at, aid))
+        typed_note = (request.form.get('note') or '').strip()[:500]
         if new_status != old_status:
             conn.execute(
                 """INSERT INTO improvement_action_log
-                   (action_id, actor_user_id, note, old_status, new_status)
-                   VALUES(?,?,?,?,?)""",
-                (aid, user['id'], (request.form.get('note') or 'Status changed')[:500],
-                 old_status, new_status))
+                   (action_id, actor_user_id, note, old_status, new_status, kind)
+                   VALUES(?,?,?,?,?,?)""",
+                (aid, user['id'], 'Status changed', old_status, new_status, 'status'))
+        if typed_note:      # the Dean's message in the discussion the HOD sees
+            conn.execute(
+                """INSERT INTO improvement_action_log
+                   (action_id, actor_user_id, note, old_status, new_status, kind)
+                   VALUES(?,?,?,?,?,?)""",
+                (aid, user['id'], typed_note, new_status, new_status, 'reply'))
         if owner_id and owner_id != action['owner_user_id']:
             _notify_hod_assigned(
                 owner_id, (request.form.get('title') or action['title']).strip()[:200],
@@ -1117,6 +1130,8 @@ def action_edit(aid):
                  (f'Assigned to {owner_name}' if owner_id else 'Unassigned from HOD'),
                  new_status, new_status))
         conn.commit()
+        audit('dean.action_update', 'improvement_actions', aid,
+              f'{old_status}->{new_status}' + (' +reply' if typed_note else ''))
         flash('Action updated.', 'success')
         return redirect(url_for('dean.actions'))
     logs = db.query(

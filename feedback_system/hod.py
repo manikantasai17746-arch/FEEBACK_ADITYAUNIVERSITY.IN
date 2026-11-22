@@ -1807,39 +1807,426 @@ def results_publish_selected():
     return redirect(url_for('hod.results'))
 
 # --------------------------------------------------------------------------- #
-# Improvement actions assigned to this HOD by the Dean
+# My Actions: improvement actions between this HOD and the Dean
+#
+#   "Assigned to me by Dean"  owner_user_id = me and raised_by_role is NULL/'dean'
+#   "Raised by me for Dean"   created_by = me and raised_by_role = 'hod'
+#
+# The existing statuses are reused: planned = Open, in_progress, completed.
+# 'completed' with closed_at NULL is "Resolved, awaiting confirmation"; only the Dean
+# closes (sets closed_at).  'cancelled' is shown as Closed.
 # --------------------------------------------------------------------------- #
 _HOD_ACTION_STATUSES = ('planned', 'in_progress', 'completed')
+_ACTION_PRIORITIES = ('low', 'medium', 'high', 'critical')
+_ACTION_STAGES = ('open', 'in_progress', 'resolved', 'closed')
+_ACTION_STAGE_LABELS = {'open': 'Open', 'in_progress': 'In progress',
+                        'resolved': 'Resolved', 'closed': 'Closed'}
+_ACTION_TABS = ('assigned', 'raised')
+_REPLY_MAX = 2000
+_GENERIC_NOTES = ('Started working', 'Marked as resolved', 'Status changed',
+                  'Raised for the Dean', 'Unassigned from HOD')
+
+
+def _utc_now():
+    from datetime import datetime
+    return datetime.utcnow().isoformat(timespec='seconds')
+
+
+def _action_stage(a):
+    """open / in_progress / resolved (awaiting the Dean) / closed."""
+    st = a['status']
+    if st == 'cancelled':
+        return 'closed'
+    if st == 'completed':
+        return 'closed' if a['closed_at'] else 'resolved'
+    return 'in_progress' if st == 'in_progress' else 'open'
+
+
+def _action_direction(a, user):
+    """'assigned' / 'raised' when this HOD is a party to the action, else None."""
+    role = a['raised_by_role'] or 'dean'
+    if role == 'dean' and a['owner_user_id'] == user['id']:
+        return 'assigned'
+    if role == 'hod' and a['created_by'] == user['id']:
+        return 'raised'
+    return None
+
+
+def _initials(name):
+    words = [w for w in str(name or '').replace('(', ' ').replace(')', ' ').split() if w]
+    return ''.join(w[0] for w in words[:2]).upper() or '?'
+
+
+def _fmt_action_date(value):
+    from datetime import date
+    try:
+        return date.fromisoformat(str(value)[:10]).strftime('%d %b %Y')
+    except ValueError:
+        return str(value or '')
+
+
+def _thread_entries(log_rows, me_id):
+    """Discussion messages and activity lines of one action, oldest first.
+
+    Rows written before migration 29 have no ``kind``: a 'HOD reply: ' note is a
+    message, anything else is an activity line.
+    """
+    out = []
+    for l in log_rows:
+        note = (l['note'] or '').strip()
+        kind = l['kind']
+        if note.startswith('HOD reply: '):
+            note = note[len('HOD reply: '):]
+            kind = kind or 'reply'
+        kind = 'reply' if kind == 'reply' else 'status'
+        old, new = l['old_status'], l['new_status']
+        mine = l['actor_user_id'] == me_id
+        name = l['actor_name'] or 'Unknown'
+        e = {'kind': kind, 'mine': mine, 'at': l['created_at'], 'note': note,
+             'author': name + (' (you)' if mine else ''), 'initials': _initials(name),
+             'is_dean': l['actor_role'] == 'dean', 'text': note, 'is_message': kind == 'reply'}
+        if kind == 'status':
+            who = name + (' (you)' if mine else '')
+            if new == 'in_progress' and old in ('planned', None):
+                e['text'] = f'{who} started working on this'
+            elif new == 'completed' and old != 'completed':
+                e['text'] = (f'{who} closed this' if l['actor_role'] == 'dean'
+                             else f'{who} marked this as resolved')
+            elif new in ('planned', 'in_progress') and old == 'completed':
+                e['text'] = f'{who} reopened this'
+                e['is_message'] = True      # the other party is waiting on a response
+            elif new == 'cancelled' and old != 'cancelled':
+                e['text'] = f'{who} cancelled this'
+            elif old is None and new == 'planned' and note.startswith('Raised'):
+                e['text'] = f'{who} raised this action'
+            else:
+                e['text'] = note or f'{who} updated this'
+            # A typed note on a status change (older rows) stays visible.
+            if (note and e['text'] != note and note not in _GENERIC_NOTES
+                    and not note.startswith(('Updated by ', 'Created', 'Assigned to '))):
+                e['text'] += f' — “{note}”'
+        out.append(e)
+    return out
+
+
+def _load_my_actions(user):
+    """Both tabs' actions for this HOD, decorated for the template."""
+    base = """SELECT ia.*, b.code AS branch_code, b.name AS branch_name,
+                     cu.name AS creator_name, tu.name AS teacher_name,
+                     tu.emp_code AS teacher_emp_code
+              FROM improvement_actions ia
+              LEFT JOIN branches b ON b.id = ia.branch_id
+              LEFT JOIN users cu ON cu.id = ia.created_by
+              LEFT JOIN users tu ON tu.id = ia.teacher_user_id
+              WHERE """
+    assigned = db.query(
+        base + "ia.owner_user_id=? AND COALESCE(ia.raised_by_role,'dean')='dean'",
+        (user['id'],))
+    raised = db.query(
+        base + "ia.created_by=? AND ia.raised_by_role='hod'", (user['id'],))
+    rows = [dict(r, direction='assigned') for r in assigned] + \
+           [dict(r, direction='raised') for r in raised]
+    logs = {}
+    if rows:
+        ph = ','.join('?' * len(rows))
+        for l in db.query(
+                f"""SELECT l.*, u.name AS actor_name, u.role AS actor_role
+                    FROM improvement_action_log l
+                    LEFT JOIN users u ON u.id = l.actor_user_id
+                    WHERE l.action_id IN ({ph})
+                    ORDER BY l.created_at, l.id""", tuple(r['id'] for r in rows)):
+            logs.setdefault(l['action_id'], []).append(l)
+    from datetime import date
+    today = date.today().isoformat()
+    for a in rows:
+        a['stage'] = _action_stage(a)
+        a['stage_label'] = ('Cancelled' if a['status'] == 'cancelled'
+                            else _ACTION_STAGE_LABELS[a['stage']])
+        a['thread'] = _thread_entries(logs.get(a['id'], []), user['id'])
+        last_msg = next((e for e in reversed(a['thread']) if e['is_message']), None)
+        if a['stage'] not in ('open', 'in_progress'):
+            a['needs_response'] = False
+        elif last_msg is None:
+            a['needs_response'] = a['created_by'] != user['id']   # only the opening text
+        else:
+            a['needs_response'] = not last_msg['mine']
+        a['overdue'] = bool(a['due_date'] and a['stage'] in ('open', 'in_progress')
+                            and str(a['due_date'])[:10] < today)
+        a['due_text'] = _fmt_action_date(a['due_date']) if a['due_date'] else None
+        a['can_start'] = a['direction'] == 'assigned' and a['stage'] == 'open'
+        a['can_resolve'] = a['stage'] in ('open', 'in_progress')
+        a['can_reply'] = a['stage'] != 'closed'
+    rank = {s: i for i, s in enumerate(_ACTION_STAGES)}
+    rows.sort(key=lambda a: (rank[a['stage']], a['due_date'] is None,
+                             str(a['due_date'] or ''), -a['id']))
+    return rows
 
 
 @bp.route('/actions')
 @role_required('hod')
 def my_actions():
+    user = current_user()
+    rows = _load_my_actions(user)
+    tab = request.args.get('tab') if request.args.get('tab') in _ACTION_TABS else 'assigned'
+    flt = request.args.get('status')
+    flt = flt if flt in _ACTION_STAGES else 'all'
+    stats = {
+        'waiting': sum(1 for a in rows if a['needs_response']),
+        'active': sum(1 for a in rows if a['stage'] in ('open', 'in_progress')),
+        'resolved': sum(1 for a in rows if a['stage'] == 'resolved'),
+        'closed': sum(1 for a in rows if a['stage'] == 'closed'),
+    }
+    tab_counts = {t: sum(1 for a in rows if a['direction'] == t) for t in _ACTION_TABS}
+    in_tab = [a for a in rows if a['direction'] == tab]
+    chips = [('all', 'All', len(in_tab))] + [
+        (s, _ACTION_STAGE_LABELS[s], sum(1 for a in in_tab if a['stage'] == s))
+        for s in _ACTION_STAGES]
+    shown = [a for a in in_tab if flt == 'all' or a['stage'] == flt]
+    return render_template('hod_actions.html', user=user, rows=shown, stats=stats,
+                           tab=tab, flt=flt, tab_counts=tab_counts, chips=chips)
+
+
+def _int_or_none(value):
+    value = (value or '').strip()
+    if not value:
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        abort(400)
+
+
+def _scope_teachers(branch_ids):
+    """{teacher_id: {name, emp_code, branches}} for teachers in the HOD's departments."""
+    out = {}
+    if not branch_ids:
+        return out
+    ph = ','.join('?' * len(branch_ids))
+    for r in db.query(
+            f"""SELECT DISTINCT u.id, u.name, u.emp_code, t.branch_id
+                FROM class_sessions cs
+                JOIN timetables t ON t.id = cs.timetable_id
+                JOIN users u ON u.id = cs.teacher_user_id
+                WHERE t.branch_id IN ({ph}) AND t.is_deleted=0 AND cs.is_deleted=0
+                  AND u.is_active=1 AND u.role='teacher'
+                ORDER BY u.name""", tuple(branch_ids)):
+        t = out.setdefault(r['id'], {'id': r['id'], 'name': r['name'],
+                                     'emp_code': r['emp_code'], 'branches': []})
+        t['branches'].append(r['branch_id'])
+    return out
+
+
+_SCOPE_FORM_SQL = """SELECT ff.id, ff.title, ff.status, ff.branch_id,
+           ff.snapshot_subject_code AS subject_code,
+           CASE WHEN ff.category='second' THEN sfa.second_teacher_user_id
+                ELSE cs.teacher_user_id END AS teacher_user_id
+    FROM feedback_forms ff
+    LEFT JOIN class_sessions cs ON cs.id = ff.session_id
+    LEFT JOIN second_faculty_assignments sfa
+           ON sfa.id = ff.second_faculty_assignment_id AND ff.category='second'
+    WHERE ff.is_deleted=0 AND ff.branch_id IN ({ph})"""
+
+
+def _scope_forms(branch_ids, form_id=None):
+    if not branch_ids:
+        return []
+    sql = _SCOPE_FORM_SQL.format(ph=','.join('?' * len(branch_ids)))
+    args = list(branch_ids)
+    if form_id is not None:
+        sql += ' AND ff.id=?'
+        args.append(form_id)
+    else:
+        sql += ' ORDER BY ff.created_at DESC, ff.id DESC LIMIT 300'
+    return db.query(sql, tuple(args))
+
+
+@bp.route('/actions/new', methods=['GET', 'POST'])
+@role_required('hod')
+def my_action_new():
+    """HOD raises an improvement action for the Dean (teacher/form optional, own dept only)."""
     from datetime import date
     user = current_user()
-    rows = db.query(
-        """SELECT ia.id, ia.title, ia.description, ia.status, ia.priority,
-                  ia.due_date, ia.updated_at, ia.completed_at,
-                  ia.hod_reply, ia.hod_replied_at, ia.teacher_user_id,
-                  b.code AS branch_code, b.name AS branch_name,
-                  cu.name AS assigned_by, tu.name AS teacher_name,
-                  tu.emp_code AS teacher_emp_code
-           FROM improvement_actions ia
-           LEFT JOIN branches b ON b.id = ia.branch_id
-           LEFT JOIN users cu ON cu.id = ia.created_by
-           LEFT JOIN users tu ON tu.id = ia.teacher_user_id
-           WHERE ia.owner_user_id=?
-           ORDER BY
-             CASE ia.status WHEN 'in_progress' THEN 0 WHEN 'planned' THEN 1
-                            WHEN 'completed' THEN 2 ELSE 3 END,
-             CASE WHEN ia.due_date IS NULL THEN 1 ELSE 0 END, ia.due_date""",
-        (user['id'],))
-    open_count = sum(1 for r in rows if r['status'] in ('planned', 'in_progress'))
-    return render_template('hod_actions.html', user=user, rows=rows,
-                           open_count=open_count, now_iso=date.today().isoformat(),
-                           statuses=_HOD_ACTION_STATUSES)
+    branches = _hod_branches(user)
+    branch_ids = [b['id'] for b in branches]
+    if not branch_ids:
+        abort(403)
+    teachers = _scope_teachers(branch_ids)
+    values = {'priority': 'medium'}
+    if request.method == 'POST':
+        f = request.form
+        values = {k: (f.get(k) or '').strip() for k in
+                  ('title', 'description', 'teacher_id', 'form_id', 'priority',
+                   'due_date', 'branch_id')}
+        teacher_id = _int_or_none(values['teacher_id'])
+        form_id = _int_or_none(values['form_id'])
+        posted_branch = _int_or_none(values['branch_id'])
+        # Never trust a posted id: everything is re-resolved inside this HOD's departments.
+        if teacher_id is not None and teacher_id not in teachers:
+            abort(403)
+        if posted_branch is not None and posted_branch not in branch_ids:
+            abort(403)
+        form_row = None
+        if form_id is not None:
+            found = _scope_forms(branch_ids, form_id)
+            if not found:
+                abort(403)
+            form_row = found[0]
+        error = None
+        title = values['title'][:200]
+        due = values['due_date'] or None
+        if not title:
+            error = 'Title is required.'
+        elif values['priority'] not in _ACTION_PRIORITIES:
+            error = 'Choose a valid priority.'
+        elif due:
+            try:
+                date.fromisoformat(due)
+            except ValueError:
+                error = 'Enter a valid due date.'
+        if not error and form_row and teacher_id and form_row['teacher_user_id'] not in (None, teacher_id):
+            error = 'That form belongs to a different teacher.'
+        branch_id = None
+        if not error:
+            if form_row:
+                branch_id = form_row['branch_id']
+            else:
+                pool = teachers[teacher_id]['branches'] if teacher_id else branch_ids
+                if posted_branch is not None:
+                    branch_id = posted_branch if posted_branch in pool else None
+                elif len(set(pool)) == 1:
+                    branch_id = pool[0]
+                if branch_id is None:
+                    error = 'Choose the department this action is about.'
+        if error:
+            flash(error, 'error')
+        else:
+            now = _utc_now()
+            aid = db.insert_id(
+                """INSERT INTO improvement_actions
+                   (branch_id, title, description, status, priority, owner_user_id,
+                    owner_name, due_date, created_by, created_at, updated_at,
+                    teacher_user_id, form_id, raised_by_role)
+                   VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (branch_id, title, values['description'][:2000], 'planned',
+                 values['priority'], None, None, due, user['id'], now, now,
+                 teacher_id, form_id, 'hod'))
+            conn = db.get_db()
+            conn.execute(
+                """INSERT INTO improvement_action_log
+                   (action_id, actor_user_id, note, old_status, new_status, kind)
+                   VALUES(?,?,?,?,?,?)""",
+                (aid, user['id'], 'Raised for the Dean', None, 'planned', 'status'))
+            conn.commit()
+            audit('hod.action_raise', 'improvement_actions', aid,
+                  f'branch={branch_id} teacher={teacher_id} form={form_id}')
+            flash('Action raised. The Dean can see it under Actions.', 'success')
+            return redirect(url_for('hod.my_actions', tab='raised'))
+    return render_template('hod_action_form.html', user=user, branches=branches,
+                           teachers=sorted(teachers.values(), key=lambda t: (t['name'] or '')),
+                           forms=_scope_forms(branch_ids), values=values)
 
 
+def _my_action_or_403(aid, user):
+    """The action when this HOD is a party to it; 403 otherwise (never reveals other ids)."""
+    a = db.query('SELECT * FROM improvement_actions WHERE id=?', (aid,), one=True)
+    a = dict(a) if a else None
+    direction = _action_direction(a, user) if a else None
+    if direction is None:
+        abort(403)
+    return a, direction
+
+
+def _action_text():
+    return (request.form.get('reply') or '').strip()[:_REPLY_MAX]
+
+
+def _log_action(conn, aid, user_id, note, old, new, kind):
+    conn.execute(
+        """INSERT INTO improvement_action_log
+           (action_id, actor_user_id, note, old_status, new_status, kind)
+           VALUES(?,?,?,?,?,?)""", (aid, user_id, note, old, new, kind))
+
+
+def _back(direction):
+    return redirect(url_for('hod.my_actions', tab=direction))
+
+
+@bp.post('/actions/<int:aid>/reply')
+@role_required('hod')
+def my_action_reply(aid):
+    user = current_user()
+    a, direction = _my_action_or_403(aid, user)
+    text = _action_text()
+    if _action_stage(a) == 'closed':
+        flash('This action is closed.', 'error')
+        return _back(direction)
+    if not text:
+        flash('Write a reply before sending.', 'error')
+        return _back(direction)
+    now = _utc_now()
+    conn = db.get_db()
+    _log_action(conn, aid, user['id'], text, a['status'], a['status'], 'reply')
+    if direction == 'assigned':     # keeps the Dean's "HOD replied" view in step
+        conn.execute(
+            'UPDATE improvement_actions SET hod_reply=?, hod_replied_at=?, updated_at=? WHERE id=?',
+            (text, now, now, aid))
+    else:
+        conn.execute('UPDATE improvement_actions SET updated_at=? WHERE id=?', (now, aid))
+    conn.commit()
+    audit('hod.action_reply', 'improvement_actions', aid, direction)
+    flash('Reply sent.', 'success')
+    return _back(direction)
+
+
+@bp.post('/actions/<int:aid>/start')
+@role_required('hod')
+def my_action_start(aid):
+    """Open -> In progress (only on an action the Dean assigned to this HOD)."""
+    user = current_user()
+    a, direction = _my_action_or_403(aid, user)
+    if direction != 'assigned' or _action_stage(a) != 'open':
+        flash('Only an open action assigned to you can be started.', 'error')
+        return _back(direction)
+    text = _action_text()
+    now = _utc_now()
+    conn = db.get_db()
+    conn.execute(
+        'UPDATE improvement_actions SET status=?, updated_at=?, completed_at=NULL WHERE id=?',
+        ('in_progress', now, aid))
+    _log_action(conn, aid, user['id'], 'Started working', a['status'], 'in_progress', 'status')
+    if text:
+        _log_action(conn, aid, user['id'], text, 'in_progress', 'in_progress', 'reply')
+    conn.commit()
+    audit('hod.action_status', 'improvement_actions', aid, f"{a['status']}->in_progress")
+    flash('Marked as in progress.', 'success')
+    return _back(direction)
+
+
+@bp.post('/actions/<int:aid>/resolve')
+@role_required('hod')
+def my_action_resolve(aid):
+    """Mark resolved; the other party confirms (the Dean closes)."""
+    user = current_user()
+    a, direction = _my_action_or_403(aid, user)
+    if _action_stage(a) not in ('open', 'in_progress'):
+        flash('This action is already resolved or closed.', 'error')
+        return _back(direction)
+    text = _action_text()
+    now = _utc_now()
+    conn = db.get_db()
+    conn.execute(
+        'UPDATE improvement_actions SET status=?, updated_at=?, completed_at=?, closed_at=NULL WHERE id=?',
+        ('completed', now, now, aid))
+    _log_action(conn, aid, user['id'], 'Marked as resolved', a['status'], 'completed', 'status')
+    if text:
+        _log_action(conn, aid, user['id'], text, 'completed', 'completed', 'reply')
+    conn.commit()
+    audit('hod.action_status', 'improvement_actions', aid, f"{a['status']}->completed")
+    flash('Marked as resolved. Waiting for the Dean to confirm.', 'success')
+    return _back(direction)
+
+
+# Older bulk-reply / status endpoints (kept working for the Dean-assigned actions).
 @bp.route('/actions/reply', methods=['POST'])
 @role_required('hod')
 def my_actions_reply():
@@ -1867,7 +2254,8 @@ def my_actions_reply():
     done, by_dean = 0, {}
     for aid in ids:
         a = db.query('SELECT * FROM improvement_actions WHERE id=?', (aid,), one=True)
-        if not a or a['owner_user_id'] != user['id'] or a['status'] == 'cancelled':
+        if (not a or a['owner_user_id'] != user['id'] or a['status'] == 'cancelled'
+                or a['closed_at'] or (a['raised_by_role'] or 'dean') != 'dean'):
             continue
         old = a['status']
         st = new_status if new_status in _HOD_ACTION_STATUSES else (
@@ -1880,8 +2268,9 @@ def my_actions_reply():
             (reply, now, st, now, completed_at, aid))
         conn.execute(
             """INSERT INTO improvement_action_log
-               (action_id, actor_user_id, note, old_status, new_status) VALUES(?,?,?,?,?)""",
-            (aid, user['id'], ('HOD reply: ' + reply)[:500], old, st))
+               (action_id, actor_user_id, note, old_status, new_status, kind)
+               VALUES(?,?,?,?,?,?)""",
+            (aid, user['id'], ('HOD reply: ' + reply)[:500], old, st, 'reply'))
         by_dean.setdefault(a['created_by'], []).append(a['title'])
         done += 1
     conn.commit()
@@ -1912,10 +2301,12 @@ def my_action_status(aid):
     user = current_user()
     action = db.query('SELECT * FROM improvement_actions WHERE id=?', (aid,), one=True)
     # A HOD can only touch actions the Dean assigned to them.
-    if not action or action['owner_user_id'] != user['id']:
+    if (not action or action['owner_user_id'] != user['id']
+            or (action['raised_by_role'] or 'dean') != 'dean'):
         abort(403)
     new_status = request.form.get('status') or ''
-    if new_status not in _HOD_ACTION_STATUSES or action['status'] == 'cancelled':
+    if (new_status not in _HOD_ACTION_STATUSES or action['status'] == 'cancelled'
+            or action['closed_at']):
         flash('That status change is not allowed.', 'error')
         return redirect(url_for('hod.my_actions'))
     old_status = action['status']
@@ -1934,9 +2325,10 @@ def my_action_status(aid):
         (new_status, now, completed_at, aid))
     conn.execute(
         """INSERT INTO improvement_action_log
-           (action_id, actor_user_id, note, old_status, new_status)
-           VALUES(?,?,?,?,?)""",
-        (aid, user['id'], note or f'Updated by {user["name"]} (HOD)', old_status, new_status))
+           (action_id, actor_user_id, note, old_status, new_status, kind)
+           VALUES(?,?,?,?,?,?)""",
+        (aid, user['id'], note or f'Updated by {user["name"]} (HOD)', old_status, new_status,
+         'status'))
     conn.commit()
     audit('hod.action_status', 'improvement_actions', aid, f'{old_status}->{new_status}')
     flash('Action updated. The Dean can see your update.', 'success')
