@@ -108,11 +108,14 @@ def dashboard():
     category = (request.args.get('category') or '').strip().lower()
     if category not in ('main', 'second', 'lab'):
         category = ''
-    bands = _band_data(branch_ids, None, None, None, None, category=category or None) if branch_ids else []
+    semester_id = request.args.get('semester_id', type=int)
+    bands = _band_data(branch_ids, None, None, semester_id, None, category=category or None) if branch_ids else []
+    semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
     band_default = next((b['key'] for b in bands if b['count']),
                         bands[0]['key'] if bands else None)
     return render_template(
         'hod_dashboard.html', stats=stats, user=user, bands=bands, category=category,
+        semester_id=semester_id, semesters=semesters,
         band_default=band_default, default_subject=DEFAULT_BAND_SUBJECT,
         band_messages={b['key']: _default_message_for(b['key']) for b in bands},
         mail_ready=mailer.is_configured())
