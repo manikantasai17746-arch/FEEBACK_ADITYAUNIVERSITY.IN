@@ -782,7 +782,7 @@ def _bulk_rows(user, band_key, filters):
     """Teacher rows for the bulk page: the chosen band, or everyone (lowest score first)."""
     bands, branches, hods = _dean_band_data(
         user, filters['branch_id'], filters['hod_id'],
-        filters['academic_year_id'], filters['semester_id'])
+        filters['academic_year_id'], filters['semester_id'], filters['category'])
     if band_key and band_key in {b['key'] for b in bands}:
         rows = next(b for b in bands if b['key'] == band_key)['rows']
     else:
@@ -858,9 +858,9 @@ def _open_action_keys():
 def actions_bulk():
     from . import mailer
     user = current_user()
-    ay, sem, br, hod = _band_filters_from(request.args)
+    ay, sem, br, hod, category = _band_filters_from(request.args)
     band_key = (request.args.get('band') or '').strip()
-    filters = {'academic_year_id': ay, 'semester_id': sem, 'branch_id': br, 'hod_id': hod}
+    filters = {'academic_year_id': ay, 'semester_id': sem, 'branch_id': br, 'hod_id': hod, 'category': category}
     bands, branches, hods, rows = _bulk_rows(user, band_key, filters)
     if br not in [b['id'] for b in branches]:
         filters['branch_id'] = None
@@ -892,9 +892,9 @@ def actions_bulk_create():
     from html import escape
     user = current_user()
     f = request.form
-    ay, sem, br, hod = _band_filters_from(f)
+    ay, sem, br, hod, category = _band_filters_from(f)
     band_key = (f.get('band') or '').strip()
-    filters = {'academic_year_id': ay, 'semester_id': sem, 'branch_id': br, 'hod_id': hod}
+    filters = {'academic_year_id': ay, 'semester_id': sem, 'branch_id': br, 'hod_id': hod, 'category': category}
     back = url_for('dean.actions_bulk', band=band_key, **{k: v for k, v in filters.items() if v})
     picked = set()
     for v in f.getlist('pick'):
@@ -1257,6 +1257,7 @@ def performance():
     branch_ids = [b['id'] for b in branches]
     academic_year_id = request.args.get('academic_year_id', type=int)
     semester_id = request.args.get('semester_id', type=int)
+    category = _performance_category(request.args)
     # Optional department filter (the Publication page's "View" button).
     branch_id = request.args.get('branch_id', type=int)
     if branch_id not in branch_ids:
@@ -1274,7 +1275,7 @@ def performance():
         rows = scoring.faculty_scores_for_branches(
             scope_ids,
             academic_year_id=academic_year_id,
-            semester_id=semester_id)
+            semester_id=semester_id, category=category)
         if hod_pick:
             rows = [r for r in rows if _hod_owns(hod_pick, r)]
         # Eligible counts and marks for ALL forms in a handful of queries
@@ -1310,7 +1311,7 @@ def performance():
     # Score bands live on this same page (click a band to list its teachers).
     from . import mailer
     from .hod import DEFAULT_BAND_SUBJECT
-    bands, _b, _h = _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id)
+    bands, _b, _h = _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id, category)
     band_key = (request.args.get('band') or '').strip()
     active = next((b for b in bands if b['key'] == band_key), None)
     if not active:
@@ -1326,7 +1327,7 @@ def performance():
         mail_ready=mailer.is_configured(), today=date.today().isoformat(),
         hod_subject=DEFAULT_HOD_SUBJECT, hod_message=DEFAULT_HOD_MESSAGE,
         filters={'academic_year_id': academic_year_id, 'semester_id': semester_id,
-                 'branch_id': branch_id, 'hod_id': hod_id})
+                 'branch_id': branch_id, 'hod_id': hod_id, 'category': category})
 
 
 # --------------------------------------------------------------------------- #
@@ -1384,7 +1385,7 @@ def _hod_owns(hod, row):
             row.get('semester_id')) in hod['triples']
 
 
-def _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id):
+def _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id, category):
     """Score bands for the Dean. Each row carries teacher email, department, HOD name(s)."""
     from . import scoring
     from .hod import SCORE_BANDS
@@ -1399,7 +1400,7 @@ def _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id):
     if scope_ids:
         rows = scoring.faculty_scores_for_branches(
             scope_ids, academic_year_id=academic_year_id,
-            semester_id=semester_id, min_responses=1)
+            semester_id=semester_id, min_responses=1, category=category)
     rows = [dict(r) for r in rows if r.get('overall_score') is not None]
     if hod_pick:
         rows = [r for r in rows if _hod_owns(hod_pick, r)]
@@ -1431,13 +1432,19 @@ def _dean_default_message(band_key):
             .replace('{hod}\nHead of Department', '{dean}\nDean'))
 
 
+def _performance_category(src):
+    from .feedback_categories import CATEGORIES
+    value = (src.get('category') or '').strip().lower()
+    return value if value in CATEGORIES else None
+
+
 def _band_filters_from(src):
     def _i(k):
         try:
             return int(src.get(k)) if src.get(k) else None
         except (TypeError, ValueError):
             return None
-    return (_i('academic_year_id'), _i('semester_id'), _i('branch_id'), _i('hod_id'))
+    return (_i('academic_year_id'), _i('semester_id'), _i('branch_id'), _i('hod_id'), _performance_category(src))
 
 
 def _annotate_card_owners(user, rows, hods):
@@ -1522,7 +1529,7 @@ def _band_context(user, f, *, require_text, default_subject, default_message):
 
     Returns (ctx, error).  Every row comes from the Dean's own scoring scope; ticked
     ids that are not in this band / scope are counted as ``ignored`` and never used."""
-    academic_year_id, semester_id, branch_id, hod_id = _band_filters_from(f)
+    academic_year_id, semester_id, branch_id, hod_id, category = _band_filters_from(f)
     band_key = (f.get('band') or '').strip()
     subject_tpl = ' '.join((f.get('subject') or '').split())[:150]
     message_tpl = (f.get('message') or '').strip()[:5000]
@@ -1542,7 +1549,7 @@ def _band_context(user, f, *, require_text, default_subject, default_message):
     opts, err = _action_options(f)
     if err:
         return None, err
-    bands, branches, hods = _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id)
+    bands, branches, hods = _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id, category)
     band = next((b for b in bands if b['key'] == band_key), None)
     if not band:
         return None, 'Unknown score band.'
@@ -1556,7 +1563,7 @@ def _band_context(user, f, *, require_text, default_subject, default_message):
     return {'band_key': band_key, 'subject_tpl': subject_tpl, 'message_tpl': message_tpl,
             'chosen': chosen, 'ignored': ignored, 'opts': opts, 'hods': hods,
             'branch_ids': branch_ids, 'choices': _hod_choices(user, branch_ids),
-            'filters': (academic_year_id, semester_id, branch_id, hod_id)}, None
+            'filters': (academic_year_id, semester_id, branch_id, hod_id, category)}, None
 
 
 def _create_actions_for(user, rows_owner, letter_for, log_note_for, opts):
@@ -1603,9 +1610,9 @@ def _finish_band_mail(result, token, back, kind):
 
 
 def _band_back(ctx_filters, band_key):
-    ay, sem, br, hod = ctx_filters
+    ay, sem, br, hod, category = ctx_filters
     return url_for('dean.performance', band=band_key, academic_year_id=ay,
-                   semester_id=sem, branch_id=br, hod_id=hod) + '#bands'
+                   semester_id=sem, branch_id=br, hod_id=hod, category=category) + '#bands'
 
 
 def _band_error(message, back, status=422):

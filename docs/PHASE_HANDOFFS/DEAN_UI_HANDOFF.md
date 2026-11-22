@@ -3,6 +3,9 @@
 Status: implemented through checkpoint 4 (2026-11-22); **needs review and a run against the real timetable data before merge**. No schema change, no new dependency, no push or deploy. Checkpoint 4's source was never attached by the previous agent: the HOD-notification warning and the browser harness were **rebuilt from its notes**, then verified against the actual source.
 
 ## Scope delivered
+
+The Dean Performance category selector works with the department, HOD, year, semester and score band filters. Category-specific mail and review requests use the same scope. Verified with the 50 Dean Performance interaction and HOD scope tests.
+
 | Area | Change |
 |---|---|
 | Theme / nav | `static/css/dean-theme.css` (preview theme), `templates/base.html` Dean nav: Overview, Performance, Comparison, Actions, Publication, **Student Complaints**, My HODs, Profile, theme toggle + A-/A/A+, Security, Logout. The nav is shared by all eight pages and the mobile hamburger menu. Authorization on `dean.student_complaints` unchanged. |

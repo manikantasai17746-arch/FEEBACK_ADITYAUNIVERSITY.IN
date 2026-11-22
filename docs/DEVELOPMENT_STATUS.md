@@ -7,6 +7,8 @@
 
 ## 1. Current state
 
+- Dean Performance now filters faculty cards, totals, score bands and follow-ups by feedback category (All, Main Faculty, Lab Faculty or Second Faculty).
+
 - Phases 3, 4, and 5B have handoff/verification documentation in the repository.
 - Phase 6 is in planning / Checkpoint 0 review. No Phase 6 application implementation was started in the inspected baseline.
 - Invalid login submissions from the landing-page role modal now re-render the landing page, reopen the selected modal, preserve non-secret identifiers, and show all flashed messages in that modal. No schema change.
