@@ -2674,6 +2674,46 @@ def performance_bands():
                  'subject_code': subject_code, 'category': category})
 
 
+BAND_CATEGORY_LABELS = {'main': 'Main Faculty', 'second': 'Second Faculty', 'lab': 'Lab Faculty'}
+
+
+def _band_email_html(body, score, subject_label='', category_label=''):
+    """Branded HTML body for a score-band email (tables + inline CSS, so Gmail and Outlook show it)."""
+    from html import escape
+    try:
+        s = float(score)
+    except (TypeError, ValueError):
+        s = 0.0
+    colour = '#15803d' if s > 85 else ('#a16207' if s > 75 else '#b91c1c')
+    paragraphs = [p.strip() for p in (body or '').split('\n\n') if p.strip()]
+    body_html = ''.join(
+        '<p style="margin:0 0 14px;font-size:15px;line-height:1.6;color:#1f2937">'
+        + escape(p).replace('\n', '<br>') + '</p>'
+        for p in paragraphs)
+    return (
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef2f7;padding:24px 0">'
+        '<tr><td align="center">'
+        '<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:600px;max-width:100%;background:#ffffff;border-radius:12px;overflow:hidden;font-family:Arial,Helvetica,sans-serif">'
+        '<tr><td style="background:#0b2f6b;padding:22px 28px">'
+        '<div style="color:#ffffff;font-size:18px;font-weight:700">Aditya University</div>'
+        '<div style="color:#c7d2fe;font-size:13px;margin-top:2px">Faculty Feedback</div>'
+        '</td></tr>'
+        '<tr><td style="padding:26px 28px 8px">' + body_html + '</td></tr>'
+        '<tr><td style="padding:4px 28px 6px">'
+        '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px">'
+        '<tr><td style="padding:14px 18px;font-size:13px;color:#475569">Subject<br>'
+        '<strong style="font-size:14px;color:#0f172a">' + escape(subject_label or '') + '</strong>'
+        + ('<br><span style="font-size:12px;color:#0b2f6b;font-weight:700">' + escape(category_label) + ' feedback</span>' if category_label else '')
+        + '</td>'
+        '<td align="right" style="padding:14px 18px;font-size:13px;color:#475569">Feedback score<br>'
+        '<strong style="font-size:22px;color:' + colour + '">' + ('%.2f%%' % s) + '</strong></td></tr>'
+        '</table></td></tr>'
+        '<tr><td style="padding:18px 28px 24px;font-size:12px;color:#64748b;border-top:1px solid #e2e8f0">'
+        'This message is from the Aditya University Faculty Feedback system. Student responses are anonymous.'
+        '</td></tr>'
+        '</table></td></tr></table>')
+
+
 @bp.route('/performance/bands/send', methods=['POST'])
 @role_required('hod')
 def performance_bands_send():
@@ -2745,9 +2785,7 @@ def performance_bands_send():
             return t
         subj = _fill(subject_tpl)
         body = _fill(message_tpl)
-        html = ('<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto">'
-                '<h3 style="color:#0B2F6B">Aditya University - Faculty Feedback</h3>'
-                '<div style="white-space:pre-wrap">' + escape(body) + '</div></div>')
+        html = _band_email_html(body, score, subject_label, BAND_CATEGORY_LABELS.get(r.get('category'), ''))
         if mailer.send_email(to, subj, body, html):
             sent += 1
         else:

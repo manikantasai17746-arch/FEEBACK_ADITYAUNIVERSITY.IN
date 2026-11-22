@@ -1350,9 +1350,8 @@ def performance_bands_send():
                 t = t.replace(k, str(v))
             return t
         body = _fill(message_tpl)
-        html = ('<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto">'
-                '<h3 style="color:#0B2F6B">Aditya University - Faculty Feedback</h3>'
-                '<div style="white-space:pre-wrap">' + escape(body) + '</div></div>')
+        from .hod import _band_email_html, BAND_CATEGORY_LABELS
+        html = _band_email_html(body, score, subject_label, BAND_CATEGORY_LABELS.get(r.get('category'), ''))
         if mailer.send_email(to, _fill(subject_tpl), body, html):
             sent += 1
         else:
