@@ -214,7 +214,7 @@ def create_app(config=None):
     def favicon():
         # Browsers always request /favicon.ico; serve the logo (cached) instead
         # of waking the function just to return a 404.
-        resp = app.send_static_file('img/aditya-logo.png' to 'img/favicon.ico')
+        resp = app.send_static_file('img/favicon.ico')
         resp.headers['Cache-Control'] = 'public, max-age=604800'
         return resp
 
