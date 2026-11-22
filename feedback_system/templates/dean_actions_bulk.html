@@ -1,8 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Feedback review requests — Dean{% endblock %}
 {% block body %}
-{% set fargs = {'academic_year_id': filters.academic_year_id, 'semester_id': filters.semester_id,
-                'branch_id': filters.branch_id, 'hod_id': filters.hod_id} %}
+{% set fargs = filters %}
 <div class="container page">
   <div class="page-header">
     <h1>Send feedback review requests</h1>
@@ -12,6 +11,12 @@
     Each teacher becomes an action sent to their HOD, who checks it and replies with the improvement.</p>
 
   <form method="get" class="filter-bar card">
+    <div class="field"><label for="review-category">Feedback category</label>
+      <select id="review-category" name="category">
+        {% for key, label in [('', 'All'), ('main', 'Main Faculty'), ('lab', 'Lab Faculty'), ('second', 'Second Faculty')] %}
+        <option value="{{ key }}" {{ 'selected' if filters.category == key }}>{{ label }}</option>
+        {% endfor %}
+      </select></div>
     <input type="hidden" name="band" value="{{ band_key }}">
     <div class="field"><label>Academic year</label>
       <select name="academic_year_id"><option value="">All</option>

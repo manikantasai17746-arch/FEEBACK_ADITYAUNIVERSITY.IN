@@ -5,8 +5,16 @@
   <h1 class="dz-title">Faculty Performance{% if dept %} — {{ dept.code }}{% endif %}</h1>
   <p class="dz-sub">{% if dept %}{{ dept.name }}. {% endif %}Scores come from the central scoring service (same as HOD). Each student gives 10 marks in total; groups below the response threshold show N/A.</p>
 
+  {% set fargs = filters %}
   <div class="dz-card">
+    <nav class="subnav" aria-label="Feedback category">
+      {% for key, label in [(none, 'All'), ('main', 'Main Faculty'), ('lab', 'Lab Faculty'), ('second', 'Second Faculty')] %}
+      <a href="{{ url_for('dean.performance', band=band_key or none, **dict(filters, category=key)) }}"
+         {% if filters.category == key %}class="active" aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
     <form method="get" class="dz-filters">
+      {% if filters.category %}<input type="hidden" name="category" value="{{ filters.category }}">{% endif %}
       <label>Department
         <select name="branch_id" onchange="this.form.submit()">
           <option value="">All departments</option>
@@ -36,7 +44,7 @@
   <div class="dz-note" id="scope-banner">
     <strong>Filtered view:</strong>
     {% if dept %}department {{ dept.code }}{% endif %}{% if dept and hod_pick %} · {% endif %}{% if hod_pick %}HOD {{ hod_pick.name }}{% endif %}.
-    <a href="{{ url_for('dean.performance', academic_year_id=filters.academic_year_id, semester_id=filters.semester_id) }}">Show all departments</a>
+    <a href="{{ url_for('dean.performance', academic_year_id=filters.academic_year_id, semester_id=filters.semester_id, category=filters.category) }}">Show all departments</a>
   </div>
   {% endif %}
 
@@ -49,8 +57,7 @@
 
   <div id="bands"></div>
   <p class="dz-sub" style="margin:.2rem 0 .6rem">Click a band to see the teachers whose feedback score falls in that range, highest first. Use <strong>View result</strong> to open a teacher's full result.</p>
-  {% set fargs = {'academic_year_id': filters.academic_year_id, 'semester_id': filters.semester_id,
-                  'branch_id': filters.branch_id, 'hod_id': filters.hod_id} %}
+
   <div class="band-tabs">
     {% for b in bands %}
     <a class="band-tab band-{{ loop.index }} {{ 'active' if b.key == band_key }}"

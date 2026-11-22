@@ -192,6 +192,47 @@ def test_grid_and_band_cards_open_the_popup(app, world):
         assert re.search(r'data-result-url="[^"]+"\s+href="/dean/performance/faculty/\d+"', html)  # no-JS fallback
 
 
+def test_performance_category_filters_cards_counts_bands_and_mail(app, world, outbox):
+    from flask import template_rendered
+    c = _login(app, 'PDEAN1')
+    forms = world['forms']
+    second = forms['TA3']
+    with app.app_context():
+        assignment = db_module.insert_id(
+            "INSERT INTO second_faculty_assignments(subject_code, second_teacher_user_id)"
+            " VALUES(?, ?)", ('S-TA3', world['teachers']['TA3']))
+        db_module.execute(
+            "UPDATE feedback_forms SET category='second', second_faculty_assignment_id=? WHERE id=?",
+            (assignment, second))
+    try:
+        expected = {'main': {forms['TA1'], forms['TB1']}, 'lab': {world['lab']},
+                    'second': {second}}
+        expected[''] = set.union(*expected.values())
+        contexts = []
+
+        def capture(sender, template, context, **extra):
+            contexts.append(context)
+
+        with template_rendered.connected_to(capture, app):
+            for category, ids in expected.items():
+                page = c.get('/dean/performance', query_string={'category': category})
+                assert page.status_code == 200
+                ctx = contexts[-1]
+                assert {r['form_id'] for r in ctx['rows']} == ids
+                assert ctx['summary']['forms'] == len(ids)
+                assert {r['form_id'] for b in ctx['bands'] for r in b['rows']} == ids
+            c.get('/dean/performance', query_string={'category': 'main', 'hod_id': world['hodA']})
+            assert {r['form_id'] for r in contexts[-1]['rows']} == {forms['TA1']}
+        payload = _teacher_payload(world, code='TA3', category='main')
+        resp = _post(c, SEND, payload)
+        assert resp.status_code == 422 and not outbox.sent
+    finally:
+        with app.app_context():
+            db_module.execute("UPDATE feedback_forms SET category='main', second_faculty_assignment_id=NULL WHERE id=?",
+                              (second,))
+            db_module.execute('DELETE FROM second_faculty_assignments WHERE id=?', (assignment,))
+
+
 def test_popup_scope_is_enforced(app, world):
     c = _login(app, 'PDEAN1')
     tm, fm = world['teachers']['TM1'], world['forms']['TM1']
