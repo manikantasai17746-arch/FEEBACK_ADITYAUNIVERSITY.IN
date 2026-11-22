@@ -105,11 +105,14 @@ def dashboard():
 
     # "Teachers by Score Band" panel (same data as /hod/performance/bands).
     from . import mailer
-    bands = _band_data(branch_ids, None, None, None, None) if branch_ids else []
+    category = (request.args.get('category') or '').strip().lower()
+    if category not in ('main', 'second', 'lab'):
+        category = ''
+    bands = _band_data(branch_ids, None, None, None, None, category=category or None) if branch_ids else []
     band_default = next((b['key'] for b in bands if b['count']),
                         bands[0]['key'] if bands else None)
     return render_template(
-        'hod_dashboard.html', stats=stats, user=user, bands=bands,
+        'hod_dashboard.html', stats=stats, user=user, bands=bands, category=category,
         band_default=band_default, default_subject=DEFAULT_BAND_SUBJECT,
         band_messages={b['key']: _default_message_for(b['key']) for b in bands},
         mail_ready=mailer.is_configured())

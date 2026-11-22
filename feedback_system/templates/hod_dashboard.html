@@ -120,6 +120,12 @@
 </div>
 
 <div class="sec-panel" id="sec-bands" role="tabpanel" aria-labelledby="tab-bands" hidden>
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0 .25rem">
+  <a class="btn btn-sm {{ 'btn-accent' if not category else 'btn-ghost' }}" href="{{ url_for('hod.dashboard', category='all') }}#bands">All</a>
+  <a class="btn btn-sm {{ 'btn-accent' if category == 'main' else 'btn-ghost' }}" href="{{ url_for('hod.dashboard', category='main') }}#bands">Main Faculty</a>
+  <a class="btn btn-sm {{ 'btn-accent' if category == 'second' else 'btn-ghost' }}" href="{{ url_for('hod.dashboard', category='second') }}#bands">Second Faculty</a>
+  <a class="btn btn-sm {{ 'btn-accent' if category == 'lab' else 'btn-ghost' }}" href="{{ url_for('hod.dashboard', category='lab') }}#bands">Lab Faculty</a>
+</div>
 {{ hod_bands(bands, band_default, default_subject, band_messages, mail_ready) }}
 </div>
 
