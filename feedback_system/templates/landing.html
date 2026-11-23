@@ -649,7 +649,7 @@
         {{ login_fields('teacher') }}
         <div class="field">
           <label for="lp_emp_t">Employee Code</label>
-          <input type="text" id="lp_emp_t" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'teacher' and login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_emp_t" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'teacher' and login_values else '' }}" placeholder=" " required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
           <div class="scan-ok" id="lpScanOkTeacher" style="display:none">✓ ID card scanned — now enter your password.</div>
         </div>
         <div class="field">
