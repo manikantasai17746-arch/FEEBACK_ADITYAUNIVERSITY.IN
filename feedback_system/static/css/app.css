@@ -1298,3 +1298,12 @@ html.cursor-gold, html.cursor-gold *, html.cursor-gold *::before, html.cursor-go
 html.cursor-gold input, html.cursor-gold textarea, html.cursor-gold select, html.cursor-gold [contenteditable="true"] {
   cursor: text !important;
 }
+
+/* Click ring: an orange ring expands from the pointer on every mouse click (see js/cursor-tone.js). */
+.site-click-ring {
+  position: fixed; z-index: 9999; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+  border-radius: 50%; border: 2px solid #F57025; pointer-events: none;
+  animation: site-click-ring .5s ease-out forwards;
+}
+@keyframes site-click-ring { 0% { opacity: .8; transform: scale(.3); } 100% { opacity: 0; transform: scale(1.5); } }
+@media (prefers-reduced-motion: reduce) { .site-click-ring { display: none; } }

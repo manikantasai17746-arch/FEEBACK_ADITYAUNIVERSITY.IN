@@ -53,3 +53,13 @@
     if (!queued) { queued = true; requestAnimationFrame(update); }
   }, { passive: true });
 })();
+// Click ring: a small orange ring expands from the pointer on every mouse click, site-wide.
+document.addEventListener('pointerdown', function (e) {
+  if (e.pointerType !== 'mouse' || e.button !== 0) return;
+  var ring = document.createElement('span');
+  ring.className = 'site-click-ring';
+  ring.style.left = e.clientX + 'px';
+  ring.style.top = e.clientY + 'px';
+  ring.addEventListener('animationend', function () { ring.remove(); });
+  document.body.appendChild(ring);
+}, { passive: true });
