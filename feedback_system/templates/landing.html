@@ -141,9 +141,40 @@
 
 <main>
 <section class="hero" id="home">
+  <div class="hero-sun" aria-hidden="true">{% include 'partials/sun_anim.svg' %}</div>
   <div class="hero-inner">
     <div class="hero-copy">
-      <h1>Rate your classes.<br>Leave your name<br>out of it.</h1>
+      <h1 id="heroTitle"><span class="w">Rate</span> <span class="w">your</span> <span class="w">classes.</span><br><span class="w">Leave</span> <span class="w">your</span> <span class="w hl">name</span><br><span class="w hl">out</span> <span class="w hl">of</span> <span class="w hl">it.</span></h1>
+      <script nonce="{{ csp_nonce }}">
+      // Arm the headline entrance before first paint; without this (or with reduced motion) the text simply shows.
+      (function () {
+        if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          document.querySelectorAll('.hero-sun svg').forEach(function (s) { if (s.pauseAnimations) s.pauseAnimations(); });
+          return;
+        }
+        var copy = document.querySelector('.hero-copy');
+        if (copy) copy.classList.add('hero-anim');
+      })();
+
+      // The fixed sun is hidden only while the dark statistics band overlaps it on screen.
+      // Runs after the page is parsed, because the band sits below this script.
+      document.addEventListener('DOMContentLoaded', function () {
+        var sun = document.querySelector('.hero-sun');
+        var band = document.querySelector('.numbers');
+        if (!sun || !band) return;
+        var queued = false;
+        function check() {
+          queued = false;
+          var s = sun.getBoundingClientRect(), b = band.getBoundingClientRect();
+          sun.classList.toggle('is-off', b.top < s.bottom && b.bottom > s.top);
+        }
+        function schedule() { if (!queued) { queued = true; requestAnimationFrame(check); } }
+        window.addEventListener('scroll', schedule, { passive: true });
+        window.addEventListener('resize', schedule);
+        check();
+      });
+
+      </script>
       <p class="hero-lead">
         Give feedback on each of your subjects and faculty members. Faculty
         see your ratings and comments, never who wrote them.
@@ -156,7 +187,6 @@
 
 
     <!-- Interactive sample: an answer sheet that shows what gets saved -->
-    <div class="float" id="float">
     <div class="sheet" id="demo">
       <p class="sheet-tag">Sample question. Nothing here is saved.</p>
       <h2 class="sheet-q" id="demoQ">The faculty explains concepts in a way I can follow.</h2>
@@ -200,8 +230,7 @@
         </svg>
       </div>
       <div class="sheet-fold" aria-hidden="true"><i></i></div>
-    </div>
-    <div class="fcur" id="fcur" aria-hidden="true"><svg viewBox="0 0 40 40"><g fill="none" stroke-linejoin="miter" stroke-miterlimit="6"><path d="M5.5 35 L14 35 M26 35 L34.5 35 M6.5 35 L20 5.5 L33.5 35" stroke="#fff" stroke-width="10" stroke-linecap="butt"/><path d="M6.5 34.6 L20 6.2 L33.5 34.6" stroke="#0B2F6B" stroke-width="6.2"/><path d="M4.8 35 L14.5 35 M25.5 35 L35.2 35" stroke="#0B2F6B" stroke-width="5.2"/></g></svg></div>
+      <div class="demo-cursor" id="demoCursor" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" focusable="false"><path d="M5 3l14 8-6 2-2 6z" fill="#071E3D" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
     </div>
   </div>
 </section>
@@ -395,36 +424,16 @@
 
 
 <script nonce="{{ csp_nonce }}">
-// Sample answer sheet in the hero. An "A" cursor clicks the ratings by itself; picking a
-// bubble shows what is saved and stamps the sheet "Anonymous feedback". Moving a mouse over
-// the card hands the cursor to the visitor. Nothing is saved or sent anywhere.
+// Sample answer sheet in the hero: picking a bubble shows what is saved
+// and stamps the sheet "Anonymous feedback".
 (function () {
   var sheet = document.getElementById('demo');
   if (!sheet) return;
-  var box = document.getElementById('float'), cur = document.getElementById('fcur');
   var bubbles = Array.prototype.slice.call(sheet.querySelectorAll('.bubble'));
   var idle = document.getElementById('receiptIdle');
   var body = document.getElementById('receiptBody');
   var label = document.getElementById('pickLabel');
-  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var timers = [], touched = false, following = false;
-
-  // Split the question into words so they can rise in one by one.
-  var q = document.getElementById('demoQ');
-  var words = q.textContent.trim().split(/\s+/);
-  q.textContent = '';
-  words.forEach(function (w, i) {
-    var sp = document.createElement('span');
-    sp.className = 'w'; sp.style.setProperty('--i', i); sp.textContent = w;
-    q.appendChild(sp);
-    if (i < words.length - 1) q.appendChild(document.createTextNode(' '));
-  });
-  bubbles.forEach(function (b, n) { b.style.setProperty('--n', n); });
-
-  function replay(el, c) { el.classList.remove(c); void el.offsetWidth; el.classList.add(c); }
-  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
-  function clearAll() { timers.forEach(clearTimeout); timers = []; }
-  function clearHover() { bubbles.forEach(function (b) { b.classList.remove('fake-hover'); }); }
+  var touched = false;
 
   function pick(i) {
     bubbles.forEach(function (b, j) {
@@ -434,75 +443,82 @@
     label.textContent = bubbles[i].getAttribute('data-label');
     idle.hidden = true;
     body.hidden = false;
-    replay(sheet, 'is-stamped');   // slam the stamp down; re-adding the class replays it
-    replay(label, 'swap');
-    replay(body, 'redo');
+    stamp();
   }
 
-  function moveTo(el) {            // put the arrow tip on the middle of the circle
-    var a = box.getBoundingClientRect(), r = el.querySelector('i').getBoundingClientRect();
-    cur.style.transform = 'translate(' + (r.left - a.left + r.width / 2) + 'px,' + (r.top - a.top + r.height / 2) + 'px)';
+  // Slam the stamp down. Remove and re-add the class so every call replays it.
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var loop = null;
+  function stamp() {
+    sheet.classList.remove('is-stamped');
+    void sheet.offsetWidth;
+    sheet.classList.add('is-stamped');
+    // Replay the stamp every 5 seconds. A new pick restarts the 5 second count.
+    if (calm) return;
+    clearInterval(loop);
+    loop = setInterval(function () {
+      if (!document.hidden && body.hidden === false) stamp();
+    }, 5000);
   }
-  function auto() {                // one demo tap on "Very good", then the cursor leaves
-    if (touched) return;
-    var b = bubbles[3];
-    moveTo(b);
-    later(function () { clearHover(); b.classList.add('fake-hover'); }, 850);
-    later(function () { cur.classList.add('press'); pick(3); b.classList.remove('fake-hover'); }, 1150);
-    later(function () { cur.classList.remove('press'); }, 1350);
-    later(function () { if (!following) cur.classList.remove('show'); }, 2000);
-  }
-  function start() {
-    var a = box.getBoundingClientRect();
-    cur.style.transition = 'none';  // start below the card, then glide in
-    cur.style.transform = 'translate(' + (a.width * .78) + 'px,' + (a.height + 30) + 'px)';
-    void cur.offsetWidth; cur.style.transition = ''; cur.classList.add('show');
-    later(auto, 2100);
-  }
-
-  // Visitor with a mouse: the A becomes their cursor.
-  box.addEventListener('pointermove', function (e) {
-    if (e.pointerType !== 'mouse' || calm) return;
-    if (!following) {
-      following = true; touched = true; clearAll(); clearHover(); cur.classList.remove('press');
-      box.classList.add('follow'); box.style.animationPlayState = 'paused';
-      cur.classList.add('show'); cur.style.transition = 'transform .25s ease-out';
-    } else { cur.style.transition = 'transform .03s linear'; }
-    var a = box.getBoundingClientRect();
-    cur.style.transform = 'translate(' + (e.clientX - a.left) + 'px,' + (e.clientY - a.top) + 'px)';
-  });
-  box.addEventListener('pointerleave', function () { if (following) { box.classList.remove('follow'); cur.classList.remove('show'); } });
-  box.addEventListener('pointerenter', function (e) { if (following && e.pointerType === 'mouse') { box.classList.add('follow'); cur.classList.add('show'); } });
-  box.addEventListener('pointerdown', function () { if (following) cur.classList.add('press'); });
-  window.addEventListener('pointerup', function () { if (following) cur.classList.remove('press'); });
 
   bubbles.forEach(function (b, i) {
     if (i > 0) b.tabIndex = -1;
-    b.addEventListener('click', function () {
-      if (!following && !touched) { touched = true; clearAll(); clearHover(); }
-      if (!following) {            // touch or keyboard: the A taps the circle, then leaves
-        moveTo(b);
-        setTimeout(function () {
-          cur.classList.add('press');
-          setTimeout(function () { cur.classList.remove('press'); cur.classList.remove('show'); }, 320);
-        }, 800);
-      }
-      pick(i);
-    });
+    b.addEventListener('click', function () { touched = true; pick(i); });
     b.addEventListener('keydown', function (e) {
       var next = null;
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (i + 1) % bubbles.length;
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (i + bubbles.length - 1) % bubbles.length;
       if (next === null) return;
       e.preventDefault();
-      touched = true; clearAll(); clearHover(); cur.classList.remove('show');
+      touched = true;
       pick(next);
       bubbles[next].focus();
     });
   });
 
-  sheet.classList.add('intro');
-  if (calm) pick(3); else start();
+  // Live demo: a cursor taps one answer after another so the sheet shows what it does.
+  // It stops for good once the visitor uses the sheet, and is skipped with reduced motion.
+  var cursor = document.getElementById('demoCursor');
+  var hovered = false;
+  sheet.addEventListener('pointerenter', function () { hovered = true; });
+  sheet.addEventListener('pointerleave', function () { hovered = false; });
+  if (!calm && cursor) {
+    var order = [3, 4, 2, 1, 0];
+    var step = 0;
+    var started = false;
+    var place = function (i) {
+      var dot = bubbles[i].querySelector('i').getBoundingClientRect();
+      var box = sheet.getBoundingClientRect();
+      cursor.style.transform = 'translate(' + Math.round(dot.left - box.left + dot.width / 2 - 5) + 'px,' +
+        Math.round(dot.top - box.top + dot.height / 2 - 3) + 'px)';
+    };
+    var tap = function () {
+      if (touched) { cursor.style.opacity = '0'; return; }
+      if (hovered || document.hidden) { setTimeout(tap, 1200); return; }
+      var i = order[step % order.length];
+      step++;
+      if (!started) {
+        started = true;
+        var box = sheet.getBoundingClientRect();
+        cursor.style.transition = 'none';
+        cursor.style.transform = 'translate(' + Math.round(box.width - 40) + 'px,' + Math.round(box.height - 30) + 'px)';
+        void cursor.offsetWidth;
+        cursor.style.transition = '';
+      }
+      cursor.style.opacity = '1';
+      place(i);
+      setTimeout(function () {
+        if (touched) { cursor.style.opacity = '0'; return; }
+        cursor.classList.add('is-down');
+        setTimeout(function () {
+          cursor.classList.remove('is-down');
+          if (!touched) pick(i);
+        }, 140);
+      }, 1150);
+      setTimeout(tap, 4000);
+    };
+    setTimeout(tap, 900);
+  }
 })();
 </script>
 
