@@ -134,3 +134,7 @@
 @keyframes strike{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @keyframes swapin{0%{opacity:0;transform:translateY(70%);color:var(--orange)}60%{color:var(--orange)}100%{opacity:1;transform:none}}
 .answer-card-float.follow,.answer-card-float.follow *{cursor:none!important}
+
+/* Remove the click ring from the fake cursor */
+.fcur.press::after{animation:none!important;opacity:0!important}
+
