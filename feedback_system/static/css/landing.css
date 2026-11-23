@@ -102,7 +102,7 @@ body.lp-menu-open .lp-drawer {
 .lp-drawer-nav hr { border: 0; border-top: 1px solid var(--line); margin: .6rem 0; }
 
 /* ---------- Hero ---------- */
-.hero { background: var(--paper); border-bottom: 1px solid var(--line); }
+.hero { background: var(--paper); border-bottom: 1px solid var(--line); overflow-x: clip; }
 .hero-inner {
   max-width: 1180px; margin: 0 auto; padding: 4.5rem 1.25rem 5rem;
   display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, .85fr);
@@ -551,6 +551,12 @@ body.lp-login-open { overflow: hidden; }
   75%  { opacity: .95; transform: translate(0, 0) scale(1.05) rotate(-21deg); }
   100% { opacity: .9;  transform: translate(0, 0) scale(1) rotate(-21deg); }
 }
+@keyframes stamp-slam-mobile {
+  0%   { opacity: 0;   transform: translate(-8px, -22px) scale(1.5) rotate(-35deg); }
+  55%  { opacity: 1;   transform: translate(0, 0) scale(.92) rotate(-24deg); }
+  75%  { opacity: .95; transform: translate(0, 0) scale(1.05) rotate(-21deg); }
+  100% { opacity: .9;  transform: translate(0, 0) scale(1) rotate(-21deg); }
+}
 @keyframes stamp-ripple {
   0%   { opacity: .55; transform: scale(1); }
   100% { opacity: 0;   transform: scale(1.5); }
@@ -562,6 +568,9 @@ body.lp-login-open { overflow: hidden; }
 }
 
 @media (max-width: 520px) {
+  /* Only the stamp moves on phones: the card stays still and the stamp never leaves the screen */
+  .sheet.is-stamped { animation: none; }
+  .sheet.is-stamped .stamp { animation: stamp-slam-mobile .6s cubic-bezier(.2, .8, .25, 1) forwards; will-change: transform, opacity; }
   .sheet .stamp { width: 84px; height: 84px; right: 10px; bottom: 10px; }
   .sheet .receipt-body { grid-template-columns: 1fr 1fr; }
   .sheet .receipt { padding-bottom: 3.4rem; }
