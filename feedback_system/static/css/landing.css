@@ -113,6 +113,29 @@ body.lp-menu-open .lp-drawer {
   font: 700 clamp(2.4rem, 5vw, 4.1rem)/1.04 var(--display);
   letter-spacing: -.03em;
 }
+/* Headline entrance: words rise one by one, then "name out of it." turns orange.
+   Armed by a script (.hero-anim) so the text is never hidden without it. */
+.hero h1 .w { display: inline-block; }
+.hero-anim h1 .w, .hero-anim .hero-lead, .hero-anim .hero-actions { opacity: 0; transform: translateY(14px); }
+.hero-anim h1 .w { animation: hero-rise .6s cubic-bezier(.2, .7, .2, 1) forwards; }
+.hero-anim h1 .w:nth-of-type(1) { animation-delay: 0s; }
+.hero-anim h1 .w:nth-of-type(2) { animation-delay: .12s; }
+.hero-anim h1 .w:nth-of-type(3) { animation-delay: .24s; }
+.hero-anim h1 .w:nth-of-type(4) { animation-delay: .36s; }
+.hero-anim h1 .w:nth-of-type(5) { animation-delay: .48s; }
+.hero-anim h1 .w:nth-of-type(6) { animation-delay: .6s; }
+.hero-anim h1 .w:nth-of-type(7) { animation-delay: .72s; }
+.hero-anim h1 .w:nth-of-type(8) { animation-delay: .84s; }
+.hero-anim h1 .w:nth-of-type(9) { animation-delay: .96s; }
+.hero-anim h1 .hl { animation-name: hero-rise, hero-tint; animation-duration: .6s, .5s; animation-delay: var(--rise-delay, 0s), 1.3s; animation-fill-mode: forwards, forwards; }
+.hero-anim h1 .w.hl:nth-of-type(6) { --rise-delay: .6s; }
+.hero-anim h1 .w.hl:nth-of-type(7) { --rise-delay: .72s; }
+.hero-anim h1 .w.hl:nth-of-type(8) { --rise-delay: .84s; }
+.hero-anim h1 .w.hl:nth-of-type(9) { --rise-delay: .96s; }
+.hero-anim .hero-lead { animation: hero-rise .6s cubic-bezier(.2, .7, .2, 1) 1.5s forwards; }
+.hero-anim .hero-actions { animation: hero-rise .6s cubic-bezier(.2, .7, .2, 1) 1.8s forwards; }
+@keyframes hero-rise { to { opacity: 1; transform: none; } }
+@keyframes hero-tint { to { color: var(--orange); } }
 .hero-lead { margin: 0 0 2rem; max-width: 33rem; text-wrap: pretty; font-size: 1.2rem; line-height: 1.55; color: var(--muted); }
 .hero-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 1.2rem 1.8rem; }
 .hero-link {

@@ -143,7 +143,15 @@
 <section class="hero" id="home">
   <div class="hero-inner">
     <div class="hero-copy">
-      <h1>Rate your classes.<br>Leave your name<br>out of it.</h1>
+      <h1 id="heroTitle"><span class="w">Rate</span> <span class="w">your</span> <span class="w">classes.</span><br><span class="w">Leave</span> <span class="w">your</span> <span class="w hl">name</span><br><span class="w hl">out</span> <span class="w hl">of</span> <span class="w hl">it.</span></h1>
+      <script nonce="{{ csp_nonce }}">
+      // Arm the headline entrance before first paint; without this (or with reduced motion) the text simply shows.
+      (function () {
+        if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        var copy = document.querySelector('.hero-copy');
+        if (copy) copy.classList.add('hero-anim');
+      })();
+      </script>
       <p class="hero-lead">
         Give feedback on each of your subjects and faculty members. Faculty
         see your ratings and comments, never who wrote them.
