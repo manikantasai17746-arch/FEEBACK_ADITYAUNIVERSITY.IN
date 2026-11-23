@@ -670,7 +670,7 @@
         {{ login_fields('hod') }}
         <div class="field">
           <label for="lp_emp_h">Employee Code</label>
-          <input type="text" id="lp_emp_h" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'hod' and login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_emp_h" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'hod' and login_values else '' }}" placeholder=" " required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
         </div>
         <div class="field">
           <label for="lp_h_pw">Password</label>
@@ -690,7 +690,7 @@
         {{ login_fields('dean') }}
         <div class="field">
           <label for="lp_emp_d">Employee Code</label>
-          <input type="text" id="lp_emp_d" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'dean' and login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_emp_d" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'dean' and login_values else '' }}" placeholder=" " required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
         </div>
         <div class="field">
           <label for="lp_d_pw">Password</label>
@@ -710,7 +710,7 @@
         {{ login_fields('admin') }}
         <div class="field">
           <label for="lp_admin_email">Email Address</label>
-          <input type="email" id="lp_admin_email" name="email" value="{{ login_values.get('email', '') if login_values else '' }}" placeholder="admin@college.edu" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="254">
+          <input type="email" id="lp_admin_email" name="email" value="{{ login_values.get('email', '') if login_values else '' }}" placeholder=" " required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="254">
         </div>
         <div class="field">
           <label for="lp_a_pw">Password</label>
