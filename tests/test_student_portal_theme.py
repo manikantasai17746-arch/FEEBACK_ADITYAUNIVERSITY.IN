@@ -201,15 +201,3 @@ def test_base_loader_includes_requested_portals(app, role):
         html = render_template('base.html', current_user={'role': role})
     assert ('id="ffs-loader-template"' in html) == (role != 'admin')
     assert ('css/loader.css' in html) == (role != 'admin')
-
-
-def test_backup_codes_page_offers_download_and_copy(app):
-    from feedback_system import auth
-    with app.test_request_context('/'):
-        html = auth.render_backup_codes(['aaaa-bbbb-cccc', 'dddd-eeee-ffff'], reason='enrolled',
-                                        user={'role': 'student'}).get_data(as_text=True)
-    assert 'id="backup-download"' in html and 'id="backup-copy"' in html
-    assert "a.download = 'backup-codes.txt'" in html          # generic name, no roll number
-    assert 'href="/student/"' in html                          # confirm link unchanged
-    assert html.count('aaaa-bbbb-cccc') == 1                   # codes only in the list, not in the script
-    assert '<script nonce=' in html.split('id="backup-download"', 1)[1]

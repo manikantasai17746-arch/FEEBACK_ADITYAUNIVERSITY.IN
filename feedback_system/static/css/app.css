@@ -1281,3 +1281,29 @@ html.dark-mode .sf-tab-count { background: #243047; color: #e5e9f0; }
 .rv-flag{font-weight:700;color:#b45309;background:#fef3c7;border-radius:999px;padding:1px 9px}
 .pv-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0b2347;color:#fff;padding:10px 16px;border-radius:10px;font-size:.88rem;z-index:100000;display:none;max-width:90vw}
 .pv-toast.on{display:block}
+
+/* Custom arrow cursor for the whole site, including buttons and links.
+   !important overrides the per-element cursor:pointer rules. Text fields keep the text cursor. */
+*, *::before, *::after {
+  cursor: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAAVCAYAAABLy77vAAADzUlEQVR42rXUW2hcRRgH8P/MOWfPObub7NndXHqLbtImmiaki6GpEhJTwaZgEdTGC1RQ9KEPWqoUKSrug0SoUjF4ocVWEPpQG0ToDVorgZYkpI1Ja7KmaS6bNE1as5uwt+zm7Dkz40Ojtgav6MA8zMuP/8w33wf8HysUCtFQKET/Q1D8O0wIQQCg7fDp9YNjY/cAwP5jXToh5J9BbW2nVZkCddvf2/3AE63TJzv6g4oEdPRHDCGE9HcMKoQgK9cXaZrmwE9zieTw9eSqNz440bHr3WMvbtlYFr/QP+KLRIT2lxAAuaTYq6UWTEUGkVUFfHh82vX1dwNfNO348PVtDdXROXPGffnyTdef3VSemJiQlFxWBeCyGMC4oLqqsJvROBKp7P76Z98P1N636i0AUl9fxAgGAwlCiFiWKBAIUKgOBYAKCbAZR+kaf3JDxYqTls3QcWns1a0vf3z2bM8VfzAYyHSHp7xCLK8qBUB0qlMAMhgD54BDldHT/uYLm6rXHPDku9FxcezBPa3Hz+07dGrtQ1UlyTPdYeP3GAVA0laOAKAW5wAAxoR94WJ4Y/tHzx99ekvN3iKvnh6KxMo+O3K+s/XT44+1PFo73zMy4r4Tu0tljEEIAYlSIcnM6g9PNuzb09y5d2dzy+oC18ytedN7sL3rm+de+zy0qbx8obPzqusuSF06cA4IAFQCUWV3TlOl+a7vJ4NPbV5nfhJ6prmytGBwejbFz3X9+M7A0Pgj9fX3W729vcqyREvfHAQUGcvOybJjIc+tz8ZTuZUDQ5GWiRuxAk3TJFV32kfP9JUAIKmUXwIAGYBg8u3HoVQCIKAqkmioDeQGr06mFy2RXVHoy7idannJ6kK/4XYcbm6sPPL2zm1DU1NTvqamwOyvkMIdHABnti1xTkR6YVF78pVDBxpry77avaPx/OB4VN26eUP3w3WVjTWVgRHTTPoj0zGjwDDmwuEw+S0R4xwAL723WB29HidXhm/kj96y6gq9riQU5ylChC1Tnvb7neSHkYlyVZIzJR7fvGmbVlVVFQMAcu2aUD2eWS+xSP6CZa99fNfBL3MmU2prylpf2l7/bU2lb9HO2DkAAtCIEFmuKB5LUZxZjwcZQogJAEQIIQPIG52a9XvySH5P72R1xbrSSxUB/1w0GjUYYxYhJKNpmiWEhwNxGIbBAJgArF/ahdyeRTN6Op2fF00sGoUeTZ5PpbRExiLFeZ64rtNENpvNFhUVWQD40haEEH5nscnSYJNisZiTMc2ZFbZOiUndimIpirK4hGQppUwI8Yfd/zNiwriQ3V0Z+QAAAABJRU5ErkJggg==") 4 4, auto !important;
+}
+input, textarea, select, [contenteditable="true"] {
+  cursor: text !important;
+}
+
+/* Gold arrow over dark backgrounds (set by js/cursor-tone.js). */
+html.cursor-gold, html.cursor-gold *, html.cursor-gold *::before, html.cursor-gold *::after {
+  cursor: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAAVCAYAAABLy77vAAADMElEQVR42q2UzWtcVRjGn/c95965c2eSTmbaaEqSAaMWLEihKG4UcWERVy6Stf4BIkilrgz+AW5cNUJ1K9NFFypFEUoXpQtd2oIgRW1IbDL5mJk79/Oc93UxkfSDRpSe3fn6nec573MO8ISaub+jq2C8Drp+HfpE6Krg/7uRAGDYW3xhd21uEQD+7M3X/wtjcvLVZ8OJT3qzPhve3Ot1zyyurGd6pdvS3oP2HwtSBe0lEh0oG0bHzMlmqNey3vx79M4f+yM83dZr3ejfFX0BGziNdO1sQKQWhUhVoRHF9su0t/Dh9Mpf2xiVTf3+xcaRoN/Drqks1TDbnywksKgCXlGvm8/yywuf97fKYsenRr/qtv65z0dAYadk9lWQMNcmIwRSGqa5fAsCaiG/32o3fjD9soNGI8Xl+RldfbSqfHJfKAqEuajsgSIAgAv8u1kuF2EJtsavxNP048iPl3BiaTg4Pd96OCKMSKioQqKgdjhB6ozjlyDydZHKx1UhSRjSM8x6Y9S/83ZrZX1352q7eT+MHxstzxXAr5al3igdLZepbjSmeKZGdCXtLa52kt0xLp1qHAlSBRlrSie0awI6o4IiSf05V+gvHJCI4pMEC2/A5NXPawgmoBMAUCDLs0NnBCjKkknGRLoF9nNRRMsqetyGZMI6OVJduNvwdPb5rpmAStbQsDwsqqy0JKVEvCQg3VAhMSF1XOovFQXOaRR81wHamDruJ6CCFcwSNVkYaiBQAFEc2ovC1CXDW8abyhi96QWvpeQviKs2pChaPoqLW3cymoByozAkWrIIUIMqATQdPmVfZuhbTs1I2I29N/fKEXJbBs+x1iJraOxyV53G7QNFm+viA+SW3JQh+TUfyTZBh77vPlLx5yeP2Q+MZoMq1AFZ2uTY9auaGc9sck4r8ABgsQvfWNJi4Fis8ffY83m2/NP2yOzEgWuFkGrg4jSy9aoVjGUfihZij9QU+OB2dRg9BW18M1efTqIpsUWLyVivFMVkyWu5XzXdIEva2WyzrHD3N8EMBLeg9CkeKBABgPZg+uGpOEr3YktUL6TGIbvKHZM8S3w2u7ydMcEf9f/+DY+/nl5TdV/GAAAAAElFTkSuQmCC") 4 4, auto !important;
+}
+html.cursor-gold input, html.cursor-gold textarea, html.cursor-gold select, html.cursor-gold [contenteditable="true"] {
+  cursor: text !important;
+}
+
+/* Click ring: an orange ring expands from the pointer on every mouse click (see js/cursor-tone.js). */
+.site-click-ring {
+  position: fixed; z-index: 9999; width: 18px; height: 18px; margin: -9px 0 0 -9px;
+  border-radius: 50%; border: 2px solid #F57025; pointer-events: none;
+  animation: site-click-ring .5s ease-out forwards;
+}
+@keyframes site-click-ring { 0% { opacity: .8; transform: scale(.3); } 100% { opacity: 0; transform: scale(1.5); } }
+@media (prefers-reduced-motion: reduce) { .site-click-ring { display: none; } }

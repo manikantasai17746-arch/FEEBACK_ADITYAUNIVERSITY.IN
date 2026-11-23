@@ -232,7 +232,7 @@ body.lp-menu-open .lp-drawer {
 .receipt li { color: var(--muted); text-decoration: line-through; text-decoration-thickness: 2px; text-decoration-color: var(--orange); }
 
 /* ---------- Numbers sentence over the campus photo ---------- */
-.numbers { position: relative; background: var(--ink); color: #fff; overflow: hidden; isolation: isolate; }
+.numbers { position: relative; z-index: 2; background: var(--ink); color: #fff; overflow: hidden; isolation: isolate; }
 .numbers::before {
   content: ""; position: absolute; inset: 0; z-index: -1;
   background: url("../img/aditya-campus.jpg") center 40% / cover no-repeat;
@@ -439,7 +439,7 @@ body.lp-menu-open .lp-drawer {
 
 /* ---------- Footer ---------- */
 .lp-footer {
-  position: relative; color: rgba(255,255,255,.8);
+  position: relative; z-index: 2; color: rgba(255,255,255,.8);
   background: linear-gradient(180deg, #0a2142 0, var(--ink) 240px);
 }
 .lp-footer::before {
@@ -786,3 +786,8 @@ body.lp-scanning .lp-header, body.lp-scanning .lp-drawer, body.lp-scanning .lp-d
 .sheet .demo-cursor svg { display: block; transition: transform .12s; }
 .sheet .demo-cursor.is-down svg { transform: scale(.8); }
 @media (prefers-reduced-motion: reduce) { .sheet .demo-cursor { display: none; } }
+
+/* Phones: a tap must not fill the whole row with the role colour (the button is the full-row tap target). */
+@media (max-width: 520px) {
+  .role:hover .role-go, .role:focus-within .role-go { background: transparent; color: inherit; }
+}

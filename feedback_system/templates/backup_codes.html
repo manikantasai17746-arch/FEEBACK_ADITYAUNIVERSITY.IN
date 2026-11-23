@@ -13,51 +13,9 @@
         {% for c in codes %}<li>{{ c }}</li>{% endfor %}
       </ul>
     </div>
-    <div id="backup-tools" class="backup-tools" style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.8rem">
-      <button type="button" id="backup-download" class="btn btn-outline">&#11015; Download (.txt)</button>
-      <button type="button" id="backup-copy" class="btn btn-outline">&#10697; Copy codes</button>
-      <span id="backup-status" class="sub" role="status" aria-live="polite" style="align-self:center;font-size:.9rem"></span>
-    </div>
-    <p class="sub" style="font-size:.88rem">If you download the file, delete it from this computer's Downloads folder once it is
-      somewhere safe &mdash; especially on a shared lab PC.</p>
     <p class="sub">Write them down or store them in a password manager — not on the same phone as your authenticator app.
       Do not share them or e-mail them to yourself.</p>
     <a class="btn btn-block" href="{{ continue_url }}">I have saved my codes</a>
   </div>
 </div>
-{% endblock %}
-{% block scripts %}
-<script nonce="{{ csp_nonce }}">
-(function(){
-  var list = document.getElementById('backup-codes');
-  if (!list) return;
-  function codes(){ return Array.prototype.map.call(list.querySelectorAll('li'), function(l){ return l.textContent.trim(); }); }
-  var status = document.getElementById('backup-status');
-  function say(msg){ if (status) status.textContent = msg; }
-
-  document.getElementById('backup-download').addEventListener('click', function(){
-    var text = 'Faculty Feedback - backup codes\nEach code works once. Keep this file somewhere safe and delete it afterwards.\n\n'
-             + codes().join('\n') + '\n';
-    var a = document.createElement('a');
-    var url = URL.createObjectURL(new Blob([text], {type: 'text/plain'}));
-    a.href = url; a.download = 'backup-codes.txt';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
-    say('Downloaded as backup-codes.txt');
-  });
-
-  document.getElementById('backup-copy').addEventListener('click', function(){
-    var text = codes().join('\n');
-    function fallback(){
-      var t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
-      document.body.appendChild(t); t.select();
-      var ok = false; try { ok = document.execCommand('copy'); } catch(e){}
-      t.remove(); say(ok ? 'Codes copied' : 'Copy failed - please select the codes and copy them by hand');
-    }
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(function(){ say('Codes copied'); }, fallback);
-    } else { fallback(); }
-  });
-})();
-</script>
 {% endblock %}
