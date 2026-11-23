@@ -141,6 +141,7 @@
 
 <main>
 <section class="hero" id="home">
+  <div class="hero-sun" aria-hidden="true">{% include 'partials/sun_anim.svg' %}</div>
   <div class="hero-inner">
     <div class="hero-copy">
       <h1 id="heroTitle"><span class="w">Rate</span> <span class="w">your</span> <span class="w">classes.</span><br><span class="w">Leave</span> <span class="w">your</span> <span class="w hl">name</span><br><span class="w hl">out</span> <span class="w hl">of</span> <span class="w hl">it.</span></h1>
@@ -722,6 +723,24 @@
   </div>
 </div>
 
+<script nonce="{{ csp_nonce }}">
+// The fixed sun is hidden only while the dark statistics band overlaps it on screen.
+document.addEventListener('DOMContentLoaded', function () {
+  var sun = document.querySelector('.hero-sun');
+  var band = document.querySelector('.numbers');
+  if (!sun || !band) return;
+  var queued = false;
+  function check() {
+    queued = false;
+    var s = sun.getBoundingClientRect(), b = band.getBoundingClientRect();
+    sun.classList.toggle('is-off', b.top < s.bottom && b.bottom > s.top);
+  }
+  function schedule() { if (!queued) { queued = true; requestAnimationFrame(check); } }
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', schedule);
+  check();
+});
+</script>
 <script src="{{ url_for('static', filename='js/vendor/zxing-library-0.20.0.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
 <script src="{{ url_for('static', filename='js/numbers-slideshow.js') }}" defer></script>

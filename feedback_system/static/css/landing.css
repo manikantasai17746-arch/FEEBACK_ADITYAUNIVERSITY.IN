@@ -144,6 +144,40 @@ body.lp-menu-open .lp-drawer {
 }
 .hero-link:hover { color: var(--blue-deep); }
 
+/* Decorative animated sun behind the answer sheet (from the Full Sun Animation).
+   Brand orange, low opacity so the headline and sheet stay the focus.
+   Pure decoration: aria-hidden, pointer-events none, sits under the content. */
+.hero { position: relative; }
+.hero-inner, .block-inner, .numbers-inner, .lp-footer-inner, .lp-footer-bottom {
+  position: relative; z-index: 2;
+}
+.hero-sun {
+  --sun-color: var(--orange);
+  .hero-sun.is-off { opacity: 0; visibility: hidden; }
+/* fixed: the sun stays in place for the whole page. It paints above section
+     backgrounds and below the content (content is raised to z-index 2). */
+  position: fixed; z-index: 1; pointer-events: none;
+  top: 90px; left: -170px; width: min(550px, 53vw); aspect-ratio: 1;
+  opacity: .26; transition: opacity .4s ease;
+}
+.hero-sun svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.sun-body { fill: var(--sun-color); fill-rule: evenodd; }
+.sun-logo { fill: var(--sun-color); stroke: var(--sun-color); stroke-width: .8; stroke-linejoin: round; }
+.sun-ring {
+  transform-box: fill-box; transform-origin: 50% 50%; vector-effect: non-scaling-stroke;
+  fill: none; stroke: var(--sun-color); stroke-width: 1.2; opacity: 0;
+  animation: sun-ring 7s ease-out infinite;
+}
+.sun-ring-b { animation-delay: 3.5s; }
+.sun-dot { transform-box: fill-box; transform-origin: 50% 50%; animation: none; }
+@keyframes sun-ring { 0% { transform: scale(1); opacity: .45; } 100% { transform: scale(3.75); opacity: 0; } }
+@media (max-width: 980px) {
+  .hero-sun { top: 70px; left: -200px; width: min(440px, 90vw); opacity: .22; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sun-ring { animation: none; opacity: 0; }
+}
+
 /* The answer sheet: the one memorable element */
 .sheet {
   --cut: 54px;
