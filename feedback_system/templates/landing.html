@@ -342,7 +342,7 @@
 <footer class="lp-footer" id="contact">
   <div class="lp-footer-inner">
     <div class="lp-foot-brand">
-      <div class="lp-foot-logo">{{ university_logo('lp-foot-logo-svg', 'lp-foot-logo-ring-mask') }}</div>
+      <div class="lp-foot-logo">{% include 'partials/footer_logo_anim.svg' %}</div>
       <p class="lp-foot-title">Faculty Feedback System</p>
       <p class="lp-foot-tag">Transparent, fair and built for continuous growth.</p>
       <h4 class="lp-foot-label">Follow Aditya University</h4>
@@ -482,6 +482,19 @@
 // Start the logo entrance when the banner is reached.
 (function () {
   var logo = document.querySelector('.numbers-logo');
+  if (!logo || typeof IntersectionObserver !== 'function') return;
+  logo.classList.add('is-animated');
+  var observer = new IntersectionObserver(function (entries) {
+    if (!entries[0].isIntersecting) return;
+    logo.classList.add('is-in');
+    observer.disconnect();
+  });
+  observer.observe(logo);
+})();
+
+// Footer logo: the sun and orbits always turn; the wordmark fades in once the footer is reached.
+(function () {
+  var logo = document.querySelector('.lp-foot-logo-svg');
   if (!logo || typeof IntersectionObserver !== 'function') return;
   logo.classList.add('is-animated');
   var observer = new IntersectionObserver(function (entries) {

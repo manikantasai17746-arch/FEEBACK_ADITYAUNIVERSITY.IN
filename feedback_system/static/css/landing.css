@@ -400,22 +400,29 @@ body.lp-menu-open .lp-drawer {
   letter-spacing: .12em; text-transform: uppercase;
 }
 
-/* Logo card: the same animated mark as the loading screen, on its light palette */
+/* Logo card: animated blue and orange mark on white (sun and orbits turn, wordmark fades in) */
 .lp-foot-logo {
-  --logo-ink: #03529b; --logo-accent: #d59c00;
+  --logo-blue: #03529b; --logo-orange: #f47124;
   width: 12rem; aspect-ratio: 192 / 154; display: grid; place-items: center;
   background: #fff; border-radius: 18px; margin-bottom: 1.25rem;
   box-shadow: 0 10px 30px rgba(0,0,0,.28);
 }
-.lp-foot-logo-svg { display: block; width: 78%; height: auto; }
+.lp-foot-logo-svg { display: block; width: 78%; height: auto; overflow: visible; }
+.lp-foot-logo-svg .o { transform-origin: 239.8px 185.84px; }
+.lp-foot-logo-svg .sun { transform-origin: 239px 186.5px; }
 @media (prefers-reduced-motion: no-preference) {
-  .lp-foot-logo-svg .sun { transform-origin: 239px 186.5px; animation: lp-foot-spin 40s linear infinite; }
-  .lp-foot-logo-svg .orb { transform-origin: 239.8px 185.84px; animation: lp-foot-spin var(--orbit-duration) linear infinite var(--orbit-direction, reverse); }
-  .lp-foot-logo-svg .orb-one { --orbit-duration: 70s; }
-  .lp-foot-logo-svg .orb-two { --orbit-duration: 46s; --orbit-direction: normal; }
-  .lp-foot-logo-svg .orb-three { --orbit-duration: 30s; }
+  .lp-foot-logo-svg .sun { animation: lp-foot-spin 40s linear infinite; }
+  .lp-foot-logo-svg .orb { animation: lp-foot-spin var(--s) linear infinite; }
+  .lp-foot-logo-svg .orb-one { --s: 70s; animation-direction: reverse; }
+  .lp-foot-logo-svg .orb-two { --s: 46s; }
+  .lp-foot-logo-svg .orb-three { --s: 30s; animation-direction: reverse; }
+  /* wordmark is hidden only once the script has armed the entrance, so it is never lost */
+  .lp-foot-logo-svg.is-animated .word { opacity: 0; }
+  .lp-foot-logo-svg.is-in .word { animation: lp-foot-rise 1.3s cubic-bezier(.2,.7,.2,1) .4s forwards; }
+  .lp-foot-logo-svg.is-in .word-2 { animation-delay: 1.1s; }
 }
 @keyframes lp-foot-spin { to { transform: rotate(360deg); } }
+@keyframes lp-foot-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 .lp-foot-title { font: 650 1.05rem/1.3 var(--display); color: #fff; margin-bottom: .35rem !important; }
 .lp-foot-tag { font-size: .9rem; color: rgba(255,255,255,.7); margin-bottom: 1.75rem !important; }
