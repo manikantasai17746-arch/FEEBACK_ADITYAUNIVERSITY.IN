@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#071E3D">
   <title>Aditya University — Faculty Feedback Portal</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon-emblem.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/anonymity_card.css') }}">
@@ -155,6 +156,7 @@
 
 
     <!-- Interactive sample: an answer sheet that shows what gets saved -->
+    <div class="float" id="float">
     <div class="sheet" id="demo">
       <p class="sheet-tag">Sample question. Nothing here is saved.</p>
       <h2 class="sheet-q" id="demoQ">The faculty explains concepts in a way I can follow.</h2>
@@ -199,11 +201,21 @@
       </div>
       <div class="sheet-fold" aria-hidden="true"><i></i></div>
     </div>
+    <div class="fcur" id="fcur" aria-hidden="true"><svg viewBox="0 0 40 40"><g fill="none" stroke-linejoin="miter" stroke-miterlimit="6"><path d="M5.5 35 L14 35 M26 35 L34.5 35 M6.5 35 L20 5.5 L33.5 35" stroke="#fff" stroke-width="10" stroke-linecap="butt"/><path d="M6.5 34.6 L20 6.2 L33.5 34.6" stroke="#0B2F6B" stroke-width="6.2"/><path d="M4.8 35 L14.5 35 M25.5 35 L35.2 35" stroke="#0B2F6B" stroke-width="5.2"/></g></svg></div>
+    </div>
   </div>
 </section>
 
 {% if stats.students > 0 %}
 <section class="numbers" aria-label="Feedback at Aditya University">
+  <div class="numbers-slides" aria-hidden="true" data-interval="3000">
+    <img class="is-active" src="{{ url_for('static', filename='img/campus/1-hostel-block.jpg') }}" alt="" decoding="async">
+    <img src="{{ url_for('static', filename='img/campus/2-aerial-blocks.jpg') }}" alt="" loading="lazy" decoding="async">
+    <img src="{{ url_for('static', filename='img/campus/3-courtyard-top.jpg') }}" alt="" loading="lazy" decoding="async">
+    <img src="{{ url_for('static', filename='img/campus/4-campus-aerial.jpg') }}" alt="" loading="lazy" decoding="async">
+    <img src="{{ url_for('static', filename='img/campus/5-prayer-spaces.jpg') }}" alt="" loading="lazy" decoding="async">
+    <img src="{{ url_for('static', filename='img/campus/6-entrance-pencils.jpg') }}" alt="" loading="lazy" decoding="async">
+  </div>
   <div class="numbers-inner">
     {{ university_logo('numbers-logo', 'numbers-logo-ring-mask') }}
     <div>
@@ -333,24 +345,47 @@
 <footer class="lp-footer" id="contact">
   <div class="lp-footer-inner">
     <div class="lp-foot-brand">
-      <img src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="Aditya University">
-      <p>Faculty Feedback System</p>
+      <div class="lp-foot-logo">{% include 'partials/footer_logo_anim.svg' %}</div>
+      <p class="lp-foot-title">Faculty Feedback System</p>
       <p class="lp-foot-tag">Transparent, fair and built for continuous growth.</p>
+      <h4 class="lp-foot-label">Follow Aditya University</h4>
+      <ul class="lp-social" aria-label="Aditya University on social media">
+        <li><a href="https://www.linkedin.com" target="_blank" rel="noopener" aria-label="LinkedIn">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.03-3.04-1.85-3.04-1.86 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.12 2.06 2.06 0 0 1 0 4.12zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg></a></li>
+        <li><a href="https://www.youtube.com" target="_blank" rel="noopener" aria-label="YouTube">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1c.5-1.9.5-5.8.5-5.8s0-3.9-.5-5.8zM9.6 15.6V8.4l6.2 3.6-6.2 3.6z"/></svg></a></li>
+        <li><a href="https://www.facebook.com" target="_blank" rel="noopener" aria-label="Facebook">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M24 12.07C24 5.4 18.63 0 12 0S0 5.4 0 12.07C0 18.1 4.39 23.1 10.13 24v-8.44H7.08v-3.49h3.05V9.41c0-3.02 1.79-4.7 4.53-4.7 1.31 0 2.69.24 2.69.24v2.97h-1.52c-1.49 0-1.96.93-1.96 1.89v2.26h3.33l-.53 3.49h-2.8V24C19.61 23.1 24 18.1 24 12.07z"/></svg></a></li>
+        <li><a href="https://www.instagram.com" target="_blank" rel="noopener" aria-label="Instagram">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.4" cy="6.6" r="1" fill="currentColor" stroke="none"/></svg></a></li>
+      </ul>
     </div>
-    <div>
-      <h4>Contact</h4>
-      <p>+91 63 00 45 90 01<br>
-         support_tt@adityauniversity.in<br>
-         Surampalem, Kakinada District, Andhra Pradesh</p>
-    </div>
-    <div>
-      <h4>Follow Aditya University</h4>
-      <p class="lp-social">
-        <a href="https://www.linkedin.com" target="_blank" rel="noopener">LinkedIn</a>
-        <a href="https://www.youtube.com" target="_blank" rel="noopener">YouTube</a>
-        <a href="https://www.facebook.com" target="_blank" rel="noopener">Facebook</a>
-        <a href="https://www.instagram.com" target="_blank" rel="noopener">Instagram</a>
-      </p>
+
+    <nav class="lp-foot-links" aria-label="Quick links">
+      <h4 class="lp-foot-label">Quick links</h4>
+      <ul>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#privacy">Privacy</a></li>
+        <li><a href="#portals">Sign in</a></li>
+      </ul>
+    </nav>
+
+    <div class="lp-foot-contact">
+      <h4 class="lp-foot-label">Contact</h4>
+      <ul>
+        <li>
+          <span class="lp-foot-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>
+          <span class="lp-foot-item"><small>Call us</small><a href="tel:+916300459001">+91 63 00 45 90 01</a></span>
+        </li>
+        <li>
+          <span class="lp-foot-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2.5"/><path d="m3 7 9 6.5L21 7"/></svg></span>
+          <span class="lp-foot-item"><small>Email</small><a href="mailto:support_tt@adityauniversity.in">support_tt@adityauniversity.in</a></span>
+        </li>
+        <li>
+          <span class="lp-foot-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.6"/></svg></span>
+          <span class="lp-foot-item"><small>Visit</small><span>Surampalem, Kakinada District, Andhra Pradesh</span></span>
+        </li>
+      </ul>
     </div>
   </div>
   <div class="lp-footer-bottom">
@@ -360,16 +395,36 @@
 
 
 <script nonce="{{ csp_nonce }}">
-// Sample answer sheet in the hero: picking a bubble shows what is saved
-// and stamps the sheet "Anonymous feedback".
+// Sample answer sheet in the hero. An "A" cursor clicks the ratings by itself; picking a
+// bubble shows what is saved and stamps the sheet "Anonymous feedback". Moving a mouse over
+// the card hands the cursor to the visitor. Nothing is saved or sent anywhere.
 (function () {
   var sheet = document.getElementById('demo');
   if (!sheet) return;
+  var box = document.getElementById('float'), cur = document.getElementById('fcur');
   var bubbles = Array.prototype.slice.call(sheet.querySelectorAll('.bubble'));
   var idle = document.getElementById('receiptIdle');
   var body = document.getElementById('receiptBody');
   var label = document.getElementById('pickLabel');
-  var touched = false;
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var timers = [], touched = false, following = false;
+
+  // Split the question into words so they can rise in one by one.
+  var q = document.getElementById('demoQ');
+  var words = q.textContent.trim().split(/\s+/);
+  q.textContent = '';
+  words.forEach(function (w, i) {
+    var sp = document.createElement('span');
+    sp.className = 'w'; sp.style.setProperty('--i', i); sp.textContent = w;
+    q.appendChild(sp);
+    if (i < words.length - 1) q.appendChild(document.createTextNode(' '));
+  });
+  bubbles.forEach(function (b, n) { b.style.setProperty('--n', n); });
+
+  function replay(el, c) { el.classList.remove(c); void el.offsetWidth; el.classList.add(c); }
+  function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+  function clearAll() { timers.forEach(clearTimeout); timers = []; }
+  function clearHover() { bubbles.forEach(function (b) { b.classList.remove('fake-hover'); }); }
 
   function pick(i) {
     bubbles.forEach(function (b, j) {
@@ -379,43 +434,75 @@
     label.textContent = bubbles[i].getAttribute('data-label');
     idle.hidden = true;
     body.hidden = false;
-    stamp();
+    replay(sheet, 'is-stamped');   // slam the stamp down; re-adding the class replays it
+    replay(label, 'swap');
+    replay(body, 'redo');
   }
 
-  // Slam the stamp down. Remove and re-add the class so every call replays it.
-  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var loop = null;
-  function stamp() {
-    sheet.classList.remove('is-stamped');
-    void sheet.offsetWidth;
-    sheet.classList.add('is-stamped');
-    // Replay the stamp every 5 seconds. A new pick restarts the 5 second count.
-    if (calm) return;
-    clearInterval(loop);
-    loop = setInterval(function () {
-      if (!document.hidden && body.hidden === false) stamp();
-    }, 5000);
+  function moveTo(el) {            // put the arrow tip on the middle of the circle
+    var a = box.getBoundingClientRect(), r = el.querySelector('i').getBoundingClientRect();
+    cur.style.transform = 'translate(' + (r.left - a.left + r.width / 2) + 'px,' + (r.top - a.top + r.height / 2) + 'px)';
   }
+  function auto() {                // one demo tap on "Very good", then the cursor leaves
+    if (touched) return;
+    var b = bubbles[3];
+    moveTo(b);
+    later(function () { clearHover(); b.classList.add('fake-hover'); }, 850);
+    later(function () { cur.classList.add('press'); pick(3); b.classList.remove('fake-hover'); }, 1150);
+    later(function () { cur.classList.remove('press'); }, 1350);
+    later(function () { if (!following) cur.classList.remove('show'); }, 2000);
+  }
+  function start() {
+    var a = box.getBoundingClientRect();
+    cur.style.transition = 'none';  // start below the card, then glide in
+    cur.style.transform = 'translate(' + (a.width * .78) + 'px,' + (a.height + 30) + 'px)';
+    void cur.offsetWidth; cur.style.transition = ''; cur.classList.add('show');
+    later(auto, 2100);
+  }
+
+  // Visitor with a mouse: the A becomes their cursor.
+  box.addEventListener('pointermove', function (e) {
+    if (e.pointerType !== 'mouse' || calm) return;
+    if (!following) {
+      following = true; touched = true; clearAll(); clearHover(); cur.classList.remove('press');
+      box.classList.add('follow'); box.style.animationPlayState = 'paused';
+      cur.classList.add('show'); cur.style.transition = 'transform .25s ease-out';
+    } else { cur.style.transition = 'transform .03s linear'; }
+    var a = box.getBoundingClientRect();
+    cur.style.transform = 'translate(' + (e.clientX - a.left) + 'px,' + (e.clientY - a.top) + 'px)';
+  });
+  box.addEventListener('pointerleave', function () { if (following) { box.classList.remove('follow'); cur.classList.remove('show'); } });
+  box.addEventListener('pointerenter', function (e) { if (following && e.pointerType === 'mouse') { box.classList.add('follow'); cur.classList.add('show'); } });
+  box.addEventListener('pointerdown', function () { if (following) cur.classList.add('press'); });
+  window.addEventListener('pointerup', function () { if (following) cur.classList.remove('press'); });
 
   bubbles.forEach(function (b, i) {
     if (i > 0) b.tabIndex = -1;
-    b.addEventListener('click', function () { touched = true; pick(i); });
+    b.addEventListener('click', function () {
+      if (!following && !touched) { touched = true; clearAll(); clearHover(); }
+      if (!following) {            // touch or keyboard: the A taps the circle, then leaves
+        moveTo(b);
+        setTimeout(function () {
+          cur.classList.add('press');
+          setTimeout(function () { cur.classList.remove('press'); cur.classList.remove('show'); }, 320);
+        }, 800);
+      }
+      pick(i);
+    });
     b.addEventListener('keydown', function (e) {
       var next = null;
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (i + 1) % bubbles.length;
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (i + bubbles.length - 1) % bubbles.length;
       if (next === null) return;
       e.preventDefault();
-      touched = true;
+      touched = true; clearAll(); clearHover(); cur.classList.remove('show');
       pick(next);
       bubbles[next].focus();
     });
   });
 
-  // One page-load moment: the sheet fills in a sample answer to show what it does.
-  if (!calm) {
-    setTimeout(function () { if (!touched) pick(3); }, 1100);
-  }
+  sheet.classList.add('intro');
+  if (calm) pick(3); else start();
 })();
 </script>
 
@@ -450,6 +537,19 @@
 // Start the logo entrance when the banner is reached.
 (function () {
   var logo = document.querySelector('.numbers-logo');
+  if (!logo || typeof IntersectionObserver !== 'function') return;
+  logo.classList.add('is-animated');
+  var observer = new IntersectionObserver(function (entries) {
+    if (!entries[0].isIntersecting) return;
+    logo.classList.add('is-in');
+    observer.disconnect();
+  });
+  observer.observe(logo);
+})();
+
+// Footer logo: the sun and orbits always turn; the wordmark fades in once the footer is reached.
+(function () {
+  var logo = document.querySelector('.lp-foot-logo-svg');
   if (!logo || typeof IntersectionObserver !== 'function') return;
   logo.classList.add('is-animated');
   var observer = new IntersectionObserver(function (entries) {
@@ -631,6 +731,7 @@
 
 <script src="{{ url_for('static', filename='js/vendor/zxing-library-0.20.0.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
+<script src="{{ url_for('static', filename='js/numbers-slideshow.js') }}" defer></script>
 <script nonce="{{ csp_nonce }}">
 (function () {
   var overlay = document.getElementById('lpLoginOverlay');
