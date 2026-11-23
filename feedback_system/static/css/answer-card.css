@@ -111,7 +111,7 @@
 @media (prefers-reduced-motion:reduce){.answer-card-float{animation:none}.fcur{display:none}}
 
 /* ---- text animation ---- */
-.receipt li{position:relative;width:fit-content;text-decoration:none}
+.receipt li{position:relative;width:fit-content;text-decoration:none;white-space:nowrap}
 .receipt li::after{content:"";position:absolute;left:0;right:0;top:56%;height:2px;background:var(--orange);transform-origin:left center}
 .receipt-saved strong{display:inline-block}
 @media (prefers-reduced-motion:no-preference){
