@@ -1290,3 +1290,11 @@ html.dark-mode .sf-tab-count { background: #243047; color: #e5e9f0; }
 input, textarea, select, [contenteditable="true"] {
   cursor: text !important;
 }
+
+/* Gold arrow over dark backgrounds (set by js/cursor-tone.js). */
+html.cursor-gold, html.cursor-gold *, html.cursor-gold *::before, html.cursor-gold *::after {
+  cursor: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAAVCAYAAABLy77vAAADMElEQVR42q2UzWtcVRjGn/c95965c2eSTmbaaEqSAaMWLEihKG4UcWERVy6Stf4BIkilrgz+AW5cNUJ1K9NFFypFEUoXpQtd2oIgRW1IbDL5mJk79/Oc93UxkfSDRpSe3fn6nec573MO8ISaub+jq2C8Drp+HfpE6Krg/7uRAGDYW3xhd21uEQD+7M3X/wtjcvLVZ8OJT3qzPhve3Ot1zyyurGd6pdvS3oP2HwtSBe0lEh0oG0bHzMlmqNey3vx79M4f+yM83dZr3ejfFX0BGziNdO1sQKQWhUhVoRHF9su0t/Dh9Mpf2xiVTf3+xcaRoN/Drqks1TDbnywksKgCXlGvm8/yywuf97fKYsenRr/qtv65z0dAYadk9lWQMNcmIwRSGqa5fAsCaiG/32o3fjD9soNGI8Xl+RldfbSqfHJfKAqEuajsgSIAgAv8u1kuF2EJtsavxNP048iPl3BiaTg4Pd96OCKMSKioQqKgdjhB6ozjlyDydZHKx1UhSRjSM8x6Y9S/83ZrZX1352q7eT+MHxstzxXAr5al3igdLZepbjSmeKZGdCXtLa52kt0xLp1qHAlSBRlrSie0awI6o4IiSf05V+gvHJCI4pMEC2/A5NXPawgmoBMAUCDLs0NnBCjKkknGRLoF9nNRRMsqetyGZMI6OVJduNvwdPb5rpmAStbQsDwsqqy0JKVEvCQg3VAhMSF1XOovFQXOaRR81wHamDruJ6CCFcwSNVkYaiBQAFEc2ovC1CXDW8abyhi96QWvpeQviKs2pChaPoqLW3cymoByozAkWrIIUIMqATQdPmVfZuhbTs1I2I29N/fKEXJbBs+x1iJraOxyV53G7QNFm+viA+SW3JQh+TUfyTZBh77vPlLx5yeP2Q+MZoMq1AFZ2uTY9auaGc9sck4r8ABgsQvfWNJi4Fis8ffY83m2/NP2yOzEgWuFkGrg4jSy9aoVjGUfihZij9QU+OB2dRg9BW18M1efTqIpsUWLyVivFMVkyWu5XzXdIEva2WyzrHD3N8EMBLeg9CkeKBABgPZg+uGpOEr3YktUL6TGIbvKHZM8S3w2u7ydMcEf9f/+DY+/nl5TdV/GAAAAAElFTkSuQmCC") 4 4, auto !important;
+}
+html.cursor-gold input, html.cursor-gold textarea, html.cursor-gold select, html.cursor-gold [contenteditable="true"] {
+  cursor: text !important;
+}

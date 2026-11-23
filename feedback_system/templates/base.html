@@ -159,5 +159,6 @@
 </script>
 {% if show_page_loader and not feedback_arrival %}{% include 'partials/page_loader.html' %}{% endif %}
 {% block scripts %}{% endblock %}
+<script src="{{ url_for('static', filename='js/cursor-tone.js') }}" defer></script>
 </body>
 </html>
