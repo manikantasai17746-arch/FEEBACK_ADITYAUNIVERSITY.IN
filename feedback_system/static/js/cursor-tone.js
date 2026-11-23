@@ -9,9 +9,22 @@
     return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
   }
 
+  function hasOwnText(el) {
+    for (var n = el.firstChild; n; n = n.nextSibling) {
+      if (n.nodeType === 3 && n.textContent.trim()) return true;
+    }
+    return false;
+  }
+
   function isDarkAt(el) {
     if (!el) return false;
     if (el.closest && el.closest(DARK_SECTIONS)) return true;
+    // Dark text (such as the navy headings) is the same colour as the navy arrow, so the arrow
+    // blends in. Switch to gold over dark text too.
+    if (hasOwnText(el)) {
+      var t = getComputedStyle(el).color.match(/[\d.]+/g);
+      if (t && (t.length < 4 || parseFloat(t[3]) > 0) && luminance([+t[0], +t[1], +t[2]]) < 0.2) return true;
+    }
     for (var node = el; node && node.nodeType === 1; node = node.parentElement) {
       var m = getComputedStyle(node).backgroundColor.match(/[\d.]+/g);
       if (!m) continue;
