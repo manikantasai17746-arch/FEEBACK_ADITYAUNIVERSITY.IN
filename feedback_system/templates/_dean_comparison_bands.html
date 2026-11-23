@@ -1,0 +1,51 @@
+{# Dean "Teachers by Score Band" for the Multi-round Comparison page.
+   Same cards as the HOD page; each card links to the round-by-round comparison.
+   Cards also show Department and HOD because a Dean oversees several of each. #}
+{% macro dean_comparison_bands(bands, band_default, fargs) %}
+<div id="score-bands" class="card" style="margin-top:1.25rem">
+  <h2 style="margin-top:0">🎯 Teachers by Score Band</h2>
+  <p class="sub" style="margin:-.4rem 0 1rem">Click a band to see the teachers whose feedback score falls in that range, highest first.
+    Use <strong>Compare performance</strong> to see that teacher's performance across rounds.</p>
+  <div class="band-tabs">
+    {% for b in bands %}
+    <a class="band-tab band-{{ loop.index }} {{ 'active' if b.key == band_default }}" href="#" data-band="{{ b.key }}">
+      <span class="band-label">{{ b.label }}</span>
+      <span class="band-count">{{ b.count }} teacher{{ '' if b.count == 1 else 's' }}</span>
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+{% for b in bands %}
+<div class="card band-panel band-{{ loop.index }}" data-band-panel="{{ b.key }}" style="margin-top:1rem" {% if b.key != band_default %}hidden{% endif %}>
+  <h2 style="margin-top:0">{{ b.label }} <span class="muted">· {{ b.count }}</span></h2>
+  {% if b.rows %}
+  <div class="band-grid">
+    {% for r in b.rows %}
+    {% set tname = r.teacher_name or 'Faculty' %}
+    {% set initials = (tname.replace('.', '').split()[1:]|map('first')|join('')|upper)[:2] or (tname.split()|map('first')|join('')|upper)[:2] %}
+    <div class="band-card">
+      <div class="band-photo">
+        {% if r.teacher_emp_code %}
+        <img src="{{ url_for('photos.serve', emp_code=r.teacher_emp_code) }}" alt="{{ tname }}"
+             onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+        {% endif %}
+        <div class="band-initials" {% if r.teacher_emp_code %}style="display:none"{% endif %}>{{ initials }}</div>
+      </div>
+      <div class="band-info">
+        <div class="band-name">{{ tname }}</div>
+        <div class="band-sub">{{ r.subject_code or '' }} {{ r.subject_name or '' }}</div>
+        <div class="band-sub">Dept: <strong>{{ r.branch_code or '—' }}</strong> · HOD: <strong>{{ r.hod_names }}</strong></div>
+        <div class="band-sub">{{ r.valid_responses or r.response_count or 0 }} response(s)</div>
+      </div>
+      <div class="band-score">{{ '%.2f'|format(r.overall_score) }}%</div>
+      <a class="btn btn-sm btn-accent" href="{{ url_for('dean.comparison_rounds', teacher_id=r.teacher_user_id, **fargs) }}">📈 Compare performance</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="sub">No teachers in this score band yet.</p>
+  {% endif %}
+</div>
+{% endfor %}
+{% endmacro %}

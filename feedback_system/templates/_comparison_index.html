@@ -18,6 +18,8 @@
 
   <form method="get" class="card" style="margin-bottom:1rem;display:flex;gap:.75rem;flex-wrap:wrap;align-items:end">
     {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
+    {% if filters.branch_id %}<input type="hidden" name="branch_id" value="{{ filters.branch_id }}">{% endif %}
+    {% if filters.hod_id %}<input type="hidden" name="hod_id" value="{{ filters.hod_id }}">{% endif %}
     <label>Academic year<br>
       <select name="academic_year_id">
         <option value="">All</option>

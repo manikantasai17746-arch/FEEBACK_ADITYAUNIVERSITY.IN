@@ -1,5 +1,6 @@
 """Dean portal — publication monitoring and department analytics."""
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import (Blueprint, abort, flash, jsonify, redirect, render_template, request,
+                   session, url_for)
 
 from . import complaints, db
 from .security import (audit, current_user, role_required, scoped_branch_ids_or_none,
@@ -103,7 +104,8 @@ def _dashboard_data(user, branches, ay_id, sem_id, form_id):
                 lst.append(p['hod_user_id'])
 
     # ---- Forms (published ones only: open / closed / archived) ------------
-    sql = f"""SELECT ff.id, ff.title, ff.status, ff.branch_id
+    sql = f"""SELECT ff.id, ff.title, ff.status, ff.branch_id,
+                     ff.academic_year_id, ff.semester_id, ff.timetable_id
               FROM feedback_forms ff
               WHERE ff.branch_id IN ({ph}) AND ff.is_deleted=0
                 AND ff.status IN ('open','closed','archived')"""
@@ -195,6 +197,7 @@ def _dashboard_data(user, branches, ay_id, sem_id, form_id):
 
     # ---- Requirements / publication status --------------------------------
     sql = f"""SELECT fr.id, fr.branch_id, fr.title, fr.deadline, fr.status,
+                     fr.academic_year_id, fr.semester_id,
                      fr.matched_form_id, ff.status AS form_status
               FROM feedback_requirements fr
               LEFT JOIN feedback_forms ff ON ff.id=fr.matched_form_id
@@ -207,50 +210,124 @@ def _dashboard_data(user, branches, ay_id, sem_id, form_id):
         sql += ' AND fr.semester_id=?'
         args.append(sem_id)
     reqs = db.query(sql, tuple(args))
+    # ---- One row per (department, HOD) -------------------------------------
+    # Two HODs can share a department (e.g. different semesters).  A HOD's
+    # allocation rows say which (year, semester) slices of the department are
+    # theirs; no allocation (department-scope fallback) means the whole
+    # department.  Rows carry stable branch and HOD ids for the Performance link.
+    alloc = {}
+    if hod_ids:
+        for r in db.query(
+                f"""SELECT hod_user_id, branch_id, academic_year_id, semester_id, timetable_id
+                    FROM hod_allocations
+                    WHERE hod_user_id IN ({_in_clause(hod_ids)}) AND branch_id IN ({ph})""",
+                tuple(hod_ids) + tuple(branch_ids)):
+            alloc.setdefault((r['hod_user_id'], r['branch_id']), set()).add(
+                (r['academic_year_id'], r['semester_id'], r['timetable_id']))
+    sem_no = {x['id']: x['number'] for x in db.query('SELECT id, number FROM semesters')}
+
+    def _in_scope(hod_id, branch_id, ay, sem, tt=None):
+        # tt is None for requirements (they have no timetable): year/semester only.
+        slices = alloc.get((hod_id, branch_id))
+        if hod_id is None or not slices:
+            return True
+        return any((a is None or a == ay) and (s is None or s == sem)
+                   and (tt is None or t is None or t == tt) for a, s, t in slices)
+
+    elig_by_form, sub_by_form = {}, {}
+    for (fid, sid) in elig_pairs:
+        elig_by_form.setdefault(fid, set()).add(sid)
+    for (fid, sid) in sub_pairs:
+        if (fid, sid) in elig_pairs:
+            sub_by_form.setdefault(fid, set()).add(sid)
+
+    units = []
+    for b in branches:
+        ids = sorted((h for h in branch_hods[b['id']] if h in hod_names),
+                     key=lambda h: (hod_names[h] or '', h))
+        if ids:
+            units.extend((b, h) for h in ids)
+        else:
+            units.append((b, None))
+    per_branch_units = {}
+    for b, h in units:
+        per_branch_units[b['id']] = per_branch_units.get(b['id'], 0) + 1
+
     published_states = ('open', 'closed', 'archived')
     today = date.today()
     soon = today + timedelta(days=7)
-
-    rb = {b['id']: {'total': 0, 'required': 0, 'published': 0} for b in branches}
-    deadline_soon = 0
-    for r in reqs:
-        d = rb[r['branch_id']]
-        d['total'] += 1
-        is_pub = bool(r['matched_form_id']) and r['form_status'] in published_states
-        if r['status'] == 'required':
-            d['required'] += 1
-            if is_pub:
-                d['published'] += 1
-            else:
-                try:
-                    dl = date.fromisoformat(str(r['deadline'] or '')[:10])
-                    if today <= dl <= soon:
-                        deadline_soon += 1
-                except ValueError:
-                    pass
-
     rows = []
-    for i, b in enumerate(branches, 1):
-        d, p = rb[b['id']], per[b['id']]
-        if d['required']:
-            published = d['published'] == d['required']
-            detail = f"{d['published']}/{d['required']}"
+    deadline_soon = 0
+    for i, (b, h) in enumerate(units, 1):
+        bid = b['id']
+        uforms = [f for f in forms if f['branch_id'] == bid
+                  and _in_scope(h, bid, f['academic_year_id'], f['semester_id'],
+                                f['timetable_id'])]
+        e_ids, s_ids, last_at = set(), set(), None
+        for f in uforms:
+            e_ids |= elig_by_form.get(f['id'], set())
+            s_ids |= sub_by_form.get(f['id'], set())
+            la = last.get(f['id'])
+            if la and (last_at is None or str(la) > str(last_at)):
+                last_at = la
+        total = required = pub = 0
+        for r in reqs:
+            if r['branch_id'] != bid or not _in_scope(
+                    h, bid, r['academic_year_id'], r['semester_id']):
+                continue
+            total += 1
+            is_pub = bool(r['matched_form_id']) and r['form_status'] in published_states
+            if r['status'] == 'required':
+                required += 1
+                if is_pub:
+                    pub += 1
+                else:
+                    try:
+                        dl = date.fromisoformat(str(r['deadline'] or '')[:10])
+                        if today <= dl <= soon:
+                            deadline_soon += 1
+                    except ValueError:
+                        pass
+        if required:
+            published = pub == required
+            detail = f"{pub}/{required}"
         else:
-            published = any(f['branch_id'] == b['id'] for f in forms)
+            published = bool(uforms)
             detail = ''
-        rate = _pct(p['submitted'], p['eligible'])
-        names = [hod_names[h] for h in branch_hods[b['id']] if h in hod_names]
+        label = b['code']
+        if per_branch_units[bid] > 1 and h is not None:
+            sems = sorted({sem_no[s] for (_a, s, _t) in alloc.get((h, bid), ()) if s in sem_no})
+            if sems:
+                label += ' \u00b7 Sem ' + ', '.join(str(n) for n in sems)
+        elig, subm = len(e_ids), len(s_ids)
+        fstat = {'open': 0, 'closed': 0, 'archived': 0}
+        for f in uforms:
+            fstat[f['status']] = fstat.get(f['status'], 0) + 1
         rows.append({
-            'n': i, 'id': b['id'], 'code': b['code'], 'name': b['name'],
-            'hod': ', '.join(names) if names else '\u2014',
-            'hod_ids': [h for h in branch_hods[b['id']] if h in hod_names],
-            'configured': d['total'] > 0,
+            'n': i, 'id': bid, 'hod_id': h, 'key': f"{bid}-{h or 0}",
+            'code': b['code'], 'label': label, 'name': b['name'],
+            'hod': hod_names[h] if h is not None else '\u2014',
+            'hod_ids': [h] if h is not None else [],
+            'configured': total > 0,
             'published': published, 'pub_detail': detail,
-            'rate': rate, 'has_rate': p['eligible'] > 0,
-            'last': _fmt_date(p['last']),
-            'eligible': p['eligible'], 'submitted': p['submitted'],
-            'pending': max(p['eligible'] - p['submitted'], 0),
+            'forms': fstat, 'form_total': sum(fstat.values()),
+            'rate': _pct(subm, elig), 'has_rate': elig > 0,
+            'last': _fmt_date(last_at),
+            'eligible': elig, 'submitted': subm,
+            'pending': max(elig - subm, 0),
         })
+    # Two HODs on the same department AND semester would get identical labels:
+    # add their timetable code(s) so the dashboard and chart tell them apart.
+    from collections import Counter
+    dup = {k for k, n in Counter((r['id'], r['label']) for r in rows).items() if n > 1}
+    if dup:
+        tt_code = {t['id']: t['code'] for t in db.query('SELECT id, code FROM timetables')}
+        for r in rows:
+            if (r['id'], r['label']) in dup and r['hod_id'] is not None:
+                codes = sorted({tt_code[t] for (_a, _s, t) in alloc.get((r['hod_id'], r['id']), ())
+                                if t in tt_code})
+                if codes:
+                    r['label'] += ' \u00b7 ' + ', '.join(codes)
     data['rows'] = rows
 
     # ---- Chart ------------------------------------------------------------
@@ -265,7 +342,7 @@ def _dashboard_data(user, branches, ay_id, sem_id, form_id):
     data['chart_top'] = top
     data['chart_ticks'] = [top - i * step for i in range(int(top // step) + 1)]
     data['chart'] = [{
-        'code': r['code'], 'eligible': r['eligible'], 'submitted': r['submitted'],
+        'code': r['label'], 'eligible': r['eligible'], 'submitted': r['submitted'],
         'pending': r['pending'],
         'h_e': round(100.0 * r['eligible'] / top, 1) if top else 0,
         'h_s': round(100.0 * r['submitted'] / top, 1) if top else 0,
@@ -286,7 +363,8 @@ def _dashboard_data(user, branches, ay_id, sem_id, form_id):
         if not r['published']:
             unpublished_hods.update(r['hod_ids'])
     data['alerts'] = [
-        {'label': 'Departments without feedback requirements', 'count': sum(1 for r in rows if not r['configured']),
+        {'label': 'Departments without feedback requirements',
+         'count': len({r['id'] for r in rows if not r['configured']}),
          'tone': 'red', 'icon': 'warn', 'endpoint': 'dean.publication'},
         {'label': 'Feedback forms approaching deadline', 'count': deadline_soon,
          'tone': 'amber', 'icon': 'clock', 'endpoint': 'dean.publication'},
@@ -363,16 +441,7 @@ def publication():
     summary = []
     if branch_ids:
         dash = _dashboard_data(user, branches, None, None, None)
-        by_status = {b['id']: {'open': 0, 'closed': 0, 'archived': 0} for b in branches}
-        for r in db.query(
-                f"""SELECT branch_id, status, COUNT(*) AS c FROM feedback_forms
-                    WHERE branch_id IN ({ph}) AND is_deleted=0
-                      AND status IN ('open','closed','archived')
-                    GROUP BY branch_id, status""", tuple(branch_ids)):
-            by_status[r['branch_id']][r['status']] = r['c']
-        for r in dash['rows']:
-            summary.append(dict(r, forms=by_status[r['id']],
-                                form_total=sum(by_status[r['id']].values())))
+        summary = list(dash['rows'])
     return render_template('dean_publication.html', rows=rows, summary=summary,
                            requirements_configured=requirements_configured,
                            branches=branches)
@@ -688,8 +757,12 @@ def actions():
                   ia.due_date IS NULL, ia.due_date""",
             tuple(branch_ids))
     from datetime import date
+    new_ids = set()
+    for part in (request.args.get('new') or '').split(',')[:30]:
+        if part.strip().isdigit():
+            new_ids.add(int(part))
     return render_template('dean_actions.html', user=user, branches=branches, rows=rows,
-                           now_iso=date.today().isoformat())
+                           now_iso=date.today().isoformat(), new_ids=new_ids)
 
 
 # --------------------------------------------------------------------------- #
@@ -709,7 +782,7 @@ def _bulk_rows(user, band_key, filters):
     """Teacher rows for the bulk page: the chosen band, or everyone (lowest score first)."""
     bands, branches, hods = _dean_band_data(
         user, filters['branch_id'], filters['hod_id'],
-        filters['academic_year_id'], filters['semester_id'])
+        filters['academic_year_id'], filters['semester_id'], filters['category'])
     if band_key and band_key in {b['key'] for b in bands}:
         rows = next(b for b in bands if b['key'] == band_key)['rows']
     else:
@@ -718,10 +791,11 @@ def _bulk_rows(user, band_key, filters):
 
 
 def _row_hod(row, hod_list, choices):
-    """The HOD that owns this teacher's department/semester row."""
-    key = (row.get('academic_year_id'), row.get('branch_id'), row.get('semester_id'))
-    for h in hod_list:
-        if key in h['triples']:
+    """The HOD that owns this teacher's form: timetable-aware (two HODs can share a
+    department and semester); HODs with an explicit allocation win over the
+    department-scope fallback."""
+    for h in sorted(hod_list, key=lambda h: h['whole_dept']):
+        if _hod_owns(h, row):
             return h['id'], h['name']
     cands = [h for h in choices if row.get('branch_id') in h['branches']]
     if len(cands) == 1:
@@ -729,14 +803,64 @@ def _row_hod(row, hod_list, choices):
     return None, None
 
 
+def _review_subject(r):
+    return ' '.join(x for x in (r.get('subject_code'), r.get('subject_name')) if x) or 'your subject'
+
+
+def _review_details(r):
+    """Fact block appended to every review action (same lines the bulk flow always used)."""
+    name = r.get('teacher_name') or 'Faculty'
+    details = [f'Teacher: {name} ({r.get("teacher_emp_code") or "-"})',
+               f'Subject: {_review_subject(r)}', f'Score: {r["overall_score"]:.1f} / 100',
+               f'Responses: {r.get("valid_responses") or r.get("response_count") or 0}']
+    low = sorted((c for c in (r.get('criteria') or []) if c.get('score') is not None),
+                 key=lambda c: c['score'])[:3]
+    if low:
+        details.append('Lowest-rated areas: ' + '; '.join(
+            f'{c["text"]} ({c["score"]:.1f})' for c in low))
+    return details
+
+
+def _insert_review_action(user, r, owner_id, owner_name, priority, due, letter, log_note, now=None):
+    """Create ONE improvement action for a teacher's form (caller commits). Returns its id.
+
+    The single place that writes a Dean 'feedback review' action: used by the bulk
+    review requests, the band e-mail and the e-mail-the-HOD flow."""
+    from datetime import datetime
+    now = now or datetime.utcnow().isoformat(timespec='seconds')
+    name = r.get('teacher_name') or 'Faculty'
+    aid = db.insert_id(
+        """INSERT INTO improvement_actions
+           (branch_id, title, description, status, priority, owner_user_id, owner_name,
+            due_date, created_by, created_at, updated_at, teacher_user_id, form_id)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+        (r.get('branch_id'), f'Feedback review: {name} - {_review_subject(r)}'[:200],
+         (letter + '\n\n--- Details ---\n' + '\n'.join(_review_details(r)))[:4000],
+         'planned', priority, owner_id, owner_name, due, user['id'], now, now,
+         r.get('teacher_user_id'), r.get('form_id')))
+    db.get_db().execute(
+        """INSERT INTO improvement_action_log
+           (action_id, actor_user_id, note, old_status, new_status) VALUES(?,?,?,?,?)""",
+        (aid, user['id'], log_note, None, 'planned'))
+    return aid
+
+
+def _open_action_keys():
+    """(teacher_user_id, form_id) pairs that already have an open (planned / in progress) action."""
+    return {(a['teacher_user_id'], a['form_id']) for a in db.query(
+        "SELECT teacher_user_id, form_id FROM improvement_actions "
+        "WHERE teacher_user_id IS NOT NULL AND status IN ('planned','in_progress')")}
+
+
+
 @bp.route('/actions/bulk')
 @role_required('dean')
 def actions_bulk():
     from . import mailer
     user = current_user()
-    ay, sem, br, hod = _band_filters_from(request.args)
+    ay, sem, br, hod, category = _band_filters_from(request.args)
     band_key = (request.args.get('band') or '').strip()
-    filters = {'academic_year_id': ay, 'semester_id': sem, 'branch_id': br, 'hod_id': hod}
+    filters = {'academic_year_id': ay, 'semester_id': sem, 'branch_id': br, 'hod_id': hod, 'category': category}
     bands, branches, hods, rows = _bulk_rows(user, band_key, filters)
     if br not in [b['id'] for b in branches]:
         filters['branch_id'] = None
@@ -768,9 +892,9 @@ def actions_bulk_create():
     from html import escape
     user = current_user()
     f = request.form
-    ay, sem, br, hod = _band_filters_from(f)
+    ay, sem, br, hod, category = _band_filters_from(f)
     band_key = (f.get('band') or '').strip()
-    filters = {'academic_year_id': ay, 'semester_id': sem, 'branch_id': br, 'hod_id': hod}
+    filters = {'academic_year_id': ay, 'semester_id': sem, 'branch_id': br, 'hod_id': hod, 'category': category}
     back = url_for('dean.actions_bulk', band=band_key, **{k: v for k, v in filters.items() if v})
     picked = set()
     for v in f.getlist('pick'):
@@ -792,9 +916,7 @@ def actions_bulk_create():
     branch_ids = [b['id'] for b in branches]
     choices = _hod_choices(user, branch_ids)
     dean_name = dict(user).get('name') or 'Dean'
-    existing = {(a['teacher_user_id'], a['form_id']) for a in db.query(
-        "SELECT teacher_user_id, form_id FROM improvement_actions "
-        "WHERE teacher_user_id IS NOT NULL AND status IN ('planned','in_progress')")}
+    existing = _open_action_keys()
     now = datetime.utcnow().isoformat(timespec='seconds')
     created, dup, no_hod = 0, 0, 0
     per_hod = {}
@@ -816,26 +938,8 @@ def actions_bulk_create():
         for k, v in {'{hod}': owner_name, '{name}': name, '{score}': score,
                      '{subject}': subject, '{dean}': dean_name}.items():
             letter = letter.replace(k, v)
-        low = sorted((c for c in (r.get('criteria') or []) if c.get('score') is not None),
-                     key=lambda c: c['score'])[:3]
-        details = [f'Teacher: {name} ({r.get("teacher_emp_code") or "-"})',
-                   f'Subject: {subject}', f'Score: {score} / 100',
-                   f'Responses: {r.get("valid_responses") or r.get("response_count") or 0}']
-        if low:
-            details.append('Lowest-rated areas: ' + '; '.join(f'{c["text"]} ({c["score"]:.1f})' for c in low))
-        aid = db.insert_id(
-            """INSERT INTO improvement_actions
-               (branch_id, title, description, status, priority, owner_user_id, owner_name,
-                due_date, created_by, created_at, updated_at, teacher_user_id, form_id)
-               VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (r.get('branch_id'), f'Feedback review: {name} - {subject}'[:200],
-             (letter + '\n\n--- Details ---\n' + '\n'.join(details))[:4000],
-             'planned', priority, owner_id, owner_name, due, user['id'], now, now,
-             key[0], key[1]))
-        db.get_db().execute(
-            """INSERT INTO improvement_action_log
-               (action_id, actor_user_id, note, old_status, new_status) VALUES(?,?,?,?,?)""",
-            (aid, user['id'], f'Review request sent to {owner_name}', None, 'planned'))
+        _insert_review_action(user, r, owner_id, owner_name, priority, due, letter,
+                              f'Review request sent to {owner_name}', now)
         existing.add(key)
         created += 1
         per_hod.setdefault(owner_id, []).append((name, subject, score))
@@ -1141,10 +1245,37 @@ def action_edit(aid):
                            action=action, logs=logs, hods=hods)
 
 
+@bp.route('/actions/<int:aid>/delete', methods=['POST'])
+@role_required('dean')
+def action_delete(aid):
+    """Delete an improvement action (including one a HOD raised) and its discussion log.
+
+    Same scope as editing: the action must belong to one of the Dean's departments (or
+    have no department).  POST only; CSRF is enforced for every POST by init_csrf()."""
+    user = current_user()
+    branch_ids = {b['id'] for b in _dean_branches(user)}
+    action = db.query('SELECT id, title, branch_id, status, raised_by_role '
+                      'FROM improvement_actions WHERE id=?', (aid,), one=True)
+    if not action:
+        abort(404)
+    if action['branch_id'] and action['branch_id'] not in branch_ids:
+        abort(403)
+    conn = db.get_db()
+    conn.execute('DELETE FROM improvement_action_log WHERE action_id=?', (aid,))
+    conn.execute('DELETE FROM improvement_actions WHERE id=?', (aid,))
+    conn.commit()
+    audit('dean.action_delete', 'improvement_actions', aid,
+          f'{action["status"]}; raised_by={action["raised_by_role"] or "dean"}; '
+          f'title={(action["title"] or "")[:120]}')
+    flash('Action deleted.', 'success')
+    return redirect(url_for('dean.actions'))
+
+
 @bp.route('/performance')
 @role_required('dean')
 def performance():
     """Dean faculty performance — reuses central scoring service."""
+    from datetime import date
     from . import scoring
     from . import services
     user = current_user()
@@ -1152,6 +1283,7 @@ def performance():
     branch_ids = [b['id'] for b in branches]
     academic_year_id = request.args.get('academic_year_id', type=int)
     semester_id = request.args.get('semester_id', type=int)
+    category = _performance_category(request.args)
     # Optional department filter (the Publication page's "View" button).
     branch_id = request.args.get('branch_id', type=int)
     if branch_id not in branch_ids:
@@ -1169,11 +1301,9 @@ def performance():
         rows = scoring.faculty_scores_for_branches(
             scope_ids,
             academic_year_id=academic_year_id,
-            semester_id=semester_id)
+            semester_id=semester_id, category=category)
         if hod_pick:
-            rows = [r for r in rows
-                    if (r.get('academic_year_id'), r.get('branch_id'), r.get('semester_id'))
-                    in hod_pick['triples']]
+            rows = [r for r in rows if _hod_owns(hod_pick, r)]
         # Eligible counts and marks for ALL forms in a handful of queries
         # (was ~30 queries per row, one row after another).
         fids = [r['form_id'] for r in rows]
@@ -1207,20 +1337,23 @@ def performance():
     # Score bands live on this same page (click a band to list its teachers).
     from . import mailer
     from .hod import DEFAULT_BAND_SUBJECT
-    bands, _b, _h = _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id)
+    bands, _b, _h = _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id, category)
     band_key = (request.args.get('band') or '').strip()
     active = next((b for b in bands if b['key'] == band_key), None)
     if not active:
         band_key = ''
+    if active:
+        _annotate_card_owners(user, active['rows'], hods)
     return render_template(
         'dean_performance.html', user=user, branches=branches, rows=rows,
         years=years, semesters=semesters, summary=summary, dept=dept,
-        hods=hods, bands=bands, active=active, band_key=band_key,
+        hods=hods, hod_pick=hod_pick, bands=bands, active=active, band_key=band_key,
         default_subject=DEFAULT_BAND_SUBJECT,
         default_message=_dean_default_message(band_key) if active else '',
-        mail_ready=mailer.is_configured(),
+        mail_ready=mailer.is_configured(), today=date.today().isoformat(),
+        hod_subject=DEFAULT_HOD_SUBJECT, hod_message=DEFAULT_HOD_MESSAGE,
         filters={'academic_year_id': academic_year_id, 'semester_id': semester_id,
-                 'branch_id': branch_id, 'hod_id': hod_id})
+                 'branch_id': branch_id, 'hod_id': hod_id, 'category': category})
 
 
 # --------------------------------------------------------------------------- #
@@ -1228,25 +1361,57 @@ def performance():
 # HOD-name filters because a Dean oversees several HODs and departments.
 # --------------------------------------------------------------------------- #
 def _band_hods(user):
-    """HODs assigned to this Dean: [{id, name, triples:{(year, branch, semester)}}]."""
+    """HODs assigned to this Dean.
+
+    [{id, name, triples:{(year, branch, semester)}, branch_ids, timetable_ids,
+      whole_dept}].  ``whole_dept`` is True for a HOD with no allocation rows
+    (department-scope fallback, same rule as the dashboard): every form of the
+    HOD's departments counts for that HOD.
+    """
     rows = db.query(
         """SELECT u.id, u.name, ha.academic_year_id AS ay, ha.branch_id AS br,
-                  ha.semester_id AS sem
+                  ha.semester_id AS sem, ha.timetable_id AS tt
            FROM dean_hod_assignments dha
            JOIN users u ON u.id = dha.hod_user_id
            LEFT JOIN hod_allocations ha ON ha.hod_user_id = u.id
-           WHERE dha.dean_user_id=? ORDER BY u.name""", (user['id'],))
+           WHERE dha.dean_user_id=? ORDER BY u.name, u.id""", (user['id'],))
     hods = {}
     for r in rows:
         h = hods.setdefault(r['id'], {'id': r['id'], 'name': r['name'] or 'HOD',
-                                      'triples': set(), 'branch_ids': set()})
+                                      'triples': set(), 'branch_ids': set(),
+                                      'timetable_ids': set(), 'whole_dept': False})
         if r['br'] is not None:
             h['triples'].add((r['ay'], r['br'], r['sem']))
             h['branch_ids'].add(r['br'])
+            if r['tt'] is not None:
+                h['timetable_ids'].add(r['tt'])
+    for h in hods.values():
+        if not h['branch_ids']:
+            for b in db.query('SELECT branch_id FROM user_department_scopes WHERE user_id=?',
+                              (h['id'],)):
+                h['branch_ids'].add(b['branch_id'])
+            h['whole_dept'] = True
     return list(hods.values())
 
 
-def _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id):
+def _hod_owns(hod, row):
+    """True when a scoring row (one feedback form) belongs to this HOD.
+
+    A form belongs to the HOD whose allocation names its timetable; a form
+    with no timetable falls back to the (year, department, semester) slice.
+    """
+    if row.get('branch_id') not in hod['branch_ids']:
+        return False
+    if hod['whole_dept']:
+        return True
+    tt = row.get('timetable_id')
+    if tt is not None and hod['timetable_ids']:
+        return tt in hod['timetable_ids']
+    return (row.get('academic_year_id'), row.get('branch_id'),
+            row.get('semester_id')) in hod['triples']
+
+
+def _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id, category):
     """Score bands for the Dean. Each row carries teacher email, department, HOD name(s)."""
     from . import scoring
     from .hod import SCORE_BANDS
@@ -1261,17 +1426,14 @@ def _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id):
     if scope_ids:
         rows = scoring.faculty_scores_for_branches(
             scope_ids, academic_year_id=academic_year_id,
-            semester_id=semester_id, min_responses=1)
+            semester_id=semester_id, min_responses=1, category=category)
     rows = [dict(r) for r in rows if r.get('overall_score') is not None]
     if hod_pick:
-        rows = [r for r in rows
-                if (r.get('academic_year_id'), r.get('branch_id'), r.get('semester_id'))
-                in hod_pick['triples']]
+        rows = [r for r in rows if _hod_owns(hod_pick, r)]
     code_by_id = {b['id']: b['code'] for b in branches}
     for r in rows:
         r['branch_code'] = r.get('branch_code') or code_by_id.get(r.get('branch_id'))
-        key = (r.get('academic_year_id'), r.get('branch_id'), r.get('semester_id'))
-        r['hod_names'] = ', '.join(h['name'] for h in hods if key in h['triples']) or '—'
+        r['hod_names'] = ', '.join(h['name'] for h in hods if _hod_owns(h, r)) or '—'
     ids = sorted({r['teacher_user_id'] for r in rows if r.get('teacher_user_id')})
     emails = {}
     if ids:
@@ -1296,13 +1458,29 @@ def _dean_default_message(band_key):
             .replace('{hod}\nHead of Department', '{dean}\nDean'))
 
 
+def _performance_category(src):
+    from .feedback_categories import CATEGORIES
+    value = (src.get('category') or '').strip().lower()
+    return value if value in CATEGORIES else None
+
+
 def _band_filters_from(src):
     def _i(k):
         try:
             return int(src.get(k)) if src.get(k) else None
         except (TypeError, ValueError):
             return None
-    return (_i('academic_year_id'), _i('semester_id'), _i('branch_id'), _i('hod_id'))
+    return (_i('academic_year_id'), _i('semester_id'), _i('branch_id'), _i('hod_id'), _performance_category(src))
+
+
+def _annotate_card_owners(user, rows, hods):
+    """Give each band card the HOD that owns it and the HODs it could be assigned to."""
+    branch_ids = [b['id'] for b in _dean_branches(user)]
+    choices = _hod_choices(user, branch_ids)
+    for r in rows:
+        r['hod_id'], r['hod_name'] = _row_hod(r, hods, choices)
+        r['owner_options'] = [{'id': c['id'], 'name': c['name']} for c in choices
+                              if r.get('branch_id') in c['branches']]
 
 
 @bp.route('/performance/bands')
@@ -1313,73 +1491,477 @@ def performance_bands():
     return redirect(url_for('dean.performance', **args) + '#bands')
 
 
-@bp.route('/performance/bands/send', methods=['POST'])
-@role_required('dean')
-def performance_bands_send():
-    """E-mail the ticked teachers of one score band (Dean's own text or the default)."""
-    from . import mailer
-    from html import escape
-    from .hod import DEFAULT_BAND_SUBJECT
-    user = current_user()
-    f = request.form
-    academic_year_id, semester_id, branch_id, hod_id = _band_filters_from(f)
+_PRIORITIES = ('low', 'medium', 'high', 'critical')
+_MAIL_TOKENS_KEPT = 3
+
+
+def _wants_json():
+    """The band dialogs post with fetch() and read a JSON result; plain form posts redirect."""
+    return request.headers.get('X-Requested-With') == 'fetch'
+
+
+def _mail_replay(token):
+    """Result of an identical earlier submission (double click / re-post), else None."""
+    if not token:
+        return None
+    for tok, res in session.get('dean_mail_done') or []:
+        if tok == token:
+            return res
+    return None
+
+
+def _mail_remember(token, result):
+    if not token:
+        return
+    keep = ('ok', 'level', 'message', 'sent', 'failed', 'no_email', 'actions_created',
+            'actions_url', 'hods_notified', 'hod_notify_failed')
+    slim = {k: result.get(k) for k in keep}
+    kept = [t for t in (session.get('dean_mail_done') or []) if t[0] != token]
+    kept.append([token, slim])
+    session['dean_mail_done'] = kept[-_MAIL_TOKENS_KEPT:]
+
+
+def _action_options(form):
+    """Optional improvement action fields -> (opts, error). Validated, never trusted."""
+    from datetime import date
+    opts = {'create': (form.get('create_action') or '') in ('1', 'on', 'true'),
+            'priority': 'high', 'due': None}
+    if not opts['create']:
+        return opts, None
+    pr = (form.get('priority') or 'high').strip().lower()
+    if pr not in _PRIORITIES:
+        return opts, 'Choose a priority: low, medium, high or critical.'
+    opts['priority'] = pr
+    raw = (form.get('due_date') or '').strip()
+    if raw:
+        try:
+            due = date.fromisoformat(raw)
+        except ValueError:
+            return opts, 'The due date is not a valid date.'
+        if due < date.today():
+            return opts, 'The due date cannot be in the past.'
+        opts['due'] = due.isoformat()
+    return opts, None
+
+
+def _fill(tpl, values):
+    for k, v in values.items():
+        tpl = tpl.replace(k, str(v))
+    return tpl
+
+
+def _band_context(user, f, *, require_text, default_subject, default_message):
+    """Shared validation + scope resolution for the two band mail routes.
+
+    Returns (ctx, error).  Every row comes from the Dean's own scoring scope; ticked
+    ids that are not in this band / scope are counted as ``ignored`` and never used."""
+    academic_year_id, semester_id, branch_id, hod_id, category = _band_filters_from(f)
     band_key = (f.get('band') or '').strip()
-    back = url_for('dean.performance', band=band_key, academic_year_id=academic_year_id,
-                   semester_id=semester_id, branch_id=branch_id, hod_id=hod_id) + '#bands'
-    subject_tpl = ' '.join((f.get('subject') or '').split())[:150] or DEFAULT_BAND_SUBJECT
-    message_tpl = (f.get('message') or '').strip()[:5000] or _dean_default_message(band_key)
+    subject_tpl = ' '.join((f.get('subject') or '').split())[:150]
+    message_tpl = (f.get('message') or '').strip()[:5000]
+    if require_text:
+        if not subject_tpl:
+            return None, 'Enter a subject.'
+        if not message_tpl:
+            return None, 'Enter a message.'
+    subject_tpl = subject_tpl or default_subject
+    message_tpl = message_tpl or default_message(band_key)
     try:
         selected = {int(x) for x in f.getlist('form_id')}
     except ValueError:
         selected = set()
     if not selected:
-        flash('Tick at least one teacher to send the email.', 'error')
-        return redirect(back)
-    bands, _b, _h = _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id)
+        return None, 'Tick at least one teacher to send the email.'
+    opts, err = _action_options(f)
+    if err:
+        return None, err
+    bands, branches, hods = _dean_band_data(user, branch_id, hod_id, academic_year_id, semester_id, category)
     band = next((b for b in bands if b['key'] == band_key), None)
     if not band:
-        flash('Unknown score band.', 'error')
-        return redirect(back)
-    # One e-mail per ticked card. A card is one teacher's result for ONE subject,
-    # so every teacher gets a mail that names only that subject and only its score.
-    chosen = [r for r in band['rows'] if r.get('form_id') in selected]   # only the Dean's scope
+        return None, 'Unknown score band.'
+    chosen = [r for r in band['rows'] if r.get('form_id') in selected]
+    ignored = len(selected) - len(chosen)
+    if not chosen:
+        return None, 'None of the ticked teachers are in your current selection.'
     if len(chosen) > 100:
-        flash('Please send at most 100 e-mails at a time.', 'error')
-        return redirect(back)
+        return None, 'Please send at most 100 e-mails at a time.'
+    branch_ids = [b['id'] for b in branches]
+    return {'band_key': band_key, 'subject_tpl': subject_tpl, 'message_tpl': message_tpl,
+            'chosen': chosen, 'ignored': ignored, 'opts': opts, 'hods': hods,
+            'branch_ids': branch_ids, 'choices': _hod_choices(user, branch_ids),
+            'filters': (academic_year_id, semester_id, branch_id, hod_id, category)}, None
+
+
+def _create_actions_for(user, rows_owner, letter_for, log_note_for, opts):
+    """Create the optional improvement actions for ``rows_owner`` = [(row, owner_id, owner_name)].
+
+    Skips teachers that already have an open action. Returns
+    (created=[{id, owner_id, row}], skipped_open, skipped_no_hod)."""
+    existing = _open_action_keys()
+    created, skipped_open, no_hod = [], 0, 0
+    for r, owner_id, owner_name in rows_owner:
+        key = (r.get('teacher_user_id'), r.get('form_id'))
+        if key in existing:
+            skipped_open += 1
+            continue
+        if not owner_id:
+            no_hod += 1
+            continue
+        aid = _insert_review_action(
+            user, r, owner_id, owner_name, opts['priority'], opts['due'],
+            letter_for(r, owner_name), log_note_for(r, owner_name))
+        created.append({'id': aid, 'owner_id': owner_id, 'row': r, 'letter': letter_for(r, owner_name)})
+        existing.add(key)
+    if created:
+        db.get_db().commit()
+    return created, skipped_open, no_hod
+
+
+def _finish_band_mail(result, token, back, kind):
+    """Common tail: summary text, audit, remember token, JSON or flash+redirect."""
+    parts = result['parts']
+    result['message'] = ' '.join(parts)
+    result['level'] = ('error' if not result.get('delivered') else
+                       'warning' if result.get('problems') else 'success')
+    result['ok'] = bool(result.get('delivered'))
+    result['actions_url'] = url_for('dean.actions', new=','.join(
+        str(i) for i in (result.get('action_ids') or [])[:30])) if result.get('actions_created') else None
+    audit(f'dean.band.{kind}', 'users', 0, result['message'][:1500])
+    _mail_remember(token, result)
+    if _wants_json():
+        return jsonify(result)
+    for part, lvl in result.get('flashes', []):
+        flash(part, lvl)
+    return redirect(back)
+
+
+def _band_back(ctx_filters, band_key):
+    ay, sem, br, hod, category = ctx_filters
+    return url_for('dean.performance', band=band_key, academic_year_id=ay,
+                   semester_id=sem, branch_id=br, hod_id=hod, category=category) + '#bands'
+
+
+def _band_error(message, back, status=422):
+    if _wants_json():
+        return jsonify({'ok': False, 'level': 'error', 'message': message}), status
+    flash(message, 'error')
+    return redirect(back)
+
+
+@bp.route('/performance/bands/send', methods=['POST'])
+@role_required('dean')
+def performance_bands_send():
+    """E-mail the ticked teachers of one score band (Dean's own text or the default).
+
+    Optional: also create one improvement action per delivered teacher (owner = the
+    teacher's HOD, or the HOD picked in the single-teacher dialog)."""
+    from . import mailer
+    from .hod import DEFAULT_BAND_SUBJECT, _band_email_html, BAND_CATEGORY_LABELS
+    user = current_user()
+    f = request.form
+    filt = _band_filters_from(f)
+    band_key = (f.get('band') or '').strip()
+    back = _band_back(filt, band_key)
+    token = (f.get('submit_token') or '').strip()[:64]
+    replay = _mail_replay(token)
+    if replay is not None:
+        return jsonify(dict(replay, duplicate=True)) if _wants_json() else redirect(back)
+    ctx, err = _band_context(user, f, require_text=(f.get('require_text') == '1'),
+                             default_subject=DEFAULT_BAND_SUBJECT,
+                             default_message=_dean_default_message)
+    if err:
+        return _band_error(err, back)
     dean_name = dict(user).get('name') or 'Dean'
-    sent = failed = no_email = 0
-    for r in chosen:
+    sent_rows, failed, no_email = [], 0, 0
+    for r in ctx['chosen']:
         to = (r.get('teacher_email') or '').strip()
         if not mailer.is_valid_email(to):
             no_email += 1
             continue
         score = round(float(r['overall_score']), 2)
         subject_label = (r.get('subject_name') or r.get('subject_code') or 'your subject').strip()
-        values = {'{name}': r.get('teacher_name') or 'Faculty',
-                  '{score}': f'{score:.2f}',
-                  '{subject}': subject_label,
-                  '{dean}': dean_name, '{hod}': r.get('hod_names') or ''}
-
-        def _fill(t):
-            for k, v in values.items():
-                t = t.replace(k, str(v))
-            return t
-        body = _fill(message_tpl)
-        from .hod import _band_email_html, BAND_CATEGORY_LABELS
-        html = _band_email_html(body, score, subject_label, BAND_CATEGORY_LABELS.get(r.get('category'), ''))
-        if mailer.send_email(to, _fill(subject_tpl), body, html):
-            sent += 1
+        values = {'{name}': r.get('teacher_name') or 'Faculty', '{score}': f'{score:.2f}',
+                  '{subject}': subject_label, '{dean}': dean_name, '{hod}': r.get('hod_names') or ''}
+        body = _fill(ctx['message_tpl'], values)
+        html = _band_email_html(body, score, subject_label,
+                                BAND_CATEGORY_LABELS.get(r.get('category'), ''))
+        try:
+            ok = mailer.send_email(to, _fill(ctx['subject_tpl'], values), body, html)
+        except Exception:
+            ok = False
+        if ok:
+            sent_rows.append(r)
         else:
             failed += 1
-    audit('dean.band.email', 'users', 0,
-          f'Band {band_key}: sent {sent}, failed {failed}, no email {no_email}')
+    opts = ctx['opts']
+    created, skipped_open, no_hod = [], 0, 0
+    if opts['create'] and sent_rows:
+        single_owner = None
+        if len(ctx['chosen']) == 1 and f.get('owner_user_id', type=int):
+            owner_id, owner_name, oerr = _action_owner(
+                user, ctx['branch_ids'], ctx['chosen'][0].get('branch_id'), f)
+            if oerr:
+                return _band_error(oerr, back)
+            single_owner = (owner_id, owner_name)
+        pairs = []
+        for r in sent_rows:
+            oid, oname = single_owner or _row_hod(r, ctx['hods'], ctx['choices'])
+            pairs.append((r, oid, oname))
+        created, skipped_open, no_hod = _create_actions_for(
+            user, pairs,
+            lambda r, on: _fill(ctx['message_tpl'], {
+                '{name}': r.get('teacher_name') or 'Faculty', '{hod}': on or '',
+                '{score}': f"{r['overall_score']:.2f}", '{subject}': _review_subject(r),
+                '{dean}': dean_name}),
+            lambda r, on: f'Created from band e-mail to the teacher; assigned to {on}', opts)
+    notified, notify_failed = 0, 0
+    for c in created:        # existing service: tell the owning HOD about the new action
+        r = c['row']
+        if _notify_hod_assigned(
+                c['owner_id'], f'Feedback review: {r.get("teacher_name") or "Faculty"} - {_review_subject(r)}',
+                c['letter'], opts['priority'], opts['due'], dean_name):
+            notified += 1
+        else:
+            notify_failed += 1
+    res = _teacher_mail_result(sent_rows, failed, no_email, ctx, opts,
+                               [c['id'] for c in created], skipped_open, no_hod)
+    res['hods_notified'] = notified
+    res['hod_notify_failed'] = notify_failed
+    if notify_failed:
+        # The action exists, but its HOD was not told: say so instead of reporting a clean success.
+        res['problems'] = True
+        msg = (f'{_plural(notify_failed, "HOD")} could not be notified about the new '
+               f'{"action" if notify_failed == 1 else "actions"} by email. '
+               'The action is saved; tell the HOD or check the mail settings.')
+        res['parts'].append(msg)
+        res['flashes'].append((msg, 'warning'))
+    return _finish_band_mail(res, token, back, 'email')
+
+
+def _plural(n, word):
+    return f'{n} {word}' + ('' if n == 1 else 's')
+
+
+def _teacher_mail_result(sent_rows, failed, no_email, ctx, opts, ids, skipped_open, no_hod):
+    sent = len(sent_rows)
+    parts, flashes = [], []
+    problems = bool(failed or no_email or ctx['ignored'])
     if sent:
-        flash(f'Email sent to {sent} teacher(s).', 'success')
+        parts.append(f'Email delivered to {_plural(sent, "teacher")}.')
+        flashes.append((parts[-1], 'success'))
+    else:
+        parts.append('No email was delivered.')
     if no_email:
-        flash(f'{no_email} teacher(s) have no email address on file and were skipped.', 'warning')
+        parts.append(f'{_plural(no_email, "teacher")} have no valid email address on file and were skipped.'
+                     if no_email != 1 else '1 teacher has no valid email address on file and was skipped.')
+        flashes.append((parts[-1], 'warning'))
     if failed:
-        flash(f'{failed} email(s) could not be sent. Check the mail settings.', 'error')
-    return redirect(back)
+        parts.append(f'{_plural(failed, "email")} could not be sent. Check the mail settings.')
+        flashes.append((parts[-1], 'error'))
+    if ctx['ignored']:
+        parts.append(f'{_plural(ctx["ignored"], "ticked item")} were outside your selection and ignored.')
+        flashes.append((parts[-1], 'warning'))
+    if opts['create']:
+        if ids:
+            parts.append(f'{_plural(len(ids), "improvement action")} created.')
+            flashes.append((parts[-1], 'success'))
+        if skipped_open:
+            problems = True
+            parts.append(f'{_plural(skipped_open, "action")} skipped: an open action already exists.')
+            flashes.append((parts[-1], 'warning'))
+        if no_hod:
+            problems = True
+            parts.append(f'{_plural(no_hod, "action")} skipped: no HOD found for the department.')
+            flashes.append((parts[-1], 'warning'))
+        if not sent:
+            parts.append('No action was created because no email was delivered.')
+    return {'sent': sent, 'failed': failed, 'no_email': no_email, 'ignored': ctx['ignored'],
+            'delivered': sent, 'problems': problems, 'actions_requested': opts['create'],
+            'actions_created': len(ids), 'actions_skipped_open': skipped_open,
+            'actions_skipped_no_hod': no_hod, 'action_ids': ids, 'parts': parts,
+            'flashes': flashes, 'duplicate': False}
+
+
+DEFAULT_HOD_SUBJECT = 'Feedback review request - {count} teacher(s)'
+DEFAULT_HOD_MESSAGE = (
+    "Dear {hod},\n\nI have reviewed the latest student feedback results for the teachers "
+    "listed below, who report to you:\n\n{teachers}\n\nPlease meet them, review the "
+    "feedback and comments, and let me know what support or improvement you will arrange.\n\n"
+    "Regards,\n{dean}\nDean")
+
+
+@bp.route('/performance/bands/email-hod', methods=['POST'])
+@role_required('dean')
+def performance_bands_email_hod():
+    """E-mail each HOD about the ticked teachers who actually report to that HOD."""
+    from . import mailer
+    from html import escape
+    user = current_user()
+    f = request.form
+    filt = _band_filters_from(f)
+    band_key = (f.get('band') or '').strip()
+    back = _band_back(filt, band_key)
+    token = (f.get('submit_token') or '').strip()[:64]
+    replay = _mail_replay(token)
+    if replay is not None:
+        return jsonify(dict(replay, duplicate=True)) if _wants_json() else redirect(back)
+    ctx, err = _band_context(user, f, require_text=True,
+                             default_subject=DEFAULT_HOD_SUBJECT,
+                             default_message=lambda _k: DEFAULT_HOD_MESSAGE)
+    if err:
+        return _band_error(err, back)
+    dean_name = dict(user).get('name') or 'Dean'
+    groups, no_hod = {}, 0
+    for r in ctx['chosen']:
+        hid, hname = _row_hod(r, ctx['hods'], ctx['choices'])
+        if not hid:
+            no_hod += 1
+            continue
+        groups.setdefault(hid, {'id': hid, 'name': hname, 'rows': []})['rows'].append(r)
+    emails = {}
+    if groups:
+        for u in db.query(f'SELECT id, email FROM users WHERE id IN ({_in_clause(list(groups))})',
+                          tuple(groups)):
+            emails[u['id']] = (u['email'] or '').strip()
+    link = url_for('hod.my_actions', _external=True)
+    out_groups, mailed_rows, hod_failed, hod_no_email = [], [], 0, 0
+    for hid, g in groups.items():
+        lines = '\n'.join(
+            f"  - {r.get('teacher_name') or 'Faculty'} ({_review_subject(r)}): {r['overall_score']:.2f}%"
+            for r in g['rows'])
+        values = {'{hod}': g['name'] or 'HOD', '{dean}': dean_name,
+                  '{count}': len(g['rows']), '{teachers}': lines}
+        body = _fill(ctx['message_tpl'], values)
+        if '{teachers}' not in ctx['message_tpl']:
+            body += '\n\nTeachers:\n' + lines          # the HOD must always see who it is about
+        subject = _fill(ctx['subject_tpl'], values)
+        entry = {'hod': g['name'], 'teachers': [r.get('teacher_name') or 'Faculty' for r in g['rows']]}
+        to = emails.get(hid, '')
+        if not mailer.is_valid_email(to):
+            hod_no_email += 1
+            entry['status'] = 'no_email'
+        else:
+            html = ('<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto">'
+                    f'<div style="white-space:pre-wrap">{escape(body)}</div>'
+                    f'<p><a href="{escape(link)}">Open my actions</a></p></div>')
+            try:
+                ok = mailer.send_email(to, subject, body, html)
+            except Exception:
+                ok = False
+            entry['status'] = 'sent' if ok else 'failed'
+            if ok:
+                mailed_rows += [(r, hid, g['name']) for r in g['rows']]
+            else:
+                hod_failed += 1
+        out_groups.append(entry)
+    opts = ctx['opts']
+    created, skipped_open, no_hod_act = [], 0, 0
+    if opts['create'] and mailed_rows:
+        created, skipped_open, no_hod_act = _create_actions_for(
+            user, mailed_rows,
+            lambda r, on: _fill(ctx['message_tpl'], {
+                '{hod}': on or '', '{dean}': dean_name, '{count}': 1,
+                '{teachers}': f"  - {r.get('teacher_name') or 'Faculty'} ({_review_subject(r)}): "
+                              f"{r['overall_score']:.2f}%"}),
+            lambda r, on: f'Created from e-mail to HOD {on}', opts)
+    ids = [c['id'] for c in created]
+    sent_hods = sum(1 for e in out_groups if e['status'] == 'sent')
+    parts, flashes = [], []
+    problems = bool(hod_failed or hod_no_email or no_hod or ctx['ignored'])
+    if sent_hods:
+        n_t = len(mailed_rows)
+        parts.append(f'Email delivered to {_plural(sent_hods, "HOD")} about {_plural(n_t, "teacher")}.')
+        flashes.append((parts[-1], 'success'))
+    else:
+        parts.append('No email was delivered.')
+    if hod_no_email:
+        parts.append(f'{_plural(hod_no_email, "HOD")} have no valid email address on file and were skipped.'
+                     if hod_no_email != 1 else '1 HOD has no valid email address on file and was skipped.')
+        flashes.append((parts[-1], 'warning'))
+    if hod_failed:
+        parts.append(f'{_plural(hod_failed, "email")} could not be sent. Check the mail settings.')
+        flashes.append((parts[-1], 'error'))
+    if no_hod:
+        parts.append(f'{_plural(no_hod, "teacher")} skipped: no HOD found for their department.')
+        flashes.append((parts[-1], 'warning'))
+    if ctx['ignored']:
+        parts.append(f'{_plural(ctx["ignored"], "ticked item")} were outside your selection and ignored.')
+        flashes.append((parts[-1], 'warning'))
+    if opts['create']:
+        if ids:
+            parts.append(f'{_plural(len(ids), "improvement action")} created.')
+            flashes.append((parts[-1], 'success'))
+        if skipped_open:
+            problems = True
+            parts.append(f'{_plural(skipped_open, "action")} skipped: an open action already exists.')
+            flashes.append((parts[-1], 'warning'))
+        if not mailed_rows:
+            parts.append('No action was created because no email was delivered.')
+    result = {'sent': sent_hods, 'failed': hod_failed, 'no_email': hod_no_email,
+              'no_hod': no_hod, 'ignored': ctx['ignored'], 'groups': out_groups,
+              'delivered': sent_hods, 'problems': problems, 'actions_requested': opts['create'],
+              'actions_created': len(ids), 'actions_skipped_open': skipped_open,
+              'actions_skipped_no_hod': no_hod_act, 'action_ids': ids, 'parts': parts,
+              'flashes': flashes, 'duplicate': False}
+    return _finish_band_mail(result, token, back, 'email_hod')
+
+
+def _comment_tag(stars):
+    """Positive / Neutral / Needs improvement from the 1-5 star rating the writer gave
+    (the same rule the teacher-facing results use). No stars -> not rated."""
+    if not stars:
+        return 'unrated', 'Not rated'
+    if stars >= 4:
+        return 'pos', 'Positive'
+    if stars == 3:
+        return 'neu', 'Neutral'
+    return 'need', 'Needs improvement'
+
+
+@bp.route('/performance/faculty/<int:teacher_id>/result')
+@role_required('dean')
+def performance_result(teacher_id):
+    """Result popup body (HTML fragment) for one teacher, loaded by the Performance page.
+
+    Scope: only forms in the Dean's own departments; ``form_id`` narrows it to one card.
+    Anything outside that scope is a 404, so a Dean cannot probe other departments."""
+    from . import scoring
+    from .hod import SCORE_BANDS, BAND_CATEGORY_LABELS
+    user = current_user()
+    branch_ids = [b['id'] for b in _dean_branches(user)]
+    if not branch_ids:
+        abort(403)
+    rows = scoring.faculty_scores_for_branches(branch_ids, teacher_user_id=teacher_id)
+    form_id = request.args.get('form_id', type=int)
+    focus = [r for r in rows if r['form_id'] == form_id] if form_id else rows
+    teacher = db.query(
+        "SELECT id, name, emp_code, designation FROM users WHERE id=? AND role IN ('teacher','hod')",
+        (teacher_id,), one=True)
+    if not focus or not teacher:
+        abort(404)
+    cards = _detail_cards(focus, teacher_id)
+    first = focus[0]
+    # Score by feedback category: this teacher's forms of the same year/semester, one bar each.
+    peers = [r for r in rows if (r.get('academic_year_id'), r.get('semester_id'))
+             == (first.get('academic_year_id'), first.get('semester_id'))] if form_id else rows
+    categories = [{'label': BAND_CATEGORY_LABELS.get(r.get('category'), 'Faculty'),
+                   'subject': _review_subject(r) if (r.get('subject_code') or r.get('subject_name')) else '',
+                   'score': None if (r.get('hidden') or r.get('overall_score') is None)
+                   else round(float(r['overall_score']), 1),
+                   'current': r['form_id'] == first['form_id']} for r in peers]
+    for c in cards:
+        counts = {'pos': 0, 'neu': 0, 'need': 0, 'unrated': 0}
+        for cm in c['comments']:
+            cm['tag'], cm['tag_label'] = _comment_tag(cm.get('stars'))
+            counts[cm['tag']] += 1
+        c['tag_counts'] = counts
+        sc = c['score']
+        c['avg5'] = None if sc is None else round(sc / 20.0, 2)
+        c['band_label'] = next((lbl for _k, lbl, lo, hi in SCORE_BANDS if sc is not None
+                                and (lo is None or sc > lo) and (hi is None or sc <= hi)), None)
+    initials = ''.join(w[0] for w in (teacher['name'] or 'F').split())[:2].upper()
+    return render_template('_dean_result_dialog.html', user=user, teacher=teacher, cards=cards,
+                           categories=categories, initials=initials, single=bool(form_id))
 
 
 @bp.route('/performance/faculty/<int:teacher_id>')
@@ -1395,7 +1977,7 @@ def performance_detail(teacher_id):
     teacher = db.query(
         "SELECT id, name, emp_code FROM users WHERE id=? AND role IN ('teacher','hod')",
         (teacher_id,), one=True)
-    if not teacher:
+    if not teacher or not rows:
         abort(404)
     cards = _detail_cards(rows, teacher_id)
     profile = db.query(
@@ -1482,23 +2064,90 @@ def _comparison_args():
             (request.args.get('q') or '').strip())
 
 
+def _comparison_filter_args(extra=None):
+    """Filters carried through every Dean comparison link (None values are dropped by url_for)."""
+    ay, sem, q = _comparison_args()
+    args = {'academic_year_id': ay, 'semester_id': sem, 'q': q or None,
+            'branch_id': request.args.get('branch_id', type=int),
+            'hod_id': request.args.get('hod_id', type=int),
+            'category': _performance_category(request.args)}
+    args.update(extra or {})
+    return args
+
+
 @bp.route('/comparison')
 @role_required('dean')
 def comparison():
-    """Every teacher with closed rounds, with subject-wise round-to-round change."""
+    """Every teacher with closed rounds, with subject-wise round-to-round change.
+
+    Dean-level version of the HOD page: same semester / category pills and
+    score-band cards, plus Department and HOD filters because a Dean oversees
+    several departments.  Scope always comes from the Dean's own assignments.
+    """
     from . import analytics
     user = current_user()
     branches = _dean_branches(user)
     branch_ids = [b['id'] for b in branches]
     ay, sem, q = _comparison_args()
+    category = _performance_category(request.args)
+    branch_id = request.args.get('branch_id', type=int)
+    if branch_id not in branch_ids:
+        branch_id = None
+    hods = _band_hods(user)
+    hod_id = request.args.get('hod_id', type=int)
+    hod_pick = next((h for h in hods if h['id'] == hod_id), None)
+    if not hod_pick:
+        hod_id = None
+    scope_ids = [branch_id] if branch_id else branch_ids
+    if hod_pick:
+        scope_ids = [b for b in scope_ids if b in hod_pick['branch_ids']]
     profiles = analytics.build_teacher_profiles(
-        branch_ids, academic_year_id=ay, semester_id=sem, q=q)
+        scope_ids, academic_year_id=ay, semester_id=sem, q=q) if scope_ids else []
+    bands, _b, _h = _dean_band_data(user, branch_id, hod_id, ay, sem, category)
+    band_default = next((b['key'] for b in bands if b['count']),
+                        bands[0]['key'] if bands else None)
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
     semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
+    filters = {'academic_year_id': ay, 'semester_id': sem, 'q': q,
+               'branch_id': branch_id, 'hod_id': hod_id}
     return render_template(
         'dean_comparison.html', user=user, branches=branches, profiles=profiles,
-        years=years, semesters=semesters,
-        filters={'academic_year_id': ay, 'semester_id': sem, 'q': q})
+        years=years, semesters=semesters, filters=filters,
+        filters_args={k: v for k, v in dict(filters, q=q or None,
+                                            category=category).items() if v},
+        bands=bands, band_default=band_default, category=category or '',
+        hods=hods)
+
+
+@bp.route('/comparison/rounds/<int:teacher_id>')
+@role_required('dean')
+def comparison_rounds(teacher_id):
+    """Round-by-round comparison: one card per teacher + subject + class + category."""
+    from . import round_comparison as rc
+    from .hod import _round_rows, _chart_geometry
+    user = current_user()
+    branch_ids = [b['id'] for b in _dean_branches(user)]
+    if not branch_ids:
+        abort(403)
+    ay, sem, _q = _comparison_args()
+    all_series = rc.build_series(_round_rows(branch_ids, ay, sem))
+    mine = [s for s in all_series if s['teacher_user_id'] == teacher_id]
+    teacher = db.query('SELECT id, name, emp_code FROM users WHERE id=?', (teacher_id,), one=True)
+    if not teacher or not mine:
+        abort(404)
+    cards = []
+    for s in mine:
+        s['dept_average'] = rc.department_average_by_round(all_series, s)
+        cards.append({
+            'series': s,
+            'headline': rc.headline(s),
+            'rank': rc.department_rank(all_series, s),
+            'questions': rc.question_comparison(s),
+            'chart': _chart_geometry(s),
+        })
+    return render_template(
+        'hod_round_comparison.html', user=user, teacher=teacher, cards=cards,
+        filters={'academic_year_id': ay, 'semester_id': sem})
 
 
 @bp.route('/comparison/teacher/<int:teacher_id>')

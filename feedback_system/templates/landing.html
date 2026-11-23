@@ -148,32 +148,10 @@
       <script nonce="{{ csp_nonce }}">
       // Arm the headline entrance before first paint; without this (or with reduced motion) the text simply shows.
       (function () {
-        if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) {
-          document.querySelectorAll('.hero-sun svg').forEach(function (s) { if (s.pauseAnimations) s.pauseAnimations(); });
-          return;
-        }
+        if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         var copy = document.querySelector('.hero-copy');
         if (copy) copy.classList.add('hero-anim');
       })();
-
-      // The fixed sun is hidden only while the dark statistics band overlaps it on screen.
-      // Runs after the page is parsed, because the band sits below this script.
-      document.addEventListener('DOMContentLoaded', function () {
-        var sun = document.querySelector('.hero-sun');
-        var band = document.querySelector('.numbers');
-        if (!sun || !band) return;
-        var queued = false;
-        function check() {
-          queued = false;
-          var s = sun.getBoundingClientRect(), b = band.getBoundingClientRect();
-          sun.classList.toggle('is-off', b.top < s.bottom && b.bottom > s.top);
-        }
-        function schedule() { if (!queued) { queued = true; requestAnimationFrame(check); } }
-        window.addEventListener('scroll', schedule, { passive: true });
-        window.addEventListener('resize', schedule);
-        check();
-      });
-
       </script>
       <p class="hero-lead">
         Give feedback on each of your subjects and faculty members. Faculty
@@ -745,6 +723,24 @@
   </div>
 </div>
 
+<script nonce="{{ csp_nonce }}">
+// The fixed sun is hidden only while the dark statistics band overlaps it on screen.
+document.addEventListener('DOMContentLoaded', function () {
+  var sun = document.querySelector('.hero-sun');
+  var band = document.querySelector('.numbers');
+  if (!sun || !band) return;
+  var queued = false;
+  function check() {
+    queued = false;
+    var s = sun.getBoundingClientRect(), b = band.getBoundingClientRect();
+    sun.classList.toggle('is-off', b.top < s.bottom && b.bottom > s.top);
+  }
+  function schedule() { if (!queued) { queued = true; requestAnimationFrame(check); } }
+  window.addEventListener('scroll', schedule, { passive: true });
+  window.addEventListener('resize', schedule);
+  check();
+});
+</script>
 <script src="{{ url_for('static', filename='js/vendor/zxing-library-0.20.0.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
 <script src="{{ url_for('static', filename='js/numbers-slideshow.js') }}" defer></script>

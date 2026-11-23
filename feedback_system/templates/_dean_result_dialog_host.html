@@ -1,0 +1,5 @@
+{# Empty host for the Dean result popup. dean-performance.js fills [data-rd-slot] with the
+   HTML fragment from dean.performance_result and opens the dialog. Shared by Faculty
+   Performance and Send feedback review requests so both pages behave identically.
+   Keep it OUTSIDE any <form>: the popup's buttons must never submit a page form. #}
+<dialog id="result-dialog" class="rd-dialog" aria-label="Teacher result"><div class="rd-slot" data-rd-slot></div></dialog>

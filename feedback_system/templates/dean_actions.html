@@ -25,7 +25,7 @@
       </thead>
       <tbody>
         {% for a in rows %}
-        <tr class="{% if a.due_date and a.status not in ('completed','cancelled') and a.due_date < now_iso %}overdue{% endif %}">
+        <tr id="action-{{ a.id }}" class="{% if a.due_date and a.status not in ('completed','cancelled') and a.due_date < now_iso %}overdue{% endif %}{% if a.id in new_ids %} is-new{% endif %}">
           <td class="wrap">{{ a.title }}
             {% if a.hod_reply %}<div class="sub" style="margin-top:.3rem"><span class="badge badge-open">HOD replied</span> {{ a.hod_reply[:140] }}{{ '…' if a.hod_reply|length > 140 }}</div>
             {% elif a.owner_user_id and a.teacher_user_id and a.status in ('planned','in_progress') %}<div class="sub"><span class="badge">Waiting for HOD reply</span></div>{% endif %}
@@ -37,7 +37,13 @@
           <td>{{ a.priority }}</td>
           <td>{{ a.owner_name or '—' }}{% if a.owner_user_id %} <span class="badge">HOD</span>{% endif %}</td>
           <td>{{ a.due_date or '—' }}</td>
-          <td><a class="btn btn-ghost btn-sm" href="{{ url_for('dean.action_edit', aid=a.id) }}">Edit</a></td>
+          <td class="wrap">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('dean.action_edit', aid=a.id) }}">Edit</a>
+            <form method="post" action="{{ url_for('dean.action_delete', aid=a.id) }}" style="display:inline"
+                  onsubmit="return confirm('Delete this action{{ ' raised by the HOD' if a.raised_by_role == 'hod' }} and its discussion? This cannot be undone.');">
+              <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+              <button type="submit" class="btn btn-ghost btn-sm" aria-label="Delete action: {{ a.title }}">Delete</button>
+            </form></td>
         </tr>
         {% else %}
         <tr><td colspan="8" class="muted">No improvement actions yet.</td></tr>

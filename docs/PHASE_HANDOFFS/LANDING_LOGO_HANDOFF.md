@@ -34,3 +34,24 @@ The feedback submission overlay stays active until the browser leaves the form. 
 
 - `pytest tests/test_student_portal_theme.py tests/test_app.py tests/test_feedback_gate_stepc.py --tb=short -rs` passed 84 tests with Python UTF-8 mode and a workspace SQLite temporary directory.
 - Chrome exercised a 14-second feedback submission and a slow asset on the next form under enforced CSP. It verified rotation past the old timeout, an active loader at page departure and during arrival, and dismissal after load and on Back.
+
+## Landing-page footer upgrade
+
+Implemented on 2026-11-23 from `24425a2`. Template and CSS only; no routes, schema or dependencies changed.
+
+- `feedback_system/templates/landing.html` (`footer#contact`) and the footer block in `feedback_system/static/css/landing.css` were rebuilt. The footer logo is the supplied blue and orange animation (`feedback_system/templates/partials/footer_logo_anim.svg`, from `Aditya_University_stacked_rotation.html`) on a transparent background on the navy footer (blue lightened for contrast). The sun and orbits rotate continuously; the wordmark fades in when the footer scrolls into view (a small nonce script adds `is-animated` / `is-in`). Without Intersection Observer, or with reduced motion, the complete static logo shows.
+- Desktop: brand column (logo, title, tagline, social icon buttons), Quick links (How it works, Privacy, Sign in) and Contact (phone, email, address with icons). Phone and email are `tel:` and `mailto:` links. Phones: a single column without Quick links (the menu drawer already has them), with larger type.
+- A 3px orange-to-blue bar runs along the top edge of the footer. Social links still point to the generic network home pages as before; replace them with the university's real profile URLs when available.
+
+### Verification
+
+- Rendered the real Flask page and checked it in Chrome at 1280px, 820px and 390px: no horizontal overflow, layout matches the approved preview.
+- `pytest tests/test_app.py -k 'landing or admin_login'` could not run in this environment: `pyotp` is not installed and package installs are blocked, so the app fails at import. The page was rendered with throwaway stand-in modules kept outside the repository. Run the targeted tests in a full environment before deploying.
+
+## Hero headline animation
+
+Implemented on 2026-11-23. Template and CSS only.
+
+- The hero `<h1>` in `landing.html` is split into word spans. On load the words rise in one by one, "name out of it." turns orange, then the lead paragraph and the sign-in buttons fade up. The styles are in `landing.css` next to `.hero h1`.
+- A small nonce script right after the `<h1>` adds `hero-anim` to `.hero-copy` before first paint. Without it, or with reduced motion on, the text simply shows. The headline wording is unchanged.
+- Verified in Chrome at 1280px and 390px: sequence plays, final colors are correct, no horizontal overflow, no console errors. `pytest` could not run here (`pyotp` is missing), so run `pytest tests/test_app.py -k 'landing or admin_login'` before deploying.

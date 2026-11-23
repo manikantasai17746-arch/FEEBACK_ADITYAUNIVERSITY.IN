@@ -19,7 +19,7 @@
         {% for r in summary %}
           <tr>
             <td>{{ r.n }}</td>
-            <td title="{{ r.name }}">{{ r.code }}</td>
+            <td title="{{ r.name }}">{{ r.label }}</td>
             <td>{{ r.hod }}</td>
             <td><span class="dz-chip {{ 'dz-g' if r.form_total else 'dz-o' }}">{{ r.form_total }} {{ 'Published' if r.form_total else 'Not Published' }}</span></td>
             <td>{{ r.forms.open }} / {{ r.forms.closed }} / {{ r.forms.archived }}</td>
@@ -29,7 +29,7 @@
               <div class="dz-rate"><b>{{ r.rate }}%</b><span><i class="{{ 'dz-rt-g' if r.rate >= 70 else ('dz-rt-o' if r.rate >= 60 else 'dz-rt-r') }}" style="width:{{ r.rate }}%"></i></span></div>
               {% else %}<span class="muted">No data</span>{% endif %}</td>
             <td>{{ r.last or '—' }}</td>
-            <td><a class="dz-view" href="{{ url_for('dean.performance', branch_id=r.id) }}">View</a></td>
+            <td><a class="dz-view" href="{{ url_for('dean.performance', branch_id=r.id, hod_id=r.hod_id, _anchor='teachers') }}">View</a></td>
           </tr>
         {% endfor %}
         </tbody>

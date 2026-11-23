@@ -1,115 +1,689 @@
-/* Dean portal header + page background (loaded only when the user's role is dean). */
-body.role-dean{background:linear-gradient(180deg,#f2f6fd 0,#f7f9fd 340px,#f4f6fa 100%)}
-html.dark-mode body.role-dean{background:#0f172a}
-html.small-text, html.small-text body{font-size:13.5px}
+/* Dean portal theme. Same look as the HOD portal (teacher theme re-scoped), loaded only
+   when the signed-in role is dean (see base.html), so Student, Teacher, HOD and Admin pages
+   are not affected. Every rule is scoped to body.role-dean. Fonts: Bricolage Grotesque and
+   Instrument Sans, brand blue + orange, pill buttons, notebook cards, navy stats band.
+   Dark mode reuses the existing html.dark-mode switch. */
 
-body.role-dean .topbar{background:#fff;color:#0f2a6b;box-shadow:0 2px 14px rgba(20,50,120,.08)}
-body.role-dean .topbar-inner{max-width:1480px;padding:12px 26px}
-body.role-dean .brand{color:#0f2a6b}
-body.role-dean .brand-logo{height:56px;width:auto}
-body.role-dean .brand-text{font-family:'Spartan','Poppins',sans-serif;font-weight:800;font-size:1.45rem;line-height:1.1;color:#0f2a6b;display:flex;flex-direction:column}
-body.role-dean .brand-text small{font-size:.8rem;font-weight:700;letter-spacing:.8px;color:#f5821f;text-transform:uppercase}
-body.role-dean .topnav{gap:6px}
-body.role-dean .topnav a{color:#1f2d4d}
-body.role-dean .topnav a.dn{display:inline-flex;align-items:center;gap:9px;padding:11px 18px;border-radius:12px;font-weight:600;font-size:.95rem;color:#1f2d4d}
-body.role-dean .topnav a.dn svg{color:#0f2a6b}
-body.role-dean .topnav a.dn:hover{background:#eef3fc;color:#0f2a6b;text-decoration:none}
-body.role-dean .topnav a.dn.active{background:#e3edfd;color:#1d5fd8;box-shadow:0 4px 12px rgba(29,95,216,.12)}
-body.role-dean .topnav a.dn.active svg{color:#1d5fd8}
-body.role-dean .a11y-bar{display:inline-flex;align-items:center;gap:4px;margin:0 8px}
-body.role-dean .a11y-bar button{background:transparent;border:0;color:#1f2d4d;font-weight:700;font-size:.95rem;padding:6px 8px;border-radius:8px;cursor:pointer}
-body.role-dean .a11y-bar button:hover{background:#eef3fc}
-body.role-dean .a11y-bar .theme-toggle{display:inline-flex;gap:2px;padding:4px;background:#f1f5fc;border-radius:999px;margin-right:14px}
-body.role-dean .theme-toggle span{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;color:#6b7a94}
-body.role-dean .theme-toggle .sun{background:#fff;color:#f5a623;box-shadow:0 2px 6px rgba(20,50,120,.15)}
-html.dark-mode body.role-dean .theme-toggle .sun{background:transparent;box-shadow:none;color:#6b7a94}
-html.dark-mode body.role-dean .theme-toggle .moon{background:#1d5fd8;color:#fff}
-body.role-dean .dean-user{display:inline-flex;align-items:center;gap:10px;background:#e8effb;border-radius:16px;padding:8px 18px 8px 10px;color:#0f2a6b!important}
-body.role-dean .dean-user:hover{background:#dbe7fa;text-decoration:none}
-body.role-dean .dean-user svg{color:#1d5fd8}
-body.role-dean .dean-user span{display:flex;flex-direction:column;line-height:1.2}
-body.role-dean .dean-user b{font-size:.95rem}
-body.role-dean .dean-user small{font-size:.74rem;font-weight:500;color:#33415c}
-body.role-dean .container{max-width:1480px}
-body.role-dean .nav-toggle{border-color:#c9d6ee;color:#0f2a6b}
-
-html.dark-mode body.role-dean .topbar{background:#0b1220;color:#e5ecfa}
-html.dark-mode body.role-dean .brand-text,html.dark-mode body.role-dean .brand{color:#e5ecfa}
-html.dark-mode body.role-dean .topnav a,html.dark-mode body.role-dean .topnav a.dn svg,html.dark-mode body.role-dean .a11y-bar button{color:#c7d4ee}
-html.dark-mode body.role-dean .topnav a.dn.active{background:#1b2c52;color:#fff}
-html.dark-mode body.role-dean .topnav a.dn:hover,html.dark-mode body.role-dean .a11y-bar button:hover{background:#16213a}
-html.dark-mode body.role-dean .dean-user{background:#16213a;color:#e5ecfa!important}
-html.dark-mode body.role-dean .dean-user small{color:#a9b8d6}
-html.dark-mode body.role-dean .a11y-bar .theme-toggle{background:#16213a}
-
-@media (max-width:900px){
-  body.role-dean .topbar-inner{padding:10px 14px}
-  body.role-dean .brand-logo{height:44px}
-  body.role-dean .brand-text{font-size:1.1rem}
-  body.role-dean .topnav{background:#fff;border-radius:12px;padding:8px}
-  html.dark-mode body.role-dean .topnav{background:#0b1220}
+@font-face {
+  font-family: "Bricolage Grotesque";
+  src: url('../fonts/bricolage-grotesque-latin-wght-normal.woff2') format("woff2");
+  font-weight: 200 800; font-style: normal; font-display: swap;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  src: url('../fonts/instrument-sans-latin-wght-normal.woff2') format("woff2");
+  font-weight: 400 700; font-style: normal; font-display: swap;
 }
 
-/* Searchable single-select (Dean dashboard "Feedback Form" filter) */
-.dd-ss{position:relative;display:block;margin-top:2px}
-.dd-ss-btn{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-width:200px;max-width:280px;height:36px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:0 10px;font:inherit;font-size:.88rem;color:#1f2733;cursor:pointer;text-align:left}
-.dd-ss-btn span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dd-ss-panel{display:none;position:absolute;right:0;top:40px;z-index:30;width:300px;max-width:86vw;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(20,35,70,.18);padding:8px}
-.dd-ss.open .dd-ss-panel{display:block}
-.dd-ss-search{width:100%;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:inherit;font-size:.88rem;box-sizing:border-box}
-.dd-ss-list{max-height:260px;overflow:auto;margin-top:6px}
-.dd-ss-opt{padding:7px 10px;border-radius:6px;font-size:.86rem;color:#1f2733;cursor:pointer}
-.dd-ss-opt:hover,.dd-ss-opt.active{background:#eaf1ff}
-.dd-ss-opt.sel{font-weight:700;color:var(--blue)}
-.dd-ss-none{padding:8px 10px;font-size:.84rem;color:#6b7893}
-html.dark-mode .dd-ss-btn,html.dark-mode .dd-ss-panel,html.dark-mode .dd-ss-search{background:#0b1220;color:#e6ecf7;border-color:#26324a}
-html.dark-mode .dd-ss-opt{color:#e6ecf7}html.dark-mode .dd-ss-opt:hover,html.dark-mode .dd-ss-opt.active{background:#16233d}
+body.role-dean {
+  --tt-ink: #071E3D; --tt-muted: #475C7A; --tt-line: #D3DDEC;
+  --tt-blue: #04529B; --tt-blue-deep: #033C73; --tt-link: #04529B; --tt-orange: #F57025;
+  --tt-bg: #FFFFFF; --tt-paper: #F3F6FB; --tt-card: #FFFFFF; --tt-navy: #071E3D;
+  --tt-head: rgba(255,255,255,.94); --tt-field: #B9C7DD; --tt-hover: #E3EAF6;
+  --tt-ok: #137A55; --tt-ok-bg: #DDF3E9; --tt-warn: #8A5A12; --tt-warn-bg: #FBEFD5;
+  --tt-bad: #C0362C; --tt-bad-bg: #FBE3E0; --tt-blue-bg: #DCE9F8; --tt-orange-bg: #FFE5D4;
+  --tt-r1: #04529B; --tt-r2: #137A55; --tt-r3: #D9A21B; --tt-r4: #F57025; --tt-r5: #C0362C;
+  --tt-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --tt-text: "Instrument Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* re-point the app tokens so untouched rules in app.css pick up the new palette */
+  --navy: var(--tt-ink); --navy-dark: var(--tt-ink); --navy-soft: var(--tt-paper);
+  --accent: var(--tt-blue); --ink: var(--tt-ink); --muted: var(--tt-muted); --line: var(--tt-line);
+  --bg: var(--tt-bg); --card: var(--tt-card); --ok: var(--tt-ok); --err: var(--tt-bad);
+  --radius: 14px; --shadow: none;
+  background: var(--tt-bg); color: var(--tt-ink);
+  font-family: var(--tt-text); font-size: 1rem; line-height: 1.6;
+}
+html.dark-mode body.role-dean {
+  --tt-ink: #E8EEF8; --tt-muted: #9DB0CC; --tt-line: #223A5C;
+  --tt-blue: #3B82D6; --tt-blue-deep: #2F73C4; --tt-link: #7DB4F5; --tt-orange: #F77F3A;
+  --tt-bg: #08162B; --tt-paper: #0C2038; --tt-card: #0F2744; --tt-navy: #050F20;
+  --tt-head: rgba(8,22,43,.94); --tt-field: #35517A; --tt-hover: #17304F;
+  --tt-ok: #4CC796; --tt-ok-bg: #12382C; --tt-warn: #E8B54E; --tt-warn-bg: #3A2D10;
+  --tt-bad: #F2796E; --tt-bad-bg: #3F1C1A; --tt-blue-bg: #14355C; --tt-orange-bg: #44250F;
+  --tt-r1: #5AA0F0; --tt-r2: #4CC796; --tt-r3: #E8B54E; --tt-r4: #F77F3A; --tt-r5: #F2796E;
+}
 
-/* ==== Dean pages: shared look (same as the dashboard cards/tables) ==== */
-.dz{--blue:#1d5fd8;--navy:#0f2a6b;--line:#e3e9f4;--green:#12a967;--orange:#f59e0b;--red:#e5484d;--soft:#eef3fc;max-width:1180px;margin:0 auto;padding:18px 16px 32px}
-.dz *{box-sizing:border-box}
-.dz-title{margin:0 0 4px;font-size:1.9rem;font-weight:800;color:var(--navy)}
-.dz-sub{margin:0 0 16px;color:#4b5a74;font-size:.95rem}
-.dz-card{background:#fff;border-radius:18px;box-shadow:0 8px 24px rgba(20,50,120,.08);padding:22px;margin-bottom:18px;min-width:0}
-.dz-card-h{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-.dz-card-h h2{margin:0;font-size:1.25rem;font-weight:800;color:var(--navy)}
-.dz-btn{display:inline-block;border:1px solid var(--line);background:#fff;color:var(--navy)!important;border-radius:8px;padding:6px 14px;font-size:.85rem;font-weight:600;text-decoration:none!important;cursor:pointer}
-.dz-btn:hover{background:var(--soft)}
-.dz-tw{overflow-x:auto}
-.dz-t{width:100%;border-collapse:separate;border-spacing:0 3px;min-width:820px}
-.dz-t th{background:#f1f4fa;color:var(--navy);text-align:left;font-size:.85rem;font-weight:700;padding:9px 10px}
-.dz-t th:first-child{border-radius:8px 0 0 8px}.dz-t th:last-child{border-radius:0 8px 8px 0}
-.dz-t td{padding:9px 10px;font-size:.88rem;color:#1f2733;border-bottom:1px solid #f0f3f9;white-space:nowrap}
-.dz-chip{display:inline-block;padding:3px 12px;border-radius:6px;font-size:.78rem;font-weight:600}
-.dz-g{background:#d8f5e5;color:#0e8a46}.dz-o{background:#fdebd0;color:#b45f06}.dz-r{background:#ffe0e3;color:#c8333a}
-.dz-rate{display:flex;align-items:center;gap:8px}.dz-rate b{font-weight:600;min-width:46px}
-.dz-rate span{display:block;width:92px;height:7px;border-radius:7px;background:#e3e9f4;overflow:hidden}.dz-rate i{display:block;height:100%;border-radius:7px}
-.dz-rt-g{background:var(--green)}.dz-rt-o{background:var(--orange)}.dz-rt-r{background:var(--red)}
-.dz-view{display:inline-block;background:var(--blue);color:#fff!important;border-radius:6px;padding:6px 18px;font-size:.85rem;font-weight:600;text-decoration:none!important}
-.dz-view:hover{background:#174fb5}
-.dz-view.off{background:#c5cde0;pointer-events:none}
-.dz-note{background:#eaf1fd;border-radius:10px;padding:10px 14px;font-size:.88rem;color:#33415c;margin-bottom:12px}
-.dz-filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
-.dz-filters label{display:block;font-size:.72rem;color:#4b5a74}
-.dz-filters select{display:block;margin-top:2px;min-width:150px;height:36px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:0 8px;font:inherit;font-size:.88rem;color:#1f2733}
-.dz-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
-.dz-stat{background:#fff;border-radius:14px;box-shadow:0 6px 18px rgba(20,50,120,.07);padding:14px 16px}
-.dz-stat small{display:block;color:#4b5a74;font-size:.82rem}
-.dz-stat strong{display:block;font-size:1.7rem;font-weight:800;color:var(--navy);line-height:1.2}
-.dz-fac-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
-.dz-fac{display:flex;gap:14px;background:linear-gradient(135deg,#f0f6ff 0%,#f8fafc 100%);border:1px solid #dbe7f5;border-radius:16px;padding:14px}
-.dz-fac .ph{width:78px;height:92px;border-radius:12px;object-fit:cover;background:#e2e8f0;border:2px solid #fff;box-shadow:0 2px 8px rgba(15,40,80,.08);flex-shrink:0}
-.dz-fac .ph-fb{width:78px;height:92px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,#1e4d8c,#3b82c4);color:#fff;font-size:1.5rem;font-weight:700}
-.dz-fac .mt{flex:1;min-width:0}
-.dz-fac h3{margin:0;font-size:1.02rem;color:var(--navy)}
-.dz-fac .s{margin:2px 0;color:#4b5a74;font-size:.8rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.dz-fac .nums{display:flex;gap:8px;margin:8px 0}
-.dz-fac .nums div{background:#fff;border:1px solid #e5eaf2;border-radius:10px;padding:4px 10px;text-align:center}
-.dz-fac .nums b{display:block;font-size:1rem;color:var(--navy)}.dz-fac .nums span{font-size:.68rem;color:#64748b}
-.dz-empty{padding:18px;color:#6b7893;text-align:center}
-html.dark-mode .dz-card,html.dark-mode .dz-stat,html.dark-mode .dz-btn,html.dark-mode .dz-filters select{background:#16213a;color:#e5ecfa;border-color:#2b3a5e}
-html.dark-mode .dz-title,html.dark-mode .dz-card-h h2,html.dark-mode .dz-stat strong,html.dark-mode .dz-t th,html.dark-mode .dz-fac h3,html.dark-mode .dz-fac .nums b{color:#e5ecfa}
-html.dark-mode .dz-t th{background:#1e2b49}html.dark-mode .dz-t td{color:#e5ecfa;border-color:#243352}
-html.dark-mode .dz-note{background:#1b2c52;color:#e5ecfa}
-html.dark-mode .dz-fac{background:#16213a;border-color:#2b3a5e}html.dark-mode .dz-fac .nums div{background:#0b1220;border-color:#2b3a5e}
-@media print{.dz-filters,.dz-btn,.dz-view{display:none!important}.dz-card{box-shadow:none;border:1px solid #ccc}}
+/* ---------- base ---------- */
+body.role-dean a { color: var(--tt-link); }
+body.role-dean h1, body.role-dean h2, body.role-dean h3, body.role-dean h4 {
+  font-family: var(--tt-display); color: var(--tt-ink); letter-spacing: -.02em; text-wrap: balance;
+}
+body.role-dean h1 { font-weight: 700; font-size: clamp(1.9rem, 4vw, 3rem); line-height: 1.06; letter-spacing: -.03em; }
+body.role-dean h2 { font-weight: 700; font-size: clamp(1.3rem, 2.4vw, 1.75rem); line-height: 1.15; }
+body.role-dean h3 { font-weight: 650; font-size: 1.12rem; }
+body.role-dean .sub, body.role-dean .muted, body.role-dean .hint { color: var(--tt-muted); font-size: .92rem; }
+body.role-dean .eyebrow { color: var(--tt-muted); font-weight: 700; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; }
+body.role-dean :focus-visible { outline: 3px solid var(--tt-link); outline-offset: 3px; }
+body.role-dean .container { max-width: 1180px; margin: 0 auto; padding: 0 16px 56px; }
+body.role-dean .flashes { padding-top: 16px; }
+body.role-dean .card, body.role-dean .chart-card {
+  background: var(--tt-card); border: 1px solid var(--tt-line); border-radius: 14px; box-shadow: none; color: var(--tt-ink);
+}
+body.role-dean .card { padding: 1.3rem; }
+
+/* ---------- header ---------- */
+body.role-dean .topbar { background: var(--tt-head); backdrop-filter: blur(10px); color: var(--tt-ink); border-bottom: 1px solid var(--tt-line); box-shadow: none; }
+body.role-dean .topbar-inner { max-width: 1180px; padding: .65rem 16px; }
+body.role-dean .brand { color: var(--tt-ink); gap: .7rem; }
+body.role-dean .brand-logo { height: 34px; width: auto; }
+body.role-dean .brand-text { font: 700 1.05rem/1 var(--tt-display); letter-spacing: -.01em; color: var(--tt-ink); padding-left: .7rem; border-left: 2px solid var(--tt-line); display: flex; flex-direction: column; gap: 3px; }
+body.role-dean .brand-text small { font: 600 .68rem/1 var(--tt-text); letter-spacing: .08em; text-transform: uppercase; color: var(--tt-orange); }
+body.role-dean .topnav { gap: .25rem; }
+body.role-dean .topnav > a:not(.nav-user) { color: var(--tt-muted); font-weight: 600; font-size: .92rem; padding: .5rem .9rem; border-radius: 999px; }
+body.role-dean .topnav > a:not(.nav-user):hover { background: var(--tt-paper); color: var(--tt-link); text-decoration: none; }
+body.role-dean .topnav > a.active { background: var(--tt-ink); color: var(--tt-bg); }
+body.role-dean .topnav > a.active:hover { background: var(--tt-ink); color: var(--tt-bg); }
+body.role-dean .nav-toggle { border-color: var(--tt-line); color: var(--tt-ink); }
+body.role-dean .a11y-bar { display: inline-flex; align-items: center; gap: .35rem; margin: 0 .4rem; }
+body.role-dean .a11y-bar button { border: 1.5px solid var(--tt-line); background: var(--tt-card); color: var(--tt-ink); border-radius: 999px; height: 38px; min-width: 38px; padding: 0 .7rem; font: 600 .85rem var(--tt-text); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+body.role-dean .a11y-bar button:hover { border-color: var(--tt-ink); background: var(--tt-paper); }
+body.role-dean .theme-toggle { width: 38px; padding: 0 !important; }
+body.role-dean .theme-toggle .moon { display: none; }
+html.dark-mode body.role-dean .theme-toggle .sun { display: none; }
+html.dark-mode body.role-dean .theme-toggle .moon { display: inline-flex; }
+body.role-dean .theme-toggle span { display: inline-flex; }
+body.role-dean .nav-user { background: var(--tt-card); color: var(--tt-ink) !important; border: 1.5px solid var(--tt-line); border-radius: 999px; font-weight: 600; font-size: .88rem; padding: .45rem 1rem; }
+body.role-dean .nav-user:hover { border-color: var(--tt-bad); color: var(--tt-bad) !important; text-decoration: none; }
+@media (max-width: 900px) {
+  body.role-dean .topnav { background: var(--tt-card); border: 1px solid var(--tt-line); border-radius: 14px; padding: .5rem; }
+  body.role-dean .topnav > a:not(.nav-user) { border-radius: 10px; }
+}
+
+/* ---------- buttons ---------- */
+body.role-dean .btn { background: var(--tt-blue); color: #fff; border: 0; border-radius: 999px; padding: .65rem 1.2rem; font: 600 .95rem/1.2 var(--tt-text); box-shadow: none; transition: background-color .15s, color .15s; }
+body.role-dean .btn:hover { background: var(--tt-blue-deep); color: #fff; text-decoration: none; }
+body.role-dean .btn-sm { padding: .4rem .9rem; font-size: .85rem; }
+body.role-dean .btn-ghost, body.role-dean .btn-back, body.role-dean .btn-outline { background: transparent; color: var(--tt-ink); border: 1.5px solid var(--tt-ink); box-shadow: none; }
+body.role-dean .btn-ghost:hover, body.role-dean .btn-back:hover, body.role-dean .btn-outline:hover { background: var(--tt-ink); color: var(--tt-bg); }
+body.role-dean .btn-accent { background: var(--tt-orange); }
+body.role-dean .btn-accent:hover { background: #d95e18; color: #fff; }
+body.role-dean .btn-ok { background: var(--tt-ok); color: #fff; }
+body.role-dean .btn-ok:hover { filter: brightness(.9); background: var(--tt-ok); }
+body.role-dean .btn.is-disabled, body.role-dean .btn[disabled] { opacity: .45; }
+
+/* ---------- forms ---------- */
+body.role-dean label, body.role-dean .field-label { color: var(--tt-muted); font-size: .8rem; font-weight: 600; }
+body.role-dean select, body.role-dean input[type=text], body.role-dean input[type=search],
+body.role-dean input[type=password], body.role-dean textarea {
+  background: var(--tt-card); color: var(--tt-ink); border: 1.5px solid var(--tt-field); border-radius: 10px; padding: .55rem .8rem; font: 1rem var(--tt-text);
+}
+body.role-dean select:focus, body.role-dean input:focus, body.role-dean textarea:focus {
+  outline: none; border-color: var(--tt-link); box-shadow: 0 0 0 3px color-mix(in srgb, var(--tt-link) 25%, transparent);
+}
+
+/* ---------- full-bleed page heads and bands ---------- */
+body.role-dean .perf-welcome, body.role-dean .imp-header, body.role-dean .sf-pagehead, body.role-dean .tas-head {
+  background: var(--tt-paper); box-shadow: 0 0 0 100vmax var(--tt-paper); clip-path: inset(0 -100vmax);
+  padding: 2.4rem 0 2.2rem; margin: 0; border-bottom: 1px solid var(--tt-line);
+}
+body.role-dean .perf-welcome { align-items: flex-end; }
+body.role-dean .perf-welcome h1 { margin: 0 0 .5rem; }
+body.role-dean .perf-welcome .sub { font-size: 1.02rem; }
+body.role-dean .perf-filters { gap: .8rem; }
+body.role-dean .perf-filters select { min-width: 150px; }
+body.role-dean .imp-header { margin-bottom: 0; }
+body.role-dean .imp-title { font-size: clamp(1.9rem, 4vw, 3rem); font-family: var(--tt-display); letter-spacing: -.03em; line-height: 1.06; }
+body.role-dean .imp-title-icon { display: none; }
+body.role-dean .sf-pagehead { margin-bottom: 0; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; align-items: flex-end; }
+body.role-dean .tas-head { margin-bottom: 0; align-items: flex-end; }
+body.role-dean .tas-head h1, body.role-dean .sf-pagehead h1 { margin: 0 0 .4rem; }
+
+/* numbers band: the tiles become one navy strip with big orange figures */
+body.role-dean .perf-tiles, body.role-dean .imp-tiles {
+  background: var(--tt-navy); box-shadow: 0 0 0 100vmax var(--tt-navy); clip-path: inset(0 -100vmax);
+  margin: 0 0 2.2rem; padding: 2rem 0; gap: 1.2rem 2rem; grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 900px) { body.role-dean .perf-tiles, body.role-dean .imp-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 480px) { body.role-dean .perf-tiles, body.role-dean .imp-tiles { grid-template-columns: 1fr; } }
+body.role-dean .perf-tile, body.role-dean .imp-tile { background: none; border: 0; box-shadow: none; padding: 0; border-radius: 0; display: block; }
+body.role-dean .perf-tile .ic, body.role-dean .imp-tile-ic { display: none; }
+body.role-dean .perf-tile .num, body.role-dean .imp-tile-num { font: 700 clamp(1.7rem, 3.2vw, 2.5rem)/1.1 var(--tt-display); letter-spacing: -.02em; color: var(--tt-orange); font-variant-numeric: tabular-nums; }
+body.role-dean .perf-tile .lbl, body.role-dean .imp-tile-lbl { color: rgba(255,255,255,.82); font-size: .9rem; margin-top: .15rem; }
+body.role-dean .imp-filters { margin: 1.4rem 0 1rem; }
+body.role-dean .imp-info { background: transparent; border: 1.5px dashed var(--tt-line); border-radius: 12px; color: var(--tt-muted); }
+body.role-dean .imp-info-icon { background: var(--tt-blue); }
+body.role-dean .imp-page { max-width: none; }
+
+/* ---------- tables ---------- */
+body.role-dean .marks-table, body.role-dean table.data, body.role-dean .data-table { font-size: .92rem; }
+body.role-dean .marks-table th, body.role-dean .data th, body.role-dean .data-table th {
+  background: transparent; color: var(--tt-muted); font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  border-bottom: 2px solid var(--tt-ink); padding: .7rem .8rem; white-space: nowrap;
+}
+body.role-dean .marks-table td, body.role-dean .data td, body.role-dean .data-table td { border-bottom: 1px solid var(--tt-line); padding: .85rem .8rem; color: var(--tt-ink); background: transparent; }
+body.role-dean .marks-table tbody tr:hover td, body.role-dean .data tbody tr:hover td { background: var(--tt-paper); }
+html.dark-mode body.role-dean .data th { background: transparent; color: var(--tt-muted); }
+body.role-dean .form-title-line { color: var(--tt-ink); }
+body.role-dean .role-badge { border-radius: 999px; font-weight: 600; font-size: .74rem; padding: .12rem .6rem; border: 1.5px solid var(--tt-line); }
+body.role-dean .role-main { background: var(--tt-blue-bg); color: var(--tt-link); border-color: var(--tt-blue); }
+body.role-dean .role-second { background: var(--tt-ok-bg); color: var(--tt-ok); border-color: var(--tt-ok); }
+body.role-dean .role-lab { background: var(--tt-warn-bg); color: var(--tt-warn); border-color: var(--tt-r3); }
+body.role-dean .room-chip { border-radius: 999px; font-weight: 600; font-size: .74rem; border: 1.5px solid var(--tt-line); background: var(--tt-card); color: var(--tt-muted); }
+body.role-dean .round-badge, body.role-dean .cat-badge { background: transparent; color: var(--tt-ink); border: 1.5px solid var(--tt-ink); }
+body.role-dean .pending-badge { background: var(--tt-warn-bg); color: var(--tt-warn); border: 1.5px solid var(--tt-r3); }
+body.role-dean .score-pill { background: var(--tt-ok-bg); color: var(--tt-ok); min-width: 4.2rem; text-align: center; font-variant-numeric: tabular-nums; }
+
+/* ---------- result detail: teacher card as an answer sheet ---------- */
+body.role-dean .teacher-card {
+  position: relative; background: var(--tt-card); border: 1px solid var(--tt-line); border-radius: 10px; box-shadow: none;
+  padding: 1.5rem 1.5rem 1.4rem 2.8rem; gap: 1.6rem; align-items: center;
+  clip-path: polygon(0 0, calc(100% - 46px) 0, 100% 46px, 100% 100%, 0 100%);
+}
+body.role-dean .teacher-card::before { content: ""; position: absolute; left: 13px; top: 18px; bottom: 18px; width: 9px; background: repeating-linear-gradient(to bottom, var(--tt-ink) 0 9px, transparent 9px 21px); }
+body.role-dean .teacher-card::after { content: ""; position: absolute; top: 0; right: 0; width: 46px; height: 46px; background: linear-gradient(135deg, #aebcd6 0%, #eef2f9 62%); clip-path: polygon(0 0, 100% 100%, 0 100%); }
+body.role-dean .teacher-card .photo, body.role-dean .teacher-card .photo-fallback { border: 3px solid var(--tt-ink); border-radius: 50%; }
+body.role-dean .teacher-card .photo-fallback { background: var(--tt-orange); color: #fff; font-family: var(--tt-display); }
+body.role-dean .teacher-card .meta h2 { color: var(--tt-ink); font-size: 1.4rem; }
+body.role-dean .teacher-card .meta .desig, body.role-dean .teacher-card .meta .line { color: var(--tt-muted); }
+body.role-dean .mini-stats { gap: .8rem 1.4rem; padding-right: 2.2rem; }
+body.role-dean .mini-stat { background: none; border: 0; padding: 0; min-width: 0; text-align: left; }
+body.role-dean .mini-stat .n { font: 700 1.7rem/1.1 var(--tt-display); letter-spacing: -.02em; color: var(--tt-ink); font-variant-numeric: tabular-nums; }
+body.role-dean .mini-stat .l { color: var(--tt-muted); font-size: .74rem; line-height: 1.3; }
+body.role-dean .subject-detail-head h1 { font-size: clamp(1.5rem, 3vw, 2.2rem); }
+body.role-dean .tt-note { margin: 1.2rem 0; padding: .9rem 1.1rem; border-left: 4px solid var(--tt-blue); background: var(--tt-paper); border-radius: 0 10px 10px 0; color: var(--tt-muted); font-size: .94rem; border-top: 0; border-right: 0; border-bottom: 0; }
+body.role-dean .detail-grid { gap: 1.1rem; }
+body.role-dean .chart-card { padding: 1.3rem; }
+body.role-dean .chart-card h3 { color: var(--tt-ink); font-size: 1.1rem; margin-bottom: 1rem; }
+body.role-dean .bar-chart { border-bottom: 2px solid var(--tt-ink); height: 170px; }
+body.role-dean .bar-chart .cnt { color: var(--tt-ink); }
+body.role-dean .bar-chart .nm { color: var(--tt-muted); }
+body.role-dean .bar-chart .bar { border-radius: 6px 6px 0 0; }
+body.role-dean .bar-chart .bar.c5 { background: var(--tt-r1); }
+body.role-dean .bar-chart .bar.c4 { background: var(--tt-r2); }
+body.role-dean .bar-chart .bar.c3 { background: var(--tt-r3); }
+body.role-dean .bar-chart .bar.c2 { background: var(--tt-r4); }
+body.role-dean .bar-chart .bar.c1 { background: var(--tt-r5); }
+body.role-dean .pie-legend i { border: 2px solid var(--tt-ink); }
+body.role-dean .rb-track { background: var(--tt-paper); border: 1px solid var(--tt-line); }
+body.role-dean .tt-total td { font-weight: 700; background: var(--tt-paper); }
+body.role-dean .score-ring { border: 3px solid var(--tt-ink); }
+body.role-dean .score-ring::after { background: var(--tt-card); border: 3px solid var(--tt-ink); }
+body.role-dean .score-ring .inner .big { color: var(--tt-ink); font-family: var(--tt-display); }
+body.role-dean .score-ring .inner .sub { color: var(--tt-muted); }
+body.role-dean .perf-label { background: var(--tt-ok-bg); color: var(--tt-ok); }
+body.role-dean .suggestion { background: var(--tt-paper); border-left: 4px solid var(--tt-orange); border-radius: 0 10px 10px 0; color: var(--tt-ink); }
+body.role-dean .back, body.role-dean .btn-back { font-weight: 600; }
+
+/* ---------- improvement ---------- */
+body.role-dean .imp-subject { padding: 1.3rem 1.4rem; }
+body.role-dean .imp-code { background: var(--tt-ink); color: var(--tt-bg); border-radius: 999px; }
+body.role-dean .imp-name { font-family: var(--tt-display); color: var(--tt-ink); font-size: 1.15rem; }
+body.role-dean .imp-section { background: transparent; border: 1.5px solid var(--tt-line); border-radius: 999px; color: var(--tt-muted); }
+body.role-dean .imp-badge.rounds { background: transparent; color: var(--tt-ink); border: 1.5px solid var(--tt-ink); }
+body.role-dean .imp-badge.band { background: var(--tt-ok-bg); color: var(--tt-ok); }
+body.role-dean .imp-net { font-family: var(--tt-display); }
+body.role-dean .imp-chart-wrap { background: transparent; border: 0; padding: 0; }
+body.role-dean .imp-chart line[stroke="#e5eaf2"] { stroke: var(--tt-line); }
+body.role-dean .imp-chart polyline { stroke: var(--tt-blue); }
+body.role-dean .imp-chart circle { fill: var(--tt-blue); stroke: var(--tt-card); }
+body.role-dean .imp-chart-label { fill: var(--tt-muted); }
+body.role-dean .imp-chart-score { fill: var(--tt-ink); }
+body.role-dean .imp-side-card { background: transparent; border: 2px solid var(--tt-ink); border-radius: 12px; text-align: left; padding: .8rem 1rem; }
+body.role-dean .imp-side-card.highlight { background: var(--tt-orange-bg); border-color: var(--tt-ink); }
+body.role-dean .imp-side-lbl { color: var(--tt-muted); text-transform: none; letter-spacing: 0; }
+body.role-dean .imp-side-score { font-family: var(--tt-display); color: var(--tt-ink); font-size: 1.9rem; }
+body.role-dean .imp-side-delta { font-family: var(--tt-display); font-size: 1.2rem; }
+body.role-dean .imp-side-meta { background: transparent; border: 0; padding: 0; }
+body.role-dean .imp-side-meta > div { border-bottom: 1px dotted var(--tt-line); }
+body.role-dean .imp-side-meta .v { color: var(--tt-ink); }
+body.role-dean .imp-criteria { border-top: 2px dashed var(--tt-line); }
+body.role-dean .crit-bar.a, body.role-dean .bar-legend .bar-a { background: var(--tt-line); }
+body.role-dean .crit-bar.b, body.role-dean .bar-legend .bar-b { background: var(--tt-blue); }
+body.role-dean .crit-tag.up { background: var(--tt-ok-bg); color: var(--tt-ok); }
+body.role-dean .crit-tag.down { background: var(--tt-bad-bg); color: var(--tt-bad); }
+body.role-dean .imp-single-msg { background: transparent; border: 1.5px dashed var(--tt-line); }
+body.role-dean .imp-criteria-toggle summary { color: var(--tt-link); }
+
+/* ---------- second faculty ---------- */
+body.role-dean .sf-tabs { gap: 4px; background: var(--tt-paper); border: 1px solid var(--tt-line); border-radius: 12px; padding: 4px; display: inline-flex; margin: 1.4rem 0; }
+body.role-dean .sf-tab { border: 0; border-radius: 9px; margin: 0; padding: .5rem 1.1rem; color: var(--tt-muted); }
+body.role-dean .sf-tab:hover { color: var(--tt-link); text-decoration: none; }
+body.role-dean .sf-tab.is-on { background: var(--tt-blue); color: #fff; }
+body.role-dean .sf-tab-count { background: var(--tt-orange); color: #fff; }
+body.role-dean .sf-code { background: transparent; border: 1.5px solid var(--tt-ink); color: var(--tt-ink); }
+body.role-dean .sf-facts dt, body.role-dean .sf-k { color: var(--tt-muted); }
+body.role-dean .sf-second, body.role-dean .sf-emp, body.role-dean .sf-box { background: var(--tt-card); border: 1.5px solid var(--tt-line); border-radius: 12px; }
+body.role-dean .sf-tag { background: var(--tt-paper); color: var(--tt-muted); }
+body.role-dean .sf-avatar { background: var(--tt-blue); border: 2px solid var(--tt-ink); }
+body.role-dean .sf-modal { background: rgba(7,30,61,.55); backdrop-filter: blur(8px); }
+body.role-dean .sf-dialog { background: var(--tt-card); color: var(--tt-ink); border-radius: 16px; }
+body.role-dean .sf-dialog-head { border-bottom: 1px solid var(--tt-line); }
+body.role-dean .sf-x { color: var(--tt-ink); }
+body.role-dean .sf-steps li { border-bottom: 3px solid var(--tt-line); }
+body.role-dean .sf-steps li.is-on { color: var(--tt-ink); border-color: var(--tt-orange); }
+body.role-dean .sf-steps li.is-done { color: var(--tt-ok); border-color: var(--tt-ok); }
+body.role-dean .sf-context { background: var(--tt-paper); }
+body.role-dean .sf-input { background: var(--tt-card); color: var(--tt-ink); border-color: var(--tt-field); border-radius: 10px; }
+body.role-dean .sf-tablewrap { border-color: var(--tt-line); }
+body.role-dean .sf-banner-info { background: var(--tt-blue-bg); border-color: var(--tt-blue); color: var(--tt-link); }
+body.role-dean .sf-banner-warn { background: var(--tt-warn-bg); border-color: var(--tt-r3); color: var(--tt-warn); }
+body.role-dean .sf-banner-error { background: var(--tt-bad-bg); border-color: var(--tt-bad); color: var(--tt-bad); }
+
+/* ---------- assignment setup ---------- */
+body.role-dean .tas { max-width: none; }
+body.role-dean .tas-status.is-complete { background: var(--tt-ok-bg); color: var(--tt-ok); }
+body.role-dean .tas-status.is-pending { background: var(--tt-warn-bg); color: var(--tt-warn); }
+body.role-dean .tas-steps { margin-top: 1.6rem; }
+body.role-dean .tas-step { background: var(--tt-card); border: 1.5px solid var(--tt-line); border-radius: 12px; color: var(--tt-muted); font-weight: 600; }
+body.role-dean .tas-step b { background: var(--tt-card); color: var(--tt-ink); border: 2px solid var(--tt-ink); }
+body.role-dean .tas-step.is-active { border-color: var(--tt-ink); color: var(--tt-ink); box-shadow: 3px 3px 0 var(--tt-ink); }
+body.role-dean .tas-step.is-active b { background: var(--tt-orange); color: #fff; }
+body.role-dean .tas-step.is-done b { background: var(--tt-ok); border-color: var(--tt-ok); color: #fff; }
+body.role-dean .tas-subject { overflow: hidden; padding: 0; }
+body.role-dean .tas-subject > summary, body.role-dean .tas-subject-head { background: var(--tt-paper); }
+body.role-dean .tas-subject-name { color: var(--tt-ink); font-family: var(--tt-display); font-size: 1.08rem; }
+body.role-dean .tas-code { background: transparent; border: 1.5px solid var(--tt-ink); color: var(--tt-ink); border-radius: 999px; }
+body.role-dean .tas-chip { background: transparent; border: 1.5px solid var(--tt-line); color: var(--tt-muted); }
+body.role-dean .tas-room { background: var(--tt-card); color: var(--tt-ink); border: 1.5px solid var(--tt-field); border-radius: 10px; }
+body.role-dean .tas-room-assigned, body.role-dean .tas-room-assigned b { color: var(--tt-muted); }
+/* lab choice: OMR bubbles */
+body.role-dean .tas-radio { flex: 0 1 auto; }
+body.role-dean .tas-radio span { justify-content: flex-start; gap: .55rem; min-height: 44px; padding: .3rem .3rem; border: 0; background: none; color: var(--tt-ink); }
+body.role-dean .tas-radio span::before { content: ""; width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--tt-ink); background: var(--tt-card); flex: none; transition: background-color .18s, transform .18s; }
+body.role-dean .tas-radio:hover span::before { background: var(--tt-orange-bg); }
+body.role-dean .tas-radio input:checked + span, body.role-dean .tas-radio input[value=none]:checked + span { background: none; color: var(--tt-ink); border: 0; }
+body.role-dean .tas-radio input:checked + span::before { background: var(--tt-orange); transform: scale(1.06); }
+body.role-dean .tas-radio input:focus-visible + span { outline: 3px solid var(--tt-link); outline-offset: 3px; }
+body.role-dean .tas-lock { color: var(--tt-warn); }
+body.role-dean .tas-stat { background: var(--tt-card); border: 1px solid var(--tt-line); box-shadow: none; }
+body.role-dean .tas-stat b { color: var(--tt-ink); font-family: var(--tt-display); }
+body.role-dean .tas-rev-head { background: var(--tt-paper); }
+body.role-dean .tas-pill.lab { background: var(--tt-blue-bg); color: var(--tt-link); }
+body.role-dean .tas-pill.none { background: var(--tt-paper); color: var(--tt-muted); }
+body.role-dean .tas-pill.pending { background: var(--tt-warn-bg); color: var(--tt-warn); }
+body.role-dean .tas-modal-box, body.role-dean .tas-preview-box { background: var(--tt-card); color: var(--tt-ink); border-radius: 16px; }
+body.role-dean .tas-preview-head h3, body.role-dean .tas-preview-summary b, body.role-dean .tas-preview-table td:first-child { color: var(--tt-ink); }
+body.role-dean .tas-preview-close { background: var(--tt-paper); color: var(--tt-ink); }
+body.role-dean .tas-alert.ok { background: var(--tt-ok-bg); border-color: var(--tt-ok); color: var(--tt-ok); }
+body.role-dean .tas-alert.err { background: var(--tt-bad-bg); border-color: var(--tt-bad); color: var(--tt-bad); }
+body.role-dean .tas-alert.warn { background: var(--tt-warn-bg); border-color: var(--tt-r3); color: var(--tt-warn); }
+
+@media (max-width: 760px) {
+  body.role-dean .teacher-card { padding-left: 2.4rem; }
+  body.role-dean .mini-stats { padding-right: 0; }
+  body.role-dean .perf-welcome, body.role-dean .imp-header, body.role-dean .sf-pagehead, body.role-dean .tas-head { padding: 1.8rem 0 1.6rem; }
+}
+@media (prefers-reduced-motion: reduce) { body.role-dean * { transition: none !important; animation: none !important; } }
+
+/* ---------- refinements from the first render ---------- */
+body.role-dean .topbar-inner { max-width: 1280px; gap: .6rem; }
+body.role-dean .brand-text { white-space: nowrap; }
+body.role-dean .brand-text small { display: none; }
+body.role-dean .topnav { flex-wrap: nowrap; }
+body.role-dean .topnav > a:not(.nav-user) { padding: .45rem .7rem; font-size: .88rem; white-space: nowrap; }
+body.role-dean .nav-user { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; }
+@media (max-width: 1100px) { body.role-dean .topnav { flex-wrap: wrap; } }
+html.dark-mode body.role-dean .topnav { background: transparent; }
+@media (max-width: 900px) { html.dark-mode body.role-dean .topnav { background: var(--tt-card); } }
+html.dark-mode body.role-dean .btn-ghost, html.dark-mode body.role-dean .btn-back, html.dark-mode body.role-dean .btn-outline { color: var(--tt-ink); }
+html.dark-mode body.role-dean .btn-ghost:hover, html.dark-mode body.role-dean .btn-back:hover { color: var(--tt-bg); }
+html.dark-mode body.role-dean .nav-user, html.dark-mode body.role-dean .a11y-bar button { background: var(--tt-card); color: var(--tt-ink) !important; }
+/* role stripe on the first cell of each performance row */
+body.role-dean .marks-table tbody tr:has(.role-badge.role-main) > td:first-child { box-shadow: inset 4px 0 0 var(--tt-blue); }
+body.role-dean .marks-table tbody tr:has(.role-badge.role-second) > td:first-child { box-shadow: inset 4px 0 0 var(--tt-ok); }
+body.role-dean .marks-table tbody tr:has(.role-badge.role-lab) > td:first-child { box-shadow: inset 4px 0 0 var(--tt-r3); }
+body.role-dean .subject-detail-head { margin-top: 1.2rem; }
+body.role-dean .card > h2:first-child { margin-bottom: 1rem; }
+
+/* ---------- second round of fixes ---------- */
+body.role-dean .imp-info { display: block; padding: .85rem 1.1rem; line-height: 1.6; font-size: .94rem; }
+body.role-dean .imp-info-icon { display: inline-flex; margin-right: .55rem; vertical-align: middle; }
+body.role-dean .imp-chart-wrap { overflow: visible; padding: 1.1rem 1.4rem .6rem 0; }
+body.role-dean .imp-chart-label { font-size: 9.5px; }
+body.role-dean .empty { background: transparent; border: 1.5px dashed var(--tt-line); border-radius: 12px; color: var(--tt-muted); }
+body.role-dean .suggestion + .suggestion { margin-top: .6rem; }
+body.role-dean .imp-chart { overflow: visible; }
+body.role-dean .imp-chart-wrap { padding: 1.4rem 2.2rem .6rem .4rem; }
+body.role-dean .perf-welcome, body.role-dean .imp-header { border-bottom: 0; }
+
+/* ---------- performance table: fit the page width, scroll only on narrow screens ---------- */
+body.role-dean .perf-table-wrap { overflow-x: visible; }
+body.role-dean .perf-table-wrap .marks-table { font-size: .85rem; }
+body.role-dean .perf-table-wrap .marks-table th { white-space: normal; line-height: 1.25; padding: .7rem .4rem; font-size: .66rem; letter-spacing: .03em; }
+body.role-dean .perf-table-wrap .marks-table td { padding: .8rem .4rem; }
+body.role-dean .perf-table-wrap .marks-table .btn { white-space: nowrap; padding: .4rem .7rem; font-size: .8rem; }
+body.role-dean .perf-table-wrap .role-badge, body.role-dean .perf-table-wrap .room-chip, body.role-dean .perf-table-wrap .round-badge, body.role-dean .perf-table-wrap .pending-badge { font-size: .7rem; padding: .08rem .5rem; }
+body.role-dean .perf-table-wrap .score-pill { min-width: 3.6rem; padding: .15rem .5rem; }
+body.role-dean .perf-table-wrap .form-meta { gap: .25rem .5rem; font-size: .75rem; }
+@media (max-width: 1250px) {
+  body.role-dean .perf-table-wrap { overflow-x: auto; }
+  body.role-dean .perf-table-wrap .marks-table { min-width: 1060px; }
+}
+body.role-dean .container { max-width: 1320px; }
+body.role-dean .card:has(> .perf-table-wrap) { padding: 1.1rem .6rem .8rem; }
+body.role-dean .card:has(> .perf-table-wrap) > h2 { padding-left: .6rem; }
+body.role-dean .perf-table-wrap .marks-table th { padding: .7rem .3rem; }
+body.role-dean .perf-table-wrap .marks-table td { padding: .8rem .3rem; }
+body.role-dean .perf-table-wrap .marks-table .btn { padding: .35rem .6rem; font-size: .78rem; }
+
+/* "My Improvement" link in the dashboard head: solid brand blue, like the preview */
+body.role-dean .perf-welcome a.btn.btn-ghost,
+html.dark-mode body.role-dean .perf-welcome a.btn.btn-ghost { background: var(--tt-blue); color: #fff; border: 0; padding: .65rem 1.2rem; font-size: .95rem; }
+body.role-dean .perf-welcome a.btn.btn-ghost:hover,
+html.dark-mode body.role-dean .perf-welcome a.btn.btn-ghost:hover { background: var(--tt-blue-deep); color: #fff; }
+
+/* ---------- score colour bands: <75 red, 75-<80 yellow, 80-<85 light green, 85+ green ---------- */
+body.role-dean { --sc-red: #C0362C; --sc-red-bg: #FBE3E0; --sc-red-fg: #9B2A22;
+  --sc-yellow: #E0A800; --sc-yellow-bg: #FBF0C8; --sc-yellow-fg: #7A5600;
+  --sc-lgreen: #84C441; --sc-lgreen-bg: #E5F4D2; --sc-lgreen-fg: #3C6E12;
+  --sc-green: #137A55; --sc-green-bg: #DDF3E9; --sc-green-fg: #0E6144; }
+html.dark-mode body.role-dean { --sc-red: #F2796E; --sc-red-bg: #3F1C1A; --sc-red-fg: #F2796E;
+  --sc-yellow: #F0C040; --sc-yellow-bg: #3A2D10; --sc-yellow-fg: #F0C040;
+  --sc-lgreen: #A5DC6B; --sc-lgreen-bg: #243A12; --sc-lgreen-fg: #A5DC6B;
+  --sc-green: #4CC796; --sc-green-bg: #12382C; --sc-green-fg: #4CC796; }
+body.role-dean .sc-red { --sc: var(--sc-red); --sc-bg: var(--sc-red-bg); --sc-fg: var(--sc-red-fg); }
+body.role-dean .sc-yellow { --sc: var(--sc-yellow); --sc-bg: var(--sc-yellow-bg); --sc-fg: var(--sc-yellow-fg); }
+body.role-dean .sc-lgreen { --sc: var(--sc-lgreen); --sc-bg: var(--sc-lgreen-bg); --sc-fg: var(--sc-lgreen-fg); }
+body.role-dean .sc-green { --sc: var(--sc-green); --sc-bg: var(--sc-green-bg); --sc-fg: var(--sc-green-fg); }
+body.role-dean .score-pill[class*="sc-"], body.role-dean .perf-label[class*="sc-"] { background: var(--sc-bg); color: var(--sc-fg); }
+
+/* ---------- HOD-only additions ---------- */
+body.role-dean .topnav { flex-wrap: wrap; gap: .15rem; }
+body.role-dean .topnav > a:not(.nav-user) { padding: .4rem .75rem; font-size: .86rem; white-space: nowrap; }
+body.role-dean .brand-text small { display: none; }
+body.role-dean .perf-tiles.perf-tiles-6 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 600px) { body.role-dean .perf-tiles.perf-tiles-6 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+body.role-dean .dept-chip { display: inline-block; margin: .15rem .3rem 0 0; padding: .1rem .6rem; border-radius: 999px; border: 1.5px solid var(--tt-line); background: var(--tt-card); color: var(--tt-muted); font-size: .74rem; font-weight: 600; }
+body.role-dean .badge { border-radius: 999px; font-weight: 600; font-size: .72rem; padding: .12rem .6rem; }
+body.role-dean .cat-row-main td:first-child { box-shadow: inset 4px 0 0 var(--tt-blue); }
+body.role-dean .cat-row-second td:first-child { box-shadow: inset 4px 0 0 var(--tt-ok); }
+body.role-dean .cat-row-lab td:first-child { box-shadow: inset 4px 0 0 var(--tt-r3); }
+body.role-dean .table-scroll { overflow-x: auto; }
+body.role-dean h1 { font-size: clamp(1.7rem, 3.2vw, 2.4rem); }
+
+/* ---------- Overview category cards (notebook-sheet style, as the anonymity sample card) ---------- */
+body.role-dean .nb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.4rem; margin: 1.5rem 0; }
+body.role-dean .nb-sheet { --nb-cut: 40px; --nb-f1: #aebcd6; --nb-f2: #eef2f9; position: relative; filter: drop-shadow(0 14px 16px rgba(15, 40, 80, .16)); }
+body.role-dean .nb-card {
+  position: relative; height: 100%; background: var(--tt-card); border: 1px solid var(--tt-line);
+  border-radius: 18px; padding: 1.5rem 1.5rem 1.3rem 3rem;
+  clip-path: polygon(0 0, calc(100% - var(--nb-cut)) 0, 100% var(--nb-cut), 100% 100%, 0 100%);
+}
+body.role-dean .nb-card::before { /* notebook binding squares */
+  content: ""; position: absolute; left: 15px; top: 22px; bottom: 22px; width: 9px;
+  background: repeating-linear-gradient(to bottom, var(--tt-ink) 0 9px, transparent 9px 24px);
+}
+body.role-dean .nb-fold { position: absolute; top: 0; right: 0; width: var(--nb-cut); height: var(--nb-cut); filter: drop-shadow(-3px 4px 3px rgba(15, 40, 80, .28)); pointer-events: none; }
+body.role-dean .nb-fold i { display: block; width: 100%; height: 100%; background: linear-gradient(135deg, var(--nb-f1) 0%, var(--nb-f2) 62%); clip-path: polygon(0 0, 100% 100%, 0 100%); }
+body.role-dean .nb-note { margin: 0 2rem .3rem 0; font-size: .85rem; color: var(--tt-muted); }
+body.role-dean .nb-title { margin: 0 0 1rem; font-family: var(--tt-display); font-size: 1.55rem; line-height: 1.2; color: var(--tt-blue-deep); }
+body.role-dean .nb-main .nb-title { color: var(--tt-blue); }
+body.role-dean .nb-second .nb-title { color: var(--tt-ok); }
+body.role-dean .nb-lab .nb-title { color: var(--tt-r3); }
+body.role-dean .nb-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .9rem .6rem; text-align: center; }
+body.role-dean .nb-stats div { display: grid; gap: .45rem; justify-items: center; font-size: .8rem; color: var(--tt-muted); }
+body.role-dean .nb-stats strong { display: grid; place-items: center; min-width: 46px; height: 46px; padding: 0 .4rem; border-radius: 999px; border: 2px solid var(--tt-ink); font-size: 1.05rem; color: var(--tt-ink); }
+body.role-dean .nb-stats .nb-hot strong { background: var(--tt-orange); border-color: var(--tt-orange); color: #fff; }
+body.role-dean .nb-card hr { border: 0; border-top: 2px dashed var(--tt-line); margin: 1.2rem 0 1rem; }
+body.role-dean .nb-foot { display: flex; align-items: center; justify-content: space-between; gap: .8rem; min-height: 84px; }
+body.role-dean .nb-foot .btn { align-self: center; }
+body.role-dean .nb-stamp { width: 84px; height: 84px; flex: none; transform: rotate(-21deg); opacity: .88; mix-blend-mode: multiply; pointer-events: none; }
+body.role-dean .nb-stamp svg { width: 100%; height: 100%; display: block; overflow: visible; }
+html.dark-mode body.role-dean .nb-stamp { mix-blend-mode: normal; opacity: .7; }
+
+
+/* ===== Animated Aditya University logo (Overview header) ===== */
+body.role-dean .perf-welcome.au-head{align-items:center;flex-wrap:nowrap;padding-top:1.3rem;padding-bottom:1.3rem}
+.au-logo{flex:none;width:clamp(96px,12vw,136px);line-height:0;cursor:pointer;border-radius:12px;-webkit-tap-highlight-color:transparent}
+.au-logo:focus-visible{outline:3px solid var(--tt-link,#04529B);outline-offset:4px}
+.au-logo svg{display:block;width:100%;height:auto;overflow:visible}
+.au-logo .o{transform-origin:239.80px 185.84px}
+.au-logo .ring{transform:rotate(-90deg);transform-origin:239.80px 185.84px;stroke-dasharray:1;stroke-dashoffset:1;animation:aul-draw var(--d) cubic-bezier(.65,0,.35,1) var(--t) forwards}
+.au-logo .orb{opacity:0;animation:aul-orbit 3.4s cubic-bezier(.16,.7,.25,1) var(--t) forwards,aul-spin var(--s) linear calc(var(--t) + 3.4s) infinite;animation-direction:normal,reverse}
+.au-logo #aulg1{--t:1.5s;--a:55deg;--s:70s}
+.au-logo #aulg2{--t:2.1s;--a:-70deg;--s:46s;animation-direction:normal,normal}
+.au-logo #aulg3{--t:2.6s;--a:80deg;--s:30s}
+.au-logo .tw{opacity:0;animation:aul-star 1.6s ease-out forwards}
+.au-logo .core{opacity:0;animation:aul-fade 1.4s ease-out 3.1s forwards}
+.au-logo .sun{transform-origin:239.00px 186.50px;animation:aul-sunin 3.4s cubic-bezier(.16,.7,.25,1) 3.1s both,aul-spin 40s linear 6.5s infinite}
+.au-logo .word{opacity:0;animation:aul-rise 1.3s cubic-bezier(.2,.7,.2,1) 4.5s forwards}
+.au-logo .word2{animation-delay:5.2s}
+@keyframes aul-draw{to{stroke-dashoffset:0}99.9%{stroke-dasharray:1}100%{stroke-dashoffset:0;stroke-dasharray:none}}
+@keyframes aul-orbit{0%{opacity:0;transform:rotate(var(--a))}20%{opacity:1}100%{opacity:1;transform:rotate(0)}}
+@keyframes aul-star{0%{opacity:0;filter:drop-shadow(0 0 0 #be9337)}45%{opacity:1;filter:drop-shadow(0 0 3px #e8c971)}100%{opacity:1;filter:none}}
+@keyframes aul-spin{to{transform:rotate(360deg)}}
+@keyframes aul-fade{to{opacity:1}}
+@keyframes aul-sunin{from{transform:rotate(-40deg) scale(.88)}to{transform:rotate(0) scale(1)}}
+@keyframes aul-rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* motion off: show the finished logo instead of an empty space */
+@media (prefers-reduced-motion:reduce){
+  body.role-dean .au-logo .ring{stroke-dashoffset:0}
+  body.role-dean .au-logo .core,body.role-dean .au-logo .word,body.role-dean .au-logo .tw,body.role-dean .au-logo .orb{opacity:1}
+}
+@media (max-width:520px){body.role-dean .perf-welcome.au-head{gap:.6rem}}
+
+/* ---------- Dean-only additions ---------- */
+html.small-text, html.small-text body { font-size: 13.5px; }
+body.role-dean .topnav { flex-wrap: wrap; gap: .15rem; }
+body.role-dean .perf-tiles.perf-tiles-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 1000px) { body.role-dean .perf-tiles.perf-tiles-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 600px) { body.role-dean .perf-tiles.perf-tiles-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { body.role-dean .perf-tiles.perf-tiles-5 { grid-template-columns: 1fr; } }
+body.role-dean .perf-tile .tile-sub { display: block; margin-top: .15rem; font-size: .78rem; color: rgba(255,255,255,.7); }
+body.role-dean .perf-tile .tile-bar { height: 7px; border-radius: 7px; background: rgba(255,255,255,.22); margin-top: .55rem; overflow: hidden; }
+body.role-dean .perf-tile .tile-bar i { display: block; height: 100%; background: var(--tt-orange); border-radius: 7px; }
+body.role-dean .dd-date { display: inline-flex; gap: .5rem; align-items: baseline; margin-top: .6rem; padding: .25rem .8rem; border: 1.5px solid var(--tt-line); border-radius: 999px; background: var(--tt-card); color: var(--tt-muted); font-size: .8rem; }
+body.role-dean .dd-date b { color: var(--tt-ink); font-weight: 650; }
+body.role-dean .dd-alert { margin: 1rem 0 0; padding: .7rem 1rem; border-radius: 12px; background: var(--tt-blue-bg); border: 1px solid var(--tt-line); color: var(--tt-ink); font-size: .92rem; }
+
+/* ----- dashboard: section cards, charts, tables ----- */
+body.role-dean .dd-row { display: grid; gap: 1.2rem; margin-top: 1.25rem; }
+body.role-dean .dd-row.r1, body.role-dean .dd-row.r2 { grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); }
+body.role-dean .dd-row > .card { margin: 0; min-width: 0; }
+body.role-dean .dd-card-h { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap; margin-bottom: .9rem; }
+body.role-dean .dd-card-h h2 { margin: 0; font-size: 1.3rem; display: flex; align-items: center; gap: .5rem; }
+body.role-dean .dd-viewall { display: inline-flex; align-items: center; border: 1.5px solid var(--tt-line); background: var(--tt-card); color: var(--tt-ink) !important; border-radius: 999px; padding: .3rem .9rem; font: 600 .82rem var(--tt-text); text-decoration: none !important; }
+body.role-dean .dd-viewall:hover { border-color: var(--tt-ink); background: var(--tt-paper); }
+body.role-dean .dd-filters { display: flex; gap: .6rem; flex-wrap: wrap; align-items: flex-end; }
+body.role-dean .dd-filters label { display: block; margin: 0; font-size: .72rem; font-weight: 600; color: var(--tt-muted); }
+body.role-dean .dd-filters select { display: block; margin-top: 2px; min-width: 120px; height: 38px; padding: 0 .6rem; border-radius: 999px; border: 1.5px solid var(--tt-line); background: var(--tt-card); color: var(--tt-ink); font: inherit; font-size: .86rem; }
+body.role-dean .dd-legend { display: flex; gap: 1.2rem; flex-wrap: wrap; font-size: .85rem; color: var(--tt-muted); margin: .2rem 0 .6rem; }
+body.role-dean .dd-legend i, body.role-dean .dd-keys i { display: inline-block; width: 11px; height: 11px; border-radius: 50%; margin-right: .45rem; vertical-align: -1px; }
+body.role-dean .c-e { background: var(--tt-blue); } body.role-dean .c-s { background: var(--tt-ok); } body.role-dean .c-p { background: var(--tt-r3); }
+body.role-dean .dd-chart { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+body.role-dean .dd-yax { flex: none; width: 34px; height: 230px; position: relative; font-size: .75rem; color: var(--tt-muted); }
+body.role-dean .dd-yax span { position: absolute; right: 4px; transform: translateY(-50%); }
+body.role-dean .dd-plot { flex: 1; min-width: 0; position: relative; }
+body.role-dean .dd-grid { height: 230px; position: relative; border-bottom: 2px solid var(--tt-line); }
+body.role-dean .dd-grid > i { position: absolute; left: 0; right: 0; border-top: 1px dashed var(--tt-line); }
+body.role-dean .dd-groups { position: absolute; inset: 0; display: flex; }
+body.role-dean .dd-group { flex: 1; min-width: 92px; display: flex; align-items: flex-end; justify-content: center; gap: 5px; padding: 0 6px; }
+body.role-dean .dd-bar { width: 26px; position: relative; border-radius: 6px 6px 0 0; min-height: 2px; }
+body.role-dean .dd-bar b { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); font-size: .75rem; font-weight: 600; color: var(--tt-muted); padding-bottom: 2px; }
+body.role-dean .dd-xl { display: flex; }
+body.role-dean .dd-xl span { flex: 1; min-width: 92px; text-align: center; font-size: .85rem; font-weight: 600; color: var(--tt-ink); padding-top: 8px; }
+body.role-dean .dd-donut { --submitted-color: var(--tt-blue); display: flex; gap: 1.4rem; align-items: center; flex-wrap: wrap; justify-content: center; }
+body.role-dean .dd-donut-w { position: relative; width: 190px; height: 190px; flex: none; }
+body.role-dean .dd-donut-w svg { transform: rotate(-90deg); }
+body.role-dean .dd-donut-w .trk { stroke: var(--tt-line); }
+body.role-dean .dd-donut-mid { --submitted-color: #66b96c; }
+body.role-dean .dd-donut-high { --submitted-color: #15803d; }
+body.role-dean .dd-donut-w .val { stroke: var(--submitted-color); }
+body.role-dean .dd-donut .c-s { background: var(--submitted-color); }
+body.role-dean .dd-donut-c { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+body.role-dean .dd-donut-c b { font: 700 1.9rem/1.1 var(--tt-display); color: var(--tt-ink); }
+body.role-dean .dd-donut-c span { font-size: .85rem; color: var(--tt-muted); }
+body.role-dean .dd-keys { flex: 1; min-width: 190px; }
+body.role-dean .dd-keys div { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .75rem 0; border-bottom: 1px dashed var(--tt-line); font-size: .92rem; color: var(--tt-muted); }
+body.role-dean .dd-keys div:last-child { border: 0; } body.role-dean .dd-keys b { color: var(--tt-ink); }
+body.role-dean .dd-tw { overflow-x: auto; border: 1px solid var(--tt-line); border-radius: 14px; }
+body.role-dean .dd-t, body.role-dean .dz-t { width: 100%; border-collapse: collapse; min-width: 760px; }
+body.role-dean .dd-t th, body.role-dean .dz-t th { background: var(--tt-paper); color: var(--tt-ink); text-align: left; font-size: .82rem; font-weight: 650; padding: .65rem .8rem; border-bottom: 1px solid var(--tt-line); white-space: nowrap; }
+body.role-dean .dd-t td, body.role-dean .dz-t td { padding: .65rem .8rem; font-size: .88rem; color: var(--tt-ink); border-bottom: 1px solid var(--tt-line); white-space: nowrap; }
+body.role-dean .dd-t tr:last-child td, body.role-dean .dz-t tr:last-child td { border-bottom: 0; }
+body.role-dean .dd-t tbody tr:hover td, body.role-dean .dz-t tbody tr:hover td { background: var(--tt-paper); }
+body.role-dean .dd-chip, body.role-dean .dz-chip { display: inline-block; padding: .12rem .65rem; border-radius: 999px; font-size: .74rem; font-weight: 650; }
+body.role-dean .chip-g, body.role-dean .dz-g { background: var(--tt-ok-bg); color: var(--tt-ok); }
+body.role-dean .chip-o, body.role-dean .dz-o { background: var(--tt-warn-bg); color: var(--tt-warn); }
+body.role-dean .chip-r, body.role-dean .dz-r { background: var(--tt-bad-bg); color: var(--tt-bad); }
+body.role-dean .dd-rate, body.role-dean .dz-rate { display: flex; align-items: center; gap: .5rem; }
+body.role-dean .dd-rate b, body.role-dean .dz-rate b { font-weight: 650; min-width: 46px; }
+body.role-dean .dd-rate span, body.role-dean .dz-rate span { display: block; width: 92px; height: 7px; border-radius: 7px; background: var(--tt-line); overflow: hidden; }
+body.role-dean .dd-rate i, body.role-dean .dz-rate i { display: block; height: 100%; border-radius: 7px; }
+body.role-dean .rt-g, body.role-dean .dz-rt-g { background: var(--tt-ok); } body.role-dean .rt-o, body.role-dean .dz-rt-o { background: var(--tt-r3); } body.role-dean .rt-r, body.role-dean .dz-rt-r { background: var(--tt-bad); }
+body.role-dean .dd-view, body.role-dean .dz-view { display: inline-block; background: var(--tt-orange); color: #fff !important; border-radius: 999px; padding: .32rem 1rem; font: 650 .82rem var(--tt-text); text-decoration: none !important; }
+body.role-dean .dd-view:hover, body.role-dean .dz-view:hover { filter: brightness(.93); }
+body.role-dean .dz-view.off { background: var(--tt-line); color: var(--tt-muted) !important; pointer-events: none; }
+body.role-dean .dd-note, body.role-dean .dz-note { background: var(--tt-blue-bg); border-radius: 12px; padding: .65rem .9rem; font-size: .88rem; color: var(--tt-ink); margin-bottom: .8rem; }
+body.role-dean .dd-empty, body.role-dean .dz-empty { padding: 1.6rem; text-align: center; color: var(--tt-muted); border: 1.5px dashed var(--tt-line); border-radius: 14px; }
+body.role-dean .dd-al a { display: flex; align-items: center; gap: .7rem; padding: .8rem .2rem; border-bottom: 1px dashed var(--tt-line); color: var(--tt-ink); text-decoration: none; font-size: .92rem; }
+body.role-dean .dd-al a:last-child { border: 0; } body.role-dean .dd-al a:hover { background: var(--tt-paper); }
+body.role-dean .dd-al .lb { flex: 1; } body.role-dean .dd-al .ai { flex: none; width: 26px; display: grid; place-items: center; }
+body.role-dean .ai.red { color: var(--tt-bad); } body.role-dean .ai.amber { color: var(--tt-r3); } body.role-dean .ai.blue { color: var(--tt-blue); }
+body.role-dean .dd-badge { min-width: 30px; height: 26px; border-radius: 999px; display: grid; place-items: center; font-size: .8rem; font-weight: 700; padding: 0 .5rem; }
+body.role-dean .bd-red { background: var(--tt-bad-bg); color: var(--tt-bad); } body.role-dean .bd-amber { background: var(--tt-warn-bg); color: var(--tt-warn); }
+body.role-dean .bd-blue { background: var(--tt-blue-bg); color: var(--tt-blue); } body.role-dean .bd-zero { background: var(--tt-paper); color: var(--tt-muted); }
+body.role-dean .dd-chev { color: var(--tt-muted); }
+body.role-dean .dd-qa { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .9rem; }
+body.role-dean .dd-qa a, body.role-dean .dd-qa button { display: flex; align-items: center; gap: .8rem; background: var(--tt-card); border: 1.5px solid var(--tt-line); border-radius: 14px; padding: .9rem 1rem; text-align: left; font: inherit; cursor: pointer; color: var(--tt-ink) !important; text-decoration: none !important; transition: .15s; }
+body.role-dean .dd-qa a:hover, body.role-dean .dd-qa button:hover { border-color: var(--tt-ink); transform: translateY(-1px); }
+body.role-dean .q-ic { flex: none; width: 42px; height: 42px; border-radius: 50%; display: grid; place-items: center; }
+body.role-dean .ic-blue { background: var(--tt-blue-bg); color: var(--tt-blue); } body.role-dean .ic-green { background: var(--tt-ok-bg); color: var(--tt-ok); } body.role-dean .ic-orange { background: var(--tt-orange-bg); color: var(--tt-orange); }
+body.role-dean .dd-qa b { display: block; font-size: .9rem; } body.role-dean .dd-qa small { display: block; color: var(--tt-muted); font-size: .78rem; margin-top: 1px; }
+@media (max-width: 980px) { body.role-dean .dd-row.r1, body.role-dean .dd-row.r2 { grid-template-columns: 1fr; } }
+@media print { body.role-dean .topbar, body.role-dean .dd-filters, body.role-dean .dd-qa, body.role-dean .dd-viewall, body.role-dean .dd-view, body.role-dean .au-logo { display: none !important; } body.role-dean .card { box-shadow: none; break-inside: avoid; } }
+
+/* ----- searchable single-select (dashboard "Feedback Form" filter) ----- */
+.dd-ss { position: relative; display: block; margin-top: 2px; }
+.dd-ss-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-width: 200px; max-width: 280px; height: 38px; border: 1.5px solid var(--tt-line); border-radius: 999px; background: var(--tt-card); padding: 0 .9rem; font: inherit; font-size: .86rem; color: var(--tt-ink); cursor: pointer; text-align: left; }
+.dd-ss-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dd-ss-panel { display: none; position: absolute; right: 0; top: 44px; z-index: 30; width: 300px; max-width: 86vw; background: var(--tt-card); border: 1.5px solid var(--tt-line); border-radius: 14px; box-shadow: 0 14px 30px rgba(15,40,80,.18); padding: 8px; }
+.dd-ss.open .dd-ss-panel { display: block; }
+.dd-ss-search { width: 100%; height: 36px; border: 1.5px solid var(--tt-line); border-radius: 999px; padding: 0 .8rem; font: inherit; font-size: .86rem; background: var(--tt-card); color: var(--tt-ink); box-sizing: border-box; }
+.dd-ss-list { max-height: 260px; overflow: auto; margin-top: 6px; }
+.dd-ss-opt { padding: .45rem .7rem; border-radius: 8px; font-size: .86rem; color: var(--tt-ink); cursor: pointer; }
+.dd-ss-opt:hover, .dd-ss-opt.active { background: var(--tt-hover); }
+.dd-ss-opt.sel { font-weight: 700; color: var(--tt-blue); }
+.dd-ss-none { padding: .5rem .7rem; font-size: .84rem; color: var(--tt-muted); }
+
+/* ----- shared Dean pages (Performance, Publication, ...) ----- */
+body.role-dean .dz { max-width: 1180px; margin: 0 auto; padding: 1rem 0 2rem; }
+body.role-dean .dz-title { margin: 0 0 .25rem; font-family: var(--tt-display); font-size: clamp(1.7rem, 3.2vw, 2.4rem); font-weight: 700; color: var(--tt-ink); letter-spacing: -.02em; }
+body.role-dean .dz-sub { margin: 0 0 1.1rem; color: var(--tt-muted); font-size: .95rem; }
+body.role-dean .dz-card { background: var(--tt-card); border: 1px solid var(--tt-line); border-radius: 14px; padding: 1.3rem; margin-bottom: 1.1rem; min-width: 0; }
+body.role-dean .dz-card-h { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap; margin-bottom: .9rem; }
+body.role-dean .dz-card-h h2 { margin: 0; }
+body.role-dean .dz-btn { display: inline-block; border: 1.5px solid var(--tt-line); background: var(--tt-card); color: var(--tt-ink) !important; border-radius: 999px; padding: .35rem 1rem; font: 600 .85rem var(--tt-text); text-decoration: none !important; cursor: pointer; }
+body.role-dean .dz-btn:hover { border-color: var(--tt-ink); background: var(--tt-paper); }
+body.role-dean .dz-tw { overflow-x: auto; border: 1px solid var(--tt-line); border-radius: 14px; }
+body.role-dean .dz-t { min-width: 820px; }
+body.role-dean .dz-filters { display: flex; flex-wrap: wrap; gap: .7rem; align-items: flex-end; }
+body.role-dean .dz-filters label { display: block; margin: 0; font-size: .72rem; font-weight: 600; color: var(--tt-muted); }
+body.role-dean .dz-filters select { display: block; margin-top: 2px; min-width: 150px; height: 38px; border: 1.5px solid var(--tt-line); border-radius: 999px; background: var(--tt-card); padding: 0 .8rem; font: inherit; font-size: .88rem; color: var(--tt-ink); }
+body.role-dean .dz-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1.2rem; padding: 1.3rem 1.5rem; background: var(--tt-navy); border-radius: 18px; }
+body.role-dean .dz-stat { background: none; border: 0; box-shadow: none; padding: 0; }
+body.role-dean .dz-stat small { display: block; color: rgba(255,255,255,.82); font-size: .85rem; }
+body.role-dean .dz-stat strong { display: block; font: 700 clamp(1.6rem, 3vw, 2.3rem)/1.15 var(--tt-display); color: var(--tt-orange); font-variant-numeric: tabular-nums; }
+body.role-dean .dz-fac-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 1rem; }
+body.role-dean .dz-fac { display: flex; gap: .9rem; background: var(--tt-card); border: 1.5px solid var(--tt-line); border-radius: 16px; padding: .9rem; }
+body.role-dean .dz-fac .ph { width: 78px; height: 92px; border-radius: 12px; object-fit: cover; background: var(--tt-paper); border: 2px solid var(--tt-card); flex-shrink: 0; }
+body.role-dean .dz-fac .ph-fb { width: 78px; height: 92px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: var(--tt-blue); color: #fff; font: 700 1.5rem var(--tt-display); }
+body.role-dean .dz-fac .mt { flex: 1; min-width: 0; }
+body.role-dean .dz-fac h3 { margin: 0; font-size: 1.02rem; }
+body.role-dean .dz-fac .s { margin: 2px 0; color: var(--tt-muted); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.role-dean .dz-fac .nums { display: flex; gap: .5rem; margin: .5rem 0; }
+body.role-dean .dz-fac .nums div { background: var(--tt-paper); border: 1px solid var(--tt-line); border-radius: 10px; padding: .2rem .7rem; text-align: center; }
+body.role-dean .dz-fac .nums b { display: block; font-size: 1rem; color: var(--tt-ink); } body.role-dean .dz-fac .nums span { font-size: .68rem; color: var(--tt-muted); }
+@media print { body.role-dean .dz-filters, body.role-dean .dz-btn, body.role-dean .dz-view { display: none !important; } body.role-dean .dz-card { border: 1px solid #ccc; } }
+
+/* nav: keep Logout on the same row as the links */
+body.role-dean .topbar-inner { max-width: 1320px; }
+body.role-dean .topnav > a:not(.nav-user) { padding: .4rem .6rem; }
+body.role-dean .nav-user { white-space: nowrap; max-width: 190px; overflow: hidden; text-overflow: ellipsis; }
+body.role-dean .dd-chart { padding-top: 22px; }
+
+/* ---------- Secondary pages (Comparison, Actions, My HODs, Analytics, Historical) ---------- */
+body.role-dean .page-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1.2rem; margin-bottom: 1rem; }
+body.role-dean .subnav { display: flex; flex-wrap: wrap; gap: .3rem; }
+body.role-dean .subnav a { padding: .3rem .8rem; border: 1px solid var(--tt-line); border-radius: 999px; background: var(--tt-card); color: var(--tt-ink); font-size: .84rem; font-weight: 600; text-decoration: none; }
+body.role-dean .subnav a:hover { border-color: var(--tt-blue); text-decoration: none; }
+body.role-dean .subnav a.active { background: var(--tt-blue); border-color: var(--tt-blue); color: #fff; }
+body.role-dean .dz-anchor { scroll-margin-top: 90px; }
+body.role-dean .band-tabs + .dz-anchor, body.role-dean .band-tabs + #teachers { margin-top: 1.1rem; }
+@media (max-width: 760px) {
+  /* Wide tables scroll inside their card instead of widening the whole page. */
+  body.role-dean table.data-table, body.role-dean table.data { display: block; width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  body.role-dean .page-header h1 { font-size: 1.6rem; }
+}
+
+/* ---------- Performance: result popup, mail dialogs, send result ---------- */
+body.role-dean [hidden] { display: none !important; }
+html.rd-lock { overflow: hidden; }
+body.role-dean .band-actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: .4rem; }
+body.role-dean .band-actions .btn { flex: 1 1 140px; justify-content: center; }
+body.role-dean .act-opts { border: 1px dashed var(--tt-line); border-radius: 12px; padding: .6rem .8rem; margin: .8rem 0; }
+body.role-dean .act-fields { display: flex; flex-wrap: wrap; gap: .6rem 1rem; margin-top: .5rem; }
+body.role-dean .act-fields label { display: flex; flex-direction: column; gap: .15rem; font-size: .84rem; font-weight: 600; }
+body.role-dean .mail-result { margin-top: .8rem; padding: .6rem .85rem; border-radius: 12px; border: 1px solid var(--tt-line); font-size: .92rem; }
+body.role-dean .mail-result p { margin: 0 0 .25rem; }
+body.role-dean .mail-result ul { margin: .3rem 0 .3rem 1.1rem; padding: 0; }
+body.role-dean .mail-result.is-success { background: var(--tt-ok-bg); border-color: var(--tt-ok); }
+body.role-dean .mail-result.is-warning { background: var(--tt-warn-bg); border-color: var(--tt-warn); }
+body.role-dean .mail-result.is-error { background: var(--tt-bad-bg); border-color: var(--tt-bad); }
+body.role-dean .mail-result.is-info { background: var(--tt-paper); }
+body.role-dean .mail-link { display: inline-block; margin-top: .3rem; font-weight: 700; }
+body.role-dean tr.is-new td { background: var(--tt-warn-bg); }
+
+body.role-dean dialog.rd-dialog { width: min(760px, calc(100vw - 24px)); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); padding: 0; border: 1px solid var(--tt-line); border-radius: 18px; background: var(--tt-card); color: var(--tt-ink); overflow: hidden; }
+body.role-dean dialog.rd-dialog::backdrop { background: rgba(7, 30, 61, .55); }
+body.role-dean dialog.rd-mail { width: min(560px, calc(100vw - 24px)); }
+body.role-dean .rd-slot { max-height: calc(100vh - 26px); max-height: calc(100dvh - 26px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+body.role-dean .rd { display: flex; flex-direction: column; }
+body.role-dean .rd-head { display: flex; align-items: center; gap: .8rem; padding: 1rem 3rem 1rem 1.1rem; background: var(--tt-paper); border-bottom: 1px solid var(--tt-line); position: relative; }
+body.role-dean .rd-av { width: 54px; height: 64px; border-radius: 10px; overflow: hidden; flex-shrink: 0; background: var(--tt-blue); color: #fff; display: flex; align-items: center; justify-content: center; font: 700 1.2rem var(--tt-display); }
+body.role-dean .rd-av img { width: 100%; height: 100%; object-fit: cover; }
+body.role-dean .rd-who { flex: 1; min-width: 0; }
+body.role-dean .rd-name { margin: 0; font-size: 1.15rem; }
+body.role-dean .rd-sub { margin: .1rem 0 0; color: var(--tt-muted); font-size: .82rem; overflow-wrap: anywhere; }
+body.role-dean .rd-score { text-align: right; }
+body.role-dean .rd-score strong { display: block; font: 700 1.6rem/1 var(--tt-display); color: var(--tt-blue); }
+body.role-dean .rd-score small { color: var(--tt-muted); font-size: .7rem; }
+body.role-dean .rd-x { position: absolute; top: .55rem; right: .6rem; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--tt-line); background: var(--tt-card); color: var(--tt-ink); font-size: 1.2rem; line-height: 1; cursor: pointer; }
+body.role-dean .rd-body { padding: .9rem 1.1rem 1.1rem; }
+body.role-dean .rd-top { display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; margin-bottom: .6rem; }
+body.role-dean .rd-top div { background: var(--tt-paper); border: 1px solid var(--tt-line); border-radius: 12px; padding: .4rem .6rem; text-align: center; }
+body.role-dean .rd-top b { display: block; font-size: 1rem; } body.role-dean .rd-top .rd-band { font-size: .78rem; }
+body.role-dean .rd-top span { font-size: .7rem; color: var(--tt-muted); }
+body.role-dean .rd-h { margin: 1rem 0 .3rem; font-size: 1rem; }
+body.role-dean .rd-note { margin: 0 0 .5rem; color: var(--tt-muted); font-size: .82rem; }
+body.role-dean .rd-cat > div { display: flex; justify-content: space-between; gap: .6rem; font-size: .84rem; }
+body.role-dean .rd-cat i { display: block; height: 8px; border-radius: 99px; background: var(--tt-line); margin: .15rem 0 .5rem; overflow: hidden; }
+body.role-dean .rd-cat u { display: block; height: 100%; background: var(--tt-blue); }
+body.role-dean .rd-cat.is-current span { font-weight: 700; }
+body.role-dean .rd-scroll { overflow-x: auto; }
+body.role-dean .rd-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+body.role-dean .rd-table th, body.role-dean .rd-table td { padding: .35rem .5rem; border-bottom: 1px solid var(--tt-line); text-align: left; vertical-align: top; }
+body.role-dean .rd-filters { display: flex; flex-wrap: wrap; gap: .35rem; margin: .4rem 0 .6rem; }
+body.role-dean .rd-filters button, body.role-dean .rd-more, body.role-dean .rd-btn { border: 1.5px solid var(--tt-line); background: var(--tt-card); color: var(--tt-ink); border-radius: 999px; padding: .35rem .9rem; font: 600 .82rem var(--tt-text); cursor: pointer; text-decoration: none; }
+body.role-dean .rd-filters button.on, body.role-dean .rd-btn.p { background: var(--tt-blue); border-color: var(--tt-blue); color: #fff; }
+body.role-dean .rd-c { margin: 0 0 .5rem; padding: .55rem .8rem; border-left: 4px solid var(--tt-line); background: var(--tt-paper); border-radius: 0 12px 12px 0; font-size: .9rem; overflow-wrap: anywhere; }
+body.role-dean .rd-c.rd-pos { border-left-color: var(--tt-ok); } body.role-dean .rd-c.rd-neu { border-left-color: var(--tt-r3); } body.role-dean .rd-c.rd-need { border-left-color: var(--tt-bad); }
+body.role-dean .rd-c small { display: flex; flex-wrap: wrap; gap: .2rem .7rem; margin-top: .25rem; color: var(--tt-muted); font-size: .72rem; }
+body.role-dean .rd-stars span { color: var(--tt-line); } body.role-dean .rd-stars span.on { color: #F59E0B; }
+body.role-dean .rd-c em { font-style: normal; font-weight: 700; }
+body.role-dean .rd-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; padding: .7rem 1.1rem; border-top: 1px solid var(--tt-line); position: sticky; bottom: 0; background: var(--tt-card); }
+body.role-dean .md-head { display: flex; align-items: center; padding: .9rem 3rem .9rem 1.1rem; background: var(--tt-paper); border-bottom: 1px solid var(--tt-line); position: relative; }
+body.role-dean .md-head h2 { margin: 0; font-size: 1.1rem; }
+body.role-dean .md-body { padding: .9rem 1.1rem; max-height: calc(100dvh - 160px); overflow-y: auto; }
+body.role-dean .md-foot { display: flex; justify-content: flex-end; gap: .5rem; padding: .7rem 1.1rem; border-top: 1px solid var(--tt-line); }
+body.role-dean .md-to { margin: 0 0 .6rem; font-size: .88rem; } body.role-dean .md-groups { margin: .3rem 0 0 1.1rem; padding: 0; }
+body.role-dean .md-hint { margin: .2rem 0 0; color: var(--tt-muted); font-size: .78rem; } body.role-dean .md-warn { color: var(--tt-warn); font-weight: 600; }
+@media (max-width: 560px) {
+  body.role-dean dialog.rd-dialog { width: 100vw; max-width: 100vw; max-height: 100dvh; height: 100dvh; border-radius: 0; border: 0; margin: 0; }
+  body.role-dean .rd-slot { max-height: 100dvh; }
+  body.role-dean .rd-top { grid-template-columns: repeat(2, 1fr); }
+  body.role-dean .rd-head { flex-wrap: wrap; } body.role-dean .rd-score { text-align: left; }
+}
+/* Print / Save as PDF of the open result: show only the popup. */
+@media print {
+  /* The popup is a child of <main>, so hide the siblings of <main> and of the dialog,
+     never <main> itself (hiding it would print a blank page). */
+  html.rd-printing body.role-dean > *:not(main) { display: none !important; }
+  html.rd-printing body.role-dean main > *:not(dialog) { display: none !important; }
+  html.rd-printing body.role-dean main { padding: 0; margin: 0; max-width: none; width: 100%; }
+  html.rd-printing body.role-dean dialog.rd-dialog:not([open]) { display: none !important; }
+  html.rd-printing body.role-dean dialog.rd-dialog[open] { position: static; display: block; width: 100%; max-width: none; max-height: none; height: auto; border: 0; overflow: visible; }
+  html.rd-printing body.role-dean .rd-slot { max-height: none; overflow: visible; }
+  html.rd-printing body.role-dean .rd-foot, html.rd-printing body.role-dean .rd-x, html.rd-printing body.role-dean .rd-filters, html.rd-printing body.role-dean .rd-more { display: none !important; }
+  html.rd-printing body.role-dean .rd-c { break-inside: avoid; }
+}
