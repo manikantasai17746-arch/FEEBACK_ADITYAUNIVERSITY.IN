@@ -505,7 +505,7 @@
         {{ login_fields('teacher') }}
         <div class="field">
           <label for="lp_emp_t">Employee Code</label>
-          <input type="text" id="lp_emp_t" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'teacher' and login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_emp_t" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'teacher' and login_values else '' }}" placeholder="" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
           <div class="scan-ok" id="lpScanOkTeacher" style="display:none">✓ ID card scanned — now enter your password.</div>
         </div>
         <div class="field">
@@ -526,7 +526,7 @@
         {{ login_fields('hod') }}
         <div class="field">
           <label for="lp_emp_h">Employee Code</label>
-          <input type="text" id="lp_emp_h" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'hod' and login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_emp_h" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'hod' and login_values else '' }}" placeholder=" " required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
         </div>
         <div class="field">
           <label for="lp_h_pw">Password</label>
@@ -546,7 +546,7 @@
         {{ login_fields('dean') }}
         <div class="field">
           <label for="lp_emp_d">Employee Code</label>
-          <input type="text" id="lp_emp_d" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'dean' and login_values else '' }}" placeholder="e.g. 6817" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_emp_d" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'dean' and login_values else '' }}" placeholder=" " required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
         </div>
         <div class="field">
           <label for="lp_d_pw">Password</label>
