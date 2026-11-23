@@ -381,20 +381,71 @@ body.lp-menu-open .lp-drawer {
 .role:hover .role-go, .role:focus-visible .role-go { background: var(--ink); color: #fff; }
 
 /* ---------- Footer ---------- */
-.lp-footer { background: var(--ink); color: rgba(255,255,255,.82); }
-.lp-footer-inner {
-  max-width: 1180px; margin: 0 auto; padding: 3.5rem 1.25rem 2.5rem;
-  display: grid; grid-template-columns: 1.3fr 1.4fr 1fr; gap: 2.5rem;
+.lp-footer {
+  position: relative; color: rgba(255,255,255,.8);
+  background: linear-gradient(180deg, #0a2142 0, var(--ink) 240px);
 }
-.lp-foot-brand img { height: 38px; width: auto; background: #fff; padding: 6px 10px; border-radius: 8px; margin-bottom: 1rem; display: block; }
-.lp-footer p { margin: 0 0 .35rem; }
-.lp-foot-tag { font-size: .95rem; color: rgba(255,255,255,.7); }
-.lp-footer h4 { margin: 0 0 .7rem; font: 600 1.05rem/1.3 var(--display); color: #fff; }
-.lp-social { display: flex; flex-direction: column; gap: .4rem; }
-.lp-social a { width: fit-content; text-decoration: underline !important; text-underline-offset: 3px; text-decoration-color: rgba(255,255,255,.35); }
-.lp-social a:hover { color: #fff; text-decoration-color: var(--orange); }
-.lp-footer-bottom { max-width: 1180px; margin: 0 auto; padding: 0 1.25rem 1.6rem; font-size: .9rem; color: rgba(255,255,255,.65); }
-.lp-footer-bottom span { display: block; padding-top: 1.2rem; border-top: 1px solid rgba(255,255,255,.16); }
+.lp-footer::before {
+  content: ""; position: absolute; inset: 0 0 auto; height: 3px;
+  background: linear-gradient(90deg, var(--orange), var(--blue));
+}
+.lp-footer-inner {
+  max-width: 1180px; margin: 0 auto; padding: 3.5rem 1.25rem 2.25rem;
+  display: grid; grid-template-columns: 1.5fr 1fr 1.4fr; gap: 3rem; align-items: start;
+}
+.lp-footer ul { list-style: none; margin: 0; padding: 0; }
+.lp-footer p { margin: 0; }
+.lp-foot-label {
+  margin: 0 0 1rem; font: 600 .78rem/1.3 var(--text); color: rgba(255,255,255,.55);
+  letter-spacing: .12em; text-transform: uppercase;
+}
+
+/* Logo card: the same animated mark as the loading screen, on its light palette */
+.lp-foot-logo {
+  --logo-ink: #03529b; --logo-accent: #d59c00;
+  width: 12rem; aspect-ratio: 192 / 154; display: grid; place-items: center;
+  background: #fff; border-radius: 18px; margin-bottom: 1.25rem;
+  box-shadow: 0 10px 30px rgba(0,0,0,.28);
+}
+.lp-foot-logo-svg { display: block; width: 78%; height: auto; }
+@media (prefers-reduced-motion: no-preference) {
+  .lp-foot-logo-svg .sun { transform-origin: 239px 186.5px; animation: lp-foot-spin 40s linear infinite; }
+  .lp-foot-logo-svg .orb { transform-origin: 239.8px 185.84px; animation: lp-foot-spin var(--orbit-duration) linear infinite var(--orbit-direction, reverse); }
+  .lp-foot-logo-svg .orb-one { --orbit-duration: 70s; }
+  .lp-foot-logo-svg .orb-two { --orbit-duration: 46s; --orbit-direction: normal; }
+  .lp-foot-logo-svg .orb-three { --orbit-duration: 30s; }
+}
+@keyframes lp-foot-spin { to { transform: rotate(360deg); } }
+
+.lp-foot-title { font: 650 1.05rem/1.3 var(--display); color: #fff; margin-bottom: .35rem !important; }
+.lp-foot-tag { font-size: .9rem; color: rgba(255,255,255,.7); margin-bottom: 1.75rem !important; }
+
+.lp-social { display: flex; flex-wrap: wrap; gap: .6rem; }
+.lp-social a {
+  display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 50%;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); color: rgba(255,255,255,.88);
+  transition: background-color .15s, border-color .15s, color .15s, transform .15s;
+}
+.lp-social a:hover, .lp-social a:focus-visible { background: rgba(245,112,37,.16); border-color: var(--orange); color: #fff; transform: translateY(-2px); }
+.lp-social svg { width: 1.2rem; height: 1.2rem; }
+
+.lp-foot-links ul { display: grid; gap: .8rem; }
+.lp-foot-links a { color: rgba(255,255,255,.82); transition: color .15s; }
+.lp-foot-links a:hover { color: #fff; text-decoration: underline; text-decoration-color: var(--orange); text-underline-offset: 4px; }
+
+.lp-foot-contact ul { display: grid; gap: 1rem; }
+.lp-foot-contact li { display: flex; align-items: center; gap: .85rem; }
+.lp-foot-ico {
+  flex: none; display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 12px;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.14); color: var(--orange);
+}
+.lp-foot-ico svg { width: 1.2rem; height: 1.2rem; }
+.lp-foot-item { display: grid; min-width: 0; line-height: 1.35; color: #fff; overflow-wrap: anywhere; }
+.lp-foot-item small { font-size: .75rem; color: rgba(255,255,255,.55); }
+.lp-foot-item a:hover { text-decoration: underline; text-decoration-color: var(--orange); text-underline-offset: 3px; }
+
+.lp-footer-bottom { max-width: 1180px; margin: 0 auto; padding: 0 1.25rem 1.6rem; font-size: .85rem; color: rgba(255,255,255,.6); }
+.lp-footer-bottom span { display: block; padding-top: 1.2rem; border-top: 1px solid rgba(255,255,255,.14); }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 980px) {
@@ -404,13 +455,26 @@ body.lp-menu-open .lp-drawer {
   .steps { grid-template-columns: 1fr; margin-top: 1.4rem; }
   .steps li { padding: 0 0 1.6rem; text-align: left; }
   .steps p { margin: 0; max-width: none; }
-  .lp-footer-inner { grid-template-columns: 1fr; gap: 2rem; }
+  .lp-footer-inner { grid-template-columns: 1fr 1fr; gap: 2.5rem 2rem; }
+  .lp-foot-brand { grid-column: 1 / -1; }
 }
 @media (max-width: 760px) {
   .lp-nav-desktop, .lp-login-desktop { display: none !important; }
   .lp-menu-btn { display: grid; }
   .lp-brand span { font-size: 1rem; }
   .block { padding: 3.5rem 0; }
+  /* Footer, mobile: one column with larger type, as in the approved preview (no quick links;
+     the menu drawer already has them) */
+  .lp-footer-inner { grid-template-columns: 1fr; padding: 3rem 1.5rem 2rem; gap: 2.5rem; }
+  .lp-foot-links { display: none; }
+  .lp-foot-logo { width: min(15rem, 62vw); }
+  .lp-foot-title { font-size: 1.5rem; }
+  .lp-foot-tag { font-size: 1.05rem; }
+  .lp-foot-label { font-size: .85rem; }
+  .lp-social a, .lp-foot-ico { width: 3rem; height: 3rem; }
+  .lp-foot-item { font-size: 1.05rem; }
+  .lp-foot-item small { font-size: .9rem; }
+  .lp-footer-bottom { padding: 0 1.5rem 1.8rem; font-size: .95rem; }
 }
 @media (max-width: 520px) {
   .sheet { --cut: 42px; padding: 1.4rem 1rem 1.2rem 2.2rem; }
