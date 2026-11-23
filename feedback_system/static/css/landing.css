@@ -742,3 +742,13 @@ body.lp-login-open { overflow: hidden; }
 /* While the ID scanner is open, step our layers out of its way */
 body.lp-scanning .lp-login-overlay { visibility: hidden; }
 body.lp-scanning .lp-header, body.lp-scanning .lp-drawer, body.lp-scanning .lp-drawer-backdrop { z-index: 0; }
+
+/* Answer sheet demo cursor: glides to each answer and taps it (hidden once the visitor uses the sheet) */
+.sheet .demo-cursor {
+  position: absolute; left: 0; top: 0; width: 26px; height: 26px; z-index: 3;
+  opacity: 0; pointer-events: none;
+  transition: transform 1s cubic-bezier(.4, 0, .2, 1), opacity .3s;
+}
+.sheet .demo-cursor svg { display: block; transition: transform .12s; }
+.sheet .demo-cursor.is-down svg { transform: scale(.8); }
+@media (prefers-reduced-motion: reduce) { .sheet .demo-cursor { display: none; } }

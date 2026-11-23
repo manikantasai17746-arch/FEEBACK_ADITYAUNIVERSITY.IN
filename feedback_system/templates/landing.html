@@ -207,6 +207,7 @@
         </svg>
       </div>
       <div class="sheet-fold" aria-hidden="true"><i></i></div>
+      <div class="demo-cursor" id="demoCursor" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" focusable="false"><path d="M5 3l14 8-6 2-2 6z" fill="#071E3D" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
     </div>
   </div>
 </section>
@@ -452,9 +453,48 @@
     });
   });
 
-  // One page-load moment: the sheet fills in a sample answer to show what it does.
-  if (!calm) {
-    setTimeout(function () { if (!touched) pick(3); }, 1100);
+  // Live demo: a cursor taps one answer after another so the sheet shows what it does.
+  // It stops for good once the visitor uses the sheet, and is skipped with reduced motion.
+  var cursor = document.getElementById('demoCursor');
+  var hovered = false;
+  sheet.addEventListener('pointerenter', function () { hovered = true; });
+  sheet.addEventListener('pointerleave', function () { hovered = false; });
+  if (!calm && cursor) {
+    var order = [3, 4, 2, 1, 0];
+    var step = 0;
+    var started = false;
+    var place = function (i) {
+      var dot = bubbles[i].querySelector('i').getBoundingClientRect();
+      var box = sheet.getBoundingClientRect();
+      cursor.style.transform = 'translate(' + Math.round(dot.left - box.left + dot.width / 2 - 5) + 'px,' +
+        Math.round(dot.top - box.top + dot.height / 2 - 3) + 'px)';
+    };
+    var tap = function () {
+      if (touched) { cursor.style.opacity = '0'; return; }
+      if (hovered || document.hidden) { setTimeout(tap, 1200); return; }
+      var i = order[step % order.length];
+      step++;
+      if (!started) {
+        started = true;
+        var box = sheet.getBoundingClientRect();
+        cursor.style.transition = 'none';
+        cursor.style.transform = 'translate(' + Math.round(box.width - 40) + 'px,' + Math.round(box.height - 30) + 'px)';
+        void cursor.offsetWidth;
+        cursor.style.transition = '';
+      }
+      cursor.style.opacity = '1';
+      place(i);
+      setTimeout(function () {
+        if (touched) { cursor.style.opacity = '0'; return; }
+        cursor.classList.add('is-down');
+        setTimeout(function () {
+          cursor.classList.remove('is-down');
+          if (!touched) pick(i);
+        }, 140);
+      }, 1150);
+      setTimeout(tap, 4000);
+    };
+    setTimeout(tap, 900);
   }
 })();
 </script>
