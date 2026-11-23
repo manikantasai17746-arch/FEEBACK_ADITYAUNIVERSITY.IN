@@ -9,6 +9,7 @@
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='img/favicon-emblem.png') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/landing.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/answer-card.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/anonymity_card.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/loader.css') }}">
 
@@ -165,51 +166,7 @@
 
 
     <!-- Interactive sample: an answer sheet that shows what gets saved -->
-    <div class="sheet" id="demo">
-      <p class="sheet-tag">Sample question. Nothing here is saved.</p>
-      <h2 class="sheet-q" id="demoQ">The faculty explains concepts in a way I can follow.</h2>
-      <div class="scale" role="radiogroup" aria-labelledby="demoQ">
-        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Poor"><i></i><span>Poor</span></button>
-        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Average"><i></i><span>Average</span></button>
-        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Good"><i></i><span>Good</span></button>
-        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Very good"><i></i><span>Very good</span></button>
-        <button type="button" class="bubble" role="radio" aria-checked="false" data-label="Excellent"><i></i><span>Excellent</span></button>
-      </div>
-      <div class="receipt" aria-live="polite">
-        <p class="receipt-idle" id="receiptIdle">Tap a bubble to see what gets saved.</p>
-        <div class="receipt-body" id="receiptBody" hidden>
-          <div>
-            <h3>Saved with the answer</h3>
-            <p class="receipt-saved">Rating: <strong id="pickLabel">Very good</strong></p>
-          </div>
-          <div>
-            <h3>Never attached</h3>
-            <ul>
-              <li>Your name</li>
-              <li>Your roll number</li>
-            </ul>
-          </div>
-        </div>
-      </div>
-      <div class="stamp" aria-hidden="true">
-        <div class="stamp-ring"></div>
-        <svg viewBox="0 0 200 200" focusable="false">
-          <defs>
-            <path id="stTop" d="M28,100 a72,72 0 0,1 144,0"/>
-            <path id="stBot" d="M20,100 a80,80 0 0,0 160,0"/>
-          </defs>
-          <circle cx="100" cy="100" r="94" fill="none" stroke="#0b2f6b" stroke-width="5"/>
-          <circle cx="100" cy="100" r="86" fill="none" stroke="#0b2f6b" stroke-width="1.5"/>
-          <circle cx="100" cy="100" r="52" fill="#fff" stroke="#f26f21" stroke-width="3"/>
-          <text font-family="Arial Black,Arial,sans-serif" font-weight="900" font-size="15" letter-spacing="1.6" fill="#0b2f6b"><textPath href="#stTop" startOffset="50%" text-anchor="middle">ADITYA UNIVERSITY</textPath></text>
-          <text font-family="Arial,sans-serif" font-weight="800" font-size="11" letter-spacing="1.8" fill="#f26f21"><textPath href="#stBot" startOffset="50%" text-anchor="middle">ANONYMOUS FEEDBACK</textPath></text>
-          <text x="12" y="106" font-size="13" fill="#0b2f6b">&#9733;</text><text x="176" y="106" font-size="13" fill="#0b2f6b">&#9733;</text>
-          <image href="{{ url_for('static', filename='img/aditya-emblem.png') }}" x="72" y="72" width="56" height="58" preserveAspectRatio="xMidYMid meet"/>
-        </svg>
-      </div>
-      <div class="sheet-fold" aria-hidden="true"><i></i></div>
-      <div class="demo-cursor" id="demoCursor" aria-hidden="true"><svg viewBox="0 0 24 24" width="26" height="26" focusable="false"><path d="M5 3l14 8-6 2-2 6z" fill="#071E3D" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
-    </div>
+    {% include 'partials/answer_card.html' %}
   </div>
 </section>
 
@@ -399,107 +356,6 @@
     <span>© 2026 Aditya University. All rights reserved.</span>
   </div>
 </footer>
-
-
-<script nonce="{{ csp_nonce }}">
-// Sample answer sheet in the hero: picking a bubble shows what is saved
-// and stamps the sheet "Anonymous feedback".
-(function () {
-  var sheet = document.getElementById('demo');
-  if (!sheet) return;
-  var bubbles = Array.prototype.slice.call(sheet.querySelectorAll('.bubble'));
-  var idle = document.getElementById('receiptIdle');
-  var body = document.getElementById('receiptBody');
-  var label = document.getElementById('pickLabel');
-  var touched = false;
-
-  function pick(i) {
-    bubbles.forEach(function (b, j) {
-      b.setAttribute('aria-checked', j === i ? 'true' : 'false');
-      b.tabIndex = j === i ? 0 : -1;
-    });
-    label.textContent = bubbles[i].getAttribute('data-label');
-    idle.hidden = true;
-    body.hidden = false;
-    stamp();
-  }
-
-  // Slam the stamp down. Remove and re-add the class so every call replays it.
-  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var loop = null;
-  function stamp() {
-    sheet.classList.remove('is-stamped');
-    void sheet.offsetWidth;
-    sheet.classList.add('is-stamped');
-    // Replay the stamp every 5 seconds. A new pick restarts the 5 second count.
-    if (calm) return;
-    clearInterval(loop);
-    loop = setInterval(function () {
-      if (!document.hidden && body.hidden === false) stamp();
-    }, 5000);
-  }
-
-  bubbles.forEach(function (b, i) {
-    if (i > 0) b.tabIndex = -1;
-    b.addEventListener('click', function () { touched = true; pick(i); });
-    b.addEventListener('keydown', function (e) {
-      var next = null;
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (i + 1) % bubbles.length;
-      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = (i + bubbles.length - 1) % bubbles.length;
-      if (next === null) return;
-      e.preventDefault();
-      touched = true;
-      pick(next);
-      bubbles[next].focus();
-    });
-  });
-
-  // Live demo: a cursor taps one answer after another so the sheet shows what it does.
-  // It stops for good once the visitor uses the sheet, and is skipped with reduced motion.
-  var cursor = document.getElementById('demoCursor');
-  var hovered = false;
-  sheet.addEventListener('pointerenter', function () { hovered = true; });
-  sheet.addEventListener('pointerleave', function () { hovered = false; });
-  if (!calm && cursor) {
-    var order = [3, 4, 2, 1, 0];
-    var step = 0;
-    var started = false;
-    var place = function (i) {
-      var dot = bubbles[i].querySelector('i').getBoundingClientRect();
-      var box = sheet.getBoundingClientRect();
-      cursor.style.transform = 'translate(' + Math.round(dot.left - box.left + dot.width / 2 - 5) + 'px,' +
-        Math.round(dot.top - box.top + dot.height / 2 - 3) + 'px)';
-    };
-    var tap = function () {
-      if (touched) { cursor.style.opacity = '0'; return; }
-      if (hovered || document.hidden) { setTimeout(tap, 1200); return; }
-      var i = order[step % order.length];
-      step++;
-      if (!started) {
-        started = true;
-        var box = sheet.getBoundingClientRect();
-        cursor.style.transition = 'none';
-        cursor.style.transform = 'translate(' + Math.round(box.width - 40) + 'px,' + Math.round(box.height - 30) + 'px)';
-        void cursor.offsetWidth;
-        cursor.style.transition = '';
-      }
-      cursor.style.opacity = '1';
-      place(i);
-      setTimeout(function () {
-        if (touched) { cursor.style.opacity = '0'; return; }
-        cursor.classList.add('is-down');
-        setTimeout(function () {
-          cursor.classList.remove('is-down');
-          if (!touched) pick(i);
-        }, 140);
-      }, 1150);
-      setTimeout(tap, 4000);
-    };
-    setTimeout(tap, 900);
-  }
-})();
-</script>
-
 <script nonce="{{ csp_nonce }}">
 (function () {
   var btn = document.getElementById('lpMenuBtn');
@@ -869,5 +725,6 @@
 
 {% include 'partials/page_loader.html' %}
 <script src="{{ url_for('static', filename='js/cursor-tone.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/answer-card.js') }}" defer></script>
 </body>
 </html>
