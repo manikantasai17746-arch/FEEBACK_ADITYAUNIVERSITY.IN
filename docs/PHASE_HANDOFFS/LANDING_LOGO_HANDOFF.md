@@ -47,3 +47,11 @@ Implemented on 2026-11-23 from `24425a2`. Template and CSS only; no routes, sche
 
 - Rendered the real Flask page and checked it in Chrome at 1280px, 820px and 390px: no horizontal overflow, layout matches the approved preview.
 - `pytest tests/test_app.py -k 'landing or admin_login'` could not run in this environment: `pyotp` is not installed and package installs are blocked, so the app fails at import. The page was rendered with throwaway stand-in modules kept outside the repository. Run the targeted tests in a full environment before deploying.
+
+## Hero headline animation
+
+Implemented on 2026-11-23. Template and CSS only.
+
+- The hero `<h1>` in `landing.html` is split into word spans. On load the words rise in one by one, "name out of it." turns orange, then the lead paragraph and the sign-in buttons fade up. The styles are in `landing.css` next to `.hero h1`.
+- A small nonce script right after the `<h1>` adds `hero-anim` to `.hero-copy` before first paint. Without it, or with reduced motion on, the text simply shows. The headline wording is unchanged.
+- Verified in Chrome at 1280px and 390px: sequence plays, final colors are correct, no horizontal overflow, no console errors. `pytest` could not run here (`pyotp` is missing), so run `pytest tests/test_app.py -k 'landing or admin_login'` before deploying.
