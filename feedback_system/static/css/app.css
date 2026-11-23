@@ -1281,3 +1281,12 @@ html.dark-mode .sf-tab-count { background: #243047; color: #e5e9f0; }
 .rv-flag{font-weight:700;color:#b45309;background:#fef3c7;border-radius:999px;padding:1px 9px}
 .pv-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0b2347;color:#fff;padding:10px 16px;border-radius:10px;font-size:.88rem;z-index:100000;display:none;max-width:90vw}
 .pv-toast.on{display:block}
+
+/* Custom arrow cursor for the whole site, including buttons and links.
+   !important overrides the per-element cursor:pointer rules. Text fields keep the text cursor. */
+*, *::before, *::after {
+  cursor: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAAVCAYAAABLy77vAAADzUlEQVR42rXUW2hcRRgH8P/MOWfPObub7NndXHqLbtImmiaki6GpEhJTwaZgEdTGC1RQ9KEPWqoUKSrug0SoUjF4ocVWEPpQG0ToDVorgZYkpI1Ja7KmaS6bNE1as5uwt+zm7Dkz40Ojtgav6MA8zMuP/8w33wf8HysUCtFQKET/Q1D8O0wIQQCg7fDp9YNjY/cAwP5jXToh5J9BbW2nVZkCddvf2/3AE63TJzv6g4oEdPRHDCGE9HcMKoQgK9cXaZrmwE9zieTw9eSqNz440bHr3WMvbtlYFr/QP+KLRIT2lxAAuaTYq6UWTEUGkVUFfHh82vX1dwNfNO348PVtDdXROXPGffnyTdef3VSemJiQlFxWBeCyGMC4oLqqsJvROBKp7P76Z98P1N636i0AUl9fxAgGAwlCiFiWKBAIUKgOBYAKCbAZR+kaf3JDxYqTls3QcWns1a0vf3z2bM8VfzAYyHSHp7xCLK8qBUB0qlMAMhgD54BDldHT/uYLm6rXHPDku9FxcezBPa3Hz+07dGrtQ1UlyTPdYeP3GAVA0laOAKAW5wAAxoR94WJ4Y/tHzx99ekvN3iKvnh6KxMo+O3K+s/XT44+1PFo73zMy4r4Tu0tljEEIAYlSIcnM6g9PNuzb09y5d2dzy+oC18ytedN7sL3rm+de+zy0qbx8obPzqusuSF06cA4IAFQCUWV3TlOl+a7vJ4NPbV5nfhJ6prmytGBwejbFz3X9+M7A0Pgj9fX3W729vcqyREvfHAQUGcvOybJjIc+tz8ZTuZUDQ5GWiRuxAk3TJFV32kfP9JUAIKmUXwIAGYBg8u3HoVQCIKAqkmioDeQGr06mFy2RXVHoy7idannJ6kK/4XYcbm6sPPL2zm1DU1NTvqamwOyvkMIdHABnti1xTkR6YVF78pVDBxpry77avaPx/OB4VN26eUP3w3WVjTWVgRHTTPoj0zGjwDDmwuEw+S0R4xwAL723WB29HidXhm/kj96y6gq9riQU5ylChC1Tnvb7neSHkYlyVZIzJR7fvGmbVlVVFQMAcu2aUD2eWS+xSP6CZa99fNfBL3MmU2prylpf2l7/bU2lb9HO2DkAAtCIEFmuKB5LUZxZjwcZQogJAEQIIQPIG52a9XvySH5P72R1xbrSSxUB/1w0GjUYYxYhJKNpmiWEhwNxGIbBAJgArF/ahdyeRTN6Op2fF00sGoUeTZ5PpbRExiLFeZ64rtNENpvNFhUVWQD40haEEH5nscnSYJNisZiTMc2ZFbZOiUndimIpirK4hGQppUwI8Yfd/zNiwriQ3V0Z+QAAAABJRU5ErkJggg==") 4 4, auto !important;
+}
+input, textarea, select, [contenteditable="true"] {
+  cursor: text !important;
+}
