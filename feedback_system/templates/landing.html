@@ -205,6 +205,14 @@
 
 {% if stats.students > 0 %}
 <section class="numbers" aria-label="Feedback at Aditya University">
+  <div class="numbers-slides" aria-hidden="true" data-interval="3000">
+    <img class="is-active" src="{{ url_for('static', filename='img/campus/1-hostel-block.jpg') }}" alt="" decoding="async">
+    <img src="{{ url_for('static', filename='img/campus/2-aerial-blocks.jpg') }}" alt="" loading="lazy" decoding="async">
+    <img src="{{ url_for('static', filename='img/campus/3-courtyard-top.jpg') }}" alt="" loading="lazy" decoding="async">
+    <img src="{{ url_for('static', filename='img/campus/4-campus-aerial.jpg') }}" alt="" loading="lazy" decoding="async">
+    <img src="{{ url_for('static', filename='img/campus/5-prayer-spaces.jpg') }}" alt="" loading="lazy" decoding="async">
+    <img src="{{ url_for('static', filename='img/campus/6-entrance-pencils.jpg') }}" alt="" loading="lazy" decoding="async">
+  </div>
   <div class="numbers-inner">
     {{ university_logo('numbers-logo', 'numbers-logo-ring-mask') }}
     <div>
@@ -632,6 +640,7 @@
 
 <script src="{{ url_for('static', filename='js/vendor/zxing-library-0.20.0.min.js') }}"></script>
 <script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
+<script src="{{ url_for('static', filename='js/numbers-slideshow.js') }}" defer></script>
 <script nonce="{{ csp_nonce }}">
 (function () {
   var overlay = document.getElementById('lpLoginOverlay');
