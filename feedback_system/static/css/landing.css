@@ -400,14 +400,13 @@ body.lp-menu-open .lp-drawer {
   letter-spacing: .12em; text-transform: uppercase;
 }
 
-/* Logo card: animated blue and orange mark on white (sun and orbits turn, wordmark fades in) */
+/* Footer logo: animated mark straight on the navy footer (no card). The blue is lightened
+   so it stays readable on dark; orange is unchanged. Sun and orbits turn, wordmark fades in. */
 .lp-foot-logo {
-  --logo-blue: #03529b; --logo-orange: #f47124;
-  width: 12rem; aspect-ratio: 192 / 154; display: grid; place-items: center;
-  background: #fff; border-radius: 18px; margin-bottom: 1.25rem;
-  box-shadow: 0 10px 30px rgba(0,0,0,.28);
+  --logo-blue: #5aa9ee; --logo-orange: #f47124;
+  width: 12rem; margin-bottom: 1.25rem;
 }
-.lp-foot-logo-svg { display: block; width: 78%; height: auto; overflow: visible; }
+.lp-foot-logo-svg { display: block; width: 100%; height: auto; overflow: visible; }
 .lp-foot-logo-svg .o { transform-origin: 239.8px 185.84px; }
 .lp-foot-logo-svg .sun { transform-origin: 239px 186.5px; }
 @media (prefers-reduced-motion: no-preference) {
