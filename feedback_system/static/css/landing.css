@@ -786,3 +786,8 @@ body.lp-scanning .lp-header, body.lp-scanning .lp-drawer, body.lp-scanning .lp-d
 .sheet .demo-cursor svg { display: block; transition: transform .12s; }
 .sheet .demo-cursor.is-down svg { transform: scale(.8); }
 @media (prefers-reduced-motion: reduce) { .sheet .demo-cursor { display: none; } }
+
+/* Phones: a tap must not fill the whole row with the role colour (the button is the full-row tap target). */
+@media (max-width: 520px) {
+  .role:hover .role-go, .role:focus-within .role-go { background: transparent; color: inherit; }
+}
