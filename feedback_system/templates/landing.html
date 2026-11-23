@@ -625,7 +625,7 @@
         {{ login_fields('student') }}
         <div class="field">
           <label for="lp_roll">Roll Number</label>
-          <input type="text" id="lp_roll" name="roll" value="{{ login_values.get('roll', '') if login_values else '' }}" placeholder="e.g. " required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
+          <input type="text" id="lp_roll" name="roll" value="{{ login_values.get('roll', '') if login_values else '' }}" placeholder=" " required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
           <div class="scan-ok" id="lpScanOkStudent" style="display:none">✓ ID card scanned — now enter your password.</div>
         </div>
         <div class="field">
