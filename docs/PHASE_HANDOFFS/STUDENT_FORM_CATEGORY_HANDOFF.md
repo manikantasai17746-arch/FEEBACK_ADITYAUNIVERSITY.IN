@@ -90,3 +90,9 @@ On 2026-11-25 the student form stylesheet made both the faculty portrait and its
 Headless Chrome loaded the application and student stylesheets with synthetic form markup at 320, 386, 455, 560, 640, 768 and 1280px, in default and larger-text modes. All 14 cases displayed five choices in one row without scrolling, met the minimum tap target, rendered both avatars square and selected the last radio by clicking its label.
 
 Both pytest commands in “Shorter student form introduction” were repeated. The focused check passed (1 passed, 17 deselected). The broader run stopped at the same five account-setup failures with one skip.
+
+### Larger faculty photo on phones
+
+On 2026-11-25 the phone portrait grew from 2.5rem to 4rem and its fallback initials from 1rem to 1.5rem. Deploy the student stylesheet with the normal build. Headless Chrome checked synthetic cards at 320, 386, 476 and 560px. Both the photo and initials square measured 64px in default mode and 68px with larger text. In all eight layouts the faculty details fit beside the square.
+
+Both pytest commands under “Shorter student form introduction” were rerun. The focused test passed (1 passed, 17 deselected). The regression suite stopped after the five previously recorded account-setup failures, with one skip.
