@@ -539,16 +539,55 @@ body.lp-menu-open .lp-drawer {
   .lp-foot-item small { font-size: .9rem; }
   .lp-footer-bottom { padding: 0 1.5rem 1.8rem; font-size: .95rem; }
 }
+@media (max-width: 560px) {
+  .lp-header-inner { padding: .3rem 1rem; gap: .65rem; }
+  .lp-header .lp-brand { gap: .5rem; }
+  .lp-header .lp-brand img { height: 28px; }
+  .lp-header .lp-brand span { padding-left: .5rem; font-size: .875rem; }
+  .hero-inner { grid-template-columns: minmax(0, 1fr); gap: 1.25rem; padding: 1.5rem 1rem 2rem; }
+  .hero h1 { font-size: clamp(1.625rem, 6vw, 2rem); margin-bottom: .65rem; }
+  .hero-lead { font-size: .875rem; line-height: 1.45; margin-bottom: .85rem; }
+  .hero-actions { gap: .25rem 1rem; }
+  .hero-actions .lp-btn { width: 100%; min-height: 44px; padding: .6rem 1rem; font-size: .875rem; }
+  .hero-link { display: inline-flex; align-items: center; min-height: 44px; font-size: .875rem; }
+
+  .numbers-inner { min-height: 0; gap: .5rem; padding: 1rem; }
+  .numbers-logo { width: 5rem; }
+  .numbers-line { font-size: 1.125rem; line-height: 1.25; }
+  .numbers-sub { font-size: .8125rem; margin-top: .4rem; }
+
+  .block { padding: 1.75rem 0; }
+  .block-inner { padding-inline: 1rem; }
+  .block-title { font-size: 1.375rem; margin-bottom: .5rem; }
+  .block-sub, .steps p, .privacy-list dd, .role-text span, .lp-foot-tag {
+    font-size: .875rem; line-height: 1.45;
+  }
+  .steps h3, .privacy-list dt, .role-text strong { font-size: 1rem; }
+  .steps { margin-top: .75rem; gap: .85rem; }
+  .steps li { padding: 0; }
+  .steps h3, .privacy-list dt { margin-bottom: .2rem; }
+  .privacy, .portals, .privacy-list { gap: 1rem; }
+  .privacy-list > div { padding-left: .75rem; }
+  .role { min-height: 44px; gap: .65rem; padding: .65rem .35rem; }
+  .role-dot { width: 16px; height: 16px; }
+
+  .lp-footer-inner { padding: 1.5rem 1rem 1rem; gap: 1.25rem; }
+  .lp-foot-logo { width: 8rem; margin-bottom: .6rem; }
+  .lp-foot-title { font-size: 1.125rem; }
+  .lp-foot-brand .lp-foot-tag { margin-bottom: .85rem !important; }
+  .lp-foot-label { font-size: .75rem; margin-bottom: .5rem; }
+  .lp-social a { width: 44px; height: 44px; }
+  .lp-foot-ico { width: 2rem; height: 2rem; }
+  .lp-foot-contact ul { gap: .65rem; }
+  .lp-foot-contact li { gap: .6rem; }
+  .lp-foot-item { font-size: .875rem; }
+  .lp-foot-item small, .lp-footer-bottom { font-size: .75rem; }
+  .lp-footer-bottom { padding: 0 1rem 1rem; }
+  .lp-footer-bottom span { padding-top: .75rem; }
+}
 @media (max-width: 520px) {
-  .sheet { --cut: 42px; padding: 1.4rem 1rem 1.2rem 2.2rem; }
-  .sheet::before { left: 11px; width: 7px; }
-  .sheet-q { font-size: 1.2rem; }
-  .bubble i { width: 36px; height: 36px; }
-  .bubble { font-size: .72rem; }
-  .receipt-body { grid-template-columns: 1fr; gap: .9rem; }
-  .role { grid-template-columns: 22px 1fr; padding: 1.1rem .5rem; }
+  .role { grid-template-columns: 16px 1fr; }
   .role-go { display: none; }
-  .hero-actions .lp-btn { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .bubble i, .role, .role-dot, .role-go, .lp-btn, .lp-drawer { transition: none; }

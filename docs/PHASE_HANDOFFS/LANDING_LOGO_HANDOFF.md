@@ -55,3 +55,15 @@ Implemented on 2026-11-23. Template and CSS only.
 - The hero `<h1>` in `landing.html` is split into word spans. On load the words rise in one by one, "name out of it." turns orange, then the lead paragraph and the sign-in buttons fade up. The styles are in `landing.css` next to `.hero h1`.
 - A small nonce script right after the `<h1>` adds `hero-anim` to `.hero-copy` before first paint. Without it, or with reduced motion on, the text simply shows. The headline wording is unchanged.
 - Verified in Chrome at 1280px and 390px: sequence plays, final colors are correct, no horizontal overflow, no console errors. `pytest` could not run here (`pyotp` is missing), so run `pytest tests/test_app.py -k 'landing or admin_login'` before deploying.
+
+## Compact mobile landing layout
+
+On 2026-11-25 the public landing header, hero and interactive sample were condensed at widths up to 560px. The sign-in and menu controls retain a minimum height of 44px. Deploy `static/css/landing.css` and `static/css/answer-card.css` together with the standard build.
+
+- Headless Chrome loaded the rendered Flask landing page at 320, 390, 512, 560, 561 and 1280px. At 390px the headline measured 26px and the sample card began 357px from the top. The phone checks confirmed a 14px introduction, a 17px sample question, room for all five rating options, and 44px or taller menu and sign-in controls.
+- `python -X utf8 -m pytest -q tests/test_app.py -k landing --tb=line -o addopts=` passed five tests with 49 deselected.
+- `python -X utf8 -m pytest -q tests --maxfail=5 --tb=line -o addopts=` stopped after five account-setup failures with one skip. Four tests could not retrieve their fixture user, and one received the teacher login redirect instead of the photo setup redirect.
+
+The follow-up reduces type and spacing in the submission steps, privacy rules, role picker and footer. Deploy `templates/landing.html` with `static/css/landing.css` for the shorter animation and revised phone layout. Chrome checked the rendered sections at 320, 390, 512, 560, 561 and 1280px. At phone widths all four fit horizontally, social buttons and role rows were at least 44px tall, the animation occupied 134px of height and the footer logo measured 128px wide. Both pytest commands above reproduced the same results after this change.
+
+The sample card and statistics banner received a further phone sizing adjustment in the two stylesheets. Chrome selected Average on the rendered landing page at all six widths, using synthetic counts and a completion percentage to display the full banner. At 390px the selected card measured 216px high and the banner measured 204px. At all four phone widths, each rating button measured at least 44px in both dimensions and the stamp cleared the receipt text. The landing and broad pytest commands above again gave five passes with 49 deselected, and five account-setup failures with one skip, respectively.

@@ -7,6 +7,14 @@
 
 ## 1. Current state
 
+- On 2026-11-25, the mobile student dashboard began grouping pending forms by title. Each group shows its next deadline and expands to list the teachers, subjects, feedback types and individual deadlines. [Implementation and verification](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md#pending-feedback-grouped-by-title-on-phones)
+
+  Phone layouts also keep the individual cards visible when an older page omits the grouped list. Two pending forms were checked in both layouts.
+
+  Grouped cards on phones use an orange folded corner, orange left-edge marks and the sample answer sheet’s paper shadow. The summary reserves space for the Details control.
+
+- On phones, available feedback-history categories share one row of equal-width links. Each lists its pending, submitted and closed counts. [History row verification](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md#mobile-feedback-history-row)
+
 - Dean Performance now filters faculty cards, totals, score bands and follow-ups by feedback category (All, Main Faculty, Lab Faculty or Second Faculty).
 
 - Phases 3, 4, and 5B have handoff/verification documentation in the repository.
@@ -259,6 +267,16 @@ Set `STUDENT_EMAIL_DOMAIN=` (empty) to switch the college-email rule off.
 
 ## Student portal restyle and ordering (2026-11-20)
 
+On 2026-11-25 the student theme gained smaller headings, dashboard counters and reading text at widths up to 560px. Browser measurements and test results are in the [student form handoff](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md#mobile-typography-2026-11-25).
+
+The mobile dashboard also displays Pending, Submitted and Closed in a single three-column row.
+
+At phone widths each entry under Waiting for your feedback displays its form title, such as Phase 1. Available titles open the form. Locked titles follow the existing submission order. Wider screens retain the detailed pending card.
+
+The student Change password page uses compact field spacing, headings and safety tips at widths up to 560px. The [student UI handoff](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md#compact-change-password-page) records the browser checks.
+
+The My Feedback header now uses a 20px title, 13px introduction and 12px student details at the default mobile text setting. Roll and year share the first row, the department spans the middle row, and timetable and academic year share the last row.
+
 Verified changes (branch `teacher-ui-landing-style`):
 - `static/css/student-theme.css` (new, loaded only for role `student` in `base.html`, every rule scoped to `body.role-student`). Same fonts, sizes, weights and tokens as `teacher-theme.css`; light and dark via the existing `html.dark-mode` switch. Covers My Feedback, the feedback form, Notifications, Change password and the email / authenticator / backup-code setup pages.
 - `base.html`: student nav gets `active` states and the sun/moon theme toggle.
@@ -283,6 +301,12 @@ Limitations: the full suite was run with stand-in `pyotp`/`segno` modules becaus
 
 ## Landing-page logo animation (2026-11-20)
 
+The public landing header, headline, sign-in area and sample answer card now use smaller type and tighter spacing on phones up to 560px wide. See the [mobile landing layout handoff](PHASE_HANDOFFS/LANDING_LOGO_HANDOFF.md#compact-mobile-landing-layout).
+
+The same phone breakpoint now compacts the submission steps, privacy rules, role picker and contact footer. Their section headings use 22px type and their descriptions use 14px at the default browser text size.
+
+The mobile sample receipt reserves a slot beside its text for the smaller stamp. The statistics banner sizes to its content with an 80px logo and an 18px headline at the default text setting.
+
 The public feedback statistics banner displays the approved gold Aditya University logo to the left of the live counts on desktop and above them on phones. The entrance starts when the logo scrolls into view. The [landing-page logo handoff](PHASE_HANDOFFS/LANDING_LOGO_HANDOFF.md) records verification and deployment details.
 
 ## Shared sign-in and rotating portal loader (2026-11-20)
@@ -302,6 +326,8 @@ An open student form identifies itself as Main Faculty Feedback, Lab Feedback, o
 Submitting feedback keeps the university loader active through the navigation to the next form. The arriving form displays the loader until it finishes loading. See the [loader handoff](PHASE_HANDOFFS/LANDING_LOGO_HANDOFF.md#loading-between-student-feedback-forms).
 
 ## Student feedback notifications (2026-11-20)
+
+On 2026-11-25 the phone inbox gained compact, expandable titles. Students can tap a title to see the message, deadline, time and available actions. See the [mobile inbox verification](PHASE_HANDOFFS/STUDENT_FEEDBACK_NOTIFICATIONS_HANDOFF.md#mobile-inbox-density).
 
 Publishing Main Faculty, Lab, or Second Faculty feedback records notices for eligible students. My Feedback and Notifications check for outstanding forms during their final 24 hours and record one reminder per form. See the [notification handoff](PHASE_HANDOFFS/STUDENT_FEEDBACK_NOTIFICATIONS_HANDOFF.md).
 

@@ -14,7 +14,7 @@ from .security import (audit, clear_login_failures, current_user, hash_password,
                        is_safe_next, login_locked, login_user, logout_user,
                        register_login_failure, role_required, verify_password,
                        is_default_student_hash, is_default_student_password,
-                       student_college_email)
+                       student_college_email, is_college_email)
 
 logger = logging.getLogger(__name__)
 bp = Blueprint('auth', __name__)
@@ -326,8 +326,9 @@ def setup_email():
             flash('Please enter a valid email address, e.g. name@gmail.com.'
                   if not college else
                   f'Please enter your college email, e.g. {college}.', 'error')
-        elif college and email != college:
-            flash(f'Please enter your own college email: {college}.', 'error')
+        elif college and not is_college_email(email):
+            domain = college.rpartition('@')[2]
+            flash(f'Please enter your college email ending with @{domain}.', 'error')
         else:
             ok, problem = _send_code(user['id'], 'verify_email', email)
             if ok:
@@ -495,7 +496,7 @@ def setup_authenticator():
         return redirect(_step_url(user, step))
     state, until = authenticator.enforcement_state(role, current_app.config)
     ms_ok = (role == 'student' and 'microsoft' in sso.providers_for('student')
-             and email == (_student_email_rule(user) or '').lower())
+             and bool(_student_email_rule(user)) and is_college_email(email))
     ctx = dict(role=role, email=email, microsoft_ok=ms_ok,
                mandatory=(state == 'required' or authenticator.needs_reenrollment(user['id'])),
                home_url=url_for(_home_for(role)),
@@ -585,6 +586,10 @@ def setup_authenticator_confirm():
         return redirect(url_for('auth.setup_authenticator'))
     if ok:
         _clear_enrollment_proofs()
+        if user['role'] == 'student':
+            # The student has just proved the app with a live code, so the feedback pages must
+            # not ask for it again in this login. It is cleared by logout / a new login / timeout.
+            session['feedback_code_ok'] = True       # same key as student.FEEDBACK_CODE_KEY
         audit('user.authenticator_enrolled', 'users', user['id'], 'Authenticator app set up')
         _notify_authenticator(user, 'added')
         try:
@@ -667,8 +672,9 @@ def sso_callback(provider):
         flash(str(exc), 'error')
         return redirect(url_for('auth.setup_email'))
     college = _student_email_rule(user)
-    if college and email != college:
-        flash(f'Please sign in with your own college Microsoft account: {college}.', 'error')
+    if college and not is_college_email(email):
+        domain = college.rpartition('@')[2]
+        flash(f'Please sign in with your college Microsoft account (@{domain}).', 'error')
         return redirect(url_for('auth.setup_email'))
     problem = _store_sso_email(user, email, provider)
     if problem:

@@ -13,9 +13,74 @@
         {% for c in codes %}<li>{{ c }}</li>{% endfor %}
       </ul>
     </div>
+    <div style="display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem">
+      <button type="button" class="btn btn-ghost btn-sm" id="bc-copy">Copy codes</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="bc-download">Download (.txt)</button>
+      <span id="bc-status" class="sub" role="status" aria-live="polite"></span>
+    </div>
     <p class="sub">Write them down or store them in a password manager — not on the same phone as your authenticator app.
       Do not share them or e-mail them to yourself.</p>
     <a class="btn btn-block" href="{{ continue_url }}">I have saved my codes</a>
   </div>
 </div>
+<script nonce="{{ csp_nonce }}">
+/* Copy / download the codes already on this page. Nothing is sent to the server. */
+(function () {
+  'use strict';
+  var list = document.getElementById('backup-codes');
+  var statusEl = document.getElementById('bc-status');
+  if (!list) return;
+  function codes() {
+    return Array.prototype.map.call(list.querySelectorAll('li'), function (li) {
+      return (li.textContent || '').trim();
+    }).filter(Boolean);
+  }
+  function say(msg) {
+    statusEl.textContent = msg;
+    setTimeout(function () { statusEl.textContent = ''; }, 3000);
+  }
+  function fallbackCopy(text) {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+  document.getElementById('bc-copy').addEventListener('click', function () {
+    var text = codes().join('\n');
+    var failed = 'Could not copy. Select the codes and copy them by hand.';
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(function () { say('Copied!'); }, function () {
+        say(fallbackCopy(text) ? 'Copied!' : failed);
+      });
+    } else {
+      say(fallbackCopy(text) ? 'Copied!' : failed);
+    }
+  });
+  document.getElementById('bc-download').addEventListener('click', function () {
+    var body = ['Faculty Feedback - backup codes',
+                'Saved on ' + new Date().toISOString().slice(0, 10),
+                '',
+                codes().join('\r\n'),
+                '',
+                'Each code works only once. Keep this file private and do not share it.',
+                ''].join('\r\n');
+    var url = URL.createObjectURL(new Blob([body], { type: 'text/plain;charset=utf-8' }));
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'faculty-feedback-backup-codes.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    say('Downloaded.');
+  });
+})();
+</script>
 {% endblock %}

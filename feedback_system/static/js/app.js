@@ -1,4 +1,48 @@
 /* Faculty Feedback System - front-end behaviour */
+
+/* ---------- Auto-submit a 6-digit code as soon as the sixth digit is typed ---------- */
+(function () {
+  'use strict';
+  var inputs = document.querySelectorAll('input[data-autosubmit]');
+  Array.prototype.forEach.call(inputs, function (input) {
+    var sent = false;
+    input.addEventListener('input', function () {
+      var digits = (input.value || '').replace(/\D/g, '').slice(0, 6);   // digits only, also on paste
+      if (digits !== input.value) input.value = digits;
+      if (digits.length === 6 && !sent && input.form) {
+        sent = true;                                                       // never submit twice
+        if (input.form.requestSubmit) input.form.requestSubmit(); else input.form.submit();
+      }
+    });
+    // Coming back with the Back button restores the page: allow a fresh attempt.
+    window.addEventListener('pageshow', function (e) { if (e.persisted) sent = false; });
+  });
+})();
+
+/* ---------- Live countdown for "Please wait N seconds before asking for another code." ---------- */
+(function () {
+  'use strict';
+  var re = /^Please wait (\d+) seconds? before asking for another code\.$/;
+  var nodes = document.querySelectorAll('.flashes .flash');
+  Array.prototype.forEach.call(nodes, function (el) {
+    var m = re.exec((el.textContent || '').trim());
+    if (!m) return;
+    // Work from a deadline, not a tick count, so a throttled background tab stays correct.
+    var end = Date.now() + parseInt(m[1], 10) * 1000;
+    var timer = setInterval(function () {
+      var left = Math.ceil((end - Date.now()) / 1000);
+      if (left <= 0) {
+        clearInterval(timer);
+        el.textContent = 'You can ask for a new code now.';
+        el.className = 'flash flash-success';
+        return;
+      }
+      el.textContent = 'Please wait ' + left + (left === 1 ? ' second' : ' seconds') +
+        ' before asking for another code.';
+    }, 250);
+  });
+})();
+
 (function () {
   'use strict';
   var csrf = (document.querySelector('meta[name=csrf-token]') || {}).content || '';
