@@ -352,11 +352,13 @@ def _check_code(user_id, code, reserve, clear, now=None):
     row = _row(user_id)
     if row is None or row['status'] != 'active':
         return False, 'not_enrolled'
+    # Decrypt first: a missing or wrong TOTP_ENCRYPTION_KEY is a server problem, so it
+    # must raise before an attempt is counted against the student.
+    secret = decrypt_secret(row['secret_enc'])
     if not reserve(user_id):
         return False, 'locked'
     text = str(code or '').strip()
-    step = verify_totp(decrypt_secret(row['secret_enc']), text,
-                       last_step=row['last_step'], now=now)
+    step = verify_totp(secret, text, last_step=row['last_step'], now=now)
     if step is not None:
         if consume_step(user_id, step):
             clear(user_id)

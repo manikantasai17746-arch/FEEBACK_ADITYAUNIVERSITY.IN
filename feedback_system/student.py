@@ -1,5 +1,6 @@
 """Student dashboard and feedback submission."""
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import (Blueprint, current_app, flash, redirect, render_template, request,
+                   session, url_for)
 
 from . import authenticator, complaints, db, photos, services
 from .security import audit, current_user, is_safe_next, role_required
@@ -102,7 +103,16 @@ def verify_code():
     if not authenticator.is_active(user['id']):
         return redirect(url_for('auth.setup_authenticator'))
     if request.method == 'POST':
-        ok, reason = authenticator.verify_second_factor(user['id'], request.form.get('code'))
+        try:
+            ok, reason = authenticator.verify_second_factor(user['id'], request.form.get('code'))
+        except authenticator.AuthenticatorConfigError:
+            # TOTP_ENCRYPTION_KEY is missing, malformed, or not the key this student's
+            # secret was saved with. Show a message instead of a 500 page.
+            current_app.logger.exception('Authenticator secret could not be read for user %s',
+                                         user['id'])
+            flash('Authenticator verification is not available right now. '
+                  'Please contact the administrator.', 'error')
+            return render_template('feedback_verify.html', user=user, next=nxt)
         if ok:
             session[FEEDBACK_CODE_KEY] = True
             # Recorded without any form, so the audit trail does not link a student to feedback.
