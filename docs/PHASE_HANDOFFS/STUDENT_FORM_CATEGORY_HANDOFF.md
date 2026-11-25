@@ -82,3 +82,11 @@ Deploy `feedback_system/student.py`, `templates/student_form.html` and `static/c
 
 - `uv run --offline --no-project --with-requirements requirements-dev.txt python -X utf8 -m pytest -q tests/test_student_portal_theme.py -k shortens_default_copy --tb=short -o addopts=` passed with 1 test and 17 deselected. This exercises rendered HTML with synthetic form data. Phone appearance was not browser-verified.
 - `uv run --offline --no-project --with-requirements requirements-dev.txt python -X utf8 -m pytest -q tests --maxfail=5 --tb=line -o addopts=` stopped with five failures in `test_account_setup.py` and one skip. Four tests received no fixture user, and one expected photo setup but received a teacher login redirect. The remainder of the suite was not exercised.
+
+## Square faculty photo and single-row ratings
+
+On 2026-11-25 the student form stylesheet made both the faculty portrait and its initials fallback square. Rating options sit in one row with a selection circle above each label and score. Phone question headings use smaller type. Each option has a minimum 44px tap target. Longer custom scales can scroll within the row. Deploy `feedback_system/static/css/student-theme.css` with the normal build. This presentation change requires no migration and touches no form data, permissions or submission code.
+
+Headless Chrome loaded the application and student stylesheets with synthetic form markup at 320, 386, 455, 560, 640, 768 and 1280px, in default and larger-text modes. All 14 cases displayed five choices in one row without scrolling, met the minimum tap target, rendered both avatars square and selected the last radio by clicking its label.
+
+Both pytest commands in “Shorter student form introduction” were repeated. The focused check passed (1 passed, 17 deselected). The broader run stopped at the same five account-setup failures with one skip.

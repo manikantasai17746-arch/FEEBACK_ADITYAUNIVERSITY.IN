@@ -139,9 +139,8 @@ body.role-student .teacher-card {
 }
 body.role-student .teacher-card::before { content: ""; position: absolute; left: 13px; top: 18px; bottom: 18px; width: 9px; background: repeating-linear-gradient(to bottom, var(--st-ink) 0 9px, transparent 9px 21px); }
 body.role-student .teacher-card::after { content: ""; position: absolute; top: 0; right: 0; width: 46px; height: 46px; background: linear-gradient(135deg, #aebcd6 0%, #eef2f9 62%); clip-path: polygon(0 0, 100% 100%, 0 100%); }
-body.role-student .teacher-card .photo, body.role-student .teacher-card .photo-fallback { border: 3px solid var(--st-ink); }
-body.role-student .teacher-card .photo { height: auto; aspect-ratio: 1; border-radius: 0; }
-body.role-student .teacher-card .photo-fallback { border-radius: 50%; background: var(--st-orange); color: #fff; font-family: var(--st-display); }
+body.role-student .teacher-card .photo, body.role-student .teacher-card .photo-fallback { height: auto; aspect-ratio: 1; border: 3px solid var(--st-ink); border-radius: 0; }
+body.role-student .teacher-card .photo-fallback { background: var(--st-orange); color: #fff; font-family: var(--st-display); }
 body.role-student .teacher-card .meta h2 { color: var(--st-ink); font-size: 1.4rem; }
 body.role-student .teacher-card .meta .desig, body.role-student .teacher-card .meta .line { color: var(--st-muted); }
 body.role-student .mini-stats { gap: .8rem 1.4rem; padding-right: 2.2rem; }
@@ -228,13 +227,14 @@ body.role-student .q-card { padding: 1.3rem 1.4rem; margin-bottom: 1rem; border-
 body.role-student .q-card h3 { font-size: 1.08rem; }
 body.role-student .badge-req { background: var(--st-orange-bg); color: var(--st-orange); border: 1.5px solid var(--st-orange); border-radius: 999px; }
 body.role-student .badge-opt { background: transparent; color: var(--st-muted); border: 1.5px solid var(--st-line); border-radius: 999px; }
-body.role-student .mark-opts { gap: .6rem; }
+body.role-student .mark-opts { display: flex; flex-wrap: nowrap; gap: .375rem; padding: 5px; overflow-x: auto; }
 /* rating choices: OMR bubbles, one neutral look for every rank */
-body.role-student .mark-opt, body.role-student .mark-opt[data-rank] { background: var(--st-card); color: var(--st-ink); border: 1.5px solid var(--st-line); border-radius: 12px; align-items: center; gap: .6rem; padding: .7rem .9rem; box-shadow: none; }
+body.role-student .mark-opts .mark-opt { display: flex; flex: 1 0 0; flex-direction: column; align-items: center; min-width: 44px; min-height: 44px; gap: .25rem; padding: .45rem .125rem; background: var(--st-card); color: var(--st-ink); border: 1.5px solid var(--st-line); border-radius: 8px; box-shadow: none; }
 body.role-student .mark-opt:hover { border-color: var(--st-ink); background: var(--st-paper); }
-body.role-student .mark-opt .dot { width: 26px; height: 26px; flex: none; border-radius: 50%; border: 2px solid var(--st-ink); background: var(--st-card); transition: background-color .18s, transform .18s; }
-body.role-student .mark-opt .lab { font-weight: 650; }
-body.role-student .mark-opt .pts { color: var(--st-muted); opacity: 1; }
+body.role-student .mark-opt .dot { display: block; width: 1rem; height: 1rem; flex: none; border-radius: 50%; border: 2px solid var(--st-ink); background: var(--st-card); transition: background-color .18s, transform .18s; }
+body.role-student .mark-opt .txt { max-width: 100%; text-align: center; overflow-wrap: anywhere; line-height: 1.2; }
+body.role-student .mark-opt .lab { font-size: .75rem; font-weight: 650; }
+body.role-student .mark-opt .pts { font-size: .6875rem; color: var(--st-muted); opacity: 1; }
 body.role-student .mark-opt:has(input:checked), body.role-student .mark-opt.is-selected { background: var(--st-orange-bg); border-color: var(--st-ink); box-shadow: 3px 3px 0 var(--st-ink); color: var(--st-ink); }
 body.role-student .mark-opt:has(input:checked) .dot, body.role-student .mark-opt.is-selected .dot { background: var(--st-orange); transform: scale(1.06); }
 body.role-student .mark-opt:has(input:focus-visible) { outline: 3px solid var(--st-link); outline-offset: 3px; }
@@ -290,9 +290,6 @@ body.role-student .back, body.role-student .btn-back { font-weight: 600; }
 body.role-student .container > .back, body.role-student .container > .btn-back { margin-top: 1.4rem; }
 body.role-student .teacher-card .verify { margin-top: 2.2rem; margin-right: .2rem; }
 body.role-student .teacher-card { padding-right: 3.4rem; }
-body.role-student .mark-opt .dot { display: inline-block; position: static; }
-body.role-student .mark-opt { flex-direction: row; }
-body.role-student .mark-opt .txt { text-align: left; }
 @media (max-width: 760px) { body.role-student .teacher-card .verify { margin-top: 0; } }
 
 /* the history tables show every row (no inner scrollbar, no see-through sticky header) */
@@ -439,8 +436,10 @@ body.role-student .sr-only { position: absolute; width: 1px; height: 1px; overfl
   body.role-student .teacher-card .photo,
   body.role-student .teacher-card .photo-fallback { width: 2.5rem; height: 2.5rem; font-size: 1rem; }
   body.role-student h3,
-  body.role-student .q-card h3,
   body.role-student .inbox-body strong { font-size: 1rem; }
+  body.role-student .q-card { padding: .875rem .5rem; }
+  body.role-student .q-card h3 { font-size: .875rem; }
+  body.role-student .mark-opts { gap: .1875rem; }
 
   body.role-student .tile .num,
   body.role-student .tile.ok .num,

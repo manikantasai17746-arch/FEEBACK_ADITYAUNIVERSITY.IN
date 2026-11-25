@@ -7,6 +7,8 @@
 
 ## 1. Current state
 
+- The student form shows a square faculty photo or initials and a single row of smaller rating options. [Layout checks and test results](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md#square-faculty-photo-and-single-row-ratings)
+
 - On 2026-11-25 the student feedback form gained a shorter introduction and deadline. The teacher and subject appear above an expandable “Class details” section. [Verification and deployment](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md#shorter-student-form-introduction)
 
 - On 2026-11-25, the mobile student dashboard began grouping pending forms by title. Each group shows its next deadline and expands to list the teachers, subjects, feedback types and individual deadlines. [Implementation and verification](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md#pending-feedback-grouped-by-title-on-phones)
