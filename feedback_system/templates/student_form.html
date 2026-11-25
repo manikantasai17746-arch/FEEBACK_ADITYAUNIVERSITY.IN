@@ -72,12 +72,11 @@
     </div>
     {% set saved = form_data.get('q_' ~ q.id) if form_data is defined and form_data else None %}
     {% if q.qtype == 'text' %}
-      <div class="mt"></div>
-      <textarea name="q_{{ q.id }}" rows="3" maxlength="2000"
-        placeholder="Write your suggestion (optional if not required)">{{ saved or '' }}</textarea>
+      <textarea name="q_{{ q.id }}" rows="2" maxlength="2000"
+        placeholder="Write a comment">{{ saved or '' }}</textarea>
       {% set saved_stars = form_data.get('qs_' ~ q.id) if form_data is defined and form_data else None %}
       <fieldset class="comment-stars" data-stars-for="q_{{ q.id }}">
-        <legend>Rate your comment <span class="hint">(needed only if you write a comment)</span></legend>
+        <legend>Rate your comment</legend>
         <div class="star-row" role="radiogroup" aria-label="Star rating for your comment">
           {% for n in (5, 4, 3, 2, 1) %}
           <input type="radio" id="qs_{{ q.id }}_{{ n }}" name="qs_{{ q.id }}" value="{{ n }}"
@@ -85,7 +84,7 @@
           <label for="qs_{{ q.id }}_{{ n }}" title="{{ n }} star{{ 's' if n > 1 }}"><span aria-hidden="true">★</span><span class="sr-only">{{ n }} star{{ 's' if n > 1 }}</span></label>
           {% endfor %}
         </div>
-        <p class="hint">1 star = poor, 5 stars = excellent. Your rating stays anonymous.</p>
+        <p class="hint">1 = poor · 5 = excellent</p>
       </fieldset>
     {% elif q.qtype == 'multiple_choice' %}
       <div class="opts mt">

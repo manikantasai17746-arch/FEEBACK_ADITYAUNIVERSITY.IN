@@ -439,6 +439,12 @@ body.role-student .sr-only { position: absolute; width: 1px; height: 1px; overfl
   body.role-student .inbox-body strong { font-size: 1rem; }
   body.role-student .q-card { padding: .875rem .5rem; }
   body.role-student .q-card h3 { font-size: .875rem; }
+  body.role-student .q-card textarea { display: block; min-height: 3.25rem; padding: .375rem .625rem; font-size: 1rem; line-height: 1.25; }
+  body.role-student .comment-stars { margin-top: .5rem; padding: 0 .5rem .375rem; }
+  body.role-student .comment-stars legend { padding: 0 .25rem; font-size: .8125rem; }
+  body.role-student .comment-stars .hint { margin: 0; font-size: .75rem; }
+  body.role-student .star-row { display: flex; width: fit-content; gap: 0; }
+  body.role-student .star-row label { display: grid; place-items: center; min-width: 44px; min-height: 44px; padding: 0; font-size: 1.375rem; }
   body.role-student .mark-opts { gap: .1875rem; }
 
   body.role-student .tile .num,

@@ -7,6 +7,8 @@
 
 ## 1. Current state
 
+- Student forms now use a two-line comment box and a compact star rating on phones. [Verification](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md#compact-comment-section)
+
 - The student form shows a square faculty photo or initials and a single row of smaller rating options. On phones the portrait now measures 64px in default text mode. [Layout checks and test results](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md#square-faculty-photo-and-single-row-ratings)
 
 - On 2026-11-25 the student feedback form gained a shorter introduction and deadline. The teacher and subject appear above an expandable “Class details” section. [Verification and deployment](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md#shorter-student-form-introduction)

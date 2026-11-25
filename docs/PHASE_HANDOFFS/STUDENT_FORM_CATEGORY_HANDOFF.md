@@ -96,3 +96,12 @@ Both pytest commands in “Shorter student form introduction” were repeated. T
 On 2026-11-25 the phone portrait grew from 2.5rem to 4rem and its fallback initials from 1rem to 1.5rem. Deploy the student stylesheet with the normal build. Headless Chrome checked synthetic cards at 320, 386, 476 and 560px. Both the photo and initials square measured 64px in default mode and 68px with larger text. In all eight layouts the faculty details fit beside the square.
 
 Both pytest commands under “Shorter student form introduction” were rerun. The focused test passed (1 passed, 17 deselected). The regression suite stopped after the five previously recorded account-setup failures, with one skip.
+
+### Compact comment section
+
+The student form uses a two-line comment box and shorter star-rating instructions. At phone widths the rating panel uses tighter spacing and smaller star glyphs with 44px tap targets. Deploy the student form template and student stylesheet together. This presentation change uses the existing comment-rating script and submission service.
+
+Headless Chrome checked synthetic form markup with both application stylesheets and the comment-rating script at 320, 386, 455 and 560px in default and larger-text modes. The textarea measured 54px and 57px respectively. All eight cases passed checks for a single row of five tap targets, selecting a rating, and requiring or hiding the stars as the comment was entered or cleared.
+
+- `uv run --offline --no-project --with-requirements requirements-dev.txt python -X utf8 -m pytest -q tests/test_comment_stars.py tests/test_student_portal_theme.py::test_student_form_shortens_default_copy_and_keeps_custom_instructions --tb=line -o addopts=` gave one pass and seven failures. All seven comment-rating tests failed during form setup because their fixture returned no class session.
+- `uv run --offline --no-project --with-requirements requirements-dev.txt python -X utf8 -m pytest -q tests --maxfail=5 --tb=line -o addopts=` stopped after five account-setup failures and one skip. Four tests could not retrieve their user and one received the teacher login redirect instead of the expected photo setup redirect.
