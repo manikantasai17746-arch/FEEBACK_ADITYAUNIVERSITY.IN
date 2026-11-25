@@ -112,6 +112,29 @@ def test_mobile_pending_groups_show_each_form_and_earliest_deadline(app, monkeyp
     assert 'No deadline' in practical.split('</summary>')[0]
 
 
+def test_student_form_shortens_default_copy_and_keeps_custom_instructions(app, monkeypatch):
+    from flask import g
+    from feedback_system import services, student
+
+    form = dict(id=1, title='Survey', status='open', teacher_name='Sample teacher',
+                subject_code='CS10', subject_name='Algorithms', timetable='A',
+                deadline_at='2099-03-12T10:00:00', instructions=services.DEFAULT_INSTRUCTIONS)
+    monkeypatch.setattr(services, 'student_form', lambda uid, fid: form)
+    monkeypatch.setattr(services, 'form_questions', lambda fid: [])
+    monkeypatch.setattr(student, '_feedback_gate', lambda user, fid: None)
+    monkeypatch.setattr(services, 'submit_feedback', lambda uid, fid, data: (False, 'Try again'))
+    with app.test_request_context('/student/form/1'):
+        g.user = dict(id=123456, role='student', name='Sample student')
+        html = student.view_form(1)
+        assert services.DEFAULT_INSTRUCTIONS not in html
+        assert 'Your feedback is anonymous.' in html and 'You can submit once.' in html
+        assert 'CS10 — Algorithms' in html and '<summary>Class details</summary>' in html
+        assert services.format_deadline(form['deadline_at']) in html
+        form['instructions'] = 'Consider the lab sessions.'
+        assert form['instructions'] in student.view_form(1)
+        assert form['instructions'] in student.submit(1)
+
+
 def test_feedback_categories_on_forms_and_history_tabs(app, monkeypatch):
     from test_hod_feedback_second_and_results import _ensure_sfa, _seed_hod
     from feedback_system import category_forms, services

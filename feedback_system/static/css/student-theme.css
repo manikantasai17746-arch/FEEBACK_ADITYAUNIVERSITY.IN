@@ -435,6 +435,9 @@ body.role-student .sr-only { position: absolute; width: 1px; height: 1px; overfl
   body.role-student .auth-card h2 { font-size: 1.4rem; }
   body.role-student h2,
   body.role-student .teacher-card .meta h2 { font-size: 1.125rem; }
+  body.role-student .teacher-card { gap: .75rem; padding: 1rem 2.5rem 1rem 2rem; align-items: flex-start; }
+  body.role-student .teacher-card .photo,
+  body.role-student .teacher-card .photo-fallback { width: 2.5rem; height: 2.5rem; font-size: 1rem; }
   body.role-student h3,
   body.role-student .q-card h3,
   body.role-student .inbox-body strong { font-size: 1rem; }

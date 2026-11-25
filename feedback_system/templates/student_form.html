@@ -18,31 +18,29 @@
   <div class="meta">
     <h1 class="form-category">{{ form.category_label or 'Feedback' }}</h1>
     <h2>{{ tname }}</h2>
-    <p class="desig">{{ form.teacher_designation or 'Faculty' }}</p>
-    <div class="line"><span class="ic">🏛</span>
-      <span>Department: {{ form.branch_name or form.branch or '—' }}</span></div>
-    <div class="line"><span class="ic">📘</span>
-      <span>Subject: {{ form.subject_code or '—' }}{% if form.subject_name %} — {{ form.subject_name }}{% endif %}</span></div>
-    <div class="line"><span class="ic">👥</span>
-      <span>Timetable: {{ form.timetable or '—' }}
-        {% if form.semester %} | Semester: {{ form.semester }}{% endif %}
-        {% if form.academic_year %} | Academic Year: {{ form.academic_year }}{% endif %}
-      </span></div>
-  </div>
-  <div class="verify">
-    <span class="vicon">✓</span>Please verify the teacher details before giving your feedback.
+    <div class="line">{{ [form.subject_code, form.subject_name]|select|join(' — ') }}</div>
+    {% if form.teacher_designation or form.branch_name or form.branch or form.timetable or form.semester or form.academic_year %}
+    <details>
+      <summary>Class details</summary>
+      {% if form.teacher_designation %}<div class="line">{{ form.teacher_designation }}</div>{% endif %}
+      {% if form.branch_name or form.branch %}<div class="line">Department: {{ form.branch_name or form.branch }}</div>{% endif %}
+      {% if form.timetable %}<div class="line">Timetable: {{ form.timetable }}</div>{% endif %}
+      {% if form.semester %}<div class="line">Semester: {{ form.semester }}</div>{% endif %}
+      {% if form.academic_year %}<div class="line">Academic year: {{ form.academic_year }}</div>{% endif %}
+    </details>
+    {% endif %}
   </div>
 </div>
 
 <div class="anon-banner">
   <span class="lock" aria-hidden="true">🔒</span>
   <div>
-    <strong>Your responses are anonymous.</strong>
-    <span>Your name and roll number are never linked to individual answers shown to teachers.</span>
+    <strong>Your feedback is anonymous.</strong>
+    {% if not already and form.status == 'open' %}<span>You can submit once.</span>{% endif %}
   </div>
 </div>
 
-{% if form.instructions %}
+{% if form.instructions and form.instructions|trim not in (default_instructions, 'Your responses are anonymous.') %}
 <div class="card card-tight" style="margin-bottom:1rem">
   <p style="margin:0">{{ form.instructions }}</p>
 </div>
@@ -62,7 +60,7 @@
     <a class="btn btn-ghost" href="{{ url_for('student.dashboard') }}">Back to my feedback</a>
   </div>
 {% else %}
-{% if form.deadline_at %}<div class="flash flash-info">Submit before <strong>{{ form.deadline_at|deadline }}</strong>. The form closes automatically after that.</div>{% endif %}
+{% if form.deadline_at %}<div class="flash flash-info">Due <strong>{{ form.deadline_at|deadline }}</strong></div>{% endif %}
 <form method="post" action="{{ url_for('student.submit', form_id=form.id) }}" data-feedback-submit>
   <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
   {% for q in questions %}
