@@ -144,6 +144,7 @@ def view_form(form_id):
     already = db.query('SELECT * FROM submissions WHERE form_id=? AND student_user_id=?',
                        (form_id, user['id']), one=True)
     return render_template('student_form.html', user=user, form=form, questions=questions,
+                           default_instructions=services.DEFAULT_INSTRUCTIONS,
                            already=already, teacher_has_photo=photos.has_any_photo(form.get('teacher_emp')),
                            feedback_arrival=request.args.get('from_feedback') == '1')
 
@@ -174,6 +175,7 @@ def submit(form_id):
         return redirect(url_for('student.dashboard'))
     questions = services.form_questions(form_id)
     return render_template('student_form.html', user=user, form=form, questions=questions,
+                           default_instructions=services.DEFAULT_INSTRUCTIONS,
                            already=None, form_data=request.form,
                            teacher_has_photo=photos.has_any_photo(form.get('teacher_emp')))
 
