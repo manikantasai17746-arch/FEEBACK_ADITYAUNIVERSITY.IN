@@ -95,6 +95,19 @@ def student_college_email(roll):
     return f'{roll}@{domain}'
 
 
+def is_college_email(email):
+    """True if ``email`` is on the college domain (any name before the ``@``).
+
+    When STUDENT_EMAIL_DOMAIN is not configured the restriction is off and any address passes.
+    """
+    domain = (current_app.config.get('STUDENT_EMAIL_DOMAIN') or '').strip().lower().lstrip('@')
+    if not domain:
+        return True
+    email = (email or '').strip().lower()
+    local, sep, host = email.rpartition('@')
+    return bool(sep and local and host == domain)
+
+
 # --------------------------------------------------------------------------- #
 # Sessions / current user
 # --------------------------------------------------------------------------- #

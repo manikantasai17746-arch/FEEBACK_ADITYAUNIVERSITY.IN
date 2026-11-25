@@ -17,19 +17,19 @@
       <a class="btn btn-block" style="margin-top:.6rem" href="{{ url_for('auth.sso_start', provider='google') }}">Continue with Google</a>
       {% endif %}
       <p class="sub" style="margin-top:.8rem;font-size:.9rem">Your provider confirms the address, so no code is needed.
-        {% if college_email %}Sign in as <strong>{{ college_email }}</strong>.{% endif %}</p>
+        {% if college_email %}Sign in with your <strong>@{{ college_email.rpartition('@')[2] }}</strong> account.{% endif %}</p>
     </div>
     {% endif %}
 
     <details class="card" {% if not sso_providers %}open{% endif %}>
       <summary style="cursor:pointer;font-weight:600;padding:.2rem 0">Try another way: enter your {{ 'college ' if college_email }}email</summary>
-      <p class="sub" style="margin:.8rem 0">Type your {% if college_email %}college email (<strong>{{ college_email }}</strong>){% else %}email address{% endif %} below. We will send a <strong>6-digit code</strong> to confirm it.</p>
+      <p class="sub" style="margin:.8rem 0">Type your {% if college_email %}college email (it must end with <strong>@{{ college_email.rpartition('@')[2] }}</strong>){% else %}email address{% endif %} below. We will send a <strong>6-digit code</strong> to confirm it.</p>
       <form method="post" autocomplete="off">
         <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
         <input type="hidden" name="next" value="{{ request.args.get('next','') }}">
         <div class="field">
           <label for="email">{{ 'College email' if college_email else 'Email address' }}</label>
-          <input type="email" id="email" name="email" placeholder="{{ college_email or 'yourname@gmail.com' }}" required
+          <input type="email" id="email" name="email" placeholder="{{ college_email and ('--@' ~ college_email.rpartition('@')[2]) or 'yourname@gmail.com' }}" required
                  autocapitalize="off" spellcheck="false">
         </div>
         <button class="btn btn-block" type="submit">Send code</button>

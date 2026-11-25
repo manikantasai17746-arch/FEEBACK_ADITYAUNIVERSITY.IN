@@ -10,3 +10,11 @@ Implemented on 2026-11-20 from `890f08a`.
 
 - `pytest tests/test_student_portal_theme.py -k 'notifications or feedback_categories_on_forms' --tb=short` passed 2 tests. The category flow covers draft suppression, all three publications, the 24-hour boundary, completed exclusions, and read status after repeated visits.
 - Embedded PostgreSQL verified migration 27 against existing inbox rows and exercised the publication and reminder inserts for subject and snapshot recipients, deduplication, the deadline boundary, and completed forms.
+
+## Mobile inbox density
+
+At widths up to 560px the student inbox starts with one title per row. A button expands its full title, kind, message, deadline, timestamp and applicable actions. Read state changes through the existing CSRF-protected forms. Wider screens and browsers with JavaScript disabled display the full notices. Deploy `student_notifications.html`, `student-theme.css` and `student-inbox.js` together.
+
+- Chrome loaded the template with 15 synthetic notices, mixed read states and the bulk-read button. Before scrolling, it showed 11 complete rows at 320×568, 12 at 360×640, 13 at 390×844, 14 at 412×915 and 12 at 560×740. The checks used default text size. A row expanded to reveal the form link and read form, collapsed again, and fit horizontally. At 1280×850 the body remained visible in the desktop layout.
+- `python -X utf8 -m pytest -q tests/test_student_portal_theme.py --tb=line -o addopts=` gave 10 passes, one failure and five setup errors. The test database lacked the student and assignment records required by those fixtures.
+- `python -X utf8 -m pytest -q tests --maxfail=5 --tb=line -o addopts=` stopped after five account-setup failures with one skip. Four tests could not find their fixture user and one received the teacher login redirect.

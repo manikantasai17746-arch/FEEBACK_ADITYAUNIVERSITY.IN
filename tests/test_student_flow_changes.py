@@ -68,16 +68,17 @@ def test_college_email_is_roll_lowercased_at_the_college_domain(app):
 
 
 # ------------------------------------------------------------------ e-mail code route
-def test_student_must_enter_their_own_college_email(app, client, sent):
+def test_student_must_enter_an_email_on_the_college_domain(app, client, sent):
     assert login_student(client, ROLL).status_code == 302
-    for bad in ('someone@gmail.com', '25b11cs016@adityauniversity.in',        # another student's
-                f'{ROLL.lower()}@adityauniversity.com'):
+    for bad in ('someone@gmail.com', f'{ROLL.lower()}@adityauniversity.com',
+                'x@sub.adityauniversity.in', 'adityauniversity.in', '@adityauniversity.in'):
         r = _post(client, '/setup/email', email=bad)
         assert r.status_code == 200 and b'college email' in r.data, bad
     assert sent == []
-    r = _post(client, '/setup/email', email=f'{ROLL.lower()}@adityauniversity.in')
+    # Any name before the @ is fine as long as the domain is the college's.
+    r = _post(client, '/setup/email', email='Some.Name@AdityaUniversity.in')
     assert r.status_code == 302 and '/setup/email/verify' in r.headers['Location']
-    assert sent[-1]['to'] == f'{ROLL.lower()}@adityauniversity.in'
+    assert sent[-1]['to'] == 'some.name@adityauniversity.in'
 
 
 def test_email_code_then_the_qr_straight_away_for_a_student(app, client, sent):

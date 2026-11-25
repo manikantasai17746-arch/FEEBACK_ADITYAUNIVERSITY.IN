@@ -419,9 +419,9 @@ def lost_phone_sso_callback(provider):
     on_file = (user.get('email') or '').strip().lower()
     college = None
     if role == 'student':
-        from .security import student_college_email
+        from .security import student_college_email, is_college_email
         college = student_college_email(user.get('roll') or user.get('username'))
-    if not on_file or email != on_file or (college and email != college):
+    if not on_file or email != on_file or (college and not is_college_email(email)):
         recovery_lock.record_failure(user)
         audit('user.lost_device_recovery_failed', 'users', uid,
               f'Failed: {provider} sign-in did not match the account', actor=_SYSTEM)

@@ -35,14 +35,16 @@ def dashboard():
     pending = [f for f in forms if f['status'] == 'open' and not f['submission_id']]
     submitted = [f for f in forms if f['submission_id']]
     closed = [f for f in forms if f['status'] in ('closed', 'archived') and not f['submission_id']]
-    # The student must not be able to tell which kind of feedback a form is, so there is
-    # ONE list.  Pending forms stay in the required order (Main, Lab, Second) per subject.
+    # Keep the required Main, Lab, Second order per subject in both layouts.
     rank = {k: i for i, k in enumerate(services.CATEGORY_ORDER)}
     pending.sort(key=lambda f: (f.get('session_id') or 0, rank.get(f['category_key'], 9), f['id']))
+    pending_by_title = {}
+    for form in pending:
+        title = (form['title'] or '').strip() or 'Feedback form'
+        pending_by_title.setdefault(title, []).append(form)
     sections = [{'key': 'all', 'pending': pending, 'submitted': submitted, 'closed': closed}] \
         if forms else []
-    # History tabs (Main / Lab / Second), chosen with ?cat=.  Only the history uses them;
-    # the "waiting for your feedback" list above stays one neutral list in the required order.
+    # The selected category filters only the history.
     history = []
     for key in services.CATEGORY_ORDER:
         in_cat = [f for f in forms if f['category_key'] == key]
@@ -60,7 +62,7 @@ def dashboard():
     return render_template('student_dashboard.html', user=user, ctx=ctx,
                            history=history, active_cat=active_cat,
                            pending=pending, submitted=submitted, closed=closed,
-                           sections=sections,
+                           sections=sections, pending_by_title=pending_by_title,
                            report=complaints.report_form(report_context) if report_context else None,
                            total=len(forms), year=_year_from_semester(ctx['semester'] if ctx else None))
 

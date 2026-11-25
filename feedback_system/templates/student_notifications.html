@@ -1,13 +1,13 @@
 {% extends 'base.html' %}
 {% block title %}Notifications — Faculty Feedback{% endblock %}
 {% block body %}
-<div class="stu-head">
+<div class="stu-head inbox-head">
   <p class="eyebrow">Inbox</p>
   <h1>Notifications{% if unread %} <span class="unread-count">{{ unread }} unread</span>{% endif %}</h1>
   <p class="lead">Deadlines, new forms and announcements appear here.</p>
 </div>
 
-<section class="card" style="margin-top:2rem">
+<section class="card inbox-card">
   {% if rows %}
   {% if unread %}
   <div class="inbox-tools">
@@ -20,25 +20,31 @@
   <ul class="inbox">
     {% for n in rows %}
     <li class="inbox-item{% if not n.is_read %} unread{% endif %}">
-      <span class="inbox-kind">{{ n.kind }}</span>
-      <div class="inbox-body">
-        <strong>{{ n.title }}</strong>
-        <p>{{ n.body }}</p>
-        {% if n.deadline_at and not n.form_deleted %}<p>Deadline {{ n.deadline_at|deadline }}</p>{% endif %}
-        <div class="inbox-meta">{{ n.created_at }}</div>
-      </div>
-      <div class="inbox-actions">
-        {% if n.form_id and not n.form_deleted and n.form_status == 'open' %}
-        <a class="btn btn-ghost btn-sm" href="{{ url_for('student.view_form', form_id=n.form_id) }}">Open →</a>
-        {% elif n.link %}
-        <a class="btn btn-ghost btn-sm" href="{{ n.link }}">Open →</a>
-        {% endif %}
-        {% if not n.is_read %}
-        <form method="post" action="{{ url_for('student.notification_read', nid=n.id) }}">
-          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-          <button class="btn btn-ghost btn-sm" type="submit">Mark read</button>
-        </form>
-        {% endif %}
+      <button type="button" class="inbox-toggle" aria-expanded="false" aria-controls="notice-{{ n.id }}">
+        {% if not n.is_read %}<span class="sr-only">Unread: </span>{% endif %}
+        <span class="inbox-title">{{ n.title }}</span>
+      </button>
+      <div class="inbox-content" id="notice-{{ n.id }}">
+        <span class="inbox-kind">{{ n.kind }}</span>
+        <div class="inbox-body">
+          <strong>{{ n.title }}</strong>
+          <p>{{ n.body }}</p>
+          {% if n.deadline_at and not n.form_deleted %}<p>Deadline {{ n.deadline_at|deadline }}</p>{% endif %}
+          <div class="inbox-meta">{{ n.created_at }}</div>
+        </div>
+        <div class="inbox-actions">
+          {% if n.form_id and not n.form_deleted and n.form_status == 'open' %}
+          <a class="btn btn-ghost btn-sm" href="{{ url_for('student.view_form', form_id=n.form_id) }}">Open →</a>
+          {% elif n.link %}
+          <a class="btn btn-ghost btn-sm" href="{{ n.link }}">Open →</a>
+          {% endif %}
+          {% if not n.is_read %}
+          <form method="post" action="{{ url_for('student.notification_read', nid=n.id) }}">
+            <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+            <button class="btn btn-ghost btn-sm" type="submit">Mark read</button>
+          </form>
+          {% endif %}
+        </div>
       </div>
     </li>
     {% endfor %}
@@ -48,3 +54,4 @@
   {% endif %}
 </section>
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/student-inbox.js') }}" defer></script>{% endblock %}

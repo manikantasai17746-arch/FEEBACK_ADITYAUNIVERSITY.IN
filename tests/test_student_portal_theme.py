@@ -78,6 +78,40 @@ def test_current_menu_item_is_highlighted(app, student):
         assert [a.strip() for a in active] == [label], (path, active)
 
 
+def test_mobile_pending_groups_show_each_form_and_earliest_deadline(app, monkeypatch):
+    from flask import g
+    from feedback_system import services, student
+
+    common = dict(title='Phase 1', subject_name='Sample course', session_id=1,
+                  status='open', submission_id=None, category_key='main',
+                  category_label=services.CATEGORY_LABELS['main'], locked=False)
+    forms = [
+        dict(common, id=1, teacher_name='First teacher', deadline_at='2099-03-12T10:00:00'),
+        dict(common, id=2, teacher_name='Second teacher', deadline_at='2099-03-10T10:00:00',
+             category_key='second', category_label=services.CATEGORY_LABELS['second'], locked=True),
+        dict(common, id=3, title='Practical review', teacher_name='Lab teacher', deadline_at=None,
+             category_key='lab', category_label=services.CATEGORY_LABELS['lab']),
+        dict(common, id=4, teacher_name='Completed teacher', deadline_at=None, submission_id=42),
+    ]
+    monkeypatch.setattr(services, 'student_forms', lambda uid: forms)
+    with app.test_request_context('/student/?skip_issue=1'):
+        g.user = dict(id=123456, role='student', name='Sample student')
+        html = student.dashboard()
+    groups = html.split('class="pending-groups">', 1)[1].split('class="grid grid-2 pending-forms"', 1)[0]
+    assert groups.count('<details class="pending-group">') == 2
+    phase, practical, _ = groups.split('</details>')
+    header, rows = phase.split('</summary>')
+    assert 'Phase 1' in header and services.format_deadline(forms[1]['deadline_at']) in header
+    assert 'First teacher' in rows and 'Second teacher' in rows
+    assert services.format_deadline(forms[0]['deadline_at']) in rows
+    assert services.format_deadline(forms[1]['deadline_at']) in rows
+    assert 'Main Faculty Feedback' in rows and 'Second Faculty Feedback' in rows
+    assert 'href="/student/form/1"' in rows and 'href="/student/form/2"' not in rows
+    assert 'Locked' in rows and 'Completed teacher' not in groups
+    assert 'Practical review' in practical and 'Lab Feedback' in practical
+    assert 'No deadline' in practical.split('</summary>')[0]
+
+
 def test_feedback_categories_on_forms_and_history_tabs(app, monkeypatch):
     from test_hod_feedback_second_and_results import _ensure_sfa, _seed_hod
     from feedback_system import category_forms, services
@@ -123,12 +157,12 @@ def test_feedback_categories_on_forms_and_history_tabs(app, monkeypatch):
     assert 'Main Faculty' in html and 'Lab Feedback' in html and 'Second Faculty' in html
     assert all(f'cat={category}' in html for category in forms)
     assert c.get('/student/?cat=bogus').status_code == 200
-    # the pending cards above the tabs never name the kind of feedback
-    pending_part = html.split('Your feedback history')[0]
+    mobile_groups = html.split('class="pending-groups">', 1)[1].split('class="grid grid-2 pending-forms"', 1)[0]
+    assert mobile_groups.count('<strong>Teaching survey</strong>') == 1
     next_url = None
     for category, label in ((MAIN, 'Main Faculty Feedback'), (LAB, 'Lab Feedback'),
                             (SECOND, 'Second Faculty Feedback')):
-        assert label not in pending_part
+        assert label in mobile_groups
         form_id = forms[category]
         form_url = f'/student/form/{form_id}'
         if next_url:
