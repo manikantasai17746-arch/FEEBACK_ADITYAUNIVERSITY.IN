@@ -18,3 +18,10 @@ At widths up to 560px the student inbox starts with one title per row. A button 
 - Chrome loaded the template with 15 synthetic notices, mixed read states and the bulk-read button. Before scrolling, it showed 11 complete rows at 320×568, 12 at 360×640, 13 at 390×844, 14 at 412×915 and 12 at 560×740. The checks used default text size. A row expanded to reveal the form link and read form, collapsed again, and fit horizontally. At 1280×850 the body remained visible in the desktop layout.
 - `python -X utf8 -m pytest -q tests/test_student_portal_theme.py --tb=line -o addopts=` gave 10 passes, one failure and five setup errors. The test database lacked the student and assignment records required by those fixtures.
 - `python -X utf8 -m pytest -q tests --maxfail=5 --tb=line -o addopts=` stopped after five account-setup failures with one skip. Four tests could not find their fixture user and one received the teacher login redirect.
+
+## Unread-only inbox
+
+On 2026-11-25 the inbox query began filtering by the current student and unread status before applying the 100-row limit. The existing CSRF-protected read actions save the flag, which also keeps reminder deduplication intact. After the redirect, a single read removes only that row, and “Mark all as read” shows “No unread notifications.” Deploy `feedback_system/student.py` and `feedback_system/templates/student_notifications.html` together with the normal build. No migration is needed.
+
+- `uv run --offline --no-project --with-requirements requirements-dev.txt python -X utf8 -m pytest -q tests/test_student_portal_theme.py -k mark_as_read_removes --tb=short -o addopts=` gave 1 pass and 18 deselected. The Flask client checked the individual action, remaining row and count, bulk action, persistence after refresh and another student's read flag.
+- `uv run --offline --no-project --with-requirements requirements-dev.txt python -X utf8 -m pytest -q tests --maxfail=5 --tb=line -o addopts=` stopped after the five account-setup failures described above with one skip.

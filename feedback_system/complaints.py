@@ -140,10 +140,25 @@ def update_status(actor, complaint_id):
     if status not in STATUSES or prior_status not in STATUSES:
         abort(400)
     if status != complaint['status']:
-        result = db.execute("""
-            UPDATE student_complaints SET status=? WHERE id=? AND status=?
-        """, (status, complaint_id, prior_status))
-        if result.rowcount:
+        conn = db.get_db()
+        try:
+            updated = conn.execute("""
+                UPDATE student_complaints SET status=? WHERE id=? AND status=? AND status<>?
+                RETURNING student_user_id, category
+            """, (status, complaint_id, prior_status, status)).fetchone()
+            if updated is not None and updated['student_user_id'] is not None:
+                role = 'HOD' if actor['role'] == 'hod' else 'Dean'
+                category = CATEGORIES.get(updated['category'], 'college issue')
+                conn.execute("""
+                    INSERT INTO notifications(user_id, kind, title, body) VALUES (?, 'info', ?, ?)
+                """, (updated['student_user_id'], f'Complaint #{complaint_id} · {STATUSES[status]}',
+                      f'The {role} updated your {category} complaint from {STATUSES[prior_status]} '
+                      f'to {STATUSES[status]}.'))
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        if updated is not None:
             audit('complaint.status', 'student_complaints', complaint_id, status, actor=actor)
             flash('Complaint status updated.', 'success')
         else:

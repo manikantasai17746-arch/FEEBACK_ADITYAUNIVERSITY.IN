@@ -184,3 +184,50 @@ def test_staff_filters_and_status_updates(complaint_app):
     assert _portal(app, 'student', 'STUDENT-A').get(hod_url).status_code == 403
     assert hod.get(dean_url).status_code == 403
     assert dean.post('/student/complaints', data={'_csrf': dean_token}).status_code == 403
+
+
+def test_complaint_status_notifies_only_reporting_student(complaint_app):
+    app = complaint_app
+    with app.app_context():
+        complaint_id = db.execute_returning_id("""
+            INSERT INTO student_complaints
+                (student_user_id, branch_id, semester_id, timetable_id, submission_key, category, description)
+            VALUES (10, 1, 1, 1, ?, 'lighting', 'Private complaint details')
+        """, (uuid4().hex,))
+
+    def signed_in(user_id):
+        client = app.test_client()
+        with client.session_transaction() as session:
+            session['uid'] = user_id
+        return client
+
+    reporter, other = signed_in(10), signed_in(11)
+    inbox = '/student/notifications'
+    title = f'Complaint #{complaint_id}'
+    for role, staff_id, previous, status, expected in (
+        ('hod', 31, 'pending', 'resolved', 404),
+        ('hod', 30, 'pending', 'in_progress', 302),
+        ('hod', 30, 'pending', 'in_progress', 302),  # repeated save
+        ('dean', 40, 'pending', 'resolved', 302),    # stale page
+        ('dean', 40, 'in_progress', 'resolved', 302),
+    ):
+        staff = signed_in(staff_id)
+        path = f'/{role}/student-complaints'
+        csrf = get_csrf(staff.get(path).get_data(as_text=True))
+        response = staff.post(f'{path}/{complaint_id}/status', data={
+            '_csrf': csrf, 'prior_status': previous, 'status': status, 'student_user_id': 11,
+        })
+        assert response.status_code == expected
+    html = reporter.get(inbox).get_data(as_text=True)
+    assert title in html and '2 unread' in html
+    assert 'The HOD updated your Lighting complaint from Pending to In Progress.' in html
+    assert 'The Dean updated your Lighting complaint from In Progress to Resolved.' in html
+    assert 'Private complaint details' not in html
+    assert title not in other.get(inbox).get_data(as_text=True)
+    with app.app_context():
+        notices = db.query('SELECT id, user_id, title FROM notifications ORDER BY id')
+        assert [(n['user_id'], n['title']) for n in notices] == [
+            (10, f'{title} · In Progress'), (10, f'{title} · Resolved')]
+    html = reporter.post(f"{inbox}/{notices[0]['id']}/read", data={'_csrf': get_csrf(html)},
+                         follow_redirects=True).get_data(as_text=True)
+    assert f'{title} · In Progress' not in html and f'{title} · Resolved' in html

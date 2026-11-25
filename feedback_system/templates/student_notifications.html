@@ -4,24 +4,22 @@
 <div class="stu-head inbox-head">
   <p class="eyebrow">Inbox</p>
   <h1>Notifications{% if unread %} <span class="unread-count">{{ unread }} unread</span>{% endif %}</h1>
-  <p class="lead">Deadlines, new forms and announcements appear here.</p>
+  <p class="lead">Deadlines, new forms, complaint updates and announcements appear here.</p>
 </div>
 
 <section class="card inbox-card">
   {% if rows %}
-  {% if unread %}
   <div class="inbox-tools">
     <form method="post" action="{{ url_for('student.notifications_read_all') }}">
       <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
       <button class="btn btn-ghost btn-sm" type="submit">✓ Mark all as read</button>
     </form>
   </div>
-  {% endif %}
   <ul class="inbox">
     {% for n in rows %}
-    <li class="inbox-item{% if not n.is_read %} unread{% endif %}">
+    <li class="inbox-item unread">
       <button type="button" class="inbox-toggle" aria-expanded="false" aria-controls="notice-{{ n.id }}">
-        {% if not n.is_read %}<span class="sr-only">Unread: </span>{% endif %}
+        <span class="sr-only">Unread: </span>
         <span class="inbox-title">{{ n.title }}</span>
       </button>
       <div class="inbox-content" id="notice-{{ n.id }}">
@@ -38,19 +36,17 @@
           {% elif n.link %}
           <a class="btn btn-ghost btn-sm" href="{{ n.link }}">Open →</a>
           {% endif %}
-          {% if not n.is_read %}
           <form method="post" action="{{ url_for('student.notification_read', nid=n.id) }}">
             <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-            <button class="btn btn-ghost btn-sm" type="submit">Mark read</button>
+            <button class="btn btn-ghost btn-sm" type="submit">Mark as read</button>
           </form>
-          {% endif %}
         </div>
       </div>
     </li>
     {% endfor %}
   </ul>
   {% else %}
-  <p class="sub" style="margin:0">No notifications yet. Deadlines, new forms and announcements will appear here.</p>
+  <p class="sub" style="margin:0">No unread notifications.</p>
   {% endif %}
 </section>
 {% endblock %}

@@ -7,6 +7,10 @@
 
 ## 1. Current state
 
+- A HOD or Dean changing a complaint's status creates an unread notification for the student who filed it. [Complaint notification verification](PHASE_HANDOFFS/STUDENT_COMPLAINTS_HANDOFF.md#status-updates-in-the-student-inbox)
+
+- The student inbox displays unread notices. Marking one as read removes its row and updates the unread count. [Verification](PHASE_HANDOFFS/STUDENT_FEEDBACK_NOTIFICATIONS_HANDOFF.md#unread-only-inbox)
+
 - Student forms now use a two-line comment box and a compact star rating on phones. [Verification](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md#compact-comment-section)
 
 - The student form shows a square faculty photo or initials and a single row of smaller rating options. On phones the portrait now measures 64px in default text mode. [Layout checks and test results](PHASE_HANDOFFS/STUDENT_FORM_CATEGORY_HANDOFF.md#square-faculty-photo-and-single-row-ratings)

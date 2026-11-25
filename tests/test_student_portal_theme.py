@@ -52,7 +52,40 @@ def test_notifications_page_renders_and_lists_items(app, student):
     r = c.get('/student/notifications')
     assert r.status_code == 200
     html = r.get_data(as_text=True)
-    assert 'Closes soon' in html and 'Mark read' in html and 'unread' in html
+    assert 'Closes soon' in html and 'Mark as read' in html and 'unread' in html
+
+
+def test_mark_as_read_removes_only_the_selected_notification(tmp_path):
+    from helpers import get_csrf
+
+    app = create_app({'TESTING': True, 'DATABASE': str(tmp_path / 'inbox.db'), 'DATABASE_URL': None,
+                      'AUTO_IMPORT': False, 'SECRET_KEY': 'test', 'REQUIRE_ACCOUNT_SETUP': False})
+    with app.app_context():
+        user_ids = [db.execute_returning_id(
+            """INSERT INTO users(role, username, password_hash, onboarding_complete, email_verified)
+               VALUES ('student', ?, 'unused', 1, 1)""", (username,))
+            for username in ('test-reader', 'test-neighbor')]
+        ids = [db.execute_returning_id(
+            "INSERT INTO notifications(user_id, kind, title, body) VALUES (?, 'deadline', ?, '')",
+            (uid, title)) for uid, title in zip([user_ids[0], user_ids[0], user_ids[1]],
+                                               ['First notice', 'Second notice', 'Neighbor notice'])]
+    client = app.test_client()
+    with client.session_transaction() as session:
+        session['uid'] = user_ids[0]
+    inbox = '/student/notifications'
+    html = client.get(inbox).get_data(as_text=True)
+    assert '2 unread' in html and 'First notice' in html and 'Second notice' in html
+    csrf = {'_csrf': get_csrf(html)}
+    client.post(f'{inbox}/{ids[2]}/read', data=csrf)
+    html = client.post(f'{inbox}/{ids[0]}/read', data=csrf, follow_redirects=True).get_data(as_text=True)
+    assert 'First notice' not in html and 'Neighbor notice' not in html
+    assert 'Second notice' in html and '1 unread' in html
+    html = client.post(f'{inbox}/read-all', data=csrf, follow_redirects=True).get_data(as_text=True)
+    assert 'No unread notifications.' in html and 'Second notice' not in html
+    assert 'No unread notifications.' in client.get(inbox).get_data(as_text=True)
+    with app.app_context():
+        assert [row['is_read'] for row in db.query(
+            'SELECT is_read FROM notifications WHERE id IN (?,?,?) ORDER BY id', ids)] == [1, 1, 0]
 
 
 def test_other_roles_do_not_load_student_theme(app):

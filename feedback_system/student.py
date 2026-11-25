@@ -189,7 +189,7 @@ def notifications():
     rows = db.query(
         """SELECT n.*, f.deadline_at, f.status AS form_status, f.is_deleted AS form_deleted
            FROM notifications n LEFT JOIN feedback_forms f ON f.id=n.form_id
-           WHERE n.user_id=? ORDER BY n.is_read ASC, n.created_at DESC, n.id DESC LIMIT 100""",
+           WHERE n.user_id=? AND n.is_read=0 ORDER BY n.created_at DESC, n.id DESC LIMIT 100""",
         (user['id'],))
     unread = db.query(
         'SELECT COUNT(*) c FROM notifications WHERE user_id=? AND is_read=0',
