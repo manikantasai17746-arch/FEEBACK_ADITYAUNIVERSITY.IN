@@ -19,3 +19,5 @@ venv/
 
 # Student data. Uncomment if this repository is public or shared:
 # *.xlsx
+.vercel
+.env*
