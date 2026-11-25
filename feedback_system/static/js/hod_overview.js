@@ -188,32 +188,84 @@
   }
 
   /* ---- score bands ---- */
-  var btabs = $$('.band-tab'), panels = $$('[data-band-panel]');
-  function showBand(n) {
-    btabs.forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-band') === String(n)); });
-    panels.forEach(function (p) { p.hidden = p.getAttribute('data-band-panel') !== String(n); });
-    try { sessionStorage.setItem('ov_band', n); } catch (e) {}
-  }
-  btabs.forEach(function (t) {
-    t.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); showBand(t.getAttribute('data-band')); });
-  });
-  panels.forEach(function (p) {
-    var all = $('.band-all', p); if (!all) return;
-    var cbs = $$('.band-cb', p), msg = $('.band-message', p), subj = $('.band-subject', p),
-        defM = msg.value, defS = subj.value, info = $('.band-count-sel', p);
-    function upd() {
-      var n = cbs.filter(function (c) { return c.checked; }).length;
-      all.checked = cbs.length > 0 && n === cbs.length; all.indeterminate = n > 0 && n < cbs.length;
-      info.textContent = n + ' of ' + cbs.length + ' with email selected';
+  function initBands(root) {
+    var btabs = $$('.band-tab', root), panels = $$('[data-band-panel]', root);
+    function showBand(n) {
+      btabs.forEach(function (t) { t.classList.toggle('active', t.getAttribute('data-band') === String(n)); });
+      panels.forEach(function (p) { p.hidden = p.getAttribute('data-band-panel') !== String(n); });
+      try { sessionStorage.setItem('ov_band', n); } catch (e) {}
     }
-    all.addEventListener('change', function () { cbs.forEach(function (c) { c.checked = all.checked; }); upd(); });
-    cbs.forEach(function (c) { c.addEventListener('change', upd); });
-    $('.band-reset', p).addEventListener('click', function () { msg.value = defM; subj.value = defS; });
-    upd();
-  });
-  if (btabs.length) {
-    var sv = null; try { sv = sessionStorage.getItem('ov_band'); } catch (e) {}
-    if (sv && btabs.some(function (t) { return t.getAttribute('data-band') === sv; })) showBand(sv);
+    btabs.forEach(function (t) {
+      t.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); showBand(t.getAttribute('data-band')); });
+    });
+    panels.forEach(function (p) {
+      var all = $('.band-all', p); if (!all) return;
+      var cbs = $$('.band-cb', p), msg = $('.band-message', p), subj = $('.band-subject', p),
+          defM = msg.value, defS = subj.value, info = $('.band-count-sel', p);
+      function upd() {
+        var n = cbs.filter(function (c) { return c.checked; }).length;
+        all.checked = cbs.length > 0 && n === cbs.length; all.indeterminate = n > 0 && n < cbs.length;
+        info.textContent = n + ' of ' + cbs.length + ' with email selected';
+      }
+      all.addEventListener('change', function () { cbs.forEach(function (c) { c.checked = all.checked; }); upd(); });
+      cbs.forEach(function (c) { c.addEventListener('change', upd); });
+      $('.band-reset', p).addEventListener('click', function () { msg.value = defM; subj.value = defS; });
+      upd();
+    });
+    if (btabs.length) {
+      var sv = null; try { sv = sessionStorage.getItem('ov_band'); } catch (e) {}
+      if (sv && btabs.some(function (t) { return t.getAttribute('data-band') === sv; })) showBand(sv);
+    }
+  }
+  initBands(document);
+
+  var bandSection = document.getElementById('sec-bands');
+  if (bandSection) {
+    var pendingFilter;
+    var renderedSearch = location.search;
+    async function loadFilter(url, link) {
+      if (pendingFilter) pendingFilter.abort();
+      var request = new AbortController();
+      pendingFilter = request;
+      bandSection.setAttribute('aria-busy', 'true');
+      try {
+        var response = await fetch(url, { signal: request.signal, credentials: 'same-origin' });
+        if (!response.ok || response.redirected) throw new Error('Dashboard unavailable');
+        var page = new DOMParser().parseFromString(await response.text(), 'text/html');
+        if (request.signal.aborted) return;
+        var next = page.getElementById('sec-bands');
+        if (!next) throw new Error('Score bands unavailable');
+        var restoreFocus = link && document.activeElement === link;
+        bandSection.replaceChildren(...next.children);
+        initBands(bandSection);
+        if (link && url !== location.href) history.pushState(null, '', url);
+        renderedSearch = location.search;
+        if (restoreFocus) {
+          var selected = $$('#bands a', bandSection).find(function (a) {
+            return a.textContent === link.textContent && a.href === url;
+          });
+          if (selected) selected.focus({ preventScroll: true });
+        }
+      } catch (error) {
+        if (!request.signal.aborted) {
+          if (url === location.href) location.reload();
+          else location.assign(url);
+        }
+      } finally {
+        if (request === pendingFilter) bandSection.removeAttribute('aria-busy');
+      }
+    }
+
+    bandSection.addEventListener('click', function (e) {
+      var link = e.target.closest('#bands a[href]');
+      if (!link || e.defaultPrevented || e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      loadFilter(link.href, link);
+    });
+    window.addEventListener('popstate', function () {
+      if (pendingFilter) pendingFilter.abort();
+      if (location.search !== renderedSearch) loadFilter(location.href, null);
+    });
   }
 
   /* ---- logo replay ---- */

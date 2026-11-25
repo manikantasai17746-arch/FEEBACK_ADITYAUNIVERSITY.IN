@@ -7,6 +7,8 @@
 
 ## 1. Current state
 
+- On 2026-11-25 the HOD Overview semester and category filters began updating Teachers by Score Band in place. Desktop and mobile Chrome kept the page at the same scroll position. [Verification and deployment](PHASE_HANDOFFS/HOD_SCORE_BAND_FILTERS.md)
+
 - A HOD or Dean changing a complaint's status creates an unread notification for the student who filed it. [Complaint notification verification](PHASE_HANDOFFS/STUDENT_COMPLAINTS_HANDOFF.md#status-updates-in-the-student-inbox)
 
 - The student inbox displays unread notices. Marking one as read removes its row and updates the unread count. [Verification](PHASE_HANDOFFS/STUDENT_FEEDBACK_NOTIFICATIONS_HANDOFF.md#unread-only-inbox)

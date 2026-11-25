@@ -81,6 +81,9 @@ body.role-hod .perf-welcome.au-head{align-items:center;flex-wrap:nowrap;padding-
 .pd-formtag{font-size:.74rem;color:var(--muted,#5b6a82);display:block;font-weight:400}
 
 /* ===== score bands (HOD Overview) ===== */
+/* A shorter result list must still leave room below the visible filter row. */
+#sec-bands{min-height:100vh}
+#bands{scroll-margin-top:6rem}
 .bf-bar{display:flex;flex-wrap:wrap;gap:12px 14px;align-items:flex-end;margin:0 0 1rem;padding:12px 14px;border:1px solid var(--line,#dfe5ef);border-radius:12px;background:var(--navy-soft,#eef2f9)}
 .bf-f{position:relative;min-width:190px;flex:1 1 190px;max-width:260px}
 .bf-f>span.bf-l{display:block;font-size:.78rem;font-weight:700;color:var(--muted,#5b6a82);margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em}
