@@ -13,6 +13,13 @@
         <button type="button" class="rf-chip" data-flt="closed" data-lbl="Closed" aria-pressed="false">Closed ({{ forms|selectattr('status','equalto','closed')|list|length }})</button>
       </div>
       <span class="rf-sp"></span>
+      {% set sems = forms|map(attribute='semester')|select|unique|sort|list %}
+      {% if sems %}
+      <select id="rfSem" class="rf-sem" aria-label="Filter forms by semester">
+        <option value="">All semesters</option>
+        {% for s in sems %}<option value="{{ s }}">Semester {{ s }}</option>{% endfor %}
+      </select>
+      {% endif %}
       <span class="rf-search"><input type="search" id="rfQ" placeholder="Search by emp ID or subject…" aria-label="Search forms by employee ID or subject" autocomplete="off"><button type="button" class="rf-x" id="rfQx" aria-label="Clear search" hidden>&times;</button></span>
       <label class="rf-selall"><input type="checkbox" id="rfAll"> Select all drafts</label>
       <button type="submit" class="btn btn-primary btn-sm" id="rfPubSel" disabled>Publish selected (0)</button>
@@ -24,7 +31,7 @@
         {% for f in forms %}
         {% set dr = f.status == 'draft' %}
         {% set late = f.status == 'open' and f.deadline_passed %}
-        <tr data-status="{{ f.status }}" data-deadline="{{ f.deadline_at or '' }}"
+        <tr data-status="{{ f.status }}" data-sem="{{ f.semester or '' }}" data-deadline="{{ f.deadline_at or '' }}"
             data-q="{{ ([f.snapshot_subject_code or '', f.snapshot_subject_name or '', f.teachers|join(' ')]|join(' '))|lower }}">
           <td><input type="checkbox" name="form_ids" value="{{ f.id }}" {% if not dr %}disabled title="Only draft forms can be selected"{% endif %} aria-label="Select {{ f.title }}"></td>
           <td><span class="rf-t">{{ f.title }}</span>

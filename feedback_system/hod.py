@@ -87,6 +87,8 @@ def dashboard():
             f"""SELECT f.id, f.title, f.status, f.category, f.snapshot_subject_code,
                        f.snapshot_subject_name, f.snapshot_branch, f.snapshot_timetable,
                        f.published_at, f.closed_at, f.created_at, f.deadline_at, f.phase,
+                       COALESCE((SELECT s.number FROM semesters s WHERE s.id=f.semester_id),
+                                f.snapshot_semester) AS semester,
                        (SELECT COUNT(*) FROM form_sessions fs
                          WHERE fs.form_id=f.id) AS sections,
                        (SELECT COUNT(*) FROM form_eligible_students fes
@@ -244,6 +246,9 @@ def forms():
         sql = f"""SELECT id, title, status, category, snapshot_subject_code,
                          snapshot_subject_name, snapshot_branch, snapshot_timetable,
                          published_at, closed_at, created_at, deadline_at, phase,
+                         COALESCE((SELECT s.number FROM semesters s
+                                    WHERE s.id=feedback_forms.semester_id),
+                                  snapshot_semester) AS semester,
                          (SELECT COUNT(*) FROM form_sessions fs
                            WHERE fs.form_id=feedback_forms.id) AS sections,
                          (SELECT COUNT(*) FROM form_eligible_students fes
@@ -1409,11 +1414,21 @@ def pending():
         # Only forms still accepting feedback: closed forms and forms whose
         # deadline has passed are not listed (nothing left to remind anyone about).
         forms = [f for f in db.query(
-            f"""SELECT id, title, status, category, deadline_at, subject_code, subject_name
+            f"""SELECT id, title, status, category, deadline_at, subject_code, subject_name,
+                       COALESCE((SELECT s.number FROM semesters s
+                                  WHERE s.id=feedback_forms.semester_id),
+                                snapshot_semester) AS semester
                 FROM feedback_forms
                 WHERE branch_id IN ({ph}) AND is_deleted=0 AND status='open'
                 ORDER BY created_at DESC, id DESC LIMIT 300""",
             tuple(branch_ids)) if not services.deadline_passed(f)]
+    # Semester filter: narrows the form dropdown (and so the teacher list below it).
+    semester_options = sorted({f['semester'] for f in forms if f['semester']})
+    semester = request.args.get('semester', type=int)
+    if semester is not None and semester not in semester_options:
+        semester = None                     # unknown / no longer present: show all
+    if semester is not None:
+        forms = [f for f in forms if f['semester'] == semester]
     fid = request.args.get('form_id', type=int)
     if fid:
         _hod_form_or_403(fid)               # still 403/404 for another department's form
@@ -1441,6 +1456,7 @@ def pending():
     cat = (form['category'] if form else None) or 'main'
     return render_template('hod_pending.html', user=user, forms=forms, form=form,
                            groups=_pending_form_groups(forms),
+                           semester_options=semester_options, semester=semester,
                            form_category=dict(_PENDING_GROUPS).get(cat, 'Feedback form'),
                            teachers=teachers, totals=totals,
                            mail_ready=mailer.is_configured(),
