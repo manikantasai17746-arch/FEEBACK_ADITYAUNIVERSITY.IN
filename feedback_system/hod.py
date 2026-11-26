@@ -64,6 +64,7 @@ def dashboard():
         'sfa_confirmed': 0,
         'sfa_unresolved': 0,
         'recent_forms': [],
+        'ready_to_publish': 0,
     }
     if branch_ids:
         ph = ','.join('?' * len(branch_ids))
@@ -119,6 +120,17 @@ def dashboard():
         stats['recent_forms'] = [dict(f, teachers=_tm.get(f['id'], []),
                                       deadline_passed=services.deadline_passed(f))
                                  for f in stats['recent_forms']]
+
+        # Closed forms with responses whose results are not yet published to the
+        # teacher: drives the "ready to publish" pop-up on the Overview.
+        stats['ready_to_publish'] = db.query(
+            f"""SELECT COUNT(*) AS n FROM feedback_forms f
+                LEFT JOIN result_publications rp
+                       ON rp.form_id=f.id AND rp.session_id=f.session_id
+                WHERE f.branch_id IN ({ph}) AND f.is_deleted=0 AND f.status='closed'
+                  AND f.session_id IS NOT NULL AND COALESCE(rp.is_published,0)=0
+                  AND EXISTS (SELECT 1 FROM submissions sb WHERE sb.form_id=f.id){tt_f}""",
+            tuple(branch_ids) + tt_a, one=True)['n']
 
         # Overview counts per feedback category (main / second / lab).
         stats['category_overview'] = _category_overview(branch_ids, scoped_timetable_ids(user))
