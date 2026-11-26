@@ -14,7 +14,7 @@
   <div class="band-download" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.9rem">
     <span class="muted" style="font-size:.85rem">Download all bands (current filters):</span>
     <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='xlsx', band='all', **(dl_args or {})) }}">⬇ Excel</a>
-    <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='pdf', band='all', **(dl_args or {})) }}">⬇ PDF</a>
+    <a class="btn btn-sm btn-ghost js-band-pdf" href="{{ url_for('hod.performance_bands_download', fmt='pdf', band='all', **(dl_args or {})) }}">⬇ PDF</a>
   </div>
 </div>
 
@@ -26,7 +26,7 @@
     <span class="band-download" style="display:flex;gap:.4rem;align-items:center">
       <span class="muted" style="font-size:.85rem">Download this list:</span>
       <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='xlsx', band=b.key, **(dl_args or {})) }}">⬇ Excel</a>
-      <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='pdf', band=b.key, **(dl_args or {})) }}">⬇ PDF</a>
+      <a class="btn btn-sm btn-ghost js-band-pdf" href="{{ url_for('hod.performance_bands_download', fmt='pdf', band=b.key, **(dl_args or {})) }}">⬇ PDF</a>
     </span>
     {% endif %}
   </div>

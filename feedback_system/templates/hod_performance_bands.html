@@ -112,9 +112,9 @@
     <div class="band-download" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:0 0 .8rem">
       <span class="muted" style="font-size:.85rem">Download:</span>
       <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='xlsx', band=active.key, **fargs) }}">⬇ This band · Excel</a>
-      <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='pdf', band=active.key, **fargs) }}">⬇ This band · PDF</a>
+      <a class="btn btn-sm btn-ghost js-band-pdf" href="{{ url_for('hod.performance_bands_download', fmt='pdf', band=active.key, **fargs) }}">⬇ This band · PDF</a>
       <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='xlsx', band='all', **fargs) }}">⬇ All bands · Excel</a>
-      <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='pdf', band='all', **fargs) }}">⬇ All bands · PDF</a>
+      <a class="btn btn-sm btn-ghost js-band-pdf" href="{{ url_for('hod.performance_bands_download', fmt='pdf', band='all', **fargs) }}">⬇ All bands · PDF</a>
     </div>
     {% if active.rows %}
     <form method="post" action="{{ url_for('hod.performance_bands_send') }}" id="band-mail-form"
@@ -205,4 +205,5 @@
   </div>
 </div>
 {% include '_result_modal_js.html' %}
+<script src="{{ url_for('static', filename='js/band_pdf_notice.js') }}"></script>
 {% endblock %}

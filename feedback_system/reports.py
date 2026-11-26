@@ -552,8 +552,11 @@ def band_list_rows(bands):
 
 
 def build_band_list_pdf(bands, title, subtitle=None, generated_at='', footer='',
-                        filter_lines=None):
-    """Landscape PDF listing the teachers of each given score band."""
+                        filter_lines=None, notice=None):
+    """Landscape PDF listing the teachers of each given score band.
+
+    ``notice`` is an optional free-text message from the HOD, printed in a box
+    under the header (plain text only; it is escaped)."""
     from xml.sax.saxutils import escape
 
     styles = _styles()
@@ -578,6 +581,22 @@ def build_band_list_pdf(bands, title, subtitle=None, generated_at='', footer='',
     for line in (filter_lines or []):
         story.append(Paragraph(escape(str(line)), styles['meta']))
     story.append(Paragraph(f'Total: <b>{total}</b> teacher card(s).', styles['meta']))
+    notice = (notice or '').strip()
+    if notice:
+        note_style = ParagraphStyle('BNote', parent=styles['meta'], fontSize=9.5, leading=13.5)
+        head_style = ParagraphStyle('BNoteH', parent=styles['meta'], fontName='Helvetica-Bold',
+                                    fontSize=9.5, textColor=NAVY, spaceAfter=3)
+        box = Table([[Paragraph('Notice to the teachers', head_style)],
+                     [Paragraph(escape(notice).replace('\n', '<br/>'), note_style)]],
+                    colWidths=[doc.width])
+        box.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), NAVY_SOFT),
+            ('BOX', (0, 0), (-1, -1), 0.8, NAVY),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8), ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 5), ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        story.append(Spacer(1, 6))
+        story.append(box)
 
     widths = [8, 50, 20, 22, 56, 26, 22, 18, 45]            # mm
     scale = doc.width / (sum(widths) * mm)

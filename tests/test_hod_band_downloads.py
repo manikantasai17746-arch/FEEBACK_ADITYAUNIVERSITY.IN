@@ -127,3 +127,33 @@ def test_buttons_and_file_use_same_rows_as_screen(app, client, monkeypatch):
     assert wb.sheetnames == ['All bands', '75% or less']
     names = [row[1].value for row in wb['75% or less'].iter_rows(min_row=1) if row[0].value == 1 or row[0].value == 2]
     assert names == ['A One', 'B Two']
+
+
+def test_pdf_notice_is_optional_and_safe(app, client, monkeypatch):
+    from feedback_system import hod
+    _seed_hod(app)
+    monkeypatch.setattr(hod, '_band_data', lambda *a, **k: [dict(b) for b in BANDS])
+    seen = []
+    real = reports.build_band_list_pdf
+
+    def spy(*a, **k):
+        seen.append(k.get('notice'))
+        return real(*a, **k)
+    monkeypatch.setattr(reports, 'build_band_list_pdf', spy)
+    c = _hod(client)
+    assert c.get('/hod/performance/bands/download.pdf?band=le75').status_code == 200          # skip
+    r = c.get('/hod/performance/bands/download.pdf?band=le75&notice=Meet%20me%20%3Cb%3EMonday%3C%2Fb%3E%0Aplease')
+    assert r.status_code == 200 and r.data[:4] == b'%PDF'
+    assert c.get('/hod/performance/bands/download.pdf?band=le75&notice=' + 'x' * 5000).status_code == 200
+    assert c.get('/hod/performance/bands/download.xlsx?band=le75&notice=hi').status_code == 200
+    assert seen[0] == '' and seen[1] == 'Meet me <b>Monday</b>\nplease' and len(seen[2]) == 1000
+    assert seen[3:] == []                       # Excel never gets a notice
+    # the dialog script and PDF hook are on the pages
+    html = c.get('/hod/').get_data(as_text=True)
+    assert 'js/band_pdf_notice.js' in html and 'js-band-pdf' in html
+
+
+def test_notice_box_is_added_to_pdf_unit():
+    plain = reports.build_band_list_pdf(BANDS, 'T')
+    noted = reports.build_band_list_pdf(BANDS, 'T', notice='Please meet HOD <script>')
+    assert noted[:4] == b'%PDF' and len(noted) != len(plain)

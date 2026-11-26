@@ -3176,6 +3176,9 @@ def performance_bands_download(fmt):
     if subject_code:
         filter_lines.append(f'Subject code: {subject_code}')
     title = f'Teachers by Score Band — {band_name}'
+    # Optional notice from the HOD, printed in the PDF only (plain text, max 1000 chars).
+    notice = ''.join(ch for ch in (request.args.get('notice') or '')
+                     if ch == '\n' or ch >= ' ').strip()[:1000] if fmt == 'pdf' else ''
     stamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
 
     if fmt == 'xlsx':
@@ -3184,7 +3187,7 @@ def performance_bands_download(fmt):
     else:
         data = reports.build_band_list_pdf(
             bands, title, subtitle=f'Prepared for {(user.get("name") or "HOD")}',
-            generated_at=stamp, filter_lines=filter_lines,
+            generated_at=stamp, filter_lines=filter_lines, notice=notice,
             footer='Faculty Feedback System — score band list (HOD scope only; no student identities)')
         mime = 'application/pdf'
     slug = 'all' if band_key == 'all' else band_key.replace('-', '_')
