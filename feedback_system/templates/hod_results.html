@@ -105,7 +105,7 @@
           · marks {{ f.obtained }} / {{ f.maximum }}
         </p>
         <div class="hr-actions">
-          <a class="btn btn-sm" href="{{ url_for('hod.result_detail', fid=f.id) }}">Details</a>
+          <a class="btn btn-sm js-view-result" href="{{ url_for('hod.result_detail', fid=f.id) }}" data-url="{{ url_for('hod.performance_result', form_id=f.id) }}">Details</a>
           {% if f.is_published %}
           <button class="btn btn-sm" type="submit" formaction="{{ url_for('hod.result_unpublish', fid=f.id) }}"
                   onclick="return confirm('Unpublish results for this form?')">Unpublish</button>
@@ -135,4 +135,5 @@
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/hod_results.js') }}"></script>
+{% include '_result_modal_js.html' %}
 {% endblock %}

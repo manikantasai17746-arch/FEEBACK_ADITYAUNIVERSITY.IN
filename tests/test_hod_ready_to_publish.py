@@ -108,3 +108,23 @@ def test_semester_options_list_only_semesters_with_forms(app, hod_client):
     assert 4 in got
     assert 1 not in got and 8 not in got       # no fixed Sem 1-8 list
     assert other == []                          # other departments' forms never count
+
+
+def test_results_details_button_opens_the_result_popup(app, hod_client):
+    client, bid = hod_client
+    html = client.get('/hod/results?tab=main').get_data(as_text=True)
+    assert 'js-view-result' in html
+    assert '/hod/performance/result/' in html          # popup fragment URL
+    assert '/hod/results/' in html and '/detail' in html  # fallback page still linked
+    assert 'rm-overlay' in html                        # standalone page carries the popup script
+
+
+def test_popup_route_for_results_and_404_for_drafts(app, hod_client):
+    client, bid = hod_client
+    with app.app_context():
+        ids = {r['title']: r['id'] for r in db_module.query(
+            "SELECT id, title FROM feedback_forms WHERE title IN ('Ready form','No responses','Sem4 draft')")}
+    assert client.get(f"/hod/performance/result/{ids['Ready form']}").status_code == 200
+    assert client.get(f"/hod/performance/result/{ids['No responses']}").status_code == 200
+    # Drafts have no results: 404 here, so the Details button falls back to its own page.
+    assert client.get(f"/hod/performance/result/{ids['Sem4 draft']}").status_code == 404

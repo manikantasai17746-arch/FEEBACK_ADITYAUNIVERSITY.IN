@@ -25,17 +25,21 @@
       b.classList.toggle('on', b.getAttribute('data-rm-filter')===f);
     });
   }
-  function open(url){
+  function open(url, fallback){
     fetch(url,{credentials:'same-origin'}).then(function(r){
       if(!r.ok) throw new Error('HTTP '+r.status); return r.text();
     }).then(function(html){
       ov.innerHTML=html; ov.dataset.filter='all'; ov.dataset.shown=5;
       ov.hidden=false; ov.style.display='flex'; document.body.style.overflow='hidden'; apply();
-    }).catch(function(){ alert('Could not open this result. Please try again.'); });
+    }).catch(function(){
+      /* e.g. no responses yet: a link with its own page (the Details link) goes there instead */
+      if(fallback){ location.href=fallback; return; }
+      alert('Could not open this result. Please try again.');
+    });
   }
   document.addEventListener('click',function(e){
     var v=e.target.closest('.js-view-result');
-    if(v){ e.preventDefault(); open(v.getAttribute('data-url')); return; }
+    if(v){ e.preventDefault(); open(v.getAttribute('data-url'), v.getAttribute('href')); return; }
     if(ov.hidden) return;
     if(e.target===ov || e.target.closest('[data-rm-close]')){ close(); return; }
     var fb=e.target.closest('[data-rm-filter]');
