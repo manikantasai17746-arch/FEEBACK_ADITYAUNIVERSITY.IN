@@ -60,6 +60,7 @@ body.role-hod .perf-welcome.au-head{align-items:center;flex-wrap:nowrap;padding-
 .rf-toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:#0b2347;color:#fff;padding:10px 16px;border-radius:10px;font-size:.88rem;z-index:100001;display:none;max-width:90vw}
 .rf-toast.on{display:block}
 .rf-ov[hidden],#rfPubSel[hidden]{display:none!important}
+.rf-sem{padding:6px 12px;border:1px solid var(--line,#dfe5ef);border-radius:999px;font:inherit;font-size:.86rem;background:var(--card,#fff);color:var(--ink,#1f2733);cursor:pointer}
 .rf-search{position:relative;display:inline-flex;align-items:center}
 .rf-search input{width:280px;max-width:100%;padding:6px 30px 6px 12px;border:1px solid var(--line,#dfe5ef);border-radius:999px;font:inherit;font-size:.86rem;background:var(--card,#fff);color:var(--ink,#1f2733)}
 .rf-search input::-webkit-search-cancel-button{display:none}

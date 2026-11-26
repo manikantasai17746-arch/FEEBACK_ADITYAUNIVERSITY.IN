@@ -29,6 +29,24 @@ def _hod_branches(user):
     return scoped_branches(user)
 
 
+def _semesters_with_data(branch_ids):
+    """Semesters where a teacher was actually selected for feedback, i.e. a
+    feedback form exists in these departments. The semester filters list only
+    these (not a fixed Sem 1-8, and not semesters that only have a timetable)."""
+    if not branch_ids:
+        return []
+    ph = ','.join('?' * len(branch_ids))
+    return db.query(
+        f"""SELECT s.id, s.number, s.label FROM semesters s
+            WHERE s.id IN (SELECT semester_id FROM feedback_forms
+                            WHERE branch_id IN ({ph}) AND is_deleted=0
+                              AND semester_id IS NOT NULL)
+               OR s.number IN (SELECT snapshot_semester FROM feedback_forms
+                                WHERE branch_id IN ({ph}) AND is_deleted=0
+                                  AND snapshot_semester IS NOT NULL)
+            ORDER BY s.number""", tuple(branch_ids) * 2)
+
+
 @bp.route('/')
 @role_required('hod')
 def dashboard():
@@ -46,6 +64,7 @@ def dashboard():
         'sfa_confirmed': 0,
         'sfa_unresolved': 0,
         'recent_forms': [],
+        'ready_to_publish': 0,
     }
     if branch_ids:
         ph = ','.join('?' * len(branch_ids))
@@ -87,6 +106,8 @@ def dashboard():
             f"""SELECT f.id, f.title, f.status, f.category, f.snapshot_subject_code,
                        f.snapshot_subject_name, f.snapshot_branch, f.snapshot_timetable,
                        f.published_at, f.closed_at, f.created_at, f.deadline_at, f.phase,
+                       COALESCE((SELECT s.number FROM semesters s WHERE s.id=f.semester_id),
+                                f.snapshot_semester) AS semester,
                        (SELECT COUNT(*) FROM form_sessions fs
                          WHERE fs.form_id=f.id) AS sections,
                        (SELECT COUNT(*) FROM form_eligible_students fes
@@ -100,6 +121,17 @@ def dashboard():
                                       deadline_passed=services.deadline_passed(f))
                                  for f in stats['recent_forms']]
 
+        # Closed forms with responses whose results are not yet published to the
+        # teacher: drives the "ready to publish" pop-up on the Overview.
+        stats['ready_to_publish'] = db.query(
+            f"""SELECT COUNT(*) AS n FROM feedback_forms f
+                LEFT JOIN result_publications rp
+                       ON rp.form_id=f.id AND rp.session_id=f.session_id
+                WHERE f.branch_id IN ({ph}) AND f.is_deleted=0 AND f.status='closed'
+                  AND f.session_id IS NOT NULL AND COALESCE(rp.is_published,0)=0
+                  AND EXISTS (SELECT 1 FROM submissions sb WHERE sb.form_id=f.id){tt_f}""",
+            tuple(branch_ids) + tt_a, one=True)['n']
+
         # Overview counts per feedback category (main / second / lab).
         stats['category_overview'] = _category_overview(branch_ids, scoped_timetable_ids(user))
 
@@ -110,7 +142,7 @@ def dashboard():
         category = ''
     semester_id = request.args.get('semester_id', type=int)
     bands = _band_data(branch_ids, None, None, semester_id, None, category=category or None) if branch_ids else []
-    semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
+    semesters = _semesters_with_data(branch_ids)
     band_default = next((b['key'] for b in bands if b['count']),
                         bands[0]['key'] if bands else None)
     return render_template(
@@ -219,10 +251,7 @@ def forms():
     counts = {'total': 0, 'open': 0, 'draft': 0, 'closed': 0}
     subjects = []
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
-    try:
-        semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
-    except Exception:
-        semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
+    semesters = _semesters_with_data(branch_ids)
 
     if branch_ids:
         ph = ','.join('?' * len(branch_ids))
@@ -244,6 +273,9 @@ def forms():
         sql = f"""SELECT id, title, status, category, snapshot_subject_code,
                          snapshot_subject_name, snapshot_branch, snapshot_timetable,
                          published_at, closed_at, created_at, deadline_at, phase,
+                         COALESCE((SELECT s.number FROM semesters s
+                                    WHERE s.id=feedback_forms.semester_id),
+                                  snapshot_semester) AS semester,
                          (SELECT COUNT(*) FROM form_sessions fs
                            WHERE fs.form_id=feedback_forms.id) AS sections,
                          (SELECT COUNT(*) FROM form_eligible_students fes
@@ -1409,11 +1441,21 @@ def pending():
         # Only forms still accepting feedback: closed forms and forms whose
         # deadline has passed are not listed (nothing left to remind anyone about).
         forms = [f for f in db.query(
-            f"""SELECT id, title, status, category, deadline_at, subject_code, subject_name
+            f"""SELECT id, title, status, category, deadline_at, subject_code, subject_name,
+                       COALESCE((SELECT s.number FROM semesters s
+                                  WHERE s.id=feedback_forms.semester_id),
+                                snapshot_semester) AS semester
                 FROM feedback_forms
                 WHERE branch_id IN ({ph}) AND is_deleted=0 AND status='open'
                 ORDER BY created_at DESC, id DESC LIMIT 300""",
             tuple(branch_ids)) if not services.deadline_passed(f)]
+    # Semester filter: narrows the form dropdown (and so the teacher list below it).
+    semester_options = sorted({f['semester'] for f in forms if f['semester']})
+    semester = request.args.get('semester', type=int)
+    if semester is not None and semester not in semester_options:
+        semester = None                     # unknown / no longer present: show all
+    if semester is not None:
+        forms = [f for f in forms if f['semester'] == semester]
     fid = request.args.get('form_id', type=int)
     if fid:
         _hod_form_or_403(fid)               # still 403/404 for another department's form
@@ -1441,6 +1483,7 @@ def pending():
     cat = (form['category'] if form else None) or 'main'
     return render_template('hod_pending.html', user=user, forms=forms, form=form,
                            groups=_pending_form_groups(forms),
+                           semester_options=semester_options, semester=semester,
                            form_category=dict(_PENDING_GROUPS).get(cat, 'Feedback form'),
                            teachers=teachers, totals=totals,
                            mail_ready=mailer.is_configured(),
@@ -1641,7 +1684,7 @@ def _hod_results_rows(user, tab, filters):
         f['subject_code_display'] = f.get('subject_code') or f.get('snapshot_subject_code') or ''
 
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
-    semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
+    semesters = _semesters_with_data(branch_ids)
     return forms_list, branches, years, semesters
 
 
@@ -3060,7 +3103,7 @@ def performance_bands():
         default_subject=DEFAULT_BAND_SUBJECT,
         default_message=_default_message_for(band_key),
         mail_ready=mailer.is_configured(),
-        semesters=db.query('SELECT id, number, label FROM semesters ORDER BY number'),
+        semesters=_semesters_with_data(branch_ids),
         timetables=timetables, subjects=subjects,
         shown_total=shown_total, all_total=all_total, category=category,
         filters={'academic_year_id': academic_year_id,
@@ -3413,7 +3456,7 @@ def comparison():
     profiles = analytics.build_teacher_profiles(
         branch_ids, academic_year_id=ay, semester_id=sem, q=q)
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
-    semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
+    semesters = _semesters_with_data(branch_ids)
     from . import mailer
     category = (request.args.get('category') or '').strip().lower()
     if category not in ('main', 'second', 'lab'):

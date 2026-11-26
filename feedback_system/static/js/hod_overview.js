@@ -52,6 +52,7 @@
   if (rf) {
     var rows = $$('tbody tr', rf), chips = $$('.rf-chip', rf), all = $('#rfAll'), pub = $('#rfPubSel');
     var qBox = $('#rfQ'), qClr = $('#rfQx'), emptyMsg = $('#rfEmpty'), flt = 'all', term = '';
+    var semSel = $('#rfSem'), sem = '';
     rows.forEach(function (r) { var s = r.querySelector('.rf-sub'); if (s) s.setAttribute('data-orig', s.textContent); });
     function esc(t) { return t.replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
     function mark(el) {                       /* highlight the search term in the subject / faculty line */
@@ -65,8 +66,11 @@
       if (all) { all.checked = d.length > 0 && n === d.length; all.indeterminate = n > 0 && n < d.length; }
       rows.forEach(function (r) { var c = r.querySelector('input[name=form_ids]'); r.classList.toggle('rf-sel', !!(c && c.checked && !c.disabled)); });
     }
-    function matches(r) { return !term || (r.getAttribute('data-q') || '').indexOf(term) > -1; }
-    function apply() {                        /* status chip + search together; counts follow the search */
+    function matches(r) {
+      return (!sem || r.getAttribute('data-sem') === sem) &&
+             (!term || (r.getAttribute('data-q') || '').indexOf(term) > -1);
+    }
+    function apply() {                        /* status chip + semester + search together; counts follow semester and search */
       var counts = { all: 0, draft: 0, open: 0, closed: 0 }, shown = 0;
       rows.forEach(function (r) {
         var st = r.getAttribute('data-status'), m = matches(r);
@@ -80,7 +84,8 @@
       chips.forEach(function (c) { var k = c.getAttribute('data-flt'); c.textContent = c.getAttribute('data-lbl') + ' (' + counts[k] + ')'; });
       if (emptyMsg) {
         emptyMsg.hidden = shown > 0;
-        emptyMsg.textContent = term ? 'No forms match \u201c' + qBox.value.trim() + '\u201d. Try an employee ID or a subject code or name.' : 'No forms in this status.';
+        emptyMsg.textContent = term ? 'No forms match \u201c' + qBox.value.trim() + '\u201d. Try an employee ID or a subject code or name.'
+          : sem ? 'No forms for this semester in this status.' : 'No forms in this status.';
       }
       if (qClr) qClr.hidden = !term;
       upd();
@@ -92,6 +97,7 @@
         apply();
       });
     });
+    if (semSel) semSel.addEventListener('change', function () { sem = semSel.value; apply(); });
     if (qBox) {
       qBox.addEventListener('input', function () { term = qBox.value.trim().toLowerCase(); apply(); });
       qBox.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
@@ -266,6 +272,25 @@
       if (pendingFilter) pendingFilter.abort();
       if (location.search !== renderedSearch) loadFilter(location.href, null);
     });
+  }
+
+  /* ---- "results ready to publish" pop-up ----
+     Shown once per count of ready forms per browser session; the two buttons are plain links
+     to the score-band page and the Feedback Results page. */
+  var rdy = document.getElementById('rdyOv');
+  if (rdy) {
+    var rn = rdy.getAttribute('data-n'), seen = null;
+    try { seen = sessionStorage.getItem('ov_rdy'); } catch (e) {}
+    var rdyClose = function () {
+      rdy.classList.remove('on');
+      try { sessionStorage.setItem('ov_rdy', rn); } catch (e) {}
+    };
+    if (seen !== rn) rdy.classList.add('on');
+    $('#rdyLater').addEventListener('click', rdyClose);
+    $('#rdyBands').addEventListener('click', rdyClose);
+    $('#rdyPub').addEventListener('click', rdyClose);
+    rdy.addEventListener('click', function (e) { if (e.target === rdy) rdyClose(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && rdy.classList.contains('on')) rdyClose(); });
   }
 
   /* ---- logo replay ---- */

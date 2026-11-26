@@ -13,7 +13,16 @@
 </div>
 
 <div class="card">
-  <form method="get" class="btn-row" style="align-items:flex-end;gap:.75rem;flex-wrap:wrap">
+  <form method="get" action="{{ url_for('hod.pending') }}" class="btn-row" style="align-items:flex-end;gap:.75rem;flex-wrap:wrap">
+    {% if semester_options %}
+    <div class="field" style="min-width:160px;margin:0"><label for="pd_semester">Semester</label>
+      <select id="pd_semester" name="semester" onchange="this.form.elements['form_id'].selectedIndex=-1;this.form.submit()">
+        <option value="" {{ 'selected' if semester is none }}>All semesters</option>
+        {% for s in semester_options %}
+        <option value="{{ s }}" {{ 'selected' if semester == s }}>Semester {{ s }}</option>
+        {% endfor %}
+      </select></div>
+    {% endif %}
     <div class="field" style="min-width:320px;margin:0"><label for="form_id">Feedback form</label>
       <select id="form_id" name="form_id" onchange="this.form.submit()">
         {% for key, label, items in groups %}

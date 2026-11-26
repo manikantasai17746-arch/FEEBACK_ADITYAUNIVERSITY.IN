@@ -145,6 +145,23 @@
     <p class="sub">Loading feedback results…</p></div>
 </div>
 
+{% if stats.ready_to_publish %}
+<div class="rv-ov" id="rdyOv" role="dialog" aria-modal="true" aria-labelledby="rdyT" data-n="{{ stats.ready_to_publish }}">
+  <div class="rv-box" style="max-width:480px;margin:auto">
+    <div class="rv-body">
+      <h3 id="rdyT" style="margin-top:0">Results ready to publish</h3>
+      <p>{{ stats.ready_to_publish }} closed form{{ 's' if stats.ready_to_publish != 1 }} {{ 'have' if stats.ready_to_publish != 1 else 'has' }} responses and
+        {{ 'are' if stats.ready_to_publish != 1 else 'is' }} ready to publish. View the teachers by score band, or publish the results to the teachers.</p>
+    </div>
+    <div class="rv-foot">
+      <button type="button" class="btn btn-ghost" id="rdyLater">Not now</button>
+      <a class="btn btn-ghost" id="rdyBands" href="{{ url_for('hod.performance_bands') }}">View score bands</a>
+      <a class="btn btn-accent" id="rdyPub" href="{{ url_for('hod.results') }}">Publish results</a>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 {% endif %}
 {% endblock %}
 {% block scripts %}

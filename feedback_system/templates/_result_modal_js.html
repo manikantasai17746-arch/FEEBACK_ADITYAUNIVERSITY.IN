@@ -3,6 +3,10 @@
 (function(){
   var ov=document.getElementById('rm-overlay');
   if(!ov) return;
+  /* The page container is its own stacking layer (z-index 1), below the sticky menu bar
+     (z-index 50), so an overlay left inside it is partly hidden behind the menu.
+     Attach it to <body> instead so it always sits on top. */
+  if(ov.parentNode!==document.body) document.body.appendChild(ov);
   function close(){ ov.hidden=true; ov.style.display='none'; ov.innerHTML=''; document.body.style.overflow=''; }
   function items(){ return [].slice.call(ov.querySelectorAll('[data-rm-list] .rm-cm')); }
   function state(){ return ov.dataset.filter || 'all'; }
@@ -21,17 +25,21 @@
       b.classList.toggle('on', b.getAttribute('data-rm-filter')===f);
     });
   }
-  function open(url){
+  function open(url, fallback){
     fetch(url,{credentials:'same-origin'}).then(function(r){
       if(!r.ok) throw new Error('HTTP '+r.status); return r.text();
     }).then(function(html){
       ov.innerHTML=html; ov.dataset.filter='all'; ov.dataset.shown=5;
       ov.hidden=false; ov.style.display='flex'; document.body.style.overflow='hidden'; apply();
-    }).catch(function(){ alert('Could not open this result. Please try again.'); });
+    }).catch(function(){
+      /* e.g. no responses yet: a link with its own page (the Details link) goes there instead */
+      if(fallback){ location.href=fallback; return; }
+      alert('Could not open this result. Please try again.');
+    });
   }
   document.addEventListener('click',function(e){
     var v=e.target.closest('.js-view-result');
-    if(v){ e.preventDefault(); open(v.getAttribute('data-url')); return; }
+    if(v){ e.preventDefault(); open(v.getAttribute('data-url'), v.getAttribute('href')); return; }
     if(ov.hidden) return;
     if(e.target===ov || e.target.closest('[data-rm-close]')){ close(); return; }
     var fb=e.target.closest('[data-rm-filter]');
