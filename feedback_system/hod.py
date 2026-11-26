@@ -29,6 +29,19 @@ def _hod_branches(user):
     return scoped_branches(user)
 
 
+def _semesters_with_data(branch_ids):
+    """Semesters that actually have a timetable in these departments, so the
+    semester filters list only what exists (not a fixed Sem 1-8)."""
+    if not branch_ids:
+        return []
+    ph = ','.join('?' * len(branch_ids))
+    return db.query(
+        f"""SELECT id, number, label FROM semesters
+            WHERE id IN (SELECT semester_id FROM timetables
+                          WHERE branch_id IN ({ph}) AND is_deleted=0)
+            ORDER BY number""", tuple(branch_ids))
+
+
 @bp.route('/')
 @role_required('hod')
 def dashboard():
@@ -112,7 +125,7 @@ def dashboard():
         category = ''
     semester_id = request.args.get('semester_id', type=int)
     bands = _band_data(branch_ids, None, None, semester_id, None, category=category or None) if branch_ids else []
-    semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
+    semesters = _semesters_with_data(branch_ids)
     band_default = next((b['key'] for b in bands if b['count']),
                         bands[0]['key'] if bands else None)
     return render_template(
@@ -221,10 +234,7 @@ def forms():
     counts = {'total': 0, 'open': 0, 'draft': 0, 'closed': 0}
     subjects = []
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
-    try:
-        semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
-    except Exception:
-        semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
+    semesters = _semesters_with_data(branch_ids)
 
     if branch_ids:
         ph = ','.join('?' * len(branch_ids))
@@ -1657,7 +1667,7 @@ def _hod_results_rows(user, tab, filters):
         f['subject_code_display'] = f.get('subject_code') or f.get('snapshot_subject_code') or ''
 
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
-    semesters = db.query('SELECT id, number, label FROM semesters ORDER BY number')
+    semesters = _semesters_with_data(branch_ids)
     return forms_list, branches, years, semesters
 
 
@@ -3076,7 +3086,7 @@ def performance_bands():
         default_subject=DEFAULT_BAND_SUBJECT,
         default_message=_default_message_for(band_key),
         mail_ready=mailer.is_configured(),
-        semesters=db.query('SELECT id, number, label FROM semesters ORDER BY number'),
+        semesters=_semesters_with_data(branch_ids),
         timetables=timetables, subjects=subjects,
         shown_total=shown_total, all_total=all_total, category=category,
         filters={'academic_year_id': academic_year_id,
@@ -3345,7 +3355,7 @@ def comparison():
     profiles = analytics.build_teacher_profiles(
         branch_ids, academic_year_id=ay, semester_id=sem, q=q)
     years = db.query('SELECT id, name FROM academic_years ORDER BY name DESC')
-    semesters = db.query('SELECT id, number FROM semesters ORDER BY number')
+    semesters = _semesters_with_data(branch_ids)
     from . import mailer
     category = (request.args.get('category') or '').strip().lower()
     if category not in ('main', 'second', 'lab'):
