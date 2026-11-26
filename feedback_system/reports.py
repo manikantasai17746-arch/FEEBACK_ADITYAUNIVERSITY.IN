@@ -518,3 +518,145 @@ def build_category_results_pdf(entries, category, title=None, subtitle=None,
     doc.build(story, canvasmaker=_numbered_canvas(
         footer or f'Faculty Feedback System — {cat_label} results (no student identities)'))
     return buffer.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# HOD "Teachers by Score Band" downloads (PDF + Excel)
+# ---------------------------------------------------------------------------
+BAND_LIST_HEADERS = ['#', 'Teacher', 'Emp code', 'Subject code', 'Subject',
+                     'Category', 'Responses', 'Score (%)', 'Email']
+
+
+def band_list_rows(bands):
+    """Flatten ``[{'label', 'rows'}]`` into ``[(band_label, [cell, ...]), ...]``.
+
+    One entry per teacher card shown on screen (one teacher x one subject),
+    highest score first within each band. Anonymous answers are never touched.
+    """
+    cat = {'main': 'Main Faculty', 'second': 'Second Faculty', 'lab': 'Lab Faculty'}
+    out = []
+    for b in bands:
+        for i, r in enumerate(b['rows'], 1):
+            out.append((b['label'], [
+                i,
+                r.get('teacher_name') or 'Faculty',
+                r.get('teacher_emp_code') or '',
+                r.get('subject_code') or '',
+                r.get('subject_name') or '',
+                cat.get(r.get('category'), ''),
+                r.get('valid_responses') or r.get('response_count') or 0,
+                round(float(r['overall_score']), 2),
+                r.get('teacher_email') or '',
+            ]))
+    return out
+
+
+def build_band_list_pdf(bands, title, subtitle=None, generated_at='', footer='',
+                        filter_lines=None):
+    """Landscape PDF listing the teachers of each given score band."""
+    from xml.sax.saxutils import escape
+
+    styles = _styles()
+    styles['h2'] = ParagraphStyle(
+        'BH2', parent=styles['subtitle'], fontName='Helvetica-Bold',
+        fontSize=11.5, textColor=NAVY, spaceBefore=10, spaceAfter=4)
+    buffer = BytesIO()
+    doc = BaseDocTemplate(
+        buffer, pagesize=landscape(A4),
+        leftMargin=12 * mm, rightMargin=12 * mm, topMargin=12 * mm, bottomMargin=16 * mm,
+        title=title, author='Faculty Feedback System')
+    frame = Frame(doc.leftMargin, doc.bottomMargin, doc.width, doc.height, id='main',
+                  leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+    doc.addPageTemplates([PageTemplate(id='page', frames=[frame])])
+
+    total = sum(len(b['rows']) for b in bands)
+    story = [Paragraph(escape(title), styles['title'])]
+    if subtitle:
+        story.append(Paragraph(escape(subtitle), styles['subtitle']))
+    if generated_at:
+        story.append(Paragraph(f'Generated: {escape(str(generated_at))}', styles['meta']))
+    for line in (filter_lines or []):
+        story.append(Paragraph(escape(str(line)), styles['meta']))
+    story.append(Paragraph(f'Total: <b>{total}</b> teacher card(s).', styles['meta']))
+
+    widths = [8, 50, 20, 22, 56, 26, 22, 18, 45]            # mm
+    scale = doc.width / (sum(widths) * mm)
+    col_w = [w * mm * scale for w in widths]
+    for b in bands:
+        story.append(CondPageBreak(40 * mm))
+        story.append(Paragraph(f"{escape(b['label'])} · {len(b['rows'])}", styles['h2']))
+        if not b['rows']:
+            story.append(Paragraph('No teachers in this score band.', styles['empty']))
+            continue
+        data = [[_cell(h, styles['head']) for h in BAND_LIST_HEADERS]]
+        for _label, cells in band_list_rows([b]):
+            data.append([_cell(escape(f'{c:.2f}' if j == 7 else str(c)),
+                               styles['cellb'] if j == 7 else styles['cell'])
+                         for j, c in enumerate(cells)])
+        t = Table(data, colWidths=col_w, repeatRows=1)
+        t.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), NAVY),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, NAVY_SOFT]),
+            ('GRID', (0, 0), (-1, -1), 0.4, LINE),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 3), ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ]))
+        story.append(t)
+    doc.build(story, canvasmaker=_numbered_canvas(footer or title))
+    return buffer.getvalue()
+
+
+def build_band_list_xlsx(bands, title, filter_lines=None):
+    """Excel workbook: a 'All bands' sheet plus one sheet per non-empty band."""
+    import re
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    wb = Workbook()
+    head_fill = PatternFill('solid', fgColor='1F3A68')
+    widths = [6, 30, 12, 14, 38, 16, 11, 11, 32]
+
+    def _sheet(ws, headers, rows):
+        ws.append([title])
+        ws['A1'].font = Font(bold=True, size=13, color='1F3A68')
+        for line in (filter_lines or []):
+            ws.append([str(line)])
+        ws.append([])
+        ws.append(headers)
+        hr = ws.max_row
+        for c in ws[hr]:
+            c.font = Font(bold=True, color='FFFFFF')
+            c.fill = head_fill
+            c.alignment = Alignment(vertical='center', wrap_text=True)
+        for row in rows:
+            ws.append(row)
+        ncols = len(headers)
+        for i in range(ncols):
+            ws.column_dimensions[get_column_letter(i + 1)].width = \
+                widths[i] if i < len(widths) else 14
+        ws.freeze_panes = ws.cell(row=hr + 1, column=1)
+        score_col = headers.index('Score (%)') + 1
+        for r in range(hr + 1, ws.max_row + 1):
+            ws.cell(row=r, column=score_col).number_format = '0.00'
+
+    flat = band_list_rows(bands)
+    ws = wb.active
+    ws.title = 'All bands'
+    _sheet(ws, ['Score band'] + BAND_LIST_HEADERS, [[label] + cells for label, cells in flat])
+    ws.column_dimensions['A'].width = 18
+    for i, w in enumerate(widths):
+        ws.column_dimensions[get_column_letter(i + 2)].width = w
+    used = {'All bands'}
+    for b in bands:
+        if not b['rows']:
+            continue
+        name = re.sub(r'[\\/*?:\[\]]', '', b['label']).replace('–', '-')[:31] or 'Band'
+        while name in used:
+            name = name[:28] + '_x'
+        used.add(name)
+        _sheet(wb.create_sheet(name), BAND_LIST_HEADERS,
+               [cells for _l, cells in band_list_rows([b])])
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

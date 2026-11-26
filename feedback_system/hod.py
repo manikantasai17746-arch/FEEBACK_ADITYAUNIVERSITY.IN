@@ -3069,6 +3069,90 @@ def performance_bands():
                  'subject_code': subject_code, 'category': category})
 
 
+@bp.route('/performance/bands/download.<fmt>')
+@role_required('hod')
+def performance_bands_download(fmt):
+    """Download the teachers of one score band (or all bands) as Excel or PDF.
+
+    Uses the same filters and the same ``_band_data`` as the on-screen lists,
+    so the file always matches what the HOD sees. HOD branch scope is enforced
+    by ``_band_data``; no student identity or answer text is included.
+    """
+    from datetime import datetime
+    from flask import Response
+    from . import reports
+
+    fmt = (fmt or '').lower()
+    if fmt not in ('xlsx', 'pdf'):
+        abort(404)
+    user = current_user()
+    branches = _hod_branches(user)
+    branch_ids = [b['id'] for b in branches]
+
+    academic_year_id = request.args.get('academic_year_id', type=int)
+    semester_id = request.args.get('semester_id', type=int)
+    branch_id = request.args.get('branch_id', type=int)
+    form_id = request.args.get('form_id', type=int)
+    timetable_id = request.args.get('timetable_id', type=int)
+    subject_code = (request.args.get('subject_code') or '').strip()[:40] or None
+    category = (request.args.get('category') or '').strip().lower()
+    if category not in ('main', 'second', 'lab'):
+        category = ''
+    if branch_id and branch_id not in branch_ids:
+        branch_id = None
+    timetables, subjects = _band_filter_options(branch_ids, semester_id)
+    if timetable_id and timetable_id not in {t['id'] for t in timetables}:
+        timetable_id = None
+    if subject_code and subject_code not in {x['subject_code'] for x in subjects}:
+        subject_code = None
+
+    bands = _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id,
+                       timetable_id=timetable_id, subject_code=subject_code,
+                       category=category or None) if branch_ids else []
+    band_key = (request.args.get('band') or 'all').strip()
+    if band_key != 'all':
+        bands = [b for b in bands if b['key'] == band_key]
+        if not bands:
+            abort(404)
+        band_name = bands[0]['label']
+    else:
+        band_name = 'All score bands'
+
+    sem_label = None
+    if semester_id:
+        sem = db.query('SELECT number, label FROM semesters WHERE id=?', (semester_id,), one=True)
+        if sem:
+            sem_label = sem['label'] or f"Semester {sem['number']}"
+    scope = ', '.join(b['code'] for b in branches) or 'none'
+    filter_lines = [
+        f'HOD scope: {scope}',
+        f"Score band: {band_name}",
+        f"Category: {BAND_CATEGORY_LABELS.get(category, 'All')}",
+        f"Semester: {sem_label or 'All semesters'}",
+    ]
+    if subject_code:
+        filter_lines.append(f'Subject code: {subject_code}')
+    title = f'Teachers by Score Band — {band_name}'
+    stamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+
+    if fmt == 'xlsx':
+        data = reports.build_band_list_xlsx(bands, title, filter_lines + [f'Generated: {stamp}'])
+        mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    else:
+        data = reports.build_band_list_pdf(
+            bands, title, subtitle=f'Prepared for {(user.get("name") or "HOD")}',
+            generated_at=stamp, filter_lines=filter_lines,
+            footer='Faculty Feedback System — score band list (HOD scope only; no student identities)')
+        mime = 'application/pdf'
+    slug = 'all' if band_key == 'all' else band_key.replace('-', '_')
+    audit('hod.band.download', 'users', 0, f'Band {band_key}: {fmt}, {sum(len(b["rows"]) for b in bands)} row(s)')
+    return Response(data, mimetype=mime, headers={
+        'Content-Disposition': f'attachment; filename=score_band_{slug}_teachers.{fmt}',
+        'Content-Length': str(len(data)),
+        'Cache-Control': 'no-store',
+    })
+
+
 BAND_CATEGORY_LABELS = {'main': 'Main Faculty', 'second': 'Second Faculty', 'lab': 'Lab Faculty'}
 
 

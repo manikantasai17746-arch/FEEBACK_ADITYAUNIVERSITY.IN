@@ -137,7 +137,7 @@
   {% endfor %}
 </div>
 </div>
-{{ hod_bands(bands, band_default, default_subject, band_messages, mail_ready) }}
+{{ hod_bands(bands, band_default, default_subject, band_messages, mail_ready, dl_args={'semester_id': semester_id, 'category': category or None}) }}
 </div>
 
 <div class="sec-panel" id="sec-results" role="tabpanel" aria-labelledby="tab-results" hidden>

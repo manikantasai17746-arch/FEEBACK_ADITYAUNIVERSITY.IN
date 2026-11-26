@@ -1,4 +1,4 @@
-{% macro hod_bands(bands, band_default, default_subject, band_messages, mail_ready, mode='result', fargs=none) %}
+{% macro hod_bands(bands, band_default, default_subject, band_messages, mail_ready, mode='result', fargs=none, dl_args=none) %}
 <div id="score-bands" class="card" style="margin-top:1.25rem">
   <h2 style="margin-top:0">🎯 Teachers by Score Band</h2>
   <p class="sub" style="margin:-.4rem 0 1rem">Click a band to see the teachers whose feedback score falls in that range, highest first.
@@ -11,11 +11,26 @@
     </a>
     {% endfor %}
   </div>
+  <div class="band-download" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.9rem">
+    <span class="muted" style="font-size:.85rem">Download all bands (current filters):</span>
+    <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='xlsx', band='all', **(dl_args or {})) }}">⬇ Excel</a>
+    <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='pdf', band='all', **(dl_args or {})) }}">⬇ PDF</a>
+  </div>
 </div>
 
 {% for b in bands %}
 <div class="card band-panel band-{{ loop.index }}" data-band-panel="{{ b.key }}" style="margin-top:1rem" {% if b.key != band_default %}hidden{% endif %}>
-  <h2 style="margin-top:0">{{ b.label }} <span class="muted">· {{ b.count }}</span></h2>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap">
+    <h2 style="margin:0">{{ b.label }} <span class="muted">· {{ b.count }}</span></h2>
+    {% if b.rows %}
+    <span class="band-download" style="display:flex;gap:.4rem;align-items:center">
+      <span class="muted" style="font-size:.85rem">Download this list:</span>
+      <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='xlsx', band=b.key, **(dl_args or {})) }}">⬇ Excel</a>
+      <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='pdf', band=b.key, **(dl_args or {})) }}">⬇ PDF</a>
+    </span>
+    {% endif %}
+  </div>
+  <div style="height:.6rem"></div>
   {% if b.rows %}
   <form class="band-form" method="post" action="{{ url_for('hod.performance_bands_send') }}"
         onsubmit="return confirm('Send this email to the ticked teachers?');">

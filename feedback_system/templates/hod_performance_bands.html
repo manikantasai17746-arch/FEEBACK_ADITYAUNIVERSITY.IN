@@ -109,6 +109,13 @@
 
   <div class="card sbp-panel band-{{ bands.index(active) + 1 }}">
     <h2>{{ active.label }} <span class="muted">· {{ active.count }}</span></h2>
+    <div class="band-download" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:0 0 .8rem">
+      <span class="muted" style="font-size:.85rem">Download:</span>
+      <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='xlsx', band=active.key, **fargs) }}">⬇ This band · Excel</a>
+      <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='pdf', band=active.key, **fargs) }}">⬇ This band · PDF</a>
+      <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='xlsx', band='all', **fargs) }}">⬇ All bands · Excel</a>
+      <a class="btn btn-sm btn-ghost" href="{{ url_for('hod.performance_bands_download', fmt='pdf', band='all', **fargs) }}">⬇ All bands · PDF</a>
+    </div>
     {% if active.rows %}
     <form method="post" action="{{ url_for('hod.performance_bands_send') }}" id="band-mail-form"
           onsubmit="return confirm('Send this email to the ticked teachers?');">

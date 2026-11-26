@@ -18,7 +18,7 @@
   <a class="btn btn-sm {{ 'btn-accent' if category == 'second' else 'btn-ghost' }}" href="{{ url_for('hod.comparison', category='second', **filters_args) }}">Second Faculty</a>
   <a class="btn btn-sm {{ 'btn-accent' if category == 'lab' else 'btn-ghost' }}" href="{{ url_for('hod.comparison', category='lab', **filters_args) }}">Lab Faculty</a>
 </div>
-{{ hod_bands(bands, band_default, default_subject, band_messages, mail_ready, 'compare', filters_args) }}
+{{ hod_bands(bands, band_default, default_subject, band_messages, mail_ready, 'compare', filters_args, {'academic_year_id': filters_args.academic_year_id, 'semester_id': filters_args.semester_id, 'category': category or None}) }}
 {% endif %}
 <h2 style="margin:22px 0 8px;font-size:1.1rem">All teachers &mdash; closed rounds by subject</h2>
 {% endblock %}
