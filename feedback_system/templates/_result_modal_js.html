@@ -3,6 +3,10 @@
 (function(){
   var ov=document.getElementById('rm-overlay');
   if(!ov) return;
+  /* The page container is its own stacking layer (z-index 1), below the sticky menu bar
+     (z-index 50), so an overlay left inside it is partly hidden behind the menu.
+     Attach it to <body> instead so it always sits on top. */
+  if(ov.parentNode!==document.body) document.body.appendChild(ov);
   function close(){ ov.hidden=true; ov.style.display='none'; ov.innerHTML=''; document.body.style.overflow=''; }
   function items(){ return [].slice.call(ov.querySelectorAll('[data-rm-list] .rm-cm')); }
   function state(){ return ov.dataset.filter || 'all'; }
