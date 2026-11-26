@@ -30,16 +30,21 @@ def _hod_branches(user):
 
 
 def _semesters_with_data(branch_ids):
-    """Semesters that actually have a timetable in these departments, so the
-    semester filters list only what exists (not a fixed Sem 1-8)."""
+    """Semesters where a teacher was actually selected for feedback, i.e. a
+    feedback form exists in these departments. The semester filters list only
+    these (not a fixed Sem 1-8, and not semesters that only have a timetable)."""
     if not branch_ids:
         return []
     ph = ','.join('?' * len(branch_ids))
     return db.query(
-        f"""SELECT id, number, label FROM semesters
-            WHERE id IN (SELECT semester_id FROM timetables
-                          WHERE branch_id IN ({ph}) AND is_deleted=0)
-            ORDER BY number""", tuple(branch_ids))
+        f"""SELECT s.id, s.number, s.label FROM semesters s
+            WHERE s.id IN (SELECT semester_id FROM feedback_forms
+                            WHERE branch_id IN ({ph}) AND is_deleted=0
+                              AND semester_id IS NOT NULL)
+               OR s.number IN (SELECT snapshot_semester FROM feedback_forms
+                                WHERE branch_id IN ({ph}) AND is_deleted=0
+                                  AND snapshot_semester IS NOT NULL)
+            ORDER BY s.number""", tuple(branch_ids) * 2)
 
 
 @bp.route('/')
