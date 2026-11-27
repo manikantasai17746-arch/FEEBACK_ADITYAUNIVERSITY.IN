@@ -165,7 +165,7 @@ def current_user():
             row = db.query(
                 'SELECT id, role, username, email, name, roll, emp_code, is_active, '
                 'must_change_password FROM users WHERE id=?', (uid,), one=True)
-        if row and row['is_active']:
+        if row and row['is_active'] and row['role'] != 'teacher':
             user = dict(row)
             user.setdefault('email_verified', 0)
             user.setdefault('onboarding_complete', 0)

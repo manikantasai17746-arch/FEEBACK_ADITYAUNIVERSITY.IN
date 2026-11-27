@@ -33,9 +33,9 @@ from .security import (audit, clear_login_failures, hash_password, is_default_st
 logger = logging.getLogger(__name__)
 bp = Blueprint('lost_device', __name__)
 
-ROLES = {'student': 'Roll number', 'teacher': 'Employee code', 'hod': 'Employee ID',
+ROLES = {'student': 'Roll number', 'hod': 'Employee ID',
          'dean': 'Employee ID'}
-_LOGIN = {'student': 'auth.student_login', 'teacher': 'auth.teacher_login',
+_LOGIN = {'student': 'auth.student_login',
           'hod': 'auth.hod_login', 'dean': 'auth.dean_login'}
 GENERIC = 'We could not verify those details. Check them and try again.'
 ADMIN_STATE_SECONDS = 10 * 60

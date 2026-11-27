@@ -60,6 +60,9 @@ def _existing_user(ident, role):
 
 
 def _login_attempt(role, username, password, redirect_endpoint):
+    if role == 'teacher':
+        flash('Faculty sign-in is no longer available.', 'error')
+        return None
     key = f'{role}:{username}:{request.remote_addr}'
     remaining = login_locked(key)
     if remaining:
@@ -855,7 +858,7 @@ def admin_forgot_password():
 # --------------------------------------------------------------------------- #
 # Forgot password (code sent to the verified e-mail on file)
 # --------------------------------------------------------------------------- #
-_RESET_ROLES = {'student': 'Roll number', 'teacher': 'Employee code',
+_RESET_ROLES = {'student': 'Roll number',
                 'hod': 'Employee code', 'dean': 'Employee code'}
 _RESET_LOGIN = {'admin': 'auth.admin_login', 'teacher': 'auth.teacher_login',
                 'hod': 'auth.hod_login', 'dean': 'auth.dean_login'}
@@ -1110,19 +1113,8 @@ def admin_login():
 # --------------------------------------------------------------------------- #
 @bp.route('/teacher/login', methods=['GET', 'POST'])
 def teacher_login():
-    user = current_user()
-    if user and user['role'] == 'teacher':
-        return redirect(url_for('teacher.dashboard'))
-    if request.method == 'POST':
-        emp = (request.form.get('emp_code') or '').strip()
-        password = request.form.get('password') or ''
-        if not emp or not password:
-            flash('Employee code and password are required.', 'error')
-        else:
-            resp = _login_attempt('teacher', emp, password, 'teacher.dashboard')
-            if resp:
-                return resp
-    return _render_landing_login('teacher')
+    flash('Faculty sign-in is no longer available.', 'info')
+    return redirect(url_for('auth.landing'))
 
 
 # --------------------------------------------------------------------------- #
