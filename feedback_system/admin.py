@@ -997,8 +997,11 @@ def import_excel():
         ctx['preview'] = summarize(raw, report)
         return render_template('admin_import.html', **ctx)
 
-    fingerprint_data = json.dumps(
-        [branch_names, raw], ensure_ascii=False, separators=(',', ':'))
+    extras = report.get('extras') or {}
+    payload = [branch_names, raw]
+    if extras:       # old workbooks keep their old fingerprint; lab/room/second changes count
+        payload.append(sorted([list(k), v] for k, v in extras.items()))
+    fingerprint_data = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
     fingerprint = hashlib.sha256(fingerprint_data.encode('utf-8')).hexdigest()
     conn = db.get_db()
     import_id = None
@@ -1016,7 +1019,7 @@ def import_excel():
                 'academic year. Please wait for the current import to finish.']
             return render_template('admin_import.html', **ctx), 409
         stats = import_timetable(current_app, semester, year, progress=lambda *_: None,
-                                 raw_data=(raw, branch_names))
+                                 raw_data=(raw, branch_names, extras))
         complete_timetable_import(conn, import_id)
     except Exception as exc:
         current_app.logger.exception('Excel import failed')

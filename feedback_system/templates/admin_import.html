@@ -24,6 +24,10 @@
     <tr><td>Class sessions</td><td>{{ result.sessions }}</td></tr>
     <tr><td>Teachers in system</td><td>{{ result.teachers }}</td></tr>
     <tr><td>Students in system</td><td>{{ result.students }}</td></tr>
+    {% if result.lab_settings %}
+    <tr><td>Sections with lab / room set</td><td>{{ result.lab_settings }}</td></tr>
+    <tr><td>Second Faculty assigned</td><td>{{ result.second_faculty }}</td></tr>
+    {% endif %}
   </tbody></table></div>
   {% for w in result.warnings %}<p class="sub">⚠ {{ w }}</p>{% endfor %}
   <p><a class="btn btn-primary btn-sm" href="{{ url_for('admin.timetables') }}">View timetables</a>
@@ -41,6 +45,12 @@
     <tr><td>Subjects</td><td>{{ preview.subjects }}</td></tr>
     <tr><td>Teachers</td><td>{{ preview.teachers }}</td></tr>
     <tr><td>Students</td><td>{{ preview.students }}</td></tr>
+    {% if preview.has_extras %}
+    <tr><td>Sections with a lab</td><td>{{ preview.lab_sessions }}</td></tr>
+    <tr><td>Sections without a lab</td><td>{{ preview.no_lab_sessions }}</td></tr>
+    <tr><td>Second Faculty (lab sections)</td><td>{{ preview.second_faculty }}</td></tr>
+    <tr><td>Sections with a room</td><td>{{ preview.rooms }}</td></tr>
+    {% endif %}
   </tbody></table></div>
   <p class="sub">Sheets: {% for name, n in preview.sheets %}{{ name }} ({{ n }}){% if not loop.last %}, {% endif %}{% endfor %}</p>
   {% for w in preview.warnings %}<p class="sub">⚠ {{ w }}</p>{% endfor %}
@@ -66,7 +76,9 @@
         <input type="file" name="workbook" accept=".xlsx" required></label>
     </div>
     <p class="sub">Each sheet is one branch. Required columns (any order):
-      <em>Time Table, Course Code, Course Name, Emp.Code, Emp.Name, Roll.No</em>.</p>
+      <em>Time Table, Course Code, Course Name, Emp.Code, Emp.Name, Roll.No</em>.
+      Optional: <em>Lab</em> (YES/NO), <em>Second Emp.Code</em>, <em>Second Emp.Name</em>,
+      <em>Room No</em> &mdash; imported as lab availability, Second Faculty and room.</p>
     <p>
       <button class="btn btn-ghost" type="submit" name="action" value="check">Check file</button>
       <button class="btn btn-primary" type="submit" name="action" value="import"

@@ -40,7 +40,7 @@ def main():
         return
     app = create_app({'AUTO_IMPORT': False})
     with app.app_context():
-        print('Imported:', import_timetable(app, sem, year, raw_data=(raw, names)))
+        print('Imported:', import_timetable(app, sem, year, raw_data=(raw, names, report.get('extras'))))
 
 
 if __name__ == '__main__':
