@@ -442,3 +442,10 @@ Known / not done:
 - Clicking a **PDF** download on the score-band lists opens a dialog asking for an optional notice (max 1000 characters). **Download PDF** prints the notice in a box under the header; **Skip** downloads without one; **Cancel** closes the dialog. Excel downloads are unchanged. Without JavaScript the PDF link still downloads directly.
 - Server: `GET /hod/performance/bands/download.pdf?...&notice=<text>`; control characters are stripped, the text is cut to 1000 characters and escaped when drawn. Files: `static/js/band_pdf_notice.js` (new), `hod.py`, `reports.py` (`notice` argument), the four band templates, `tests/test_hod_band_downloads.py` (+2 tests). No schema change, no dependency.
 - Tests: `tests/test_hod_band_downloads.py` and `tests/test_hod_category_pdf.py` gave 11 passed (SQLite, stand-ins for `pyotp`/`segno` outside the repo). The dialog itself was not exercised in a real browser (only `node --check` on the script).
+
+## Timetable import: Lab / Second Emp / Room No (2026-11-27)
+- `import_data.py` now reads optional columns `Lab` (YES/NO), `Second Emp.Code`, `Second Emp.Name`, `Room No`. Workbooks without them import exactly as before.
+- Per teaching section it fills `teacher_subject_settings` (room, `lab_status` available/none) and, for lab sections, a confirmed `second_faculty_assignments` row (`source='import'`). Second Faculty accounts are created if missing. No schema change.
+- Existing room/lab values are never overwritten; re-importing is idempotent. Second Faculty equal to Main Faculty is skipped.
+- Admin import page shows the new counts; `admin.py` passes the extras and includes them in the duplicate-file fingerprint (old workbooks keep their old fingerprint).
+- Tests: `tests/test_import_lab_room_second.py` (4 tests, passed via a manual runner; pytest and some dependencies were not installable offline, so the full suite was NOT run).

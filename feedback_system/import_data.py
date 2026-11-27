@@ -140,6 +140,17 @@ REQUIRED_HEADERS = {
     'emp_name': ('emp.name', 'emp name', 'empname'),
     'roll': ('roll.no', 'roll no', 'rollno', 'roll'),
 }
+# Optional columns.  Teachers no longer log in to set these, so when the workbook
+# carries them the import records lab availability, room and Second Faculty.
+OPTIONAL_HEADERS = {
+    'lab': ('lab', 'lab available', 'lab?'),
+    'second_emp_code': ('second emp.code', 'second emp code', 'second empcode',
+                        'second faculty emp.code', 'second faculty code'),
+    'second_emp_name': ('second emp.name', 'second emp name', 'second empname',
+                        'second faculty emp.name', 'second faculty name'),
+    'room': ('room no', 'room no.', 'room', 'room number', 'lab room no'),
+}
+_YES = {'yes', 'y', 'true', '1', 'available'}
 ACADEMIC_YEAR_RE = re.compile(r'^\d{4}-\d{2}$')
 
 
@@ -407,8 +418,40 @@ def _find_header(rows):
                     cols[field] = j
                     break
         if len(cols) == len(REQUIRED_HEADERS):
+            for field, names in OPTIONAL_HEADERS.items():
+                for j, c in enumerate(cells):
+                    if c in names:
+                        cols[field] = j
+                        break
             return i, cols
     return None, {}
+
+
+def _collect_extra(extras, warnings, key, vals):
+    """Fold one row's Lab / Room No / Second Emp into its teaching session.
+
+    Every student row of a session repeats the same values.  The first
+    non-empty value wins; a different later value is reported, not applied.
+    """
+    lab = vals.get('lab', '').strip().lower()
+    new = {
+        'lab': None if not lab else (lab in _YES),
+        'room': vals.get('room', '').strip(),
+        'second_code': vals.get('second_emp_code', '').strip(),
+        'second_name': vals.get('second_emp_name', '').strip(),
+    }
+    cur = extras.setdefault(key, {'lab': None, 'room': '', 'second_code': '',
+                                  'second_name': ''})
+    for field, value in new.items():
+        if value in (None, ''):
+            continue
+        if cur[field] in (None, ''):
+            cur[field] = value
+        elif cur[field] != value:
+            msg = (f'{key[0]} / {key[1]} / {key[2]}: different {field.replace("_", " ")} '
+                   f'values in the same section ({cur[field]!r} kept, {value!r} ignored).')
+            if msg not in warnings and len(warnings) < 20:
+                warnings.append(msg)
 
 
 def read_workbook(source):
@@ -426,7 +469,8 @@ def read_workbook(source):
             [f'This is not a readable .xlsx workbook ({type(exc).__name__}).'])
 
     raw, branch_names = [], {}
-    report = {'sheets': [], 'skipped_rows': 0, 'warnings': []}
+    report = {'sheets': [], 'skipped_rows': 0, 'warnings': [], 'extras': {}}
+    extras = report['extras']          # (dept, timetable, course, emp) -> lab/room/second
     try:
         for ws in wb:
             head = list(ws.iter_rows(min_row=1, max_row=12, values_only=True))
@@ -447,6 +491,10 @@ def read_workbook(source):
                 if not all(vals[f] for f in ('roll', 'emp_code', 'course_code', 'timetable')):
                     report['skipped_rows'] += 1
                     continue
+                if 'lab' in vals or 'room' in vals or 'second_emp_code' in vals:
+                    _collect_extra(extras, report['warnings'],
+                                   (ws.title, vals['timetable'], vals['course_code'],
+                                    vals['emp_code']), vals)
                 raw.append((ws.title, vals['timetable'], vals['course_code'],
                             vals['course_name'] or vals['course_code'],
                             vals['emp_code'], vals['emp_name'] or vals['emp_code'],
@@ -468,6 +516,7 @@ def read_workbook(source):
 
 def summarize(raw, report):
     """Counts shown on the 'Check file' preview (nothing is written)."""
+    extras = report.get('extras') or {}
     return {
         'rows': len(raw),
         'branches': len({r[0] for r in raw}),
@@ -477,6 +526,12 @@ def summarize(raw, report):
         'students': len({r[6] for r in raw}),
         'sheets': report['sheets'],
         'warnings': report['warnings'],
+        'lab_sessions': sum(1 for e in extras.values() if e['lab']),
+        'no_lab_sessions': sum(1 for e in extras.values() if e['lab'] is False),
+        'second_faculty': len({(k, e['second_code']) for k, e in extras.items()
+                               if e['lab'] and e['second_code']}),
+        'rooms': sum(1 for e in extras.values() if e['room']),
+        'has_extras': bool(extras),
     }
 
 
@@ -509,14 +564,17 @@ def import_timetable(app, semester_number=3, academic_year=None, progress=print,
     conn = db.get_db()
 
     # --- 1. read workbook -------------------------------------------------- #
+    extras = {}
     if raw_data is not None:
-        raw, branch_names = raw_data
+        raw, branch_names = raw_data[0], raw_data[1]
+        extras = raw_data[2] if len(raw_data) > 2 and raw_data[2] else {}
         label = 'uploaded workbook'
     else:
         source = source or app.config['XLSX_PATH']
         if isinstance(source, str) and not os.path.exists(source):
             raise FileNotFoundError(f'Timetable workbook not found: {source}')
         raw, branch_names, _report = read_workbook(source)
+        extras = _report.get('extras') or {}
         label = os.path.basename(source) if isinstance(source, str) else 'uploaded workbook'
     progress(f'Read {len(raw)} timetable rows from {label}')
 
@@ -558,6 +616,10 @@ def import_timetable(app, semester_number=3, academic_year=None, progress=print,
     teacher_users = {}
     for dept, tt, cc, cn, emp, empname, roll in raw:
         teacher_users.setdefault(emp, empname)
+    for ex in extras.values():                 # Second Faculty need an account too
+        if ex['lab'] and ex['second_code']:
+            teacher_users.setdefault(ex['second_code'],
+                                     ex['second_name'] or ex['second_code'])
     conn.executemany(
         """INSERT OR IGNORE INTO users(role, username, name, emp_code, password_hash)
            VALUES('teacher', ?, ?, ?, ?)""",
@@ -638,11 +700,59 @@ def import_timetable(app, semester_number=3, academic_year=None, progress=print,
     n_elig = conn.execute('SELECT COUNT(*) FROM session_students').fetchone()[0]
     progress(f'Session eligibility rows: {n_elig}')
 
+    # 3i. lab availability, room and Second Faculty straight from the workbook.
+    # Existing values (set earlier) are never overwritten.
+    n_lab = n_second = 0
+    if extras:
+        sess_info = {row['id']: row for row in conn.execute(
+            """SELECT cs.id, cs.timetable_id, cs.subject_code, cs.subject_name,
+                      cs.period_no, cs.teacher_user_id, t.branch_id
+               FROM class_sessions cs JOIN timetables t ON t.id = cs.timetable_id""")}
+        for (dept, tt, cc, emp), ex in extras.items():
+            sid = session_id.get((dept, tt, cc, emp))
+            info = sess_info.get(sid)
+            if info is None or info['teacher_user_id'] is None:
+                continue
+            if ex['lab'] is not None or ex['room']:
+                status = None if ex['lab'] is None else ('available' if ex['lab'] else 'none')
+                conn.execute(
+                    """INSERT OR IGNORE INTO teacher_subject_settings(
+                           session_id, teacher_user_id, room, lab_available, lab_status)
+                       VALUES(?,?,?,?,?)""",
+                    (sid, info['teacher_user_id'], ex['room'] or None,
+                     1 if ex['lab'] else 0, status))
+                if status:
+                    conn.execute(
+                        """UPDATE teacher_subject_settings SET lab_status=?, lab_available=?
+                           WHERE session_id=? AND lab_status IS NULL""",
+                        (status, 1 if ex['lab'] else 0, sid))
+                if ex['room']:
+                    conn.execute(
+                        """UPDATE teacher_subject_settings SET room=?
+                           WHERE session_id=? AND (room IS NULL OR room='')""",
+                        (ex['room'], sid))
+                n_lab += 1
+            second = ex['second_code']
+            if ex['lab'] and second and second != emp and second in teacher_id:
+                conn.execute(
+                    """INSERT OR IGNORE INTO second_faculty_assignments(
+                           academic_year_id, semester_id, branch_id, timetable_id,
+                           session_id, subject_code, subject_name, main_emp_code,
+                           main_teacher_user_id, second_emp_code, second_teacher_user_id,
+                           period_no, room, status, source)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'confirmed','import')""",
+                    (ay_id, sem_id, info['branch_id'], info['timetable_id'], sid,
+                     cc, info['subject_name'], emp, info['teacher_user_id'], second,
+                     teacher_id[second], info['period_no'], ex['room'] or None))
+                n_second += 1
+        progress(f'Lab/room settings: {n_lab}; Second Faculty assignments: {n_second}')
+
     conn.commit()
     return {
         'rows': len(raw), 'branches': len(branch_id), 'timetables': len(timetable_id),
         'sessions': len(session_id), 'teachers': len(teacher_id),
         'students': len(student_id), 'enrollments': len(student_tt),
+        'lab_settings': n_lab, 'second_faculty': n_second,
     }
 
 
