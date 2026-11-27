@@ -70,7 +70,6 @@
         <a class="{{ 'active' if ep == 'dean.my_hods' }}"{% if ep == 'dean.my_hods' %} aria-current="page"{% endif %} href="{{ url_for('dean.my_hods') }}">My HODs</a>
       {% else %}
         <a href="{{ url_for('auth.student_login') }}">Student</a>
-        <a href="{{ url_for('auth.teacher_login') }}">Teacher</a>
         <a href="{{ url_for('auth.hod_login') }}">HOD</a>
         <a href="{{ url_for('auth.dean_login') }}">Dean</a>
         <a href="{{ url_for('auth.admin_login') }}">Admin</a>

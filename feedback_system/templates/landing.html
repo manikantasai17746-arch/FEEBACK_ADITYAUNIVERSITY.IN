@@ -138,7 +138,6 @@
     <a href="#contact" data-close-drawer>Contact</a>
     <hr>
     <a href="#" class="js-open-login" data-role="student" data-close-drawer>Student sign in</a>
-    <a href="#" class="js-open-login" data-role="teacher" data-close-drawer>Faculty sign in</a>
     <a href="#" class="js-open-login" data-role="hod" data-close-drawer>HOD sign in</a>
     <a href="#" class="js-open-login" data-role="dean" data-close-drawer>Dean sign in</a>
     <a href="#" class="js-open-login" data-role="admin" data-close-drawer>Admin sign in</a>
@@ -254,17 +253,13 @@
   <div class="block-inner portals">
     <div class="portals-head">
       <h2 class="block-title">Choose how you’re signing in</h2>
-      <p class="block-sub">Students sign in with a roll number. Faculty, HODs and Deans use an employee code. Admins use an email address.</p>
+      <p class="block-sub">Students sign in with a roll number. HODs and Deans use an employee code. Admins use an email address.</p>
       <!-- Role picture: shows the character for the row you hover. To use a photo later, replace each
            <svg class="role-art"> with <img class="role-art" src="..." alt=""> (keep the .role-art class). -->
       <div class="role-stage" id="roleStage" aria-hidden="true">
         <div class="role-pane on">
           <svg class="role-art" viewBox="0 0 200 200" aria-hidden="true" focusable="false"><rect width="200" height="200" fill="#CFE3FA"/><circle cx="100" cy="112" r="80" fill="#071E3D"/><circle cx="94" cy="106" r="80" fill="#fff" stroke="#071E3D" stroke-width="3.5"/><path d="M46 200C46 152 70 138 100 138C130 138 154 152 154 200Z" fill="#04529B" stroke="#071E3D" stroke-width="3.5" stroke-linejoin="round"/><path d="M90 140L88 166M110 140L112 166" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="100" cy="102" r="34" fill="#f2c9a0" stroke="#071E3D" stroke-width="3.5"/><circle cx="89" cy="104" r="3.2" fill="#071E3D"/><circle cx="111" cy="104" r="3.2" fill="#071E3D"/><path d="M91 116Q100 125 109 116" fill="none" stroke="#071E3D" stroke-width="3" stroke-linecap="round"/><circle cx="81" cy="114" r="5" fill="#ff8fa3" opacity=".65"/><circle cx="119" cy="114" r="5" fill="#ff8fa3" opacity=".65"/><path d="M66 100C60 58 140 56 134 100C126 82 92 76 66 100Z" fill="#1b1410" stroke="#071E3D" stroke-width="3.5" stroke-linejoin="round"/><path d="M66 98C60 50 140 50 134 98" fill="none" stroke="#071E3D" stroke-width="7" stroke-linecap="round"/><rect x="56" y="92" width="14" height="26" rx="6" fill="#F57025" stroke="#071E3D" stroke-width="3"/><rect x="130" y="92" width="14" height="26" rx="6" fill="#F57025" stroke="#071E3D" stroke-width="3"/><g transform="rotate(12 150 156)"><rect x="136" y="132" width="28" height="46" rx="7" fill="#fff" stroke="#071E3D" stroke-width="3"/><path d="M150 160C140 152 144 146 150 151C156 146 160 152 150 160Z" fill="#ff5d7a"/></g><path d="M40 41L43.3 48.7L51 52L43.3 55.3L40 63L36.7 55.3L29 52L36.7 48.7Z" fill="#FFD23F" stroke="#071E3D" stroke-width="2.5" stroke-linejoin="round"/><path d="M168 32L170.4 37.6L176 40L170.4 42.4L168 48L165.6 42.4L160 40L165.6 37.6Z" fill="#FFD23F" stroke="#071E3D" stroke-width="2.5" stroke-linejoin="round"/></svg>
           <span class="role-tag">main character</span>
-        </div>
-        <div class="role-pane">
-          <svg class="role-art" viewBox="0 0 200 200" aria-hidden="true" focusable="false"><rect width="200" height="200" fill="#FFE0CC"/><circle cx="100" cy="112" r="80" fill="#071E3D"/><circle cx="94" cy="106" r="80" fill="#fff" stroke="#071E3D" stroke-width="3.5"/><g transform="rotate(6 154 56)"><rect x="126" y="28" width="56" height="42" rx="5" fill="#1f6f54" stroke="#071E3D" stroke-width="3"/><text x="154" y="56" text-anchor="middle" font-size="20" font-weight="500" fill="#fff" font-family="sans-serif">A+</text></g><path d="M46 200C46 152 70 138 100 138C130 138 154 152 154 200Z" fill="#F57025" stroke="#071E3D" stroke-width="3.5" stroke-linejoin="round"/><path d="M100 140L92 176L100 184L108 176Z" fill="#fff" stroke="#071E3D" stroke-width="3" stroke-linejoin="round"/><circle cx="100" cy="102" r="34" fill="#c68e63" stroke="#071E3D" stroke-width="3.5"/><circle cx="89" cy="104" r="3.2" fill="#071E3D"/><circle cx="111" cy="104" r="3.2" fill="#071E3D"/><path d="M91 116Q100 125 109 116" fill="none" stroke="#071E3D" stroke-width="3" stroke-linecap="round"/><circle cx="81" cy="114" r="5" fill="#ff8fa3" opacity=".65"/><circle cx="119" cy="114" r="5" fill="#ff8fa3" opacity=".65"/><circle cx="100" cy="60" r="15" fill="#2a1a12" stroke="#071E3D" stroke-width="3.5"/><path d="M66 100C60 58 140 56 134 100C126 82 92 76 66 100Z" fill="#2a1a12" stroke="#071E3D" stroke-width="3.5" stroke-linejoin="round"/><circle cx="88" cy="103" r="12" fill="#fff" fill-opacity=".45" stroke="#071E3D" stroke-width="3"/><circle cx="112" cy="103" r="12" fill="#fff" fill-opacity=".45" stroke="#071E3D" stroke-width="3"/><path d="M38 52L41 59L48 62L41 65L38 72L35 65L28 62L35 59Z" fill="#FFD23F" stroke="#071E3D" stroke-width="2.5" stroke-linejoin="round"/><path d="M170 119L172.7 125.3L179 128L172.7 130.7L170 137L167.3 130.7L161 128L167.3 125.3Z" fill="#FFD23F" stroke="#071E3D" stroke-width="2.5" stroke-linejoin="round"/></svg>
-          <span class="role-tag">big brain</span>
         </div>
         <div class="role-pane">
           <svg class="role-art" viewBox="0 0 200 200" aria-hidden="true" focusable="false"><rect width="200" height="200" fill="#CDEEDD"/><circle cx="100" cy="112" r="80" fill="#071E3D"/><circle cx="94" cy="106" r="80" fill="#fff" stroke="#071E3D" stroke-width="3.5"/><path d="M46 200C46 152 70 138 100 138C130 138 154 152 154 200Z" fill="#137A55" stroke="#071E3D" stroke-width="3.5" stroke-linejoin="round"/><path d="M84 140L92 176M116 140L108 176" stroke="#fff" stroke-width="3" stroke-linecap="round"/><rect x="92" y="160" width="16" height="22" rx="3" fill="#fff" stroke="#071E3D" stroke-width="2.5"/><circle cx="100" cy="102" r="34" fill="#8d5a3b" stroke="#071E3D" stroke-width="3.5"/><circle cx="89" cy="104" r="3.2" fill="#071E3D"/><circle cx="111" cy="104" r="3.2" fill="#071E3D"/><path d="M91 116Q100 125 109 116" fill="none" stroke="#071E3D" stroke-width="3" stroke-linecap="round"/><circle cx="81" cy="114" r="5" fill="#ff8fa3" opacity=".65"/><circle cx="119" cy="114" r="5" fill="#ff8fa3" opacity=".65"/><path d="M66 100C60 60 134 54 134 96C124 84 96 72 66 100Z" fill="#14100e" stroke="#071E3D" stroke-width="3.5" stroke-linejoin="round"/><rect x="56" y="166" width="88" height="30" rx="5" fill="#d8dfec" stroke="#071E3D" stroke-width="3"/><circle cx="100" cy="181" r="5" fill="#137A55" stroke="#071E3D" stroke-width="2"/><path d="M40 60L43 67L50 70L43 73L40 80L37 73L30 70L37 67Z" fill="#FFD23F" stroke="#071E3D" stroke-width="2.5" stroke-linejoin="round"/><path d="M166 84L168.4 89.6L174 92L168.4 94.4L166 100L163.6 94.4L158 92L163.6 89.6Z" fill="#FFD23F" stroke="#071E3D" stroke-width="2.5" stroke-linejoin="round"/><path d="M152 52l8 8 14-16" fill="none" stroke="#137A55" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -285,11 +280,6 @@
         <span class="role-dot" aria-hidden="true"></span>
         <span class="role-text"><strong>Student</strong><span>Give feedback, view status and track your submissions.</span></span>
         <button type="button" class="role-go js-open-login" data-role="student" aria-label="Sign in as Student">Sign in<svg class="role-arrow" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
-      </div>
-      <div class="role role-faculty">
-        <span class="role-dot" aria-hidden="true"></span>
-        <span class="role-text"><strong>Faculty</strong><span>View published results, track performance and download reports.</span></span>
-        <button type="button" class="role-go js-open-login" data-role="teacher" aria-label="Sign in as Faculty">Sign in<svg class="role-arrow" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
       </div>
       <div class="role role-hod">
         <span class="role-dot" aria-hidden="true"></span>
@@ -499,29 +489,6 @@
       </form>
     </div>
 
-    <!-- Faculty / Teacher -->
-    <div class="lp-login-panel{% if active_login_role == 'teacher' %} active{% endif %}" data-role="teacher">
-      <p class="lp-login-eyebrow">FACULTY LOGIN</p>
-      <h2 id="lpLoginTitle-teacher">Welcome back</h2>
-      <p class="lp-login-sub">Scan your staff ID card or type your employee code to view your published feedback results.</p>
-      <button type="button" class="lp-btn lp-btn-scan" id="lpScanTeacher">Scan ID Card</button>
-      <div class="lp-login-or">or enter it manually</div>
-      <form method="post" action="{{ url_for('auth.teacher_login') }}" autocomplete="on" class="lp-login-form">
-        {{ login_fields('teacher') }}
-        <div class="field">
-          <label for="lp_emp_t">Employee Code</label>
-          <input type="text" id="lp_emp_t" name="emp_code" value="{{ login_values.get('emp_code', '') if login_role == 'teacher' and login_values else '' }}" placeholder="" required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
-          <div class="scan-ok" id="lpScanOkTeacher" style="display:none">✓ ID card scanned — now enter your password.</div>
-        </div>
-        <div class="field">
-          <label for="lp_t_pw">Password</label>
-          <input type="password" id="lp_t_pw" name="password" required autocomplete="current-password" maxlength="128">
-        </div>
-        <button class="lp-btn lp-btn-primary lp-btn-block" type="submit">Log In</button>
-        <p class="lp-login-forgot"><a href="{{ url_for('auth.forgot_password', role='teacher') }}">Forgot password?</a></p>
-      </form>
-    </div>
-
     <!-- HOD -->
     <div class="lp-login-panel{% if active_login_role == 'hod' %} active{% endif %}" data-role="hod">
       <p class="lp-login-eyebrow">HOD LOGIN</p>
@@ -674,8 +641,6 @@
   }
   var sBtn = document.getElementById('lpScanStudent');
   if (sBtn) sBtn.addEventListener('click', function () { scanInto('lp_roll', 'lpScanOkStudent'); });
-  var tBtn = document.getElementById('lpScanTeacher');
-  if (tBtn) tBtn.addEventListener('click', function () { scanInto('lp_emp_t', 'lpScanOkTeacher'); });
 
   // Eye (show/hide) button on every password field
   var EYE_SVG =

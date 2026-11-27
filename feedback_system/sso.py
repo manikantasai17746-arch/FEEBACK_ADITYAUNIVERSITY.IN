@@ -73,7 +73,7 @@ def providers_for(role):
     return enabled_providers()
 
 
-RECOVERY_ROLES = ('student', 'teacher', 'hod', 'dean')
+RECOVERY_ROLES = ('student', 'hod', 'dean')
 
 
 def recovery_providers_for(role):
