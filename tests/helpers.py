@@ -158,5 +158,18 @@ def ensure_personal_student_password(app, roll):
 
 
 def login_student(client, roll):
-    ensure_personal_student_password(client.application, roll)
-    return login(client, '/student/login', {'roll': roll, 'password': STUDENT_PERSONAL_PASSWORD})
+    """Sign a student in through the Microsoft callback (the only student sign-in).
+
+    Microsoft itself is replaced by stubs: the callback receives a verified college e-mail
+    ``<roll>@<STUDENT_EMAIL_DOMAIN>`` exactly as it would after a real sign-in.
+    """
+    from unittest import mock
+    from feedback_system import sso
+    email = f"{roll.lower()}@{client.application.config['STUDENT_EMAIL_DOMAIN']}"
+    with client.session_transaction() as s:
+        s['student_sso'] = {'state': 'test-state', 'nonce': 'test-nonce', 'next': None}
+    with mock.patch.object(sso, 'student_microsoft_ready', return_value=True), \
+            mock.patch.object(sso, 'client_credentials', return_value=('cid', 'secret')), \
+            mock.patch.object(sso, 'fetch_claims', return_value={}), \
+            mock.patch.object(sso, 'verified_email', return_value=email):
+        return client.get('/student/sso/callback', query_string={'state': 'test-state', 'code': 'c'})

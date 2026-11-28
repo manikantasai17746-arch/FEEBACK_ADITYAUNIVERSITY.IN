@@ -1041,51 +1041,107 @@ def _render_landing_login(role):
 # --------------------------------------------------------------------------- #
 @bp.route('/student/login', methods=['GET', 'POST'])
 def student_login():
+    """Student sign-in page: Microsoft (college account) only. No roll number/password."""
     user = current_user()
     if user and user['role'] == 'student':
         return redirect(url_for('student.dashboard'))
     if request.method == 'POST':
-        roll = (request.form.get('roll') or '').strip().upper()
-        password = request.form.get('password') or ''
-        if not roll or not password:
-            flash('Roll number and password are required.', 'error')
-        else:
-            resp = _login_attempt('student', roll, password, 'student.dashboard')
-            if resp:
-                flash('Welcome back!', 'success')
-                return resp
+        # The old roll-number + password form no longer exists.
+        return redirect(url_for('auth.student_login'))
     return _render_landing_login('student')
+
+
+def _student_sso_redirect_uri():
+    return url_for('auth.student_sso_callback', _external=True)
+
+
+def _student_login_failed(message):
+    flash(message, 'error')
+    return redirect(url_for('auth.student_login'))
+
+
+@bp.route('/student/sso/start')
+def student_sso_start():
+    """Send the student to the college Microsoft sign-in page."""
+    user = current_user()
+    if user and user['role'] == 'student':
+        return redirect(url_for('student.dashboard'))
+    if not sso.student_microsoft_ready():
+        return _student_login_failed(
+            'Microsoft sign-in is not available right now. Please contact the administrator.')
+    state = secrets.token_urlsafe(24)
+    nonce = secrets.token_urlsafe(24)
+    target = request.args.get('next')
+    session['student_sso'] = {'state': state, 'nonce': nonce,
+                              'next': target if is_safe_next(target) else None}
+    return redirect(sso.authorize_url(sso.MICROSOFT, _student_sso_redirect_uri(), state, nonce))
+
+
+@bp.route('/student/sso/callback')
+def student_sso_callback():
+    """Finish the Microsoft sign-in and log the matching student in.
+
+    The roll number is the part before ``@`` in the verified college e-mail
+    (``26b21cs073@adityauniversity.in`` -> ``26B21CS073``). Only students that already
+    exist are signed in; no account is ever created here.
+    """
+    pending = session.pop('student_sso', None) or {}
+    key = f'student-sso:{request.remote_addr}'
+    remaining = login_locked(key)
+    if remaining:
+        return _student_login_failed(
+            f'Too many failed attempts. Please try again in {remaining} seconds.')
+
+    def fail(message):
+        register_login_failure(key, current_app.config['LOGIN_MAX_ATTEMPTS'],
+                               current_app.config['LOGIN_LOCKOUT_SECONDS'])
+        return _student_login_failed(message)
+
+    if (not pending or not sso.student_microsoft_ready()
+            or not hmac.compare_digest(pending.get('state', ''), request.args.get('state', ''))):
+        return _student_login_failed('That sign-in link has expired. Please try again.')
+    if request.args.get('error'):
+        return _student_login_failed('Sign-in was cancelled. Please try again.')
+    code = request.args.get('code') or ''
+    if not code:
+        return _student_login_failed('Sign-in did not complete. Please try again.')
+    try:
+        claims = sso.fetch_claims(sso.MICROSOFT, code, _student_sso_redirect_uri())
+        email = sso.verified_email(sso.MICROSOFT, claims, pending['nonce'],
+                                   sso.client_credentials(sso.MICROSOFT)[0])
+    except sso.SSOError as exc:
+        return fail(str(exc))
+    domain = (current_app.config.get('STUDENT_EMAIL_DOMAIN') or '').strip().lower().lstrip('@')
+    if not domain or not is_college_email(email):
+        return fail(f'Please sign in with your college Microsoft account '
+                    f'(@{domain or "adityauniversity.in"}).')
+    roll = email.rpartition('@')[0].strip().upper()
+    student = db.query(
+        "SELECT * FROM users WHERE role='student' AND is_active=1 AND UPPER(username)=?",
+        (roll,), one=True) if roll else None
+    if not student:
+        return fail('We could not find a student account for this Microsoft account. '
+                    'Please contact your administrator.')
+    taken = db.query('SELECT id FROM users WHERE LOWER(email)=? AND id<>? LIMIT 1',
+                     (email, student['id']), one=True)
+    if taken:
+        return fail('This email address is linked to another account. '
+                    'Please contact your administrator.')
+    clear_login_failures(key)
+    db.execute('UPDATE users SET email=?, email_verified=1, must_change_password=0 WHERE id=?',
+               (email, student['id']))
+    login_user(student)
+    audit('user.microsoft_login', 'users', student['id'], 'Student signed in with Microsoft')
+    flash('Welcome!', 'success')
+    nxt = pending.get('next')
+    return redirect(nxt if is_safe_next(nxt) else url_for('student.dashboard'))
 
 
 @bp.route('/scan-login', methods=['POST'])
 def scan_login():
-    """Student ID-card scan: log straight in (JSON in/out, CSRF-protected)."""
-    code = (request.form.get('code') or '').strip().upper()
-    if not current_app.config.get('SCAN_LOGIN', True) or not code or len(code) > 40:
-        return jsonify(ok=False, fallback=True)
-    key = f'scan:{request.remote_addr}'
-    remaining = login_locked(key)
-    if remaining:
-        return jsonify(ok=False, fallback=True,
-                       message=f'Too many attempts. Try again in {remaining} seconds.')
-    user = _existing_user(code, 'student')
-    if not user:
-        register_login_failure(key, current_app.config['LOGIN_MAX_ATTEMPTS'],
-                               current_app.config['LOGIN_LOCKOUT_SECONDS'])
-        return jsonify(ok=False, fallback=True,
-                       message='This ID card was not found. Type your roll number instead.')
-    if (current_app.config.get('SCAN_LOGIN_ONLY_DEFAULT', True)
-            and not is_default_student_hash(user['password_hash'])):
-        # Personal password set: scanning only fills the roll number.
-        return jsonify(ok=False, fallback=True, roll=user['username'])
-    clear_login_failures(key)
-    if user['must_change_password']:
-        # Same rule as password login (see _login_attempt): students are not forced.
-        db.execute('UPDATE users SET must_change_password=0 WHERE id=?', (user['id'],))
-    login_user(user)
-    audit('user.scan_login', 'users', user['id'], 'Student logged in by ID-card scan')
-    flash('Welcome back!', 'success')
-    return jsonify(ok=True, redirect=_safe_next('student.dashboard'))
+    """ID-card scan login is retired: students sign in with Microsoft only."""
+    return jsonify(ok=False, fallback=True,
+                   message='Please sign in with your college Microsoft account.')
 
 
 # --------------------------------------------------------------------------- #
