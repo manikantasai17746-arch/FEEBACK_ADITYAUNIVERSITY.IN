@@ -47,24 +47,20 @@ def _aggregate_rating_distribution(stats):
     for q in stats:
         if q.get('qtype') == 'text':
             continue
+        new_scale = scoring.is_new_scale(q.get('options'))
         for o in q.get('options') or []:
-            marks = _marks_for_option(o)
+            marks = ((new_scale and scoring.new_scale_points(o.get('label')))
+                     or _marks_for_option(o))
             key = (o.get('label') or 'Option').strip()
             if key not in buckets:
                 buckets[key] = {'label': key, 'count': 0, 'marks': marks}
             buckets[key]['count'] += o.get('count') or 0
             if buckets[key]['marks'] is None and marks is not None:
                 buckets[key]['marks'] = marks
-    order = ['excellent', 'very good', 'good', 'average', 'poor', 'bad', 'very poor']
     items = list(buckets.values())
 
     def sort_key(it):
-        lab = (it['label'] or '').lower()
-        for i, o in enumerate(order):
-            if o in lab:
-                return i
-        m = it.get('marks')
-        return 10 - (m or 0)
+        return (scoring.rating_rank(it['label']), -(it.get('marks') or 0))
 
     items.sort(key=sort_key)
     total = sum(i['count'] for i in items) or 0

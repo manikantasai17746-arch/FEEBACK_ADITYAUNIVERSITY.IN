@@ -10,7 +10,7 @@ import io
 import os
 from datetime import datetime, timedelta, timezone
 
-from . import db
+from . import db, scoring
 from .security import audit
 
 
@@ -1916,10 +1916,8 @@ def default_question_template():
 # --------------------------------------------------------------------------- #
 SCALE_PRESETS = {
     'five_point': {
-        'label': 'Excellent · Very Good · Good · Average · Poor',
-        'options': [{'label': 'Excellent', 'value': 5}, {'label': 'Very Good', 'value': 4},
-                    {'label': 'Good', 'value': 3}, {'label': 'Average', 'value': 2},
-                    {'label': 'Poor', 'value': 1}]},
+        'label': 'Excellent · Good · Average · Below average · Poor',
+        'options': scoring.five_point_options()},
     'four_point': {
         'label': 'Excellent · Good · Bad · Very poor',
         'options': [{'label': 'Excellent', 'value': 4}, {'label': 'Good', 'value': 3},
@@ -1953,10 +1951,20 @@ def _clean_set_questions(questions):
     return out
 
 
+_OLD_FIVE_POINT = ['excellent', 'very good', 'good', 'average', 'poor']
+
+
+def _current_scale(options):
+    """Saved question sets made with the old five names now offer the new names."""
+    if [str(o.get('label') or '').strip().lower() for o in options] == _OLD_FIVE_POINT:
+        return scoring.five_point_options()
+    return options
+
+
 def _set_items(set_id):
     import json
     return [{'text': r['text'], 'qtype': r['qtype'], 'is_required': bool(r['is_required']),
-             'options': json.loads(r['options_json'] or '[]')}
+             'options': _current_scale(json.loads(r['options_json'] or '[]'))}
             for r in db.query(
                 'SELECT text, qtype, is_required, options_json FROM question_set_items '
                 'WHERE set_id=? ORDER BY position, id', (set_id,))]

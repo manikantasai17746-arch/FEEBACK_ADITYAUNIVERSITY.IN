@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Teacher Feedback Report{% endblock %}
+{% block body %}
+<div class="card" style="max-width:420px;margin:40px auto">
+  <h1 style="margin-top:0">My Feedback Report</h1>
+  <p class="sub">For faculty only. Enter your Emp ID and the access code printed on the report from your HOD.</p>
+  <form method="post" autocomplete="off">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="field"><label for="emp_code">Emp ID</label>
+      <input id="emp_code" name="emp_code" maxlength="40" required></div>
+    <div class="field"><label for="access_code">Access code</label>
+      <input id="access_code" name="access_code" maxlength="40" required placeholder="XXXXX-XXXXX"></div>
+    <button class="btn btn-primary" type="submit">Download PDF</button>
+  </form>
+</div>
+{% endblock %}

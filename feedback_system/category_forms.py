@@ -22,15 +22,14 @@ from .feedback_categories import (LAB, MAIN, SECOND, ScopeError, conflicting_for
                                   eligible_count, expected_categories, has_snapshot,
                                   is_session_scoped, normalize_category, resolve_scope, scope_for_form,
                                   snapshot_eligibility)
+from .scoring import five_point_options
 from .security import audit, scoped_branch_ids_or_none
 
 
 # --------------------------------------------------------------------------- #
 # Default question sets - the three forms have DIFFERENT purposes/questions
 # --------------------------------------------------------------------------- #
-_SCALE = [{'label': 'Excellent', 'value': 5}, {'label': 'Very Good', 'value': 4},
-          {'label': 'Good', 'value': 3}, {'label': 'Average', 'value': 2},
-          {'label': 'Poor', 'value': 1}]
+_SCALE = five_point_options()
 
 
 def _rating(text):

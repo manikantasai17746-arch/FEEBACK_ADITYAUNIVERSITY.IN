@@ -173,8 +173,8 @@
   }
   function newOption(label, value) { return { label: label, value: value }; }
   function defaultOptions() {
-    return [newOption('Excellent', 5), newOption('Very Good', 4), newOption('Good', 3),
-            newOption('Average', 2), newOption('Poor', 1)];
+    return [newOption('Excellent', 5), newOption('Good', 4), newOption('Average', 3),
+            newOption('Below average', 2), newOption('Poor', 1)];
   }
   function showErrors(errors) {
     errorBox.innerHTML = errors.map(function (e) {
@@ -306,7 +306,7 @@
     var extraBox = document.getElementById('extra-items');
     var commentCb = document.getElementById('comment-on');
     var COMMENT_TEXT = 'Please share your comments or suggestions (optional)';
-    var FIVE = [['Excellent', 5], ['Very Good', 4], ['Good', 3], ['Average', 2], ['Poor', 1]];
+    var FIVE = [['Excellent', 5], ['Good', 4], ['Average', 3], ['Below average', 2], ['Poor', 1]];
     var FOUR = [['Excellent', 4], ['Good', 3], ['Bad', 2], ['Very poor', 1]];
     var rows = [];        // questions of the open set, in order
     var ticked = {};      // index -> true
@@ -372,7 +372,7 @@
           '<div class="btn-row" style="margin-left:auto"><button type="button" class="icon-btn" data-del title="Remove">🗑</button></div></div>' +
           '<div class="field"><input type="text" maxlength="1000" data-text placeholder="Type your question" value="' + esc(q.text) + '"></div>' +
           (isR ? '<div class="field"><select data-scale>' +
-            '<option value="5"' + (q.options.length === 5 ? ' selected' : '') + '>Excellent · Very Good · Good · Average · Poor</option>' +
+            '<option value="5"' + (q.options.length === 5 ? ' selected' : '') + '>Excellent · Good · Average · Below average · Poor</option>' +
             '<option value="4"' + (q.options.length === 4 ? ' selected' : '') + '>Excellent · Good · Bad · Very poor</option></select></div>'
             : '<div class="hint">Written answer (optional for students)</div>');
         d.querySelector('[data-text]').addEventListener('input', function (e) { q.text = e.target.value; rebuild(); });

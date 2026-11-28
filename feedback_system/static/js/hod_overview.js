@@ -274,25 +274,6 @@
     });
   }
 
-  /* ---- "results ready to publish" pop-up ----
-     Shown once per count of ready forms per browser session; the two buttons are plain links
-     to the score-band page and the Feedback Results page. */
-  var rdy = document.getElementById('rdyOv');
-  if (rdy) {
-    var rn = rdy.getAttribute('data-n'), seen = null;
-    try { seen = sessionStorage.getItem('ov_rdy'); } catch (e) {}
-    var rdyClose = function () {
-      rdy.classList.remove('on');
-      try { sessionStorage.setItem('ov_rdy', rn); } catch (e) {}
-    };
-    if (seen !== rn) rdy.classList.add('on');
-    $('#rdyLater').addEventListener('click', rdyClose);
-    $('#rdyBands').addEventListener('click', rdyClose);
-    $('#rdyPub').addEventListener('click', rdyClose);
-    rdy.addEventListener('click', function (e) { if (e.target === rdy) rdyClose(); });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && rdy.classList.contains('on')) rdyClose(); });
-  }
-
   /* ---- logo replay ---- */
   var w = document.getElementById('auLogo');
   if (w) {

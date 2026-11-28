@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Teacher Reports — HOD{% endblock %}
+{% block body %}
+<div class="container page">
+  <h1 style="margin-top:0">Teacher Reports</h1>
+  <p class="sub">One PDF per teacher with Main, Second and Lab feedback from closed forms in your department.
+     Print it and hand it to the teacher.</p>
+  <p class="sub">Teachers can also download it at <strong>{{ public_url }}</strong> with their Emp ID and access code.
+     Share each code only with that teacher.</p>
+  {% if teachers %}
+  <p><a class="btn btn-primary" href="{{ url_for('hod.teacher_reports_all') }}">Download all teachers (PDF)</a>
+     <a class="btn" href="{{ url_for('hod.results') }}">Back to results</a></p>
+  <div class="card" style="overflow-x:auto">
+    <table>
+      <thead><tr><th>Teacher</th><th>Emp ID</th><th>Closed forms</th><th>Access code</th><th>Report</th></tr></thead>
+      <tbody>
+        {% for t in teachers %}
+        <tr>
+          <td>{{ t.name }}</td><td>{{ t.emp_code or '—' }}</td><td>{{ t.forms }}</td>
+          <td><code>{{ t.access_code or '—' }}</code></td>
+          <td><a class="btn btn-sm" href="{{ url_for('hod.teacher_report_pdf', teacher_id=t.id) }}">Download PDF</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card"><p>No closed feedback forms yet. Close a form to include it in a report.</p></div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -38,6 +38,39 @@ DEFAULT_SCALE = {
 
 MIN_RESPONSE_THRESHOLD = 5
 
+# The rating scale used by NEW forms (college report format).  "Good" and
+# "Average" mean one step higher here than on the older scale (Excellent, Very
+# Good, Good, Average, Poor), so a question is recognised by its "Below average"
+# option.  Weights are the same position by position on both scales.
+FIVE_POINT_SCALE = (('Excellent', 5), ('Good', 4), ('Average', 3),
+                    ('Below average', 2), ('Poor', 1))
+_NEW_SHARE = {'excellent': 1.0, 'good': 0.75, 'average': 0.5,
+              'below average': 0.375, 'poor': 0.25}
+_NEW_POINTS = {label.lower(): value for label, value in FIVE_POINT_SCALE}
+_LABEL_ORDER = ('excellent', 'very good', 'good', 'average', 'below average',
+                'fair', 'poor', 'bad', 'very poor')
+
+
+def five_point_options() -> List[dict]:
+    return [{'label': label, 'value': value} for label, value in FIVE_POINT_SCALE]
+
+
+def is_new_scale(options) -> bool:
+    return any((o.get('label') or '').strip().lower() == 'below average'
+               for o in options or [])
+
+
+def new_scale_points(label) -> Optional[int]:
+    return _NEW_POINTS.get((label or '').strip().lower())
+
+
+def rating_rank(label) -> int:
+    """Sort key for rating labels, best first (exact match, then substring)."""
+    lab = (label or '').strip().lower()
+    if lab in _LABEL_ORDER:
+        return _LABEL_ORDER.index(lab)
+    return next((i for i, o in enumerate(_LABEL_ORDER) if o in lab), 99)
+
 
 def _form_is_closed(status: Optional[str], deadline_at: Optional[str]) -> bool:
     """True once a form no longer accepts feedback.
@@ -60,6 +93,8 @@ def _option_points(opt: dict) -> Optional[int]:
     sequential values (Excellent=1, Good=2, …) still score correctly.
     """
     label = (opt.get('label') or '').strip().lower()
+    if label == 'below average':
+        return _NEW_POINTS[label]
     if label in DEFAULT_SCALE:
         return DEFAULT_SCALE[label]
     first = label.split()[0] if label else ''
@@ -86,6 +121,8 @@ def _answer_share(a: dict, max_pts: Optional[int]) -> Optional[float]:
     best option.  Returns None when the answer cannot be scored.
     """
     label = (a.get('label') or str(a.get('value') or '')).strip()
+    if a.get('new_scale') and label.lower() in _NEW_SHARE:
+        return _NEW_SHARE[label.lower()]
     share = rating_share(label)
     if share is not None:
         return share
@@ -206,6 +243,11 @@ def _load_form_data(form_ids, session_ids=None, with_answers=True) -> Dict[str, 
                     ORDER BY MIN(r.id)""",
                 tuple(chunk) + sargs3):
             out['answers'][r['form_id']].append(dict(r))
+    new_ids = {q['id'] for qs in out['questions'].values() for q in qs
+               if is_new_scale(q['options'])}
+    for rows in out['answers'].values():
+        for r in rows:
+            r['new_scale'] = r['question_id'] in new_ids
     return out
 
 
@@ -644,17 +686,7 @@ def _marks_from_data(form_id: int, eligible: int, data: Dict[str, Any]) -> Dict[
         buckets[key]['count'] += cnt
         buckets[key]['total_marks'] += earned
 
-    order = ['excellent', 'very good', 'good', 'average', 'poor', 'bad', 'very poor']
-    breakdown = list(buckets.values())
-
-    def _sk(it):
-        lab = (it['label'] or '').lower()
-        for i, o in enumerate(order):
-            if o in lab:
-                return i
-        return 99
-
-    breakdown.sort(key=_sk)
+    breakdown = sorted(buckets.values(), key=lambda it: rating_rank(it['label']))
     for b in breakdown:
         b['total_marks'] = round(b['total_marks'], 2)
 

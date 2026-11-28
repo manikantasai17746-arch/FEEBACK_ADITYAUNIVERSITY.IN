@@ -98,10 +98,12 @@
     {% else %}
       {# Rating / single choice — marks from LABEL (Excellent=5 … Poor=1), not raw DB value #}
       <div class="mark-opts" role="radiogroup" aria-label="{{ q.text }}">
+        {% set new_scale = q.options|selectattr('label')|map(attribute='label')|map('lower')|select('equalto', 'below average')|list|length > 0 %}
         {% for o in q.options %}
           {% set lab = (o.label or '')|trim|lower %}
           {% set pts = none %}
-          {% if 'excellent' in lab %}{% set pts = 5 %}
+          {% if new_scale and o.value is not none %}{% set pts = o.value %}
+          {% elif 'excellent' in lab %}{% set pts = 5 %}
           {% elif 'very good' in lab or 'verygood' in lab %}{% set pts = 4 %}
           {% elif lab == 'good' or lab.startswith('good ') %}{% set pts = 3 %}
           {% elif 'average' in lab or 'fair' in lab %}{% set pts = 2 %}
