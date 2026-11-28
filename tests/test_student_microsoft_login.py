@@ -169,3 +169,65 @@ def test_email_already_on_another_account_is_refused(app, client, ms_env):
     finally:
         with app.app_context():
             db.execute("UPDATE users SET email=NULL WHERE id=?", (admin['id'],))
+
+
+# ------------------------------------------------------- authenticator setup after sign-in
+def _sign_in(client):
+    state = _start(client)['state'][0]
+    r = _callback(client, f'{ROLL.lower()}@{DOMAIN}', state)
+    assert r.status_code == 302
+    return r
+
+
+@pytest.fixture()
+def no_authenticator(app, ms_env):
+    with app.app_context():
+        uid = db.query("SELECT id FROM users WHERE username=?", (ROLL,), one=True)['id']
+        for table in ('student_backup_codes', 'student_authenticators'):
+            db.execute(f"DELETE FROM {table} WHERE user_id=?", (uid,))
+    yield uid
+
+
+def test_setup_page_has_no_password_or_email_code_step(client, no_authenticator):
+    _sign_in(client)
+    html = client.get('/setup/authenticator').get_data(as_text=True)
+    assert 'Current password' not in html
+    assert 'Email me a code' not in html
+    assert 'Setup key' in html and 'Finish setup' in html
+
+
+def test_a_student_can_finish_authenticator_setup_with_only_the_microsoft_sign_in(
+        app, client, no_authenticator):
+    import pyotp
+    from feedback_system import authenticator as auth
+    _sign_in(client)
+    client.get('/setup/authenticator')
+    with app.app_context():
+        secret = auth.pending_secret(no_authenticator)
+    code = pyotp.TOTP(secret, interval=auth.TOTP_STEP_SECONDS).now()
+    with client.session_transaction() as s:
+        tok = s['token']
+    r = client.post('/setup/authenticator/confirm', data={'code': code, '_csrf': tok})
+    assert r.status_code == 200
+    with app.app_context():
+        assert auth.is_active(no_authenticator)
+
+
+def test_an_expired_proof_asks_for_microsoft_again_never_a_password(client, no_authenticator):
+    _sign_in(client)
+    with client.session_transaction() as s:
+        s['auth_pw_until'] = 0
+        s['auth_setup_until'] = 0
+    r = client.get('/setup/authenticator')
+    assert r.status_code == 302
+    assert '/student/sso/start' in r.headers['Location'] and 'reauth=1' in r.headers['Location']
+
+
+def test_reauth_start_works_while_already_signed_in(client, ms_env):
+    _sign_in(client)
+    r = client.get('/student/sso/start', query_string={'reauth': 1,
+                                                       'next': '/setup/authenticator'})
+    assert r.status_code == 302 and 'login.microsoftonline.com' in r.headers['Location']
+    state = parse_qs(urlparse(r.headers['Location']).query)['state'][0]
+    r = _callback(client, f'{ROLL.lower()}@{DOMAIN}', state)
+    assert r.headers['Location'].endswith('/setup/authenticator')

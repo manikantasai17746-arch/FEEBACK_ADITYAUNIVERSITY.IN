@@ -506,6 +506,11 @@ def setup_authenticator():
                step_label=(_step_label(user, 'authenticator')
                            if session.get('first_login_flow') else None))
 
+    if role == 'student' and not (_pw_proof_valid() and _setup_proof_valid()):
+        # Students have no password: confirm who they are by signing in with Microsoft again.
+        return redirect(url_for('auth.student_sso_start', reauth=1,
+                                next=url_for('auth.setup_authenticator')))
+
     action = request.form.get('action') if request.method == 'POST' else None
     if action == 'password':
         # Password re-entry. Wrong attempts share the OTP limits; the password is never echoed.
@@ -1064,7 +1069,7 @@ def _student_login_failed(message):
 def student_sso_start():
     """Send the student to the college Microsoft sign-in page."""
     user = current_user()
-    if user and user['role'] == 'student':
+    if user and user['role'] == 'student' and not request.args.get('reauth'):
         return redirect(url_for('student.dashboard'))
     if not sso.student_microsoft_ready():
         return _student_login_failed(
@@ -1131,6 +1136,9 @@ def student_sso_callback():
     db.execute('UPDATE users SET email=?, email_verified=1, must_change_password=0 WHERE id=?',
                (email, student['id']))
     login_user(student)
+    # Microsoft has just proved who this is, so the authenticator setup needs no password or
+    # e-mailed code. The proof expires after AUTH_SETUP_PROOF_SECONDS.
+    _grant_enrollment_proofs()
     audit('user.microsoft_login', 'users', student['id'], 'Student signed in with Microsoft')
     flash('Welcome!', 'success')
     nxt = pending.get('next')

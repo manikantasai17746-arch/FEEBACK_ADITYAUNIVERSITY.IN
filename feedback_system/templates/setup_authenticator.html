@@ -3,7 +3,7 @@
 {% block body %}
 <div class="auth-page">
   <div class="auth-card">
-    <div class="eyebrow">{% if role == 'student' %}Step 2 of 2 · {% elif step_label %}{{ step_label }} · {% endif %}Authenticator app</div>
+    <div class="eyebrow">{% if role == 'student' %}Last step · {% elif step_label %}{{ step_label }} · {% endif %}Authenticator app</div>
     <h2>Set up your authenticator app</h2>
     {% if stage == 'password' %}
     <p class="sub" style="margin-bottom:1.2rem">Google Authenticator or Microsoft Authenticator will give you a
