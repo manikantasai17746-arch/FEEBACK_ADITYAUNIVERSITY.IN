@@ -1,10 +1,10 @@
 /* Anonymous session (front-end only).
    The authenticator page remembers the accepted code in this browser tab (sessionStorage),
    tied to the logged-in student. This script then:
-     - on the feedback form page, shows the code as the student's anonymous ID tag;
-     - on the dashboard, hides the student's details and counts, and offers
-       "Log out of anonymous ID". Logging out clears the ID and reveals the details.
-   Nothing is sent to the server and nothing is stored there. */
+     - on the feedback form and "submitted" pages, shows the code as the anonymous ID;
+     - on the dashboard, blurs the student's details and counts while the ID is active;
+     - "Log out of anonymous ID" clears the ID here, and the form post ends anonymous
+       mode on the server. The ID itself is never sent to or stored on the server. */
 (function () {
   'use strict';
   var KEY = 'ffs_anon';
@@ -43,53 +43,61 @@
     }
   }
 
-  /* ---- dashboard: hide details, offer log out ---- */
+  /* ---- dashboard: hide details while the anonymous ID is active ---- */
   var bar = document.getElementById('asBar');
   if (bar) {
     var code = readCode(bar.getAttribute('data-uid'));
     if (code) {
-      var hidden = document.querySelectorAll('.stu-chips, .tiles');
-      var tilesBox = document.getElementById('asTiles');
-      var sub = document.getElementById('asSub');
-      var out = document.getElementById('asOut');
       document.body.classList.add('as-active');
-      Array.prototype.forEach.call(hidden, function (e) { e.setAttribute('aria-hidden', 'true'); });
-      fillTiles(tilesBox, code, false);
+      Array.prototype.forEach.call(document.querySelectorAll('.stu-chips, .tiles'),
+        function (e) { e.setAttribute('aria-hidden', 'true'); });
+      fillTiles(document.getElementById('asTiles'), code, false);
       bar.hidden = false;
-
-      out.addEventListener('click', function () {
-        out.disabled = true;
-        clearCode();
-        var tiles = tilesBox.children;
-        Array.prototype.forEach.call(tiles, function (t, i) {      // the digits drop away
-          t.classList.remove('as-pop'); t.style.animation = 'none';
-          t.style.transitionDelay = (i * 90) + 'ms';
-          setTimeout(function () { t.classList.add('as-gone'); }, 20);
-        });
-        sub.textContent = 'Anonymous ID cleared.';
-        setTimeout(reveal, reduced ? 0 : 800);
-      });
-
-      function reveal() {
-        document.body.classList.remove('as-active');
-        Array.prototype.forEach.call(hidden, function (e) { e.removeAttribute('aria-hidden'); });
-        bar.classList.add('as-collapse');
-        setTimeout(function () { bar.hidden = true; }, reduced ? 0 : 700);
-        Array.prototype.forEach.call(document.querySelectorAll('.tiles .num'), countUp);
-      }
-      function countUp(el) {
-        var to = parseInt((el.textContent || '').trim(), 10);
-        if (isNaN(to) || to <= 0 || reduced) return;
-        var n = 0, step = Math.max(1, Math.round(to / 12));
-        el.textContent = '0';
-        var iv = setInterval(function () {
-          n = Math.min(to, n + step);
-          el.textContent = String(n);
-          if (n === to) clearInterval(iv);
-        }, 60);
-      }
     }
   }
+
+  /* ---- "feedback submitted" page: show the ID ---- */
+  var done = document.getElementById('asDone');
+  if (done) {
+    var c2 = readCode(done.getAttribute('data-uid'));
+    if (c2) fillTiles(done, c2, false);
+  }
+
+  /* ---- log out of the anonymous ID: the digits drop away, then the form is sent ---- */
+  Array.prototype.forEach.call(document.querySelectorAll('form[data-as-logout]'), function (form) {
+    var sent = false;
+    form.addEventListener('submit', function (e) {
+      clearCode();
+      var tiles = document.querySelectorAll('#asDone .as-tile, #asTiles .as-tile');
+      if (reduced || !tiles.length) return;          // send straight away
+      e.preventDefault();
+      if (sent) return;
+      sent = true;
+      Array.prototype.forEach.call(tiles, function (t, i) {
+        t.classList.remove('as-pop'); t.style.animation = 'none';
+        t.style.transitionDelay = (i * 90) + 'ms';
+        setTimeout(function () { t.classList.add('as-gone'); }, 20);
+      });
+      var lead = document.getElementById('asDoneLead');
+      var note = document.getElementById('asDoneNote');
+      if (lead) lead.textContent = 'Anonymous ID cleared.';
+      if (note) note.textContent = 'Taking you back to your account.';
+      setTimeout(function () { form.submit(); }, 1300);
+    });
+  });
+
+  /* ---- progress page: numbers count up ---- */
+  Array.prototype.forEach.call(document.querySelectorAll('[data-as-count]'), function (el) {
+    var to = parseInt(el.textContent, 10);
+    if (isNaN(to) || to <= 0 || reduced) return;
+    var n = 0, step = Math.max(1, Math.round(to / 12));
+    el.textContent = '0';
+    var iv = setInterval(function () {
+      n = Math.min(to, n + step);
+      el.textContent = String(n);
+      if (n === to) clearInterval(iv);
+    }, 120);
+  });
 
   /* a real logout also ends the anonymous ID */
   Array.prototype.forEach.call(document.querySelectorAll('a.nav-user[href*="logout"]'), function (a) {

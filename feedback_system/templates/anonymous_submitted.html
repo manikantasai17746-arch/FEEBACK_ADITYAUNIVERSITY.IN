@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}Feedback submitted — Faculty Feedback{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/anonymous_session.css') }}">{% endblock %}
+{% block topbar %}{% include '_anon_topbar.html' %}{% endblock %}
+{% block body %}
+{% set step = 3 %}{% include '_anon_steps.html' %}
+<div class="card as-panel as-center">
+  <h1 class="as-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5"/></svg> Feedback submitted</h1>
+  <p id="asDoneLead">Your answers were saved without your name or roll number.</p>
+  <div class="as-tiles as-big" id="asDone" data-uid="{{ current_user.id }}"></div>
+  <p class="sub" id="asDoneNote" role="status">Log out of your anonymous ID to go back to your account.</p>
+  <form method="post" action="{{ url_for('student.anonymous_logout') }}" data-as-logout>
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button class="btn btn-ghost btn-block" type="submit">Log out of anonymous ID</button>
+  </form>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/anonymous_session.js') }}"></script>{% endblock %}

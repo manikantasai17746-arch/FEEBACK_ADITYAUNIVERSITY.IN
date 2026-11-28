@@ -453,3 +453,16 @@ Known / not done:
 - Existing room/lab values are never overwritten; re-importing is idempotent. Second Faculty equal to Main Faculty is skipped.
 - Admin import page shows the new counts; `admin.py` passes the extras and includes them in the duplicate-file fingerprint (old workbooks keep their old fingerprint).
 - Tests: `tests/test_import_lab_room_second.py` (4 tests, passed via a manual runner; pytest and some dependencies were not installable offline, so the full suite was NOT run).
+
+## Anonymous feedback pages (2026-11-28, not yet deployed)
+
+For forms marked "Authentication Required":
+- The code-accepted screen no longer shows the name or roll number, and hides the account menu.
+- The form page has no account menu or student details.
+- Submitting goes to `/student/anonymous/submitted` (no automatic next form).
+- `POST /student/anonymous/logout` clears `feedback_code_ok`, so the next protected form asks for a
+  code again, then shows `/student/progress`.
+
+Forms without the requirement behave as before. No schema change or new dependency.
+Tests: new cases in `tests/test_feedback_gate_stepc.py`; run with a synthetic timetable and temporary
+`pyotp`/`segno` stand-ins, so rerun with the real packages and workbook before deploying.

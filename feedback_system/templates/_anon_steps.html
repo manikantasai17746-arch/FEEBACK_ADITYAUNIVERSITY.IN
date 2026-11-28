@@ -1,0 +1,6 @@
+{# Where the student is in the anonymous feedback flow. Set `step` (1-4) before including. #}
+<ol class="as-steps">
+  {% for label in ('Code accepted', 'Anonymous form', 'Log out of ID', 'Your progress') %}
+  <li{% if loop.index == step %} class="is-on" aria-current="step"{% endif %}>{{ loop.index }} {{ label }}</li>
+  {% endfor %}
+</ol>

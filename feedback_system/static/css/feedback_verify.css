@@ -13,22 +13,6 @@
 .fv-ok svg { width: 22px; height: 22px; }
 .fv-stage.fv-on .fv-ok { opacity: 1; transform: none; }
 
-/* ---- identity rows: roll number and name get struck out ---- */
-.fv-id-rows { margin: 0 0 .4rem; transition: opacity .5s, max-height .6s ease, margin .6s ease; max-height: 180px; overflow: hidden; }
-.fv-row {
-  display: flex; justify-content: space-between; align-items: center; gap: 1rem;
-  padding: .7rem .2rem; border-bottom: 1px solid var(--line, #dfe5ef); text-align: left;
-}
-.fv-row .fv-k { font-size: .78rem; color: var(--muted, #5b6a82); text-transform: uppercase; letter-spacing: .08em; }
-.fv-val { position: relative; display: inline-block; font-weight: 600; color: var(--ink, #1f2733); transition: opacity .5s, filter .5s; word-break: break-word; }
-.fv-line {
-  position: absolute; left: -6px; top: 54%; height: 3px; width: 0; border-radius: 2px;
-  background: var(--au-orange, #f26f21); transition: width .6s cubic-bezier(.3, .7, .2, 1);
-}
-.fv-val.fv-struck .fv-line { width: calc(100% + 12px); }
-.fv-val.fv-faded { opacity: .35; filter: blur(1.2px); }
-.fv-id-rows.fv-gone { opacity: 0; max-height: 0; margin: 0; }
-
 /* ---- the code, now the feedback ID ---- */
 .fv-idbox { max-height: 0; overflow: hidden; opacity: 0; transition: max-height .6s ease, opacity .5s; }
 .fv-stage.fv-showid .fv-idbox { max-height: 260px; opacity: 1; }
@@ -54,5 +38,8 @@
 html.dark-mode .fv-tile { background: #1e3a5f; }
 
 @media (prefers-reduced-motion: reduce) {
-  .fv-ok, .fv-id-rows, .fv-val, .fv-line, .fv-idbox, .fv-tile, .fv-note, .fv-go { transition: none; }
+  .fv-ok, .fv-idbox, .fv-tile, .fv-note, .fv-go { transition: none; }
 }
+
+/* once the code is accepted: no account bar or messages, so no student details */
+body.fv-anon .topnav, body.fv-anon .nav-toggle, body.fv-anon .flashes { display: none !important; }

@@ -232,3 +232,59 @@ def test_verification_records_no_feedback_answer(app, admin, client, gate_setup)
 def test_teacher_cannot_use_the_student_code_page(app, client, teacher):
     r = client.get('/student/verify-code')
     assert r.status_code in (302, 403)
+
+
+# --------------------------------------------------------------------------- #
+# The anonymous pages: form -> submitted -> log out of anonymous ID -> progress
+# --------------------------------------------------------------------------- #
+def _answers(client, fid):
+    html = client.get(f'/student/form/{fid}').get_data(as_text=True)
+    rq, tq, oid = question_ids(html)
+    data = {'_csrf': token_from(client, '/student/')}
+    if rq:
+        data[f'q_{rq}'] = oid
+    if tq:
+        data[f'q_{tq}'] = 'Clear explanations'
+        data[f'qs_{tq}'] = '4'
+    return data
+
+
+def test_form_after_the_code_hides_the_student(app, admin, client, gate_setup):
+    _enroll(app, gate_setup['uid'])
+    fid = _open_form(app, admin, gate_setup['sid'], 'Anon page')
+    assert login_student(client, gate_setup['roll']).status_code == 302
+    _verify(client, _current_code(app, gate_setup['uid']))
+    html = client.get(f'/student/form/{fid}').get_data(as_text=True)
+    assert 'teacher-card' in html and 'data-feedback-submit' in html
+    assert 'class="topnav"' not in html and 'Logout (' not in html
+    assert gate_setup['roll'] not in html
+
+
+def test_submit_then_log_out_of_the_anonymous_id(app, admin, client, gate_setup):
+    _enroll(app, gate_setup['uid'])
+    fid = _open_form(app, admin, gate_setup['sid'], 'Anon submit')
+    other = _open_form(app, admin, gate_setup['sid'], 'Anon next')
+    assert login_student(client, gate_setup['roll']).status_code == 302
+    _verify(client, _current_code(app, gate_setup['uid']))
+    r = client.post(f'/student/form/{fid}/submit', data=_answers(client, fid))
+    assert r.status_code == 302 and r.headers['Location'].endswith('/student/anonymous/submitted')
+    done = client.get(r.headers['Location']).get_data(as_text=True)
+    assert 'Feedback submitted' in done and 'Log out of anonymous ID' in done
+    assert gate_setup['roll'] not in done and 'class="topnav"' not in done
+    tok = token_from(client, '/student/progress')
+    r = client.post('/student/anonymous/logout', data={'_csrf': tok})
+    assert r.status_code == 302 and r.headers['Location'].endswith('/student/progress')
+    progress = client.get('/student/progress').get_data(as_text=True)
+    assert gate_setup['roll'] in progress and 'Submitted' in progress and 'Pending' in progress
+    again = client.get(f'/student/form/{other}')
+    assert again.status_code == 302 and 'verify-code' in again.headers['Location']
+    assert client.get('/student/anonymous/submitted').status_code == 302
+
+
+def test_anonymous_logout_needs_csrf(app, admin, client, gate_setup):
+    _enroll(app, gate_setup['uid'])
+    fid = _open_form(app, admin, gate_setup['sid'], 'Anon csrf')
+    assert login_student(client, gate_setup['roll']).status_code == 302
+    _verify(client, _current_code(app, gate_setup['uid']))
+    assert client.post('/student/anonymous/logout').status_code != 302
+    assert client.get(f'/student/form/{fid}').status_code == 200

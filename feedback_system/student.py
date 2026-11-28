@@ -81,10 +81,14 @@ def report_issue():
 FEEDBACK_CODE_KEY = 'feedback_code_ok'
 
 
+def _needs_code(form_id):
+    row = db.query('SELECT auth_required FROM feedback_forms WHERE id=?', (form_id,), one=True)
+    return bool(row and row['auth_required'])
+
+
 def _feedback_gate(user, form_id):
     """A redirect if this form needs the authenticator code and it has not been given."""
-    row = db.query('SELECT auth_required FROM feedback_forms WHERE id=?', (form_id,), one=True)
-    if not row or not row['auth_required'] or session.get(FEEDBACK_CODE_KEY):
+    if not _needs_code(form_id) or session.get(FEEDBACK_CODE_KEY):
         return None
     if not authenticator.is_active(user['id']):
         flash('Set up your authenticator app before giving this feedback.', 'warning')
@@ -143,8 +147,10 @@ def view_form(form_id):
     questions = services.form_questions(form_id)
     already = db.query('SELECT * FROM submissions WHERE form_id=? AND student_user_id=?',
                        (form_id, user['id']), one=True)
+    # After the code, an open form is shown on its own page without the student's details.
+    anon = bool(_needs_code(form_id) and not already and form['status'] == 'open')
     return render_template('student_form.html', user=user, form=form, questions=questions,
-                           default_instructions=services.DEFAULT_INSTRUCTIONS,
+                           default_instructions=services.DEFAULT_INSTRUCTIONS, anon=anon,
                            already=already, teacher_has_photo=photos.has_any_photo(form.get('teacher_emp')),
                            feedback_arrival=request.args.get('from_feedback') == '1')
 
@@ -156,8 +162,11 @@ def submit(form_id):
     gate = _feedback_gate(user, form_id)
     if gate:
         return gate
+    anon = _needs_code(form_id)
     ok, message = services.submit_feedback(user['id'], form_id, request.form)
     if ok:
+        if anon:
+            return redirect(url_for('student.anonymous_submitted'))
         flash(message, 'success')
         # Change 2: auto-open the next pending form after submit
         forms = services.student_forms(user['id'])
@@ -177,7 +186,38 @@ def submit(form_id):
     return render_template('student_form.html', user=user, form=form, questions=questions,
                            default_instructions=services.DEFAULT_INSTRUCTIONS,
                            already=None, form_data=request.form,
+                           anon=anon and form['status'] == 'open',
                            teacher_has_photo=photos.has_any_photo(form.get('teacher_emp')))
+
+
+@bp.route('/anonymous/submitted')
+@role_required('student')
+def anonymous_submitted():
+    """Shown after an anonymous submission. Holds no student, form or answer details."""
+    if not session.get(FEEDBACK_CODE_KEY):
+        return redirect(url_for('student.progress'))
+    return render_template('anonymous_submitted.html')
+
+
+@bp.post('/anonymous/logout')
+@role_required('student')
+def anonymous_logout():
+    """Leave anonymous mode. The next protected form asks for a new code."""
+    session.pop(FEEDBACK_CODE_KEY, None)
+    return redirect(url_for('student.progress'))
+
+
+@bp.route('/progress')
+@role_required('student')
+def progress():
+    """How many feedback forms are submitted and how many are still pending."""
+    user = current_user()
+    forms = services.student_forms(user['id'])
+    submitted = [f for f in forms if f['submission_id']]
+    pending = [f for f in forms if f['status'] == 'open' and not f['submission_id']]
+    next_form = next((f for f in pending if not f.get('locked')), None)
+    return render_template('student_progress.html', user=user, submitted=submitted,
+                           pending=pending, next_form=next_form)
 
 
 @bp.route('/notifications')

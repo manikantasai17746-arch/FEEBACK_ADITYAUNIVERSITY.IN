@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block title %}Your progress — Faculty Feedback{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/anonymous_session.css') }}">{% endblock %}
+{% block body %}
+{% set step = 4 %}{% include '_anon_steps.html' %}
+<div class="card as-panel">
+  <h1 class="as-name">{{ user.name }}</h1>
+  <p class="sub">{{ user.roll or user.username }}</p>
+  <div class="as-counts">
+    <div class="as-count"><span>Submitted</span><b data-as-count>{{ submitted|length }}</b></div>
+    <div class="as-count"><span>Pending</span><b data-as-count>{{ pending|length }}</b></div>
+  </div>
+  <progress class="as-progress" max="{{ (submitted|length + pending|length) or 1 }}" value="{{ submitted|length }}"
+            aria-label="{{ submitted|length }} of {{ submitted|length + pending|length }} submitted"></progress>
+  <ul class="as-list">
+    {% for f in submitted + pending %}
+    <li>
+      <span>{{ f.subject_name or f.subject_code or f.title }}<small>{{ [f.teacher_name, f.category_label]|select|join(' · ') }}</small></span>
+      {% if f.submission_id %}<em class="as-state is-done">Submitted</em>{% else %}<em class="as-state">Pending</em>{% endif %}
+    </li>
+    {% else %}
+    <li>No feedback forms yet.</li>
+    {% endfor %}
+  </ul>
+  <div class="btn-row as-actions">
+    {% if next_form %}<a class="btn btn-accent" href="{{ url_for('student.view_form', form_id=next_form.id, from_feedback=1) }}">Give next feedback →</a>{% endif %}
+    <a class="btn btn-ghost" href="{{ url_for('student.dashboard') }}">Go to my dashboard</a>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/anonymous_session.js') }}"></script>{% endblock %}
