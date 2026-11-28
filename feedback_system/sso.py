@@ -101,7 +101,7 @@ def _is_tenant_guid(value):
     return len(parts) == 5 and all(c in '0123456789abcdefABCDEF' for p in parts for c in p)
 
 
-def authorize_url(provider, redirect_uri, state, nonce):
+def authorize_url(provider, redirect_uri, state, nonce, login_hint=None):
     client_id, _ = client_credentials(provider)
     params = {
         'client_id': client_id,
@@ -120,6 +120,8 @@ def authorize_url(provider, redirect_uri, state, nonce):
     elif provider == MICROSOFT:
         base = f'https://login.microsoftonline.com/{_microsoft_tenant()}/oauth2/v2.0/authorize'
         params['prompt'] = 'select_account'
+        if login_hint:
+            params['login_hint'] = login_hint
     else:
         raise SSOError('Unknown sign-in provider.')
     return base + '?' + urllib.parse.urlencode(params)

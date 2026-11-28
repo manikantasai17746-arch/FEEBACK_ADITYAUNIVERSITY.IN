@@ -471,7 +471,26 @@
       <h2 id="lpLoginTitle-student">Welcome back</h2>
       <p class="lp-login-sub">Sign in with your college Microsoft account to give feedback. Your responses are <strong>anonymous</strong> — teachers never see your name or roll number.</p>
       <a class="lp-btn lp-btn-primary lp-btn-block" id="lpStudentMicrosoft" href="{{ url_for('auth.student_sso_start', next=login_next) if login_next else url_for('auth.student_sso_start') }}">Continue with Microsoft</a>
-      <p class="lp-login-forgot">Log in with your college mail ID</p>
+      {% set mail_open = login_role == 'student' and login_values and login_values.get('student_email') %}
+      <p class="lp-login-forgot">
+        <button type="button" class="lp-mail-toggle" id="lpMailToggle"
+                aria-expanded="{{ 'true' if mail_open else 'false' }}" aria-controls="lpMailForm">
+          Log in with your college mail ID
+        </button>
+      </p>
+      <form method="post" action="{{ url_for('auth.student_login') }}" class="lp-login-form lp-mail-form"
+            id="lpMailForm" autocomplete="on" novalidate{% if not mail_open %} hidden{% endif %}>
+        {{ login_fields('student') }}
+        <div class="field">
+          <label for="lp_student_email">College mail ID</label>
+          <input type="email" id="lp_student_email" name="student_email"
+                 value="{{ login_values.get('student_email', '') if mail_open else '' }}"
+                 placeholder="rollnumber@adityauniversity.in" required autocomplete="username"
+                 autocapitalize="off" spellcheck="false" inputmode="email" maxlength="254">
+          <p class="hint">You'll finish signing in on the Microsoft page. Your feedback stays anonymous.</p>
+        </div>
+        <button class="lp-btn lp-btn-primary lp-btn-block" type="submit">Continue</button>
+      </form>
     </div>
 
     <!-- HOD -->
@@ -585,7 +604,15 @@
     });
   }
 
+  function collapseMailForm() {
+    var mf = document.getElementById('lpMailForm');
+    var mt = document.getElementById('lpMailToggle');
+    if (mf) mf.hidden = true;
+    if (mt) mt.setAttribute('aria-expanded', 'false');
+  }
+
   function closeLogin() {
+    collapseMailForm();
     overlay.hidden = true;
     document.body.classList.remove('lp-login-open');
     resetSecrets();
@@ -597,6 +624,19 @@
       openLogin(el.getAttribute('data-role') || 'student');
     });
   });
+  var mailToggle = document.getElementById('lpMailToggle');
+  var mailForm = document.getElementById('lpMailForm');
+  if (mailToggle && mailForm) {
+    mailToggle.addEventListener('click', function () {
+      var open = mailForm.hidden;
+      mailForm.hidden = !open;
+      mailToggle.setAttribute('aria-expanded', String(open));
+      if (open) {
+        var f = document.getElementById('lp_student_email');
+        if (f) f.focus();
+      }
+    });
+  }
   if (closeBtn) closeBtn.addEventListener('click', closeLogin);
   if (backdrop) backdrop.addEventListener('click', closeLogin);
   document.addEventListener('keydown', function (e) {

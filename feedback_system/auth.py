@@ -1053,8 +1053,19 @@ def student_login():
     if user and user['role'] == 'student':
         return redirect(url_for('student.dashboard'))
     if request.method == 'POST':
-        # The old roll-number + password form no longer exists.
-        return redirect(url_for('auth.student_login'))
+        # The old roll-number + password form no longer exists. The only POST is the typed
+        # college e-mail: it is checked and handed to Microsoft as a sign-in hint. Typing an
+        # address never signs anyone in; Microsoft still has to verify the student.
+        email = (request.form.get('student_email') or '').strip().lower()
+        if not email:
+            return redirect(url_for('auth.student_login'))
+        if (len(email) > 254 or not _EMAIL_RE.match(email) or not is_college_email(email)):
+            domain = (current_app.config.get('STUDENT_EMAIL_DOMAIN') or '').strip().lower().lstrip('@')
+            flash(f'Please enter your college mail ID (name@{domain or "adityauniversity.in"}).',
+                  'error')
+            return _render_landing_login('student')
+        target = request.form.get('next')
+        return _begin_student_sso(target, login_hint=email)
     return _render_landing_login('student')
 
 
@@ -1073,15 +1084,20 @@ def student_sso_start():
     user = current_user()
     if user and user['role'] == 'student' and not request.args.get('reauth'):
         return redirect(url_for('student.dashboard'))
+    return _begin_student_sso(request.args.get('next'))
+
+
+def _begin_student_sso(target, login_hint=None):
+    """Start the Microsoft sign-in, optionally pre-filling the typed college e-mail."""
     if not sso.student_microsoft_ready():
         return _student_login_failed(
             'Microsoft sign-in is not available right now. Please contact the administrator.')
     state = secrets.token_urlsafe(24)
     nonce = secrets.token_urlsafe(24)
-    target = request.args.get('next')
     session['student_sso'] = {'state': state, 'nonce': nonce,
                               'next': target if is_safe_next(target) else None}
-    return redirect(sso.authorize_url(sso.MICROSOFT, _student_sso_redirect_uri(), state, nonce))
+    return redirect(sso.authorize_url(sso.MICROSOFT, _student_sso_redirect_uri(), state, nonce,
+                                      login_hint=login_hint))
 
 
 @bp.route('/student/sso/callback')

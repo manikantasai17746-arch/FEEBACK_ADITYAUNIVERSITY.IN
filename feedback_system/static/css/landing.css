@@ -652,6 +652,13 @@ body.lp-login-open { overflow: hidden; }
 .lp-login-form .scan-ok { margin-top: .35rem; font-size: .82rem; color: #137A55; font-weight: 600; }
 .lp-login-forgot { margin: .8rem 0 0; text-align: center; font-size: .88rem; }
 .lp-login-forgot a { color: var(--blue); text-decoration: underline !important; text-underline-offset: 3px; }
+.lp-mail-toggle {
+  background: none; border: 0; padding: .3rem .4rem; cursor: pointer;
+  font: inherit; color: var(--blue); text-decoration: underline; text-underline-offset: 3px;
+}
+.lp-mail-toggle:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; border-radius: 4px; }
+.lp-mail-form { margin-top: .9rem; }
+.lp-mail-form[hidden] { display: none; }
 @media (max-width: 420px) {
   .lp-login-modal { padding: 1.1rem 1rem 1.2rem; border-radius: 14px; }
   .lp-login-modal h2 { font-size: 1.35rem; }
