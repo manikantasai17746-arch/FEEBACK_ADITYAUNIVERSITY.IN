@@ -52,6 +52,7 @@
       sessionStorage.setItem('ffs_anon', JSON.stringify({ code: code, uid: stage.getAttribute('data-uid') || '' }));
     } catch (e) {}
     card.classList.add('fv-playing');
+    document.body.classList.add('fv-anon');      // hide the account bar and messages
     stage.hidden = false;
 
     var tiles = $('.fv-tiles');
@@ -62,41 +63,31 @@
       t.textContent = d;
       tiles.appendChild(t);
     });
-    var vals = stage.querySelectorAll('.fv-val');
-    var rows = $('.fv-id-rows');
     var go = $('.fv-go');
     go.onclick = function () { window.location.assign(dest); };
 
     if (reduced) {                               // no motion: show the end state, then continue
-      Array.prototype.forEach.call(vals, function (v) { v.classList.add('fv-struck', 'fv-faded'); });
-      rows.classList.add('fv-gone');
       Array.prototype.forEach.call(tiles.children, function (t) { t.classList.add('fv-in'); });
       stage.classList.add('fv-on', 'fv-showid', 'fv-done');
       later(function () { window.location.assign(dest); }, 2500);
       return;
     }
     later(function () { stage.classList.add('fv-on'); }, 30);
-    later(function () { vals[0].classList.add('fv-struck'); }, 600);       // roll number crossed out
-    later(function () { vals[1].classList.add('fv-struck'); }, 1100);      // name crossed out
-    later(function () { Array.prototype.forEach.call(vals, function (v) { v.classList.add('fv-faded'); }); }, 1900);
-    later(function () { rows.classList.add('fv-gone'); }, 2500);            // identity folds away
-    later(function () { stage.classList.add('fv-showid'); }, 3000);
+    later(function () { stage.classList.add('fv-showid'); }, 500);
     Array.prototype.forEach.call(tiles.children, function (t, i) {         // the code drops in as the ID
-      later(function () { t.classList.add('fv-in'); }, 3150 + i * 120);
+      later(function () { t.classList.add('fv-in'); }, 650 + i * 120);
     });
-    later(function () { stage.classList.add('fv-done'); }, 4000);
-    later(function () { window.location.assign(dest); }, 5800);
+    later(function () { stage.classList.add('fv-done'); }, 1500);
+    later(function () { window.location.assign(dest); }, 3300);
   }
 
   function reset() {
     clearTimers();
     busy = false;
     card.classList.remove('fv-playing');
+    document.body.classList.remove('fv-anon');
     stage.hidden = true;
     stage.className = 'fv-stage';
-    var rows = $('.fv-id-rows');
-    if (rows) rows.classList.remove('fv-gone');
-    Array.prototype.forEach.call(stage.querySelectorAll('.fv-val'), function (v) { v.classList.remove('fv-struck', 'fv-faded'); });
   }
   window.addEventListener('pageshow', function (e) { if (e.persisted) reset(); });   // Back button
 

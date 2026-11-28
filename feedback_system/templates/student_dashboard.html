@@ -31,7 +31,10 @@
     <p class="as-bar-sub" id="asSub">Your name, roll number and progress stay hidden while you give feedback.</p>
     <div class="as-tiles" id="asTiles" aria-label="Your anonymous ID"></div>
   </div>
-  <button type="button" class="btn btn-accent" id="asOut">Log out of anonymous ID</button>
+  <form method="post" action="{{ url_for('student.anonymous_logout') }}" data-as-logout>
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <button type="submit" class="btn btn-accent">Log out of anonymous ID</button>
+  </form>
 </div>
 
 <div class="tiles mb">
