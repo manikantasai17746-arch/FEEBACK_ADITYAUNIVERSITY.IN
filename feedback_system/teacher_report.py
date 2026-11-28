@@ -302,3 +302,60 @@ def _page(status):
         (render_template('teacher_report.html'), status))
     response.headers['Cache-Control'] = 'no-store'
     return response
+
+
+# --------------------------------------------------------------------------- #
+# Pending students: public page for teachers (Emp ID + default access code)
+# --------------------------------------------------------------------------- #
+def pending_code(teacher_id, emp_code):
+    """Default access code for a teacher's pending-students page.  Derived from
+    SECRET_KEY like the report codes, so nothing is stored or set up."""
+    message = 'teacher-pending|v1|%d|%s' % (teacher_id, (emp_code or '').upper())
+    digest = hmac.new(str(current_app.config['SECRET_KEY']).encode(),
+                      message.encode(), hashlib.sha256).digest()
+    text = base64.b32encode(digest).decode()[:10]
+    return f'{text[:5]}-{text[5:]}'
+
+
+def _pending_page(status, **ctx):
+    response = current_app.make_response(
+        (render_template('teacher_pending.html', **ctx), status))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@bp.route('/teacher-pending', methods=['GET', 'POST'])
+def pending():
+    """Teacher sees which of their students have not submitted yet (roll numbers
+    only) for every open form, and can download it as a PDF."""
+    if request.method != 'POST':
+        return _pending_page(200)
+    from . import hod
+    emp = (request.form.get('emp_code') or '').strip().upper()[:40]
+    code = re.sub(r'[^A-Z0-9]', '', (request.form.get('access_code') or '').upper())[:40]
+    config = current_app.config
+    limits = ((f'pending:{emp}:{request.remote_addr}', config['LOGIN_MAX_ATTEMPTS']),
+              (f'pending-ip:{request.remote_addr}', config['LOGIN_MAX_ATTEMPTS'] * 4))
+    wait = max(login_locked(key) for key, _ in limits)
+    if wait:
+        flash(f'Too many failed attempts. Please try again in {wait} seconds.', 'error')
+        return _pending_page(429)
+    user = db.query("""SELECT id, name, emp_code FROM users
+        WHERE role='teacher' AND is_active=1 AND UPPER(emp_code)=?""", (emp,), one=True)
+    ok = bool(user) and hmac.compare_digest(
+        code.encode(), pending_code(user['id'], user['emp_code']).replace('-', '').encode())
+    if not ok:
+        for key, maximum in limits:
+            register_login_failure(key, maximum, config['LOGIN_LOCKOUT_SECONDS'])
+        flash('Emp ID or access code is not correct. Ask your HOD for your access code.', 'error')
+        return _pending_page(403)
+    clear_login_failures(limits[0][0])
+    sections = hod._teacher_pending_sections(None).get(user['id']) or []
+    if request.form.get('download') and sections:
+        data = hod._pending_pdf(sections, 'Faculty Feedback System')
+        audit('teacher_pending.download', 'users', user['id'], 'Pending list downloaded')
+        return Response(data, mimetype='application/pdf', headers={
+            'Content-Disposition': f"attachment; filename=pending_{user['emp_code']}.pdf",
+            'Cache-Control': 'no-store'})
+    return _pending_page(200, teacher=user, sections=sections,
+                         emp_code=emp, access_code=request.form.get('access_code') or '')

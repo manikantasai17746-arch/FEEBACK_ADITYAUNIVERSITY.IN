@@ -37,22 +37,13 @@
       </select></div>
     <noscript><button class="btn" type="submit">Show</button></noscript>
   </form>
-  {% if can_email and totals.email_teachers %}
-  <form method="post" action="{{ url_for('hod.pending_email', fid=form.id) }}" style="margin-top:.75rem"
-        onsubmit="return confirm('Send ONE combined email (with one PDF) to each of {{ totals.email_teachers }} teacher(s), covering all their open Main, Lab and Second Faculty forms?')">
-    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-    <input type="hidden" name="all" value="1">
-    <button class="btn btn-accent" type="submit">✉ Email all teachers with pending ({{ totals.email_teachers }})</button>
-    <span class="sub" style="margin-left:.5rem">One email per teacher, covering every open Main, Lab and Second Faculty form.</span>
-  </form>
-  {% endif %}
+  <p class="sub" style="margin-top:.75rem">Teachers can see their own pending students at
+    <strong>{{ public_url }}</strong> with their Emp ID and access code. Share each code only with that teacher.</p>
   {% if form %}
   <p class="sub" style="margin-top:.75rem">
     <span class="badge">{{ form_category }}</span>
     <strong>{{ totals.pending }}</strong> pending across <strong>{{ totals.teachers }}</strong> teacher(s).
     {% if form.deadline_at %}Deadline: {{ form.deadline_at|deadline }}.{% endif %}
-    {% if not can_email %}This form is {{ form.status }}, so reminder emails are disabled.{% endif %}
-    {% if not mail_ready %}<br><em>Mail is not configured (MAIL_USER / MAIL_APP_PASSWORD); emails are only printed to the server console locally.</em>{% endif %}
   </p>
   {% endif %}
 </div>
@@ -68,14 +59,12 @@
   <div class="table-wrap">
     <table class="data" id="pdTable">
       <thead><tr><th>Teacher</th><th>Subject(s)</th><th>Eligible</th><th>Submitted</th>
-        <th>Pending</th><th>Pending roll numbers</th><th>Actions</th></tr></thead>
+        <th>Pending</th><th>Pending roll numbers</th><th>Access code</th><th>Actions</th></tr></thead>
       <tbody>
       {% for t in teachers %}
         <tr class="pd-row" data-q="{{ ([t.teacher_name or '', t.emp_code or '', t.subjects|join(' ')]|join(' '))|lower }}">
           <td class="wrap"><strong>{{ t.teacher_name }}</strong>
-            <div class="sub">{{ t.emp_code or '' }}{% if t.email %} · {{ t.email }}{% else %} · <em>no email on file</em>{% endif %}</div>
-            {% if t.also %}<div class="sub">The email also covers:
-              {% for a in t.also %}{{ a.label }} ({{ a.pending }} pending){{ ', ' if not loop.last }}{% endfor %}</div>{% endif %}</td>
+            <div class="sub">{{ t.emp_code or '' }}</div></td>
           <td class="wrap">{{ t.subjects|join(', ') or '—' }}</td>
           <td>{{ t.eligible }}</td>
           <td>{{ t.submitted }}</td>
@@ -90,18 +79,12 @@
             </details>
             {% else %}<span class="sub">All submitted ✓</span>{% endif %}
           </td>
+          <td><code>{{ t.access_code or '—' }}</code></td>
           <td>
             <div class="btn-row">
               {% if t.pending %}
               <a class="btn btn-ghost btn-sm" target="_blank"
                  href="{{ url_for('hod.pending_pdf', fid=form.id, tid=t.teacher_user_id) }}">PDF</a>
-              {% endif %}
-              {% if can_email and t.pending %}
-              <form method="post" action="{{ url_for('hod.pending_email', fid=form.id) }}">
-                <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-                <input type="hidden" name="teacher_user_id" value="{{ t.teacher_user_id }}">
-                <button class="btn btn-sm" type="submit" {{ 'disabled' if not t.email }}>✉ Email PDF</button>
-              </form>
               {% endif %}
             </div>
           </td>

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Pending Students{% endblock %}
+{% block body %}
+{% if teacher is defined %}
+<div class="container page">
+  <h1 style="margin-top:0">Pending students — {{ teacher.name }}</h1>
+  <p class="sub">Students who have <strong>not</strong> submitted feedback yet (roll numbers only), for every open form.</p>
+  {% if sections %}
+  <form method="post" style="margin-bottom:1rem">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <input type="hidden" name="emp_code" value="{{ emp_code }}">
+    <input type="hidden" name="access_code" value="{{ access_code }}">
+    <button class="btn btn-primary" type="submit" name="download" value="1">Download PDF</button>
+  </form>
+  {% for s in sections %}
+  <div class="card">
+    <h3 style="margin-top:0">{{ s.label }} · {{ s.form.title }}</h3>
+    <p class="sub"><strong>{{ s.entry.pending }}</strong> of {{ s.entry.eligible }} pending{% if s.form.deadline_at %} · closes {{ s.form.deadline_at|deadline }}{% endif %}</p>
+    <p>{% for r in s.entry.pending_rolls %}<span class="badge">{{ r }}</span> {% endfor %}</p>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="card"><p>All your students have submitted ✓ (or no feedback form is open).</p></div>
+  {% endif %}
+  <p><a href="{{ url_for('teacher_report.pending') }}">Sign out</a></p>
+</div>
+{% else %}
+<div class="card" style="max-width:420px;margin:40px auto">
+  <h1 style="margin-top:0">Pending Students</h1>
+  <p class="sub">For faculty only. Enter your Emp ID and the access code given by your HOD.</p>
+  <form method="post" autocomplete="off">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="field"><label for="emp_code">Emp ID</label>
+      <input id="emp_code" name="emp_code" maxlength="40" required></div>
+    <div class="field"><label for="access_code">Access code</label>
+      <input id="access_code" name="access_code" maxlength="40" required placeholder="XXXXX-XXXXX"></div>
+    <button class="btn btn-primary" type="submit">View pending students</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

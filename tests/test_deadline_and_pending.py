@@ -222,43 +222,27 @@ def test_pending_pdf_has_rolls_only(app, pending_setup):
     assert r.status_code == 200 and r.data[:5] == b'%PDF-'
 
 
-def test_one_click_email_sends_pdf_to_teacher(app, pending_setup, monkeypatch):
-    sent = []
-    monkeypatch.setattr(mailer, 'send_email',
-                        lambda to, subject, text, html=None, attachments=None:
-                        sent.append((to, subject, text, attachments)) or True)
+def test_pending_page_has_no_email_controls_and_shows_access_code(app, pending_setup):
     hod, fid = pending_setup['hod'], pending_setup['fid']
-    tok = token_from(hod, f'/hod/pending?form_id={fid}')
-    r = hod.post(f'/hod/pending/{fid}/email',
-                 data={'_csrf': tok, 'teacher_user_id': pending_setup['teacher_id']})
-    assert r.status_code == 302
-    assert len(sent) == 1
-    to, subject, text, attachments = sent[0]
-    assert to == 'faculty.member@outlook.com'
-    assert attachments[0][2] == 'application/pdf' and attachments[0][1][:5] == b'%PDF-'
-    # roll numbers are NOT in the body; only the PDF carries them
-    assert not any(roll in text for roll in __import__('helpers').eligible_rolls(
-        app, pending_setup['sid']))
+    html = hod.get(f'/hod/pending?form_id={fid}').get_data(as_text=True)
+    assert 'Email PDF' not in html and 'Email all teachers' not in html
+    assert '/teacher-pending' in html and 'Access code' in html
+    assert hod.post(f'/hod/pending/{fid}/email', data={}).status_code in (400, 404, 405)
 
 
-def test_email_refused_outside_hod_scope_and_when_closed(app, pending_setup, admin):
-    hod, fid = pending_setup['hod'], pending_setup['fid']
-    tok = token_from(hod, f'/hod/pending?form_id={fid}')
-    # another department's form -> 403
+def test_teacher_opens_pending_list_with_emp_id_and_default_code(app, pending_setup):
+    from feedback_system import teacher_report
     with app.app_context():
-        other = db.query("""SELECT f.id FROM feedback_forms f WHERE f.branch_id<>
-            (SELECT branch_id FROM feedback_forms WHERE id=?) LIMIT 1""", (fid,), one=True)
-    if other:
-        assert hod.post(f"/hod/pending/{other['id']}/email",
-                        data={'_csrf': tok, 'all': '1'}).status_code in (403, 404)
-        assert hod.get(f"/hod/pending?form_id={other['id']}").status_code in (403, 404)
-    _sql(app, "UPDATE feedback_forms SET status='closed' WHERE id=?", (fid,))
-    sent = []
-    import feedback_system.mailer as m
-    orig = m.send_email
-    m.send_email = lambda *a, **k: sent.append(a) or True
-    try:
-        hod.post(f'/hod/pending/{fid}/email', data={'_csrf': tok, 'all': '1'})
-    finally:
-        m.send_email = orig
-    assert sent == []
+        t = db.query('SELECT id, emp_code FROM users WHERE id=?',
+                     (pending_setup['teacher_id'],), one=True)
+        code = teacher_report.pending_code(t['id'], t['emp_code'])
+    client = app.test_client()
+    assert client.get('/teacher-pending').status_code == 200
+    tok = token_from(client, '/teacher-pending')
+    bad = client.post('/teacher-pending', data={'_csrf': tok, 'emp_code': t['emp_code'], 'access_code': 'WRONG'})
+    assert bad.status_code == 403
+    ok = client.post('/teacher-pending', data={'_csrf': tok, 'emp_code': t['emp_code'], 'access_code': code})
+    assert ok.status_code == 200 and 'Pending students' in ok.get_data(as_text=True)
+    pdf = client.post('/teacher-pending', data={'_csrf': tok, 'emp_code': t['emp_code'], 'access_code': code,
+                                                'download': '1'})
+    assert pdf.status_code == 200 and pdf.data[:5] == b'%PDF-'
