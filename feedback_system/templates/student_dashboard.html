@@ -8,6 +8,7 @@
   {% endif %}
 {% endmacro %}
 {% block title %}My Feedback — Faculty Feedback{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/anonymous_session.css') }}">{% endblock %}
 {% block body %}
 <div class="stu-head">
   <p class="eyebrow">Student dashboard</p>
@@ -22,6 +23,15 @@
     <span class="stu-chip">Academic year {{ ctx.academic_year }}</span>
   </div>
 {% endif %}
+</div>
+
+<div class="as-bar" id="asBar" data-uid="{{ current_user.id }}" hidden>
+  <div>
+    <p class="as-bar-title">You are in anonymous mode</p>
+    <p class="as-bar-sub" id="asSub">Your name, roll number and progress stay hidden while you give feedback.</p>
+    <div class="as-tiles" id="asTiles" aria-label="Your anonymous ID"></div>
+  </div>
+  <button type="button" class="btn btn-accent" id="asOut">Log out of anonymous ID</button>
 </div>
 
 <div class="tiles mb">
@@ -145,3 +155,4 @@
 </div>
 {% endfor %}
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/anonymous_session.js') }}"></script>{% endblock %}

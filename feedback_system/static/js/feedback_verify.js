@@ -48,6 +48,9 @@
 
   /* ---- the animation ---- */
   function play(code, dest) {
+    try {                                        // remembered in this tab for the anonymous session
+      sessionStorage.setItem('ffs_anon', JSON.stringify({ code: code, uid: stage.getAttribute('data-uid') || '' }));
+    } catch (e) {}
     card.classList.add('fv-playing');
     stage.hidden = false;
 
