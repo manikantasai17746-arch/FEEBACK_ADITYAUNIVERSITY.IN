@@ -469,24 +469,9 @@
     <div class="lp-login-panel{% if active_login_role == 'student' %} active{% endif %}" data-role="student">
       <p class="lp-login-eyebrow">STUDENT LOGIN</p>
       <h2 id="lpLoginTitle-student">Welcome back</h2>
-      <p class="lp-login-sub">Scan your ID card or type your roll number to give feedback. Your responses are <strong>anonymous</strong> — teachers never see your name or roll number.</p>
-      <button type="button" class="lp-btn lp-btn-scan" id="lpScanStudent">Scan ID Card</button>
-      <div class="lp-login-or">or enter it manually</div>
-      <form method="post" action="{{ url_for('auth.student_login') }}" autocomplete="on" class="lp-login-form">
-        {{ login_fields('student') }}
-        <div class="field">
-          <label for="lp_roll">Roll Number</label>
-          <input type="text" id="lp_roll" name="roll" value="{{ login_values.get('roll', '') if login_values else '' }}" placeholder=" " required autocomplete="username" autocapitalize="off" spellcheck="false" maxlength="20">
-          <div class="scan-ok" id="lpScanOkStudent" style="display:none">✓ ID card scanned — now enter your password.</div>
-        </div>
-        <div class="field">
-          <label for="lp_stu_pw">Password</label>
-          <input type="password" id="lp_stu_pw" name="password" required autocomplete="current-password" maxlength="128">
-          <div class="hint">Default password is set by your administrator. You can change it any time from the Password menu after login.</div>
-        </div>
-        <button class="lp-btn lp-btn-primary lp-btn-block" type="submit">Log In</button>
-        <p class="lp-login-forgot"><a href="{{ url_for('auth.forgot_password', role='student') }}">Forgot password?</a></p>
-      </form>
+      <p class="lp-login-sub">Sign in with your college Microsoft account to give feedback. Your responses are <strong>anonymous</strong> — teachers never see your name or roll number.</p>
+      <a class="lp-btn lp-btn-primary lp-btn-block" id="lpStudentMicrosoft" href="{{ url_for('auth.student_sso_start', next=login_next) if login_next else url_for('auth.student_sso_start') }}">Continue with Microsoft</a>
+      <p class="lp-login-forgot">Use your college email, for example <strong>26b21cs073@adityauniversity.in</strong></p>
     </div>
 
     <!-- HOD -->
@@ -639,8 +624,6 @@
     var pw = f && f.form && f.form.querySelector('input[type=password]');
     if (pw) pw.focus();
   }
-  var sBtn = document.getElementById('lpScanStudent');
-  if (sBtn) sBtn.addEventListener('click', function () { scanInto('lp_roll', 'lpScanOkStudent'); });
 
   // Eye (show/hide) button on every password field
   var EYE_SVG =

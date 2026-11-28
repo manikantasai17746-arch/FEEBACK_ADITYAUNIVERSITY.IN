@@ -75,7 +75,6 @@ def test_admin_login_rejects_bad_credentials(client):
 
 
 @pytest.mark.parametrize(('role', 'path', 'data'), [
-    ('student', '/student/login', {'roll': 'NOT-A-STUDENT', 'password': 'wrong'}),
     ('teacher', '/teacher/login', {'emp_code': 'NOT-A-TEACHER', 'password': 'wrong'}),
     ('hod', '/hod/login', {'emp_code': 'NOT-A-HOD', 'password': 'wrong'}),
     ('dean', '/dean/login', {'emp_code': 'NOT-A-DEAN', 'password': 'wrong'}),
