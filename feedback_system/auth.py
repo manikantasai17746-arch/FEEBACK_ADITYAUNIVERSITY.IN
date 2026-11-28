@@ -102,7 +102,7 @@ _SETUP_ENDPOINTS = {'auth.logout', 'auth.setup_email', 'auth.verify_email',
                     'dean.onboarding_verify', 'dean.onboarding_save',
                     'auth.admin_setup_emails', 'auth.admin_setup_emails_verify',
                     # Phase 2: teacher photo step (+ the image it displays)
-                    'auth.setup_photo', 'photos.serve',
+                    'auth.setup_photo', 'photos.serve', 'teacher_report.download',
                     # Step B: authenticator setup (student, after the e-mail step)
                     'auth.setup_authenticator', 'auth.setup_authenticator_verify',
                     'auth.setup_authenticator_confirm'}

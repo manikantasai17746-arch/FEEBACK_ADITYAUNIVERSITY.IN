@@ -107,7 +107,7 @@
   <button type="button" class="sec-tab" role="tab" id="tab-bands" aria-controls="sec-bands" aria-selected="false" data-sec="bands">
     <span class="sec-t">🎯 Teachers by Score Band</span><span class="sec-s">Browse teachers by feedback score</span></button>
   <button type="button" class="sec-tab" role="tab" id="tab-results" aria-controls="sec-results" aria-selected="false" data-sec="results">
-    <span class="sec-t">📄 Feedback Results</span><span class="sec-s">View and publish results to teachers</span></button>
+    <span class="sec-t">📄 Feedback Results</span><span class="sec-s">View results and print teacher reports</span></button>
 </div>
 
 <div class="sec-panel" id="sec-recent" role="tabpanel" aria-labelledby="tab-recent">
@@ -145,29 +145,11 @@
     <p class="sub">Loading feedback results…</p></div>
 </div>
 
-{% if stats.ready_to_publish %}
-<div class="rv-ov" id="rdyOv" role="dialog" aria-modal="true" aria-labelledby="rdyT" data-n="{{ stats.ready_to_publish }}">
-  <div class="rv-box" style="max-width:480px;margin:auto">
-    <div class="rv-body">
-      <h3 id="rdyT" style="margin-top:0">Results ready to publish</h3>
-      <p>{{ stats.ready_to_publish }} closed form{{ 's' if stats.ready_to_publish != 1 }} {{ 'have' if stats.ready_to_publish != 1 else 'has' }} responses and
-        {{ 'are' if stats.ready_to_publish != 1 else 'is' }} ready to publish. View the teachers by score band, or publish the results to the teachers.</p>
-    </div>
-    <div class="rv-foot">
-      <button type="button" class="btn btn-ghost" id="rdyLater">Not now</button>
-      <a class="btn btn-ghost" id="rdyBands" href="{{ url_for('hod.performance_bands') }}">View score bands</a>
-      <a class="btn btn-accent" id="rdyPub" href="{{ url_for('hod.results') }}">Publish results</a>
-    </div>
-  </div>
-</div>
-{% endif %}
-
 {% endif %}
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/hod_overview.js') }}"></script>
 <script src="{{ url_for('static', filename='js/band_pdf_notice.js') }}"></script>
-<script src="{{ url_for('static', filename='js/hod_results.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hod_pending_search.js') }}"></script>
 {% include '_result_modal_js.html' %}
 {% endblock %}

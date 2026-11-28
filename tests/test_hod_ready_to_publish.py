@@ -1,4 +1,4 @@
-"""HOD Overview: 'results ready to publish' pop-up + semester options from real forms."""
+"""HOD Overview: no publish pop-up; semester options come from real forms."""
 import os
 import tempfile
 
@@ -78,24 +78,17 @@ def hod_client(app, monkeypatch):
     return client, bid
 
 
-def test_popup_only_for_closed_unpublished_forms_with_responses(app, hod_client):
+def test_overview_no_longer_asks_the_hod_to_publish(app, hod_client):
     client, bid = hod_client
     with app.app_context():
         s3 = db_module.query('SELECT id FROM semesters WHERE number=3', one=True)['id']
         ready = _form(bid, 'closed', s3, 1, 'Ready form')
         _submit(ready)
-        published = _form(bid, 'closed', s3, 2, 'Published form')
-        _submit(published)
-        db_module.execute(
-            'INSERT INTO result_publications(form_id, session_id, is_published) VALUES(?,?,1)',
-            (published['id'], published['session_id']))
         _form(bid, 'closed', s3, 3, 'No responses')
-        opened = _form(bid, 'open', s3, 4, 'Still open')
-        _submit(opened)
     html = client.get('/hod/').get_data(as_text=True)
-    assert 'id="rdyOv"' in html and 'data-n="1"' in html
-    assert 'View score bands' in html and 'Publish results' in html
-    assert '/hod/performance/bands' in html and '/hod/results' in html
+    assert 'id="rdyOv"' not in html and 'Publish results' not in html
+    results = client.get('/hod/results?tab=main').get_data(as_text=True)
+    assert 'Teacher Reports' in results and '/publish' not in results
 
 
 def test_semester_options_list_only_semesters_with_forms(app, hod_client):

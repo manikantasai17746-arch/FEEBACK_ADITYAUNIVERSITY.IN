@@ -64,7 +64,6 @@ def dashboard():
         'sfa_confirmed': 0,
         'sfa_unresolved': 0,
         'recent_forms': [],
-        'ready_to_publish': 0,
     }
     if branch_ids:
         ph = ','.join('?' * len(branch_ids))
@@ -120,17 +119,6 @@ def dashboard():
         stats['recent_forms'] = [dict(f, teachers=_tm.get(f['id'], []),
                                       deadline_passed=services.deadline_passed(f))
                                  for f in stats['recent_forms']]
-
-        # Closed forms with responses whose results are not yet published to the
-        # teacher: drives the "ready to publish" pop-up on the Overview.
-        stats['ready_to_publish'] = db.query(
-            f"""SELECT COUNT(*) AS n FROM feedback_forms f
-                LEFT JOIN result_publications rp
-                       ON rp.form_id=f.id AND rp.session_id=f.session_id
-                WHERE f.branch_id IN ({ph}) AND f.is_deleted=0 AND f.status='closed'
-                  AND f.session_id IS NOT NULL AND COALESCE(rp.is_published,0)=0
-                  AND EXISTS (SELECT 1 FROM submissions sb WHERE sb.form_id=f.id){tt_f}""",
-            tuple(branch_ids) + tt_a, one=True)['n']
 
         # Overview counts per feedback category (main / second / lab).
         stats['category_overview'] = _category_overview(branch_ids, scoped_timetable_ids(user))
@@ -1786,6 +1774,63 @@ def results_category_pdf(category):
 
 
 
+def _report_teachers(user):
+    """Teachers with a closed form in this HOD's departments, each with an access
+    code limited to those departments."""
+    from . import teacher_report
+    branch_ids = [b['id'] for b in _hod_branches(user)]
+    teachers = teacher_report.teachers_with_reports(branch_ids)
+    for t in teachers:
+        t['branch_ids'] = branch_ids
+        t['access_code'] = (
+            teacher_report.access_code(t['id'], t['emp_code'], t['branches'])
+            if t['emp_code'] else None)
+    return teachers
+
+
+def _report_for(teacher):
+    from . import teacher_report
+    return {'name': teacher['name'], 'emp_code': teacher['emp_code'] or '—',
+            'access_code': teacher['access_code'],
+            'url': url_for('teacher_report.download', _external=True),
+            'entries': teacher_report.report_entries(teacher['id'], teacher['branch_ids'])}
+
+
+@bp.route('/teacher-reports')
+@role_required('hod')
+def teacher_reports():
+    from flask import make_response
+    response = make_response(render_template(
+        'hod_teacher_reports.html', teachers=_report_teachers(current_user()),
+        public_url=url_for('teacher_report.download', _external=True)))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
+@bp.route('/teacher-reports/<int:teacher_id>.pdf')
+@role_required('hod')
+def teacher_report_pdf(teacher_id):
+    from . import teacher_report
+    teacher = next((t for t in _report_teachers(current_user())
+                    if t['id'] == teacher_id), None)
+    if not teacher:
+        abort(404)
+    data = teacher_report.build_pdf([_report_for(teacher)])
+    audit('hod.teacher_report.download', 'users', teacher_id, 'HOD downloaded teacher report')
+    return teacher_report.pdf_response(data, teacher['emp_code'] or str(teacher_id))
+
+
+@bp.route('/teacher-reports/all.pdf')
+@role_required('hod')
+def teacher_reports_all():
+    from . import teacher_report
+    teachers = _report_teachers(current_user())
+    data = teacher_report.build_pdf([_report_for(t) for t in teachers])
+    audit('hod.teacher_report.download_all', 'users', None,
+          f'HOD downloaded reports of {len(teachers)} teacher(s)')
+    return teacher_report.pdf_response(data, 'all_teachers')
+
+
 @bp.route('/results/<int:fid>/publish', methods=['POST'])
 @role_required('hod')
 def result_publish(fid):
@@ -2843,14 +2888,8 @@ def performance():
             if dist_buckets[lab].get('marks') is None and b.get('marks_each') is not None:
                 dist_buckets[lab]['marks'] = b['marks_each']
     distribution = list(dist_buckets.values())
-    order = ['excellent', 'very good', 'good', 'average', 'poor']
-    def _sk(it):
-        lab = (it['label'] or '').lower()
-        for i, o in enumerate(order):
-            if o in lab:
-                return i
-        return 99
-    distribution.sort(key=_sk)
+    from .scoring import rating_rank
+    distribution.sort(key=lambda it: rating_rank(it['label']))
     dist_total = sum(d['count'] for d in distribution) or 0
     for d in distribution:
         d['pct'] = round(d['count'] * 100.0 / dist_total, 1) if dist_total else 0.0

@@ -197,6 +197,7 @@ def create_app(config=None):
     from .hod_feedback import bp as hod_feedback_bp
     from .account_security import bp as account_security_bp
     from .lost_device import bp as lost_device_bp
+    from .teacher_report import bp as teacher_report_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
@@ -209,6 +210,7 @@ def create_app(config=None):
     app.register_blueprint(hod_feedback_bp)
     app.register_blueprint(account_security_bp)
     app.register_blueprint(lost_device_bp)
+    app.register_blueprint(teacher_report_bp)
 
     @app.route('/favicon.ico')
     def favicon():

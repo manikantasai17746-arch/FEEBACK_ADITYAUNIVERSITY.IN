@@ -7,6 +7,8 @@
 
 ## 1. Current state
 
+- 2026-11-28 (branch `teacher-report-pdf`, not deployed): per-teacher PDF report replaces HOD publishing. [Teacher report handoff](PHASE_HANDOFFS/TEACHER_REPORT_HANDOFF.md)
+
 - HOD Pending submissions opens a teacher’s pending roll numbers in a scrollable dialog. [Browser checks and regression results](PHASE_HANDOFFS/PENDING_SEARCH_HANDOFF.md#pending-roll-number-dialog)
 
 - On 2026-11-25 the HOD Overview semester and category filters began updating Teachers by Score Band in place. Desktop and mobile Chrome kept the page at the same scroll position. [Verification and deployment](PHASE_HANDOFFS/HOD_SCORE_BAND_FILTERS.md)
