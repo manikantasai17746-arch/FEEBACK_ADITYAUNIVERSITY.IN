@@ -2,8 +2,16 @@
 {% import '_macros.html' as m %}
 {% block title %}{{ form.title }} — Feedback{% endblock %}
 {% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/anonymous_session.css') }}">{% endblock %}
+{% block topbar %}{% if anon %}{% include '_anon_topbar.html' %}{% else %}{{ super() }}{% endif %}{% endblock %}
 {% block body %}
-{{ m.back(url_for('student.dashboard'), 'Back to my feedback') }}
+{% if anon %}
+  {% set step = 2 %}{% include '_anon_steps.html' %}
+  <form method="post" action="{{ url_for('student.anonymous_logout') }}" id="anonOut" data-as-logout>
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+  </form>
+{% else %}
+  {{ m.back(url_for('student.dashboard'), 'Back to my feedback') }}
+{% endif %}
 
 {# --- Teacher identity card --- #}
 {% set tname = form.teacher_name or 'Faculty Member' %}
@@ -135,7 +143,11 @@
   {% endfor %}
   <div class="btn-row form-actions" style="margin-top:1rem">
     <button class="btn btn-accent" type="submit">✈ Submit feedback</button>
+    {% if anon %}
+    <button class="btn btn-ghost" type="submit" form="anonOut">Cancel and log out of anonymous ID</button>
+    {% else %}
     <a class="btn btn-ghost" href="{{ url_for('student.dashboard') }}">Cancel</a>
+    {% endif %}
   </div>
 </form>
 {% endif %}
