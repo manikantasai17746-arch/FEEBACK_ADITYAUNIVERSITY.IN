@@ -1,23 +1,44 @@
 {% extends 'base.html' %}
 {% block title %}Enter your authenticator code — Faculty Feedback{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/feedback_verify.css') }}">{% endblock %}
 {% block body %}
 <div class="auth-page">
-  <div class="auth-card">
-    <div class="eyebrow">Feedback · Confirm it is you</div>
-    <h2>Enter your authenticator code</h2>
-    <p class="sub" style="margin-bottom:1.2rem">Enter the 6-digit code shown in your authenticator app
-      to open this feedback form. You will not be asked again until you log out.</p>
-    <form method="post" autocomplete="off" class="card">
-      <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
-      <input type="hidden" name="next" value="{{ next }}">
-      <div class="field">
-        <label for="code">6-digit code</label>
-        <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
-               placeholder="123456" autocomplete="one-time-code" required data-autosubmit autofocus
-               style="font-size:1.4rem;letter-spacing:.35em;text-align:center">
+  <div class="auth-card fv-card" id="fvCard">
+    <div class="fv-form-part">
+      <div class="eyebrow">Feedback · Confirm it is you</div>
+      <h2>Enter your authenticator code</h2>
+      <p class="sub" style="margin-bottom:1.2rem">Enter the 6-digit code shown in your authenticator app
+        to open this feedback form. You will not be asked again until you log out.</p>
+      <form method="post" autocomplete="off" class="card" data-fv-form>
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ next }}">
+        <div class="field">
+          <label for="code">6-digit code</label>
+          <input type="text" id="code" name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                 placeholder="123456" autocomplete="one-time-code" required data-autosubmit autofocus
+                 style="font-size:1.4rem;letter-spacing:.35em;text-align:center">
+        </div>
+        <button class="btn btn-block" type="submit">Continue</button>
+      </form>
+    </div>
+
+    <div class="fv-stage" id="fvStage" role="status" aria-live="polite" hidden>
+      <div class="fv-ok">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5"/></svg>
+        Code accepted
       </div>
-      <button class="btn btn-block" type="submit">Continue</button>
-    </form>
+      <div class="fv-id-rows">
+        <div class="fv-row"><span class="fv-k">Roll number</span><span class="fv-val">{{ user.roll or user.username }}<i class="fv-line"></i></span></div>
+        <div class="fv-row"><span class="fv-k">Name</span><span class="fv-val">{{ user.name }}<i class="fv-line"></i></span></div>
+      </div>
+      <div class="fv-idbox">
+        <p class="fv-idlabel">Your anonymous feedback ID</p>
+        <div class="fv-tiles"></div>
+        <p class="fv-note">Your name and roll number are not attached to your answers.</p>
+        <button type="button" class="btn btn-block fv-go">Open feedback form</button>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/feedback_verify.js') }}"></script>{% endblock %}
