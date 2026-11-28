@@ -8,3 +8,28 @@
 .pd-x[hidden],.pd-empty[hidden]{display:none}
 .pd-row[hidden]{display:none}
 .pd-row mark{background:#fff0a8;color:inherit;border-radius:3px;padding:0 1px}
+
+.pd-rolls summary { cursor: pointer; color: var(--tt-link); font-weight: 600; }
+.pd-roll-list {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(8rem, 100%), 1fr));
+  gap: .5rem; list-style: none; padding: 0; margin: 0;
+}
+.pd-roll-list .badge {
+  display: block; padding: .55rem; text-align: center; background: var(--tt-paper);
+  color: var(--tt-ink); border-radius: .5rem; overflow-wrap: anywhere; white-space: normal;
+}
+#pdRollDialog {
+  width: min(40rem, calc(100% - 2rem)); max-height: 90vh; max-height: 90dvh;
+  padding: 0; border: 0; border-radius: 14px; margin: auto;
+  color: var(--tt-ink); background: var(--tt-card); box-shadow: 0 20px 60px rgba(0,0,0,.32);
+}
+#pdRollDialog::backdrop { background: rgba(7, 30, 61, .55); }
+html:has(#pdRollDialog[open]) { overflow: hidden; }
+#pdRollDialog form { display: flex; flex-direction: column; max-height: inherit; margin: 0; }
+.pd-roll-head, .pd-roll-foot { display: flex; align-items: center; padding: 1rem 1.25rem; }
+.pd-roll-head { justify-content: space-between; gap: 1rem; background: var(--tt-paper); }
+.pd-roll-head h2, .pd-roll-head p { margin: 0; }
+.pd-roll-head p { margin-top: .25rem; color: var(--tt-muted); overflow-wrap: anywhere; }
+.pd-roll-x { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 1.5rem; padding: .35rem .65rem; }
+.pd-roll-body { padding: 1rem 1.25rem; overflow-y: auto; overscroll-behavior: contain; }
+.pd-roll-foot { justify-content: flex-end; border-top: 1px solid var(--tt-line); }

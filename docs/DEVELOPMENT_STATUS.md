@@ -7,6 +7,8 @@
 
 ## 1. Current state
 
+- HOD Pending submissions opens a teacher’s pending roll numbers in a scrollable dialog. [Browser checks and regression results](PHASE_HANDOFFS/PENDING_SEARCH_HANDOFF.md#pending-roll-number-dialog)
+
 - On 2026-11-25 the HOD Overview semester and category filters began updating Teachers by Score Band in place. Desktop and mobile Chrome kept the page at the same scroll position. [Verification and deployment](PHASE_HANDOFFS/HOD_SCORE_BAND_FILTERS.md)
 
 - A HOD or Dean changing a complaint's status creates an unread notification for the student who filed it. [Complaint notification verification](PHASE_HANDOFFS/STUDENT_COMPLAINTS_HANDOFF.md#status-updates-in-the-student-inbox)

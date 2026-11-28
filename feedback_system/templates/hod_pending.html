@@ -82,10 +82,12 @@
           <td><strong>{{ t.pending }}</strong></td>
           <td class="wrap">
             {% if t.pending_rolls %}
-            <details><summary class="sub" style="cursor:pointer">Show {{ t.pending_rolls|length }} roll number(s)</summary>
-              <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;max-width:520px">
-                {% for r in t.pending_rolls %}<span class="badge">{{ r }}</span>{% endfor %}
-              </div></details>
+            <details class="pd-rolls" data-context="{{ t.teacher_name }}{% if t.subjects %} · {{ t.subjects|join(', ') }}{% endif %}">
+              <summary aria-haspopup="dialog">Show {{ t.pending_rolls|length }} roll number{{ 's' if t.pending_rolls|length != 1 }}</summary>
+              <ul class="pd-roll-list">
+                {% for r in t.pending_rolls %}<li><span class="badge">{{ r }}</span></li>{% endfor %}
+              </ul>
+            </details>
             {% else %}<span class="sub">All submitted ✓</span>{% endif %}
           </td>
           <td>
@@ -109,6 +111,19 @@
     </table>
     <p class="sub pd-empty" id="pdEmpty" hidden></p>
   </div>
+  <dialog id="pdRollDialog" aria-labelledby="pdRollTitle" aria-describedby="pdRollContext">
+    <form method="dialog" data-no-loader>
+      <div class="pd-roll-head">
+        <div>
+          <h2 id="pdRollTitle">Pending roll numbers (<span data-roll-count></span>)</h2>
+          <p id="pdRollContext"></p>
+        </div>
+        <button class="pd-roll-x" type="submit" aria-label="Close pending roll numbers" autofocus>&times;</button>
+      </div>
+      <div class="pd-roll-body" tabindex="0" role="region" aria-label="Pending roll number list"></div>
+      <div class="pd-roll-foot"><button class="btn" type="submit">Close</button></div>
+    </form>
+  </dialog>
 </div>
 {% elif form %}
 <div class="card"><p class="sub">No teachers are linked to this form.</p></div>

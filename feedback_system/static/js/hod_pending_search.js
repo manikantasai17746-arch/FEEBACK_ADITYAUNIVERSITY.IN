@@ -43,6 +43,24 @@
     if (e.target && e.target.id === 'pdQ' && e.key === 'Escape') { e.target.value = ''; apply(e.target); }
   });
   document.addEventListener('click', function (e) {
+    var summary = e.target.closest('.pd-rolls > summary');
+    var dialog = document.getElementById('pdRollDialog');
+    if (summary && dialog && typeof dialog.showModal === 'function') {
+      e.preventDefault();
+      var details = summary.parentElement;
+      var rolls = details.querySelector('.pd-roll-list');
+      var listBody = dialog.querySelector('.pd-roll-body');
+      dialog.querySelector('[data-roll-count]').textContent = rolls.children.length;
+      dialog.querySelector('#pdRollContext').textContent = details.dataset.context;
+      listBody.replaceChildren(rolls.cloneNode(true));
+      dialog.addEventListener('close', function () {
+        summary.focus({ preventScroll: true });
+      }, { once: true });
+      dialog.showModal();
+      listBody.scrollTop = 0;
+      return;
+    }
+    if (dialog && e.target === dialog) { dialog.close(); return; }
     var x = e.target && e.target.closest ? e.target.closest('#pdQx') : null;
     if (!x) return;
     var box = document.getElementById('pdQ');
