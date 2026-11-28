@@ -631,11 +631,10 @@ def admin_import():
     user = current_user()
     if request.method == 'GET':
         return render_template('admin_photos_import.html', result=None, overwrite=True,
-                               max_mb=current_app.config.get('MAX_CONTENT_LENGTH', 0)
-                               // (1024 * 1024))
+                               max_mb=0)          # no file-size limit on this page
     upload = request.files.get('workbook')
     overwrite = request.form.get('overwrite') == '1'
-    max_mb = current_app.config.get('MAX_CONTENT_LENGTH', 0) // (1024 * 1024)
+    max_mb = 0                                # no file-size limit on this page
     if not upload or not upload.filename:
         result = {'problems': ['Choose the college Excel (.xlsx) file first.']}
     elif not upload.filename.lower().endswith('.xlsx'):

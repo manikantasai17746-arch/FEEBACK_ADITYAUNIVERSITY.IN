@@ -18,7 +18,7 @@
   <div class="field"><label for="workbook">Excel file (.xlsx)</label>
     <input type="file" id="workbook" name="workbook"
            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required>
-    {% if max_mb %}<div class="hint">Maximum file size {{ max_mb }} MB.</div>{% endif %}</div>
+    {% if max_mb %}<div class="hint">Maximum file size {{ max_mb }} MB.</div>{% else %}<div class="hint">No file size limit.</div>{% endif %}</div>
   <div class="field"><label>
     <input type="checkbox" name="overwrite" value="1" {{ 'checked' if overwrite }}>
     Replace photos that already exist</label></div>

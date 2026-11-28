@@ -3,7 +3,7 @@ import logging
 import os
 import secrets
 
-from flask import Flask, g, request, session, render_template
+from flask import Flask, Request, current_app, g, request, session, render_template
 
 from . import db as db_module
 
@@ -58,8 +58,33 @@ def _load_or_create_secret_key(base_dir):
         return secrets.token_hex(32)
 
 
+# Admin pages whose uploads have NO size limit (the college photo sheet is a
+# large Excel file full of pictures).  Every other route keeps MAX_UPLOAD_MB.
+UNLIMITED_UPLOAD_PATHS = frozenset({'/admin/photos/import'})
+_NOT_SET = object()
+
+
+class AppRequest(Request):
+    """Request whose body-size limit is MAX_CONTENT_LENGTH, except on the
+    pages listed in UNLIMITED_UPLOAD_PATHS (no limit).  Works on Flask 3.0+."""
+
+    @property
+    def max_content_length(self):
+        override = self.__dict__.get('_max_content_length_override', _NOT_SET)
+        if override is not _NOT_SET:
+            return override
+        if self.path in UNLIMITED_UPLOAD_PATHS:
+            return None
+        return current_app.config.get('MAX_CONTENT_LENGTH')
+
+    @max_content_length.setter
+    def max_content_length(self, value):
+        self.__dict__['_max_content_length_override'] = value
+
+
 def create_app(config=None):
     app = Flask(__name__)
+    app.request_class = AppRequest
 
     app.config.update(
         # --- storage -------------------------------------------------------

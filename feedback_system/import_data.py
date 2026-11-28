@@ -427,6 +427,27 @@ def _find_header(rows):
     return None, {}
 
 
+def split_second_faculty(codes, names=''):
+    """Split a "Second Emp.Code" / "Second Emp.Name" cell pair into people.
+
+    The college workbook may list several Second Faculty in one cell,
+    separated by ``;`` (codes ``6470;6705`` with names ``A;B``).  Each code is
+    one person.  Names are paired with codes by position; a missing name falls
+    back to the code.  Blank pieces and repeated codes are dropped.
+    Returns a list of ``(code, name)``.
+    """
+    code_list = [c.strip() for c in str(codes or '').split(';')]
+    name_list = [n.strip() for n in str(names or '').split(';')]
+    out, seen = [], set()
+    for i, code in enumerate(code_list):
+        if not code or code in seen:
+            continue
+        seen.add(code)
+        name = name_list[i] if i < len(name_list) and name_list[i] else code
+        out.append((code, name))
+    return out
+
+
 def _collect_extra(extras, warnings, key, vals):
     """Fold one row's Lab / Room No / Second Emp into its teaching session.
 
@@ -528,8 +549,10 @@ def summarize(raw, report):
         'warnings': report['warnings'],
         'lab_sessions': sum(1 for e in extras.values() if e['lab']),
         'no_lab_sessions': sum(1 for e in extras.values() if e['lab'] is False),
-        'second_faculty': len({(k, e['second_code']) for k, e in extras.items()
-                               if e['lab'] and e['second_code']}),
+        'second_faculty': len({(k, code) for k, e in extras.items() if e['lab']
+                               for code, _n in split_second_faculty(
+                                   e['second_code'], e['second_name'])
+                               if code != k[3]}),   # k[3] = the main Emp.Code
         'rooms': sum(1 for e in extras.values() if e['room']),
         'has_extras': bool(extras),
     }
@@ -617,9 +640,9 @@ def import_timetable(app, semester_number=3, academic_year=None, progress=print,
     for dept, tt, cc, cn, emp, empname, roll in raw:
         teacher_users.setdefault(emp, empname)
     for ex in extras.values():                 # Second Faculty need an account too
-        if ex['lab'] and ex['second_code']:
-            teacher_users.setdefault(ex['second_code'],
-                                     ex['second_name'] or ex['second_code'])
+        if ex['lab']:
+            for code, name in split_second_faculty(ex['second_code'], ex['second_name']):
+                teacher_users.setdefault(code, name)
     conn.executemany(
         """INSERT OR IGNORE INTO users(role, username, name, emp_code, password_hash)
            VALUES('teacher', ?, ?, ?, ?)""",
@@ -732,19 +755,22 @@ def import_timetable(app, semester_number=3, academic_year=None, progress=print,
                            WHERE session_id=? AND (room IS NULL OR room='')""",
                         (ex['room'], sid))
                 n_lab += 1
-            second = ex['second_code']
-            if ex['lab'] and second and second != emp and second in teacher_id:
-                conn.execute(
-                    """INSERT OR IGNORE INTO second_faculty_assignments(
-                           academic_year_id, semester_id, branch_id, timetable_id,
-                           session_id, subject_code, subject_name, main_emp_code,
-                           main_teacher_user_id, second_emp_code, second_teacher_user_id,
-                           period_no, room, status, source)
-                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'confirmed','import')""",
-                    (ay_id, sem_id, info['branch_id'], info['timetable_id'], sid,
-                     cc, info['subject_name'], emp, info['teacher_user_id'], second,
-                     teacher_id[second], info['period_no'], ex['room'] or None))
-                n_second += 1
+            if ex['lab']:
+                for second, _name in split_second_faculty(ex['second_code'],
+                                                          ex['second_name']):
+                    if second == emp or second not in teacher_id:
+                        continue
+                    conn.execute(
+                        """INSERT OR IGNORE INTO second_faculty_assignments(
+                               academic_year_id, semester_id, branch_id, timetable_id,
+                               session_id, subject_code, subject_name, main_emp_code,
+                               main_teacher_user_id, second_emp_code, second_teacher_user_id,
+                               period_no, room, status, source)
+                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,'confirmed','import')""",
+                        (ay_id, sem_id, info['branch_id'], info['timetable_id'], sid,
+                         cc, info['subject_name'], emp, info['teacher_user_id'], second,
+                         teacher_id[second], info['period_no'], ex['room'] or None))
+                    n_second += 1
         progress(f'Lab/room settings: {n_lab}; Second Faculty assignments: {n_second}')
 
     conn.commit()
