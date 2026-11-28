@@ -267,6 +267,11 @@ def test_submit_then_log_out_of_the_anonymous_id(app, admin, client, gate_setup)
     assert login_student(client, gate_setup['roll']).status_code == 302
     _verify(client, _current_code(app, gate_setup['uid']))
     r = client.post(f'/student/form/{fid}/submit', data=_answers(client, fid))
+    # Another form is still pending: it opens straight away, with no new code asked for.
+    assert r.status_code == 302 and f'/student/form/{other}' in r.headers['Location']
+    assert client.get(r.headers['Location']).status_code == 200
+    r = client.post(f'/student/form/{other}/submit', data=_answers(client, other))
+    # Nothing left to fill in: the "submitted" page is shown.
     assert r.status_code == 302 and r.headers['Location'].endswith('/student/anonymous/submitted')
     done = client.get(r.headers['Location']).get_data(as_text=True)
     assert 'Feedback submitted' in done and 'Log out of anonymous ID' in done
@@ -275,8 +280,9 @@ def test_submit_then_log_out_of_the_anonymous_id(app, admin, client, gate_setup)
     r = client.post('/student/anonymous/logout', data={'_csrf': tok})
     assert r.status_code == 302 and r.headers['Location'].endswith('/student/progress')
     progress = client.get('/student/progress').get_data(as_text=True)
-    assert gate_setup['roll'] in progress and 'Submitted' in progress and 'Pending' in progress
-    again = client.get(f'/student/form/{other}')
+    assert gate_setup['roll'] in progress and 'Submitted' in progress
+    third = _open_form(app, admin, gate_setup['sid'], 'Anon third')
+    again = client.get(f'/student/form/{third}')
     assert again.status_code == 302 and 'verify-code' in again.headers['Location']
     assert client.get('/student/anonymous/submitted').status_code == 302
 

@@ -165,14 +165,20 @@ def submit(form_id):
     anon = _needs_code(form_id)
     ok, message = services.submit_feedback(user['id'], form_id, request.form)
     if ok:
-        if anon:
-            return redirect(url_for('student.anonymous_submitted'))
-        flash(message, 'success')
-        # Change 2: auto-open the next pending form after submit
+        # Auto-open the next pending form after submit. For a protected (anonymous) form the
+        # authenticator code was already accepted for this login session, so the student
+        # is taken straight to the next form without being asked for a code again.
         forms = services.student_forms(user['id'])
         pending = [f for f in forms
                    if f['status'] == 'open' and not f['submission_id']
                    and f['id'] != form_id and not f.get('locked')]
+        if anon:
+            if pending:
+                return redirect(url_for('student.view_form', form_id=pending[0]['id'],
+                                        from_feedback=1))
+            # Nothing left to fill in: show the "submitted" page with the Log out option.
+            return redirect(url_for('student.anonymous_submitted'))
+        flash(message, 'success')
         if pending:
             flash('Opening your next pending form…', 'info')
             return redirect(url_for('student.view_form', form_id=pending[0]['id'], from_feedback=1))
