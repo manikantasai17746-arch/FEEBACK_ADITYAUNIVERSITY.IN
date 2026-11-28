@@ -120,7 +120,9 @@
 </div>
 
 <div class="sec-panel" id="sec-bands" role="tabpanel" aria-labelledby="tab-bands" hidden>
-{% set base_args = {'semester_id': semester_id} if semester_id else {} %}
+{% set base_args = {} %}
+{% if semester_id %}{% set _ = base_args.update({'semester_id': semester_id}) %}{% endif %}
+{% if timetable %}{% set _ = base_args.update({'timetable': timetable}) %}{% endif %}
 <div id="bands">
 <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0 .25rem;align-items:center">
   <span class="muted" style="font-size:.85rem">Category:</span>
@@ -131,13 +133,22 @@
 </div>
 <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .5rem;align-items:center">
   <span class="muted" style="font-size:.85rem">Semester:</span>
-  <a class="btn btn-sm {{ 'btn-accent' if not semester_id else 'btn-ghost' }}" href="{{ url_for('hod.dashboard', category=category or None) }}#bands">All semesters</a>
+  <a class="btn btn-sm {{ 'btn-accent' if not semester_id else 'btn-ghost' }}" href="{{ url_for('hod.dashboard', category=category or None, timetable=timetable or None) }}#bands">All semesters</a>
   {% for sem in semesters %}
-  <a class="btn btn-sm {{ 'btn-accent' if semester_id == sem.id else 'btn-ghost' }}" href="{{ url_for('hod.dashboard', semester_id=sem.id, category=category or None) }}#bands">{{ sem.label or ('Sem ' ~ sem.number) }}</a>
+  <a class="btn btn-sm {{ 'btn-accent' if semester_id == sem.id else 'btn-ghost' }}" href="{{ url_for('hod.dashboard', semester_id=sem.id, category=category or None, timetable=timetable or None) }}#bands">{{ sem.label or ('Sem ' ~ sem.number) }}</a>
   {% endfor %}
 </div>
+{% if timetable_codes %}
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:0 0 .5rem;align-items:center">
+  <span class="muted" style="font-size:.85rem">Time Table:</span>
+  <a class="btn btn-sm {{ 'btn-accent' if not timetable else 'btn-ghost' }}" href="{{ url_for('hod.dashboard', category=category or None, semester_id=semester_id or None) }}#bands">All time tables</a>
+  {% for tt in timetable_codes %}
+  <a class="btn btn-sm {{ 'btn-accent' if timetable == tt else 'btn-ghost' }}" href="{{ url_for('hod.dashboard', category=category or None, semester_id=semester_id or None, timetable=tt) }}#bands">{{ tt }}</a>
+  {% endfor %}
 </div>
-{{ hod_bands(bands, band_default, default_subject, band_messages, mail_ready, dl_args={'semester_id': semester_id, 'category': category or None}) }}
+{% endif %}
+</div>
+{{ hod_bands(bands, band_default, default_subject, band_messages, mail_ready, dl_args={'semester_id': semester_id, 'category': category or None, 'timetable': timetable or None}) }}
 </div>
 
 <div class="sec-panel" id="sec-results" role="tabpanel" aria-labelledby="tab-results" hidden>

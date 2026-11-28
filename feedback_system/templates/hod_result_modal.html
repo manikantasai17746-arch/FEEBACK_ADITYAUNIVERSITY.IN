@@ -34,44 +34,65 @@
   .rm-foot button{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:.5rem .8rem;cursor:pointer;font-size:.85rem}
   .rm-foot .rm-primary{background:#0b2f6b;color:#fff;border-color:#0b2f6b}
   .rm-empty{font-size:.85rem;color:#64748b;margin:.4rem 0}
+
+  /* Report layout: same as the teacher feedback report PDF */
+  .rm-modal{width:min(900px,96vw);font-family:'Times New Roman',Times,serif;color:#000}
+  .rm-closebar{display:flex;justify-content:flex-end;padding:.5rem .8rem 0;position:sticky;top:0;background:#fff;z-index:2;border-radius:14px 14px 0 0}
+  .rm-logo{display:block;margin:.2rem auto .8rem;width:min(300px,60%);height:auto}
+  .rm-entry{padding:0 1.1rem 1rem}
+  .rm-entry + .rm-entry{border-top:2px dashed #94a3b8;padding-top:1rem;margin-top:.4rem}
+  .rm-scroll{overflow-x:auto}
+  .rp{width:100%;border-collapse:collapse;table-layout:fixed;font-size:.95rem;color:#000;background:#fff}
+  .rp td,.rp th{border:1px solid #000;padding:.35rem .4rem;vertical-align:middle;text-align:left;word-wrap:break-word}
+  .rp th{text-align:center;font-weight:700;font-size:.85rem}
+  .rp td.c{text-align:center}
+  .rp .b{font-weight:700}
+  .rp-head td{font-weight:700}
+  .rp-head tr:first-child td{text-align:center}
+  .rm-sugg{font-weight:700;margin:.8rem 0 .2rem;font-size:1rem;padding:0 1.1rem}
+  .rm-sec .rm-note,.rm-sec .rm-empty,.rm-sec .rm-cm,.rm-sec .rm-filters button,.rm-sec .rm-more,.rm-sec .rm-toggle,.rm-foot button,.rm-foot a{font-family:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+  .rm-foot a.rm-btn{border:1px solid #cbd5e1;background:#fff;border-radius:8px;padding:.5rem .8rem;cursor:pointer;font-size:.85rem;color:#0f172a;text-decoration:none}
 </style>
 <div class="rm-modal" role="dialog" aria-modal="true" aria-labelledby="rm-title" data-limit="5">
-  <div class="rm-head">
-    <div class="rm-avatar">
-      {% if emp_code %}<img src="{{ url_for('photos.serve', emp_code=emp_code) }}" alt="{{ teacher_name }}"
-           onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class="rm-initials" style="display:none">{{ initials }}</span>{% else %}<span class="rm-initials">{{ initials }}</span>{% endif %}
-    </div>
-    <div>
-      <h2 id="rm-title">{{ teacher_name }}</h2>
-      <p>{% if category_label %}<span class="rm-cat">{{ category_label }}</span> | {% endif %}{{ row.subject_code or '' }} {{ row.subject_name or '' }}{% if card.meta and card.meta.branch_name %} · {{ card.meta.branch_name }}{% endif %}</p>
-    </div>
-    <div class="rm-score">{% if score is not none %}{{ '%.2f'|format(score) }}%{% else %}N/A{% endif %}<span>feedback score</span></div>
-    <button type="button" class="rm-x" data-rm-close aria-label="Close">×</button>
-  </div>
+  <div class="rm-closebar"><button type="button" class="rm-x" data-rm-close aria-label="Close">×</button></div>
+  <img class="rm-logo" src="{{ url_for('static', filename='img/aditya-logo.png') }}" alt="Aditya University">
+  <h2 id="rm-title" style="position:absolute;left:-9999px">{{ teacher_name }}</h2>
 
-  {% if score is none %}
-  <div class="rm-sec"><p class="rm-empty">No responses yet for this form.</p></div>
-  {% else %}
-  <div class="rm-stats">
-    <div><strong>{{ card.responded }}</strong><span>responses</span></div>
-    <div><strong>{{ '%.2f'|format(avg5) }}</strong><span>average / 5</span></div>
-    <div><strong>{{ band_label }}</strong><span>band</span></div>
-  </div>
-
-  <div class="rm-sec">
-    <h3>Question-wise average</h3>
-    <table class="rm-table">
-      <thead><tr><th>#</th><th>Question</th><th>Avg / 5</th></tr></thead>
+  {% for entry in entries %}
+  <div class="rm-entry">
+    <div class="rm-scroll">
+    <table class="rp rp-head">
+      <colgroup><col style="width:40%"><col style="width:60%"></colgroup>
+      <tr><td colspan="2">Faculty Name: {{ teacher_name }}{% if emp_code %} ({{ emp_code }}){% endif %}</td></tr>
+      <tr><td>Subject</td><td>{{ entry.subject }}</td></tr>
+      <tr><td>Branch-Sem-Section</td><td>{{ entry.section }}</td></tr>
+      <tr><td>Feedback</td><td>{{ entry.category }}</td></tr>
+    </table>
+    {% for columns, rows in entry.tables %}
+    <table class="rp">
+      <colgroup><col style="width:33%">{% for c in columns %}<col>{% endfor %}<col style="width:15%"></colgroup>
+      <thead><tr><th></th>{% for c in columns %}<th>{{ c }}</th>{% endfor %}<th>Percentage</th></tr></thead>
       <tbody>
-        {% for q in row.criteria %}
-        <tr><td>{{ loop.index }}</td><td>{{ q.text }}</td>
-          <td><strong>{% if q.score is none %}N/A{% else %}{{ '%.2f'|format(q.score / 20) }}{% endif %}</strong></td></tr>
+        {% for r in rows %}
+        <tr><td>{{ r.text }}</td>
+          {% for n in r.counts %}<td class="c">{{ n }}</td>{% endfor %}
+          <td class="c">{% if r.percent is none %}No responses{% else %}{{ '%.2f'|format(r.percent) }}%{% endif %}</td></tr>
         {% endfor %}
       </tbody>
     </table>
+    {% endfor %}
+    <table class="rp">
+      <colgroup><col style="width:33%"><col style="width:12%"><col style="width:40%"><col style="width:15%"></colgroup>
+      <tr><td>No. of Students</td><td class="c">{{ entry.students }}</td><td class="c">Average</td>
+        <td class="c">{% if entry.average is none %}No responses{% else %}{{ '%.2f'|format(entry.average) }}%{% endif %}</td></tr>
+    </table>
+    </div>
   </div>
-  {% endif %}
+  {% else %}
+  <div class="rm-sec"><p class="rm-empty">No feedback results to show for this selection.</p></div>
+  {% endfor %}
 
+  <div class="rm-sugg">Suggestions:</div>
   <div class="rm-sec">
     <button type="button" class="rm-toggle" data-rm-toggle aria-expanded="true">Hide student comments ({{ comments|length }})</button>
     <div data-rm-wrap>
@@ -103,8 +124,7 @@
   </div>
 
   <div class="rm-foot">
-    <button type="button" data-rm-toggle>💬 Student comments</button>
-    <button type="button" onclick="window.print()">⬇ Download PDF</button>
+    {% if entries %}<a class="rm-btn" href="{{ pdf_url }}">⬇ Download PDF</a>{% endif %}
     <button type="button" class="rm-primary" data-rm-close>Close</button>
   </div>
 </div>

@@ -129,13 +129,20 @@ def dashboard():
     if category not in ('main', 'second', 'lab'):
         category = ''
     semester_id = request.args.get('semester_id', type=int)
-    bands = _band_data(branch_ids, None, None, semester_id, None, category=category or None) if branch_ids else []
+    # Time Table filter (Time Table-1, 2, 3 ... exactly as imported from the Excel sheet).
+    timetable_codes = _timetable_code_options(branch_ids, semester_id)
+    timetable = (request.args.get('timetable') or '').strip()
+    if timetable not in timetable_codes:
+        timetable = ''
+    bands = _band_data(branch_ids, None, None, semester_id, None, category=category or None,
+                       timetable_code=timetable or None) if branch_ids else []
     semesters = _semesters_with_data(branch_ids)
     band_default = next((b['key'] for b in bands if b['count']),
                         bands[0]['key'] if bands else None)
     return render_template(
         'hod_dashboard.html', stats=stats, user=user, bands=bands, category=category,
         semester_id=semester_id, semesters=semesters,
+        timetable=timetable, timetable_codes=timetable_codes,
         band_default=band_default, default_subject=DEFAULT_BAND_SUBJECT,
         band_messages={b['key']: _default_message_for(b['key']) for b in bands},
         mail_ready=mailer.is_configured())
@@ -3035,8 +3042,67 @@ def _default_message_for(band_key):
     return DEFAULT_BAND_MESSAGES['high']
 
 
+def _natural_key(text):
+    """Sort key so 'Time Table-2' comes before 'Time Table-10'."""
+    import re
+    return [int(p) if p.isdigit() else p.lower() for p in re.split(r'(\d+)', text or '')]
+
+
+def _timetable_code_options(branch_ids, semester_id=None):
+    """Distinct timetable names (Time Table-1, Time Table-2 ...) imported from the
+    Excel sheet, for the HOD's departments (and the chosen semester, if any)."""
+    if not branch_ids:
+        return []
+    ph = ','.join('?' * len(branch_ids))
+    sql = f'SELECT DISTINCT code FROM timetables WHERE is_deleted=0 AND branch_id IN ({ph})'
+    args = list(branch_ids)
+    if semester_id:
+        sql += ' AND semester_id=?'
+        args.append(semester_id)
+    return sorted({r['code'] for r in db.query(sql, tuple(args)) if r['code']},
+                  key=_natural_key)
+
+
+def _timetable_ids_for_code(branch_ids, semester_id, code):
+    if not branch_ids or not code:
+        return set()
+    ph = ','.join('?' * len(branch_ids))
+    sql = f'SELECT id FROM timetables WHERE is_deleted=0 AND code=? AND branch_id IN ({ph})'
+    args = [code] + list(branch_ids)
+    if semester_id:
+        sql += ' AND semester_id=?'
+        args.append(semester_id)
+    return {r['id'] for r in db.query(sql, tuple(args))}
+
+
+def _restrict_rows_to_timetable(rows, timetable_ids):
+    """Keep only the part of each form that belongs to the chosen timetable(s).
+
+    A subject form can cover several sections. For the Time Table filter each row's
+    score / response count is recomputed from that section's sessions only, so the
+    band shows the teacher's result for the chosen Time Table, not for every section.
+    """
+    from . import scoring
+    out = []
+    for r in rows:
+        tid = r.get('teacher_user_id')
+        sids = services.teacher_form_session_ids(tid, r['form_id']) if tid else []
+        keep = [i for sec in services.sessions_by_section(sids)
+                if sec['timetable_id'] in timetable_ids for i in sec['session_ids']]
+        if not keep:
+            continue
+        sc = scoring.compute_form_scores(r['form_id'], min_responses=1, session_ids=keep)
+        if sc.get('overall_score') is None:
+            continue
+        out.append(dict(r, overall_score=sc['overall_score'],
+                        valid_responses=sc['valid_responses'],
+                        response_count=sc['valid_responses'],
+                        criteria=sc['criteria'], hidden=False))
+    return out
+
+
 def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id,
-               timetable_id=None, subject_code=None, category=None):
+               timetable_id=None, subject_code=None, category=None, timetable_code=None):
     """All score bands with their rows (each row carries the teacher's email)."""
     from . import scoring
     scope_ids = [branch_id] if branch_id else branch_ids
@@ -3050,6 +3116,9 @@ def _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id,
     rows = [dict(r) for r in rows if r.get('overall_score') is not None]
     if category:
         rows = [r for r in rows if r.get('category') == category]
+    if timetable_code:
+        rows = _restrict_rows_to_timetable(
+            rows, _timetable_ids_for_code(scope_ids, semester_id, timetable_code))
     ids = sorted({r['teacher_user_id'] for r in rows if r.get('teacher_user_id')})
     emails = {}
     if ids:
@@ -3187,10 +3256,14 @@ def performance_bands_download(fmt):
         timetable_id = None
     if subject_code and subject_code not in {x['subject_code'] for x in subjects}:
         subject_code = None
+    timetable = (request.args.get('timetable') or '').strip()
+    if timetable not in _timetable_code_options(branch_ids, semester_id):
+        timetable = ''
 
     bands = _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id,
                        timetable_id=timetable_id, subject_code=subject_code,
-                       category=category or None) if branch_ids else []
+                       category=category or None,
+                       timetable_code=timetable or None) if branch_ids else []
     band_key = (request.args.get('band') or 'all').strip()
     if band_key != 'all':
         bands = [b for b in bands if b['key'] == band_key]
@@ -3214,6 +3287,8 @@ def performance_bands_download(fmt):
     ]
     if subject_code:
         filter_lines.append(f'Subject code: {subject_code}')
+    if timetable:
+        filter_lines.append(f'Time Table: {timetable}')
     title = f'Teachers by Score Band — {band_name}'
     # Optional notice from the HOD, printed in the PDF only (plain text, max 1000 chars).
     notice = ''.join(ch for ch in (request.args.get('notice') or '')
@@ -3298,6 +3373,13 @@ def performance_bands_send():
     branch_id, form_id = _int('branch_id'), _int('form_id')
     timetable_id = _int('timetable_id')
     subject_code = (f.get('subject_code') or '').strip()[:40] or None
+    # Dashboard filters: Time Table code (e.g. 'Time Table-1') and category.
+    timetable = (f.get('timetable') or '').strip()
+    if timetable not in _timetable_code_options(branch_ids, semester_id):
+        timetable = ''
+    category = (f.get('category') or '').strip().lower()
+    if category not in ('main', 'second', 'lab'):
+        category = ''
     if branch_id and branch_id not in branch_ids:
         branch_id = None
     band_key = (f.get('band') or '').strip()
@@ -3317,7 +3399,8 @@ def performance_bands_send():
         return redirect(back)
 
     bands = _band_data(branch_ids, branch_id, academic_year_id, semester_id, form_id,
-                       timetable_id=timetable_id, subject_code=subject_code)
+                       timetable_id=timetable_id, subject_code=subject_code,
+                       category=category or None, timetable_code=timetable or None)
     band = next((b for b in bands if b['key'] == band_key), None)
     if not band:
         flash('Unknown score band.', 'error')
@@ -3391,48 +3474,78 @@ def performance_detail(teacher_id):
         cards=_detail_cards(rows, teacher_id), branches=branches)
 
 
-@bp.route('/performance/result/<int:form_id>')
-@role_required('hod')
-def performance_result(form_id):
-    """One teacher's result for ONE subject (one form), as a popup fragment."""
-    from . import scoring
-    from .dean import _detail_cards
+def _result_report(form_id, timetable_code=None):
+    """Everything the result popup / PDF needs for ONE form, in the same layout as the
+    teacher feedback report PDF: one block per section (Time Table) with the
+    Excellent / Good / Average / Below average / Poor counts per question.
+
+    Returns None when the form is not in this HOD's scope or has no scoreable data.
+    """
+    from . import scoring, teacher_report
     user = current_user()
-    branches = _hod_branches(user)
-    branch_ids = [b['id'] for b in branches]
+    branch_ids = [b['id'] for b in _hod_branches(user)]
     if not branch_ids:
         abort(403)
-    rows = [dict(r) for r in scoring.faculty_scores_for_branches(branch_ids, form_id=form_id, min_responses=1)]
+    rows = [dict(r) for r in scoring.faculty_scores_for_branches(
+        branch_ids, form_id=form_id, min_responses=1)]
     if not rows:
         abort(404)
     row = rows[0]
-    cards = _detail_cards([row], row.get('teacher_user_id'))
-    card = cards[0] if cards else {'comments': [], 'score': None, 'responded': 0,
-                                   'distribution': [], 'row': row}
-    score = card.get('score')
-    band_label = ''
-    if score is not None:
-        band_label = next((label for _k, label, lo, hi in SCORE_BANDS
-                           if (lo is None or score > lo) and (hi is None or score <= hi)), '')
+    form = db.query(
+        """SELECT id, category, subject_code, subject_name, snapshot_subject_code,
+                  title, phase, branch_id FROM feedback_forms WHERE id=?""",
+        (form_id,), one=True)
+    teacher_id = row.get('teacher_user_id')
+    session_ids = services.teacher_form_session_ids(teacher_id, form_id) if teacher_id else []
+    entries, kept_sessions = [], []
+    for sec in services.sessions_by_section(session_ids):
+        if timetable_code and sec['timetable'] != timetable_code:
+            continue
+        label = teacher_report._section_label(sec['session_ids'][0], form['phase'])
+        entries.append(teacher_report._form_entry(form, label, sec['session_ids']))
+        kept_sessions += sec['session_ids']
+    return {'row': row, 'entries': entries, 'session_ids': kept_sessions,
+            'teacher_name': row.get('teacher_name') or 'Faculty',
+            'emp_code': row.get('teacher_emp_code') or ''}
+
+
+@bp.route('/performance/result/<int:form_id>')
+@role_required('hod')
+def performance_result(form_id):
+    """One teacher's result for ONE subject (one form), as a popup fragment.
+
+    Laid out like the teacher feedback report PDF (counts per rating + percentage per
+    question, No. of Students / Average, Suggestions). ``?tt=Time Table-1`` limits it to
+    that Time Table (used by the Time Table filter on the dashboard).
+    """
+    timetable_code = (request.args.get('tt') or '').strip() or None
+    rep = _result_report(form_id, timetable_code)
     comments = []
-    for cm in card.get('comments') or []:
-        st = cm.get('stars')
-        if st is None:
-            tag = 'none'
-        elif st >= 4:
-            tag = 'pos'
-        elif st == 3:
-            tag = 'neu'
-        else:
-            tag = 'needs'
-        comments.append({'text': cm.get('text') or '', 'stars': st, 'tag': tag})
+    if rep['session_ids']:
+        for cm in services.comments_with_stars(form_id, rep['session_ids']):
+            st = cm.get('stars')
+            tag = 'none' if st is None else ('pos' if st >= 4 else ('neu' if st == 3 else 'needs'))
+            comments.append({'text': cm.get('text') or '', 'stars': st, 'tag': tag})
     return render_template(
-        'hod_result_modal.html', row=row, card=card, score=score,
-        avg5=(round(score / 20, 2) if score is not None else None),
-        band_label=band_label, comments=comments, category_label=({'main': 'Main Faculty', 'second': 'Second Faculty', 'lab': 'Lab Faculty'}).get(row.get('category'), ''),
-        teacher_name=row.get('teacher_name') or 'Faculty',
-        emp_code=row.get('teacher_emp_code'),
-        initials=(''.join(p[0] for p in (row.get('teacher_name') or 'F').split()[:2]).upper()))
+        'hod_result_modal.html', entries=rep['entries'], comments=comments,
+        teacher_name=rep['teacher_name'], emp_code=rep['emp_code'],
+        pdf_url=url_for('hod.performance_result_pdf', form_id=form_id, tt=timetable_code))
+
+
+@bp.route('/performance/result/<int:form_id>/pdf')
+@role_required('hod')
+def performance_result_pdf(form_id):
+    """The popup's "Download PDF": the same one-page report format as the teacher report."""
+    from . import teacher_report
+    timetable_code = (request.args.get('tt') or '').strip() or None
+    rep = _result_report(form_id, timetable_code)
+    if not rep['entries']:
+        abort(404)
+    data = teacher_report.build_pdf([{
+        'name': rep['teacher_name'], 'emp_code': rep['emp_code'],
+        'entries': rep['entries']}])
+    audit('hod.result.pdf', 'feedback_forms', form_id, 'Result PDF downloaded')
+    return teacher_report.pdf_response(data, rep['emp_code'] or rep['teacher_name'])
 
 
 @bp.route('/performance/compare')
