@@ -264,27 +264,41 @@ def test_submit_then_log_out_of_the_anonymous_id(app, admin, client, gate_setup)
     _enroll(app, gate_setup['uid'])
     fid = _open_form(app, admin, gate_setup['sid'], 'Anon submit')
     other = _open_form(app, admin, gate_setup['sid'], 'Anon next')
-    assert login_student(client, gate_setup['roll']).status_code == 302
-    _verify(client, _current_code(app, gate_setup['uid']))
-    r = client.post(f'/student/form/{fid}/submit', data=_answers(client, fid))
-    # Another form is still pending: it opens straight away, with no new code asked for.
-    assert r.status_code == 302 and f'/student/form/{other}' in r.headers['Location']
-    assert client.get(r.headers['Location']).status_code == 200
-    r = client.post(f'/student/form/{other}/submit', data=_answers(client, other))
-    # Nothing left to fill in: the "submitted" page is shown.
-    assert r.status_code == 302 and r.headers['Location'].endswith('/student/anonymous/submitted')
-    done = client.get(r.headers['Location']).get_data(as_text=True)
-    assert 'Feedback submitted' in done and 'Log out of anonymous ID' in done
-    assert gate_setup['roll'] not in done and 'class="topnav"' not in done
-    tok = token_from(client, '/student/progress')
-    r = client.post('/student/anonymous/logout', data={'_csrf': tok})
-    assert r.status_code == 302 and r.headers['Location'].endswith('/student/progress')
-    progress = client.get('/student/progress').get_data(as_text=True)
-    assert gate_setup['roll'] in progress and 'Submitted' in progress
-    third = _open_form(app, admin, gate_setup['sid'], 'Anon third')
-    again = client.get(f'/student/form/{third}')
-    assert again.status_code == 302 and 'verify-code' in again.headers['Location']
-    assert client.get('/student/anonymous/submitted').status_code == 302
+    # Other tests in this shared database leave forms open for the same student. Close them
+    # for the length of this test (and reopen them after) so "the next pending form" is
+    # exactly the one created above.
+    with app.app_context():
+        leftovers = [r['id'] for r in db.query(
+            "SELECT id FROM feedback_forms WHERE status='open' AND id NOT IN (?, ?)",
+            (fid, other))]
+        for i in leftovers:
+            db.execute("UPDATE feedback_forms SET status='closed' WHERE id=?", (i,))
+    try:
+        assert login_student(client, gate_setup['roll']).status_code == 302
+        _verify(client, _current_code(app, gate_setup['uid']))
+        r = client.post(f'/student/form/{fid}/submit', data=_answers(client, fid))
+        # Another form is still pending: it opens straight away, with no new code asked for.
+        assert r.status_code == 302 and f'/student/form/{other}' in r.headers['Location']
+        assert client.get(r.headers['Location']).status_code == 200
+        r = client.post(f'/student/form/{other}/submit', data=_answers(client, other))
+        # Nothing left to fill in: the "submitted" page is shown.
+        assert r.status_code == 302 and r.headers['Location'].endswith('/student/anonymous/submitted')
+        done = client.get(r.headers['Location']).get_data(as_text=True)
+        assert 'Feedback submitted' in done and 'Log out of anonymous ID' in done
+        assert gate_setup['roll'] not in done and 'class="topnav"' not in done
+        tok = token_from(client, '/student/progress')
+        r = client.post('/student/anonymous/logout', data={'_csrf': tok})
+        assert r.status_code == 302 and r.headers['Location'].endswith('/student/progress')
+        progress = client.get('/student/progress').get_data(as_text=True)
+        assert gate_setup['roll'] in progress and 'Submitted' in progress
+        third = _open_form(app, admin, gate_setup['sid'], 'Anon third')
+        again = client.get(f'/student/form/{third}')
+        assert again.status_code == 302 and 'verify-code' in again.headers['Location']
+        assert client.get('/student/anonymous/submitted').status_code == 302
+    finally:
+        with app.app_context():
+            for i in leftovers:
+                db.execute("UPDATE feedback_forms SET status='open' WHERE id=?", (i,))
 
 
 def test_anonymous_logout_needs_csrf(app, admin, client, gate_setup):
