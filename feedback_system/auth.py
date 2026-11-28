@@ -96,6 +96,8 @@ def _login_attempt(role, username, password, redirect_endpoint):
 _EMAIL_RE = re.compile(r'^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$')
 _SETUP_ENDPOINTS = {'auth.logout', 'auth.setup_email', 'auth.verify_email',
                     'auth.sso_start', 'auth.sso_callback',
+                    # Student Microsoft sign-in (also used to re-confirm identity mid-setup)
+                    'auth.student_sso_start', 'auth.student_sso_callback',
                     'auth.change_password', 'static',
                     'hod.onboarding', 'hod.onboarding_verify',
                     'hod.onboarding_save', 'dean.onboarding',

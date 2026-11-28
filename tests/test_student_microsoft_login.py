@@ -231,3 +231,34 @@ def test_reauth_start_works_while_already_signed_in(client, ms_env):
     state = parse_qs(urlparse(r.headers['Location']).query)['state'][0]
     r = _callback(client, f'{ROLL.lower()}@{DOMAIN}', state)
     assert r.headers['Location'].endswith('/setup/authenticator')
+
+
+# ------------------------------------- with the first-login gate ON (as in production)
+@pytest.fixture()
+def gate_on(app, no_authenticator):
+    app.config['REQUIRE_ACCOUNT_SETUP'] = True
+    yield
+    app.config['REQUIRE_ACCOUNT_SETUP'] = False
+
+
+def test_first_login_goes_straight_to_the_authenticator_qr_page(client, gate_on):
+    _sign_in(client)
+    r = client.get('/student/')
+    assert r.status_code == 302 and r.headers['Location'].endswith('/setup/authenticator')
+    html = client.get('/setup/authenticator').get_data(as_text=True)
+    assert 'Setup key' in html and 'Current password' not in html
+
+
+def test_an_old_session_without_proof_signs_in_again_instead_of_looping(client, gate_on):
+    _sign_in(client)
+    with client.session_transaction() as s:
+        s.pop('auth_pw_until', None)
+        s.pop('auth_setup_until', None)
+    r = client.get('/setup/authenticator')
+    assert '/student/sso/start' in r.headers['Location']
+    r = client.get(r.headers['Location'])               # must NOT bounce back to the setup page
+    assert 'login.microsoftonline.com' in r.headers['Location']
+    state = parse_qs(urlparse(r.headers['Location']).query)['state'][0]
+    r = _callback(client, f'{ROLL.lower()}@{DOMAIN}', state)    # while still logged in
+    assert r.headers['Location'].endswith('/setup/authenticator')
+    assert 'Setup key' in client.get('/setup/authenticator').get_data(as_text=True)
