@@ -5,6 +5,7 @@ import secrets
 
 from flask import Flask, Request, current_app, g, request, session, render_template
 
+from . import authenticator as _authenticator
 from . import db as db_module
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -134,8 +135,10 @@ def create_app(config=None):
         #   AUTHENTICATOR_ENFORCE_ROLES=student,teacher,hod,dean
         #   AUTHENTICATOR_GRACE_UNTIL=teacher=2026-12-31,hod=2026-12-31,dean=2026-12-31
         # Admin enforcement is refused until the Admin recovery procedure exists.
-        AUTHENTICATOR_ENFORCE_ROLES=os.environ.get('AUTHENTICATOR_ENFORCE_ROLES', 'student'),
-        AUTHENTICATOR_GRACE_UNTIL=os.environ.get('AUTHENTICATOR_GRACE_UNTIL', ''),
+        AUTHENTICATOR_ENFORCE_ROLES=_authenticator.enforce_roles_from_env(
+            os.environ.get('AUTHENTICATOR_ENFORCE_ROLES')),
+        AUTHENTICATOR_GRACE_UNTIL=_authenticator.grace_from_env(
+            os.environ.get('AUTHENTICATOR_GRACE_UNTIL')),
         # Per-IP cap on lost-device recovery requests (per 15 minutes) before a lockout.
         LOST_DEVICE_IP_MAX_ATTEMPTS=int(os.environ.get('LOST_DEVICE_IP_MAX_ATTEMPTS', '10')),
         # Lost-device recovery lock (Student/Teacher/HOD/Dean; never Admin): this many wrong
