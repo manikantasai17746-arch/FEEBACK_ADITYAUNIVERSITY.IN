@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Bulk student status — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.students'), 'All students') }}
+<h1>Bulk TC / removal</h1>
+<div class="card">
+  <form method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="field"><label for="rolls">Roll numbers (paste from Excel, one per line)</label>
+      <textarea id="rolls" name="rolls" rows="8" required>{{ form.get('rolls', '') }}</textarea></div>
+    <div class="filter-bar">
+      <div class="field"><label for="status">New status</label>
+        <select id="status" name="status">
+          {% for k, v in statuses.items() %}<option value="{{ k }}" {{ 'selected' if form.get('status', 'tc') == k }}>{{ v }}</option>{% endfor %}
+        </select></div>
+      <div class="field"><label for="date">Date</label><input type="date" id="date" name="date" value="{{ form.get('date', '') }}"></div>
+      <div class="field"><label for="reason">Note (optional)</label><input type="text" id="reason" name="reason" maxlength="200" value="{{ form.get('reason', '') }}"></div>
+    </div>
+    <button class="btn" type="submit">Preview</button>
+    {% if preview %}
+      <h3>{{ preview.found|length }} student(s) found</h3>
+      {% if preview.unknown %}<p class="flash flash-error">Not found (will be ignored): {{ preview.unknown|join(', ') }}</p>{% endif %}
+      <div class="table-wrap" style="max-height:320px"><table class="data">
+        <thead><tr><th>Roll number</th><th>Current status</th><th>New status</th></tr></thead>
+        <tbody>{% for p in preview.found %}<tr><td>{{ p.roll }}</td><td>{{ statuses[p.status] }}</td><td>{{ statuses[form.get('status')] }}</td></tr>{% endfor %}</tbody>
+      </table></div>
+      {% if preview.found %}<button class="btn" type="submit" name="confirm" value="1">Confirm change</button>{% endif %}
+    {% endif %}
+  </form>
+</div>
+{% endblock %}

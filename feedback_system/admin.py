@@ -1018,7 +1018,10 @@ def import_excel():
                 'This workbook is already being imported for the selected semester and '
                 'academic year. Please wait for the current import to finish.']
             return render_template('admin_import.html', **ctx), 409
-        stats = import_timetable(current_app, semester, year, progress=lambda *_: None,
+        def note(message):
+            if message.startswith('Warning:'):
+                report['warnings'].append(message)
+        stats = import_timetable(current_app, semester, year, progress=note,
                                  raw_data=(raw, branch_names, extras))
         complete_timetable_import(conn, import_id)
     except Exception as exc:

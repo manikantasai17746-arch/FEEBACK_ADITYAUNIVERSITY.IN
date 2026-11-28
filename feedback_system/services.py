@@ -58,10 +58,11 @@ def teachers_list(search=None, limit=None, offset=0):
     if search:
         where += ' AND (u.name LIKE ? OR u.emp_code LIKE ?)'
         args += [f'%{search}%', f'%{search}%']
-    sql = f"""SELECT u.id, u.name, u.emp_code,
+    sql = f"""SELECT u.id, u.name, u.emp_code, u.status, u.is_active,
                      COUNT(DISTINCT cs.id) AS sessions,
                      COUNT(DISTINCT cs.subject_code) AS subjects
               FROM users u LEFT JOIN class_sessions cs ON cs.teacher_user_id=u.id
+                   AND cs.is_deleted=0
               {where} GROUP BY u.id ORDER BY u.name"""
     if limit:
         sql += f' LIMIT {int(limit)} OFFSET {int(offset)}'
@@ -85,7 +86,7 @@ def students_list(search=None, branch=None, limit=None, offset=0):
     if branch:
         where += ' AND e.timetable_id IN (SELECT id FROM timetables WHERE branch_id=?)'
         args.append(branch)
-    sql = f"""SELECT u.id, u.roll, t.code AS timetable, b.code AS branch,
+    sql = f"""SELECT u.id, u.roll, u.status, u.is_active, t.code AS timetable, b.code AS branch,
                      s.number AS semester, ay.name AS academic_year
               FROM users u
               LEFT JOIN enrollments e ON e.student_user_id=u.id
@@ -134,9 +135,21 @@ def sessions_for_timetable(timetable_id, include_deleted=False):
     return db.query(sql + ' ORDER BY cs.period_no, cs.subject_code', (timetable_id,))
 
 
+# A removed / TC student (is_active=0) is no longer expected to answer anything.
+_STUDENT_ACTIVE = ('EXISTS (SELECT 1 FROM users au WHERE au.id={col} '
+                   'AND au.is_active=1)')
+# ...but on a form they already answered they stay counted, so completion never exceeds 100%.
+_ACTIVE_OR_SUBMITTED = ('(' + _STUDENT_ACTIVE + ' OR EXISTS (SELECT 1 FROM submissions sx '
+                        'WHERE sx.form_id={form} AND sx.student_user_id={col}))')
+# A class its teacher was replaced on is closed to everyone who has not already answered.
+_NOT_REPLACED = ('NOT EXISTS (SELECT 1 FROM class_replacements cr '
+                 'WHERE cr.old_session_id={col} AND cr.ended_at IS NULL)')
+
+
 def eligible_students(session_id):
     return db.query("""SELECT u.id, u.roll FROM session_students ss
-        JOIN users u ON u.id=ss.student_user_id WHERE ss.session_id=? ORDER BY u.roll""",
+        JOIN users u ON u.id=ss.student_user_id
+        WHERE ss.session_id=? AND u.is_active=1 ORDER BY u.roll""",
         (session_id,))
 
 
@@ -147,14 +160,17 @@ def eligible_counts(session_ids):
         return {}
     marks = ','.join('?' * len(ids))
     out = {i: 0 for i in ids}
-    for r in db.query('SELECT session_id, COUNT(*) c FROM session_students '
-                      f'WHERE session_id IN ({marks}) GROUP BY session_id', ids):
+    for r in db.query('SELECT session_id, COUNT(*) c FROM session_students ss '
+                      f'WHERE session_id IN ({marks}) AND '
+                      + _STUDENT_ACTIVE.format(col='ss.student_user_id')
+                      + ' GROUP BY session_id', ids):
         out[r['session_id']] = r['c']
     return out
 
 
 def eligible_count(session_id):
-    return db.query('SELECT COUNT(*) c FROM session_students WHERE session_id=?',
+    return db.query('SELECT COUNT(*) c FROM session_students ss WHERE session_id=? AND '
+                    + _STUDENT_ACTIVE.format(col='ss.student_user_id'),
                     (session_id,), one=True)['c']
 
 
@@ -227,16 +243,18 @@ def form_is_subject_scoped(form):
 
 def eligible_student_ids_for_form(form_id):
     return {r['student_user_id'] for r in db.query(
-        """SELECT DISTINCT student_user_id FROM session_students
-           WHERE session_id IN (SELECT session_id FROM form_sessions WHERE form_id=?)""",
-        (form_id,))}
+        """SELECT DISTINCT student_user_id FROM session_students ss
+           WHERE session_id IN (SELECT session_id FROM form_sessions WHERE form_id=?)
+             AND """ + _ACTIVE_OR_SUBMITTED.format(col='ss.student_user_id', form='?'),
+        (form_id, form_id))}
 
 
 def eligible_count_for_form(form_id):
     return db.query(
-        """SELECT COUNT(DISTINCT student_user_id) c FROM session_students
-           WHERE session_id IN (SELECT session_id FROM form_sessions WHERE form_id=?)""",
-        (form_id,), one=True)['c']
+        """SELECT COUNT(DISTINCT student_user_id) c FROM session_students ss
+           WHERE session_id IN (SELECT session_id FROM form_sessions WHERE form_id=?)
+             AND """ + _ACTIVE_OR_SUBMITTED.format(col='ss.student_user_id', form='?'),
+        (form_id, form_id), one=True)['c']
 
 
 def eligible_counts_for_forms(form_ids):
@@ -254,7 +272,9 @@ def eligible_counts_for_forms(form_ids):
                 f"""SELECT fs.form_id, COUNT(DISTINCT ss.student_user_id) AS c
                     FROM form_sessions fs
                     JOIN session_students ss ON ss.session_id = fs.session_id
-                    WHERE fs.form_id IN ({ph}) GROUP BY fs.form_id""", tuple(chunk)):
+                    WHERE fs.form_id IN ({ph}) AND
+                    {_ACTIVE_OR_SUBMITTED.format(col='ss.student_user_id', form='fs.form_id')}
+                    GROUP BY fs.form_id""", tuple(chunk)):
             out[r['form_id']] = r['c']
     return out
 
@@ -441,6 +461,7 @@ def student_form_session(student_user_id, form_id):
     return db.query("""SELECT fs.session_id FROM form_sessions fs
         JOIN session_students ss ON ss.session_id=fs.session_id
         WHERE fs.form_id=? AND ss.student_user_id=?
+          AND """ + _NOT_REPLACED.format(col='fs.session_id') + """
         ORDER BY fs.session_id LIMIT 1""",
         (form_id, student_user_id), one=True)
 
@@ -448,7 +469,9 @@ def student_form_session(student_user_id, form_id):
 def student_eligible_for_form(student_user_id, form_id):
     return db.query("""SELECT 1 FROM form_sessions fs
         JOIN session_students ss ON ss.session_id=fs.session_id
-        WHERE fs.form_id=? AND ss.student_user_id=? LIMIT 1""",
+        JOIN users u ON u.id=ss.student_user_id AND u.is_active=1
+        WHERE fs.form_id=? AND ss.student_user_id=?
+          AND """ + _NOT_REPLACED.format(col='fs.session_id') + """ LIMIT 1""",
         (form_id, student_user_id), one=True) is not None
 
 
@@ -1110,6 +1133,11 @@ _STUDENT_FORM_SELECT = """SELECT f.*,
     JOIN semesters s ON s.id=t.semester_id
     LEFT JOIN academic_years ay ON ay.id=t.academic_year_id
     LEFT JOIN users u ON u.id=cs.teacher_user_id"""
+# Hide a replaced teacher's class (see class_replacements) unless already answered.
+_STUDENT_OPEN_SESSIONS = """ AND (NOT EXISTS (SELECT 1 FROM class_replacements cr
+        WHERE cr.old_session_id=fs.session_id AND cr.ended_at IS NULL)
+    OR EXISTS (SELECT 1 FROM submissions sr WHERE sr.form_id=f.id
+        AND sr.student_user_id=ss.student_user_id))"""
 
 
 CATEGORY_LABELS = {
@@ -1221,7 +1249,7 @@ def student_forms(student_user_id, *, deadline_window=None):
     covered sessions.  Phase 5B then applies the per-category rules
     (:func:`annotate_student_forms`).
     """
-    where = "WHERE f.is_deleted=0 AND f.status<>'draft'"
+    where = "WHERE f.is_deleted=0 AND f.status<>'draft'" + _STUDENT_OPEN_SESSIONS
     args = (student_user_id, student_user_id, student_user_id)
     if deadline_window is not None:
         where += " AND f.status='open' AND f.deadline_at>? AND f.deadline_at<=?"
@@ -1235,7 +1263,7 @@ def student_forms(student_user_id, *, deadline_window=None):
 
 def student_form(student_user_id, form_id):
     row = db.query(_STUDENT_FORM_SELECT + """
-        WHERE f.id=? AND f.is_deleted=0 AND f.status<>'draft'
+        WHERE f.id=? AND f.is_deleted=0 AND f.status<>'draft'""" + _STUDENT_OPEN_SESSIONS + """
         GROUP BY f.id""",
         (student_user_id, student_user_id, student_user_id, form_id), one=True)
     if not row:
@@ -1840,7 +1868,7 @@ def not_submitted_rolls(form_id):
     return db.query("""SELECT DISTINCT u.roll FROM form_sessions fs
         JOIN session_students ss ON ss.session_id=fs.session_id
         JOIN users u ON u.id=ss.student_user_id
-        WHERE fs.form_id=? AND u.id NOT IN
+        WHERE fs.form_id=? AND u.is_active=1 AND u.id NOT IN
             (SELECT student_user_id FROM submissions WHERE form_id=?)
         ORDER BY u.roll""", (form_id, form_id))
 
@@ -2376,8 +2404,9 @@ def subject_scope_preview(filters):
         ids = [s['id'] for s in sessions]
         ph = ','.join('?' * len(ids))
         result['eligible'] = db.query(
-            f'SELECT COUNT(DISTINCT student_user_id) c FROM session_students '
-            f'WHERE session_id IN ({ph})', tuple(ids), one=True)['c']
+            f'SELECT COUNT(DISTINCT student_user_id) c FROM session_students ss '
+            f'WHERE session_id IN ({ph}) AND '
+            + _STUDENT_ACTIVE.format(col='ss.student_user_id'), tuple(ids), one=True)['c']
         result['sample'] = [{
             'timetable': f"{s['branch']} · {s['timetable']}",
             'label': f"P{s['period_no'] or '?'}: {s['subject_code']} — "

@@ -1,0 +1,12 @@
+<div class="card">
+  <h3>History</h3>
+  <div class="table-wrap"><table class="data">
+    <thead><tr><th>Date</th><th>From</th><th>To</th><th>Note</th><th>Changed by</th></tr></thead>
+    <tbody>
+    {% for h in history %}
+      <tr><td>{{ h.effective_date }}</td><td>{{ statuses[h.old_status] }}</td><td>{{ statuses[h.new_status] }}</td>
+        <td class="wrap">{{ h.reason or '—' }}</td><td>{{ h.changed_by_name or '—' }}</td></tr>
+    {% else %}<tr><td colspan="5">No changes yet.</td></tr>{% endfor %}
+    </tbody>
+  </table></div>
+</div>

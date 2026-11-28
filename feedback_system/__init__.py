@@ -239,6 +239,8 @@ def create_app(config=None):
     app.register_blueprint(account_security_bp)
     app.register_blueprint(lost_device_bp)
     app.register_blueprint(teacher_report_bp)
+    from .people import bp as people_bp
+    app.register_blueprint(people_bp)
 
     @app.route('/favicon.ico')
     def favicon():

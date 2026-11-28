@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}{{ person.roll }} status — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.students'), 'All students') }}
+<h1>{{ person.roll }}</h1>
+<p class="sub">Current status: <strong>{{ statuses[person.status] }}</strong>{% if person.status_date %} since {{ person.status_date }}{% endif %}</p>
+<div class="card">
+  <h3>Change status</h3>
+  <p class="sub">TC issued or Removed: the student cannot sign in or submit feedback. Past feedback stays.</p>
+  <form method="post" class="filter-bar" onsubmit="return confirm('Save this status change?')">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="field"><label for="status">Status</label>
+      <select id="status" name="status">
+        {% for k, v in statuses.items() %}<option value="{{ k }}" {{ 'selected' if k == person.status }}>{{ v }}</option>{% endfor %}
+      </select></div>
+    <div class="field"><label for="date">Date</label><input type="date" id="date" name="date"></div>
+    <div class="field"><label for="reason">Note (optional)</label><input type="text" id="reason" name="reason" maxlength="200"></div>
+    <button class="btn" type="submit">Save</button>
+  </form>
+</div>
+{% include '_status_history.html' %}
+{% endblock %}

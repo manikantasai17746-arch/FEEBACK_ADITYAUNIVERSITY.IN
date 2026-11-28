@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}Classes without a teacher — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.teachers'), 'All teachers') }}
+<h1>Classes without a teacher</h1>
+<datalist id="teacher-list">{% for t in choices %}<option value="{{ t.emp_code }}">{{ t.name }}</option>{% endfor %}</datalist>
+<div class="card"><div class="table-wrap"><table class="data">
+  <thead><tr><th>Section</th><th>Subject</th><th>Was taught by</th><th>Since</th><th>Assign teacher</th></tr></thead>
+  <tbody>
+  {% for r in rows %}
+    <tr><td>{{ r.timetable }}</td><td class="wrap">{{ r.subject_name }} ({{ r.subject_code }})</td>
+      <td>{{ r.old_name }} ({{ r.old_emp }})</td><td>{{ r.start_date }}</td>
+      <td><form method="post" class="btn-row">
+        <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+        <input type="hidden" name="replacement_id" value="{{ r.id }}">
+        <input type="text" name="emp" list="teacher-list" placeholder="Employee ID" autocomplete="off" required>
+        <button class="btn btn-sm" type="submit">Assign</button></form></td></tr>
+  {% else %}<tr><td colspan="5">Every class has a teacher.</td></tr>{% endfor %}
+  </tbody>
+</table></div></div>
+{% endblock %}

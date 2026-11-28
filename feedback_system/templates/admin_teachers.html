@@ -4,6 +4,7 @@
 {% block body %}
 {{ m.back(url_for('admin.dashboard'), 'Dashboard') }}
 <h1>Teachers</h1>
+<p><a class="btn btn-ghost btn-sm" href="{{ url_for('people.vacancies') }}">Classes without a teacher</a></p>
 <form method="get" class="filter-bar">
   <div class="field"><label for="q">Search</label>
     <input type="search" id="q" name="q" value="{{ q }}" placeholder="Name or employee code…"></div>
@@ -12,14 +13,16 @@
 <div class="card">
   <div class="table-wrap">
     <table class="data">
-      <thead><tr><th>Employee code</th><th>Name</th><th>Sessions</th><th>Subjects</th><th>Actions</th></tr></thead>
+      <thead><tr><th>Employee code</th><th>Name</th><th>Sessions</th><th>Subjects</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         {% for t in rows %}
         <tr>
           <td>{{ t.emp_code }}</td><td class="wrap">{{ t.name }}</td>
           <td>{{ t.sessions }}</td><td>{{ t.subjects }}</td>
+          <td>{{ 'On leave' if t.status == 'on_leave' else ('Active' if t.is_active else 'Left') }}</td>
           <td class="btn-row">
             <a class="btn btn-ghost btn-sm" href="{{ url_for('admin.teacher_detail', uid=t.id) }}">Assignments</a>
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('people.teacher', uid=t.id) }}">Leave / replace</a>
             <a class="btn btn-ghost btn-sm" href="{{ url_for('photos.manage', emp_code=t.emp_code, next=url_for('photos.admin_list')) }}">Photo</a>
             <form method="post" action="{{ url_for('admin.reset_password', uid=t.id) }}"
                   onsubmit="return confirm('Reset this teacher password to the default?')">
@@ -29,7 +32,7 @@
             </form>
           </td>
         </tr>
-        {% else %}<tr><td colspan="5">No teachers match your search.</td></tr>{% endfor %}
+        {% else %}<tr><td colspan="6">No teachers match your search.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>

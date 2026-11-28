@@ -561,7 +561,14 @@ def eligible_count_for(form_id):
     form = _load_form(form_id)
     _category_of(form)
     if form['eligible_count_at_publish'] is not None:
-        return form['eligible_count_at_publish']
+        # Students removed / given TC after publishing drop out unless they answered.
+        gone = db.query(
+            """SELECT COUNT(*) AS c FROM form_eligible_students e
+               JOIN users u ON u.id=e.student_user_id AND u.is_active=0
+               WHERE e.form_id=? AND NOT EXISTS (SELECT 1 FROM submissions s
+                   WHERE s.form_id=e.form_id AND s.student_user_id=e.student_user_id)""",
+            (form_id,), one=True)['c']
+        return form['eligible_count_at_publish'] - gone
     return eligible_count(scope_for_form(form))
 
 

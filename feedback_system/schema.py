@@ -848,4 +848,36 @@ MIGRATIONS = [
         "CREATE INDEX IF NOT EXISTS ix_ia_creator ON improvement_actions(created_by, raised_by_role)",
         "CREATE INDEX IF NOT EXISTS ix_ia_owner ON improvement_actions(owner_user_id)",
     ]),
+    (30, "Teacher leave / removal, class replacement, student TC / removal", [
+        # users.status NULL means active.  users.is_active stays the switch that
+        # blocks sign-in and eligibility; status says WHY it was switched off.
+        "ALTER TABLE users ADD COLUMN status TEXT",
+        "ALTER TABLE users ADD COLUMN status_date TEXT",
+        """CREATE TABLE IF NOT EXISTS user_status_history(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            old_status TEXT NOT NULL,
+            new_status TEXT NOT NULL,
+            effective_date TEXT NOT NULL,
+            reason TEXT,
+            changed_by INTEGER REFERENCES users(id),
+            changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""",
+        "CREATE INDEX IF NOT EXISTS ix_ush_user ON user_status_history(user_id)",
+        # One row per class a teacher was taken off.  The old class session is kept
+        # (is_deleted=1) so its feedback stays with the old teacher.
+        """CREATE TABLE IF NOT EXISTS class_replacements(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            old_session_id INTEGER NOT NULL REFERENCES class_sessions(id),
+            new_session_id INTEGER REFERENCES class_sessions(id),
+            old_teacher_user_id INTEGER NOT NULL REFERENCES users(id),
+            new_teacher_user_id INTEGER REFERENCES users(id),
+            kind TEXT NOT NULL CHECK(kind IN ('temporary','permanent')),
+            start_date TEXT NOT NULL,
+            changed_by INTEGER REFERENCES users(id),
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            ended_at TEXT,
+            ended_by INTEGER REFERENCES users(id))""",
+        "CREATE INDEX IF NOT EXISTS ix_crep_old ON class_replacements(old_session_id)",
+        "CREATE INDEX IF NOT EXISTS ix_crep_teacher ON class_replacements(old_teacher_user_id)",
+    ]),
 ]

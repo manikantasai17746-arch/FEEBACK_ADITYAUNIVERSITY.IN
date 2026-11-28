@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% import '_macros.html' as m %}
+{% block title %}{{ person.name }} status — Admin{% endblock %}
+{% block body %}
+{{ m.back(url_for('admin.teachers'), 'All teachers') }}
+<h1>{{ person.name }}</h1>
+<p class="sub">Employee code {{ person.emp_code }} · Status: <strong>{{ statuses[person.status] }}</strong>{% if person.status_date %} since {{ person.status_date }}{% endif %}</p>
+<datalist id="teacher-list">{% for t in choices %}<option value="{{ t.emp_code }}">{{ t.name }}</option>{% endfor %}</datalist>
+
+{% if person.status != 'left' %}
+<div class="card">
+  <h3>Mark on leave or left</h3>
+  <p class="sub">Old feedback stays with this teacher. For a replacement, type the Employee ID or name and pick from the list.</p>
+  <form method="post" action="{{ url_for('people.deactivate', uid=person.id) }}">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    <div class="filter-bar">
+      <div class="field"><label for="status">Status</label>
+        <select id="status" name="status"><option value="on_leave">On leave (temporary)</option><option value="left" {{ 'selected' if form.get('status') == 'left' }}>Left (permanent)</option></select></div>
+      <div class="field"><label for="date">Date</label><input type="date" id="date" name="date" value="{{ form.get('date', '') }}"></div>
+      <div class="field"><label for="reason">Note (no medical details)</label><input type="text" id="reason" name="reason" maxlength="200" value="{{ form.get('reason', '') }}"></div>
+    </div>
+    <div class="table-wrap"><table class="data">
+      <thead><tr><th>Term</th><th>Section</th><th>Subject</th><th>Open/draft forms</th><th>What happens</th><th>Replacement Employee ID</th></tr></thead>
+      <tbody>
+      {% for c in classes %}
+        <tr><td>{{ c.academic_year }} · Sem {{ c.semester }}</td><td>{{ c.branch }} · {{ c.timetable }}</td>
+          <td class="wrap">{{ c.subject_name }} ({{ c.subject_code }})</td><td>{{ c.live_forms }}</td>
+          <td><input type="hidden" name="session_id" value="{{ c.id }}">
+            <select name="mode_{{ c.id }}" aria-label="What happens to {{ c.timetable }} {{ c.subject_code }}" required>
+              <option value="">Choose…</option>
+              <option value="replace" {{ 'selected' if form.get('mode_' ~ c.id) == 'replace' }}>Replace</option>
+              <option value="vacant" {{ 'selected' if form.get('mode_' ~ c.id) == 'vacant' }}>No teacher yet (pause feedback)</option>
+              <option value="keep" {{ 'selected' if form.get('mode_' ~ c.id) == 'keep' }}>Leave unchanged (finished class)</option>
+            </select></td>
+          <td><input type="text" name="emp_{{ c.id }}" list="teacher-list" autocomplete="off" value="{{ form.get('emp_' ~ c.id, '') }}" aria-label="Replacement for {{ c.timetable }} {{ c.subject_code }}"></td></tr>
+      {% else %}<tr><td colspan="6">No current classes.</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+    {% if second_roles %}<p class="sub">Second Faculty duties that will also be removed (assign someone else on the Second Faculty screen):
+      {% for r in second_roles %}{{ r.timetable }} {{ r.subject_code }}{{ ', ' if not loop.last }}{% endfor %}</p>{% endif %}
+    <p class="sub">Open forms on a replaced or paused class stop accepting new feedback. Create new forms for the replacement teacher.</p>
+    <label class="opt"><input type="checkbox" name="confirm" value="1" required> I have checked the classes above and the replacement teachers' timetables</label>
+    <button class="btn" type="submit">Save</button>
+  </form>
+</div>
+{% endif %}
+
+{% if person.status != 'active' %}
+<div class="card">
+  <h3>Mark active again</h3>
+  <form method="post" action="{{ url_for('people.reactivate', uid=person.id) }}" onsubmit="return confirm('Make this teacher active again?')">
+    <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+    {% if away %}<p class="sub">Tick the classes to give back.</p>
+      {% for r in away %}<label class="opt" style="display:block">
+        <input type="checkbox" name="replacement_id" value="{{ r.id }}" {{ 'checked' if r.kind == 'temporary' }}>
+        {{ r.timetable }} · {{ r.subject_code }} — now: {{ r.new_name or 'no teacher' }}</label>{% endfor %}
+    {% endif %}
+    <div class="filter-bar">
+      <div class="field"><label for="rdate">Date</label><input type="date" id="rdate" name="date"></div>
+      <div class="field"><label for="rreason">Note (optional)</label><input type="text" id="rreason" name="reason" maxlength="200"></div>
+      <button class="btn" type="submit">Mark active</button>
+    </div>
+  </form>
+</div>
+{% endif %}
+{% include '_status_history.html' %}
+{% endblock %}

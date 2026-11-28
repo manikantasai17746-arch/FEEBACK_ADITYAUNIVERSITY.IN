@@ -249,6 +249,8 @@ _BLOCKERS = (
      f"SELECT COUNT(*) FROM teacher_subject_settings WHERE session_id IN ({_SCOPE_SESSIONS})", 2),
     ('HOD allocation(s)',
      f"SELECT COUNT(*) FROM hod_allocations WHERE timetable_id IN ({_SCOPE_TIMETABLES})", 2),
+    ('teacher replacement record(s)',
+     f"SELECT COUNT(*) FROM class_replacements WHERE old_session_id IN ({_SCOPE_SESSIONS})", 2),
     ('student complaint(s)',
      f"SELECT COUNT(*) FROM student_complaints WHERE timetable_id IN ({_SCOPE_TIMETABLES})", 2),
 )
@@ -258,6 +260,9 @@ _BLOCKERS = (
 # list with the live schema so a future table cannot be forgotten.
 USER_REFERENCES = (
     ('allocation_history', 'actor_user_id'), ('audit_log', 'actor_user_id'),
+    ('class_replacements', 'changed_by'), ('class_replacements', 'ended_by'),
+    ('class_replacements', 'new_teacher_user_id'),
+    ('class_replacements', 'old_teacher_user_id'),
     ('class_sessions', 'teacher_user_id'),
     ('dean_hod_assignments', 'created_by'), ('dean_hod_assignments', 'hod_user_id'),
     ('dean_hod_assignments', 'dean_user_id'),
@@ -282,6 +287,7 @@ USER_REFERENCES = (
     ('teacher_subject_settings', 'updated_by'),
     ('teacher_subject_settings', 'teacher_user_id'),
     ('user_department_scopes', 'user_id'),
+    ('user_status_history', 'changed_by'), ('user_status_history', 'user_id'),
 )
 
 
@@ -690,6 +696,30 @@ def import_timetable(app, semester_number=3, academic_year=None, progress=print,
         [(timetable_id[(dept, tt)], cc, sess_names[(dept, tt, cc, emp)],
           teacher_id.get(emp), period)
          for (dept, tt, cc, emp), period in sess_period.items()])
+    # Rows for a class whose teacher was replaced go to the replacement (or nowhere
+    # when no teacher is assigned), and removed students get nothing new.
+    inactive_students = {r[0] for r in conn.execute(
+        "SELECT roll FROM users WHERE role='student' AND is_active=0")}
+    inactive_teachers = {r[0] for r in conn.execute(
+        "SELECT emp_code FROM users WHERE role='teacher' AND is_active=0")}
+    replaced = {r[0]: r[1] for r in conn.execute(
+        'SELECT old_session_id, new_session_id FROM class_replacements WHERE ended_at IS NULL')}
+    skipped_rolls = sorted(inactive_students & {r[6] for r in raw})
+    skipped_teachers = sorted(inactive_teachers & set(teacher_users))
+    if skipped_rolls:
+        progress(f'Warning: {len(skipped_rolls)} removed/TC student(s) in this file were '
+                 f'skipped: {", ".join(skipped_rolls[:20])}')
+    if skipped_teachers:
+        progress(f'Warning: teacher(s) on leave or left are still in this file and stay '
+                 f'inactive: {", ".join(skipped_teachers[:20])}')
+
+    def current_session(sid):
+        seen = set()
+        while sid in replaced and sid not in seen:
+            seen.add(sid)
+            sid = replaced[sid]
+        return sid
+
     session_id = {}
     for row in conn.execute(
             """SELECT cs.id, t.branch_id, t.code AS tt, cs.subject_code, u.emp_code
@@ -698,6 +728,13 @@ def import_timetable(app, semester_number=3, academic_year=None, progress=print,
                LEFT JOIN users u ON u.id = cs.teacher_user_id"""):
         dept = next((d for d, n in branch_id.items() if n == row['branch_id']), None)
         session_id[(dept, row['tt'], row['subject_code'], row['emp_code'])] = row['id']
+    vacant = {k for k, sid in session_id.items() if current_session(sid) is None}
+    session_id = {k: current_session(sid) for k, sid in session_id.items() if k not in vacant}
+    n_moved = sum(1 for (dept, tt, cc, emp) in sess_period
+                  if (dept, tt, cc, emp) in vacant)
+    if n_moved:
+        progress(f'Warning: {n_moved} class(es) have no teacher assigned; '
+                 f'their students were not added.')
     progress(f'Class sessions: {len(session_id)}')
 
     # 3g. enrollments (each student belongs to exactly one timetable)
@@ -709,7 +746,7 @@ def import_timetable(app, semester_number=3, academic_year=None, progress=print,
                student_user_id, timetable_id, semester_id, academic_year_id)
            VALUES(?,?,?,?)""",
         [(student_id[roll], timetable_id[key], sem_id, ay_id)
-         for roll, key in student_tt.items()])
+         for roll, key in student_tt.items() if roll not in inactive_students])
     progress(f'Enrollments: {len(student_tt)}')
 
     # 3h. eligible student population per teaching session.
@@ -719,7 +756,7 @@ def import_timetable(app, semester_number=3, academic_year=None, progress=print,
         'INSERT OR IGNORE INTO session_students(session_id, student_user_id) VALUES(?,?)',
         [(session_id[(dept, tt, cc, emp)], student_id[roll])
          for (dept, tt, cc, cn, emp, empname, roll) in raw
-         if (dept, tt, cc, emp) in session_id])
+         if (dept, tt, cc, emp) in session_id and roll not in inactive_students])
     n_elig = conn.execute('SELECT COUNT(*) FROM session_students').fetchone()[0]
     progress(f'Session eligibility rows: {n_elig}')
 
@@ -734,7 +771,7 @@ def import_timetable(app, semester_number=3, academic_year=None, progress=print,
         for (dept, tt, cc, emp), ex in extras.items():
             sid = session_id.get((dept, tt, cc, emp))
             info = sess_info.get(sid)
-            if info is None or info['teacher_user_id'] is None:
+            if info is None or info['teacher_user_id'] is None or emp in inactive_teachers:
                 continue
             if ex['lab'] is not None or ex['room']:
                 status = None if ex['lab'] is None else ('available' if ex['lab'] else 'none')
@@ -758,7 +795,8 @@ def import_timetable(app, semester_number=3, academic_year=None, progress=print,
             if ex['lab']:
                 for second, _name in split_second_faculty(ex['second_code'],
                                                           ex['second_name']):
-                    if second == emp or second not in teacher_id:
+                    if (second == emp or second not in teacher_id
+                            or second in inactive_teachers):
                         continue
                     conn.execute(
                         """INSERT OR IGNORE INTO second_faculty_assignments(
