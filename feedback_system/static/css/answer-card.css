@@ -111,11 +111,14 @@
 
 .answer-card-float{position:relative;animation:floaty 5s ease-in-out infinite}
 @keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
-.fcur{position:absolute;left:0;top:0;width:19px;height:19px;z-index:5;pointer-events:none;opacity:0;
-  transition:transform .95s cubic-bezier(.45,.05,.25,1),opacity .3s;filter:drop-shadow(0 3px 3px rgba(7,30,61,.35))}
+/* Demo pointer: drawn with the same bitmap, size and hotspot (4,4) as the site cursor in app.css, so the
+   pointer looks identical inside and outside the card. Only visible while the visitor's own mouse is not on the card. */
+.fcur{position:absolute;left:0;top:0;width:0;height:0;z-index:5;pointer-events:none;opacity:0;
+  transition:transform .95s cubic-bezier(.45,.05,.25,1),opacity .3s}
 .fcur.show{opacity:1}
-.fcur svg{display:block;width:19px;height:19px;margin:-1.9px 0 0 -9.5px;transform-origin:9.5px 1.9px;transform:rotate(-25deg);transition:transform .12s}
-.fcur.press svg{transform:rotate(-25deg) scale(.82)}
+.fcur svg{display:none}
+.fcur::before{content:"";position:absolute;left:-4px;top:-4px;width:18px;height:21px;
+  background:url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAAVCAYAAABLy77vAAADzUlEQVR42rXUW2hcRRgH8P/MOWfPObub7NndXHqLbtImmiaki6GpEhJTwaZgEdTGC1RQ9KEPWqoUKSrug0SoUjF4ocVWEPpQG0ToDVorgZYkpI1Ja7KmaS6bNE1as5uwt+zm7Dkz40Ojtgav6MA8zMuP/8w33wf8HysUCtFQKET/Q1D8O0wIQQCg7fDp9YNjY/cAwP5jXToh5J9BbW2nVZkCddvf2/3AE63TJzv6g4oEdPRHDCGE9HcMKoQgK9cXaZrmwE9zieTw9eSqNz440bHr3WMvbtlYFr/QP+KLRIT2lxAAuaTYq6UWTEUGkVUFfHh82vX1dwNfNO348PVtDdXROXPGffnyTdef3VSemJiQlFxWBeCyGMC4oLqqsJvROBKp7P76Z98P1N636i0AUl9fxAgGAwlCiFiWKBAIUKgOBYAKCbAZR+kaf3JDxYqTls3QcWns1a0vf3z2bM8VfzAYyHSHp7xCLK8qBUB0qlMAMhgD54BDldHT/uYLm6rXHPDku9FxcezBPa3Hz+07dGrtQ1UlyTPdYeP3GAVA0laOAKAW5wAAxoR94WJ4Y/tHzx99ekvN3iKvnh6KxMo+O3K+s/XT44+1PFo73zMy4r4Tu0tljEEIAYlSIcnM6g9PNuzb09y5d2dzy+oC18ytedN7sL3rm+de+zy0qbx8obPzqusuSF06cA4IAFQCUWV3TlOl+a7vJ4NPbV5nfhJ6prmytGBwejbFz3X9+M7A0Pgj9fX3W729vcqyREvfHAQUGcvOybJjIc+tz8ZTuZUDQ5GWiRuxAk3TJFV32kfP9JUAIKmUXwIAGYBg8u3HoVQCIKAqkmioDeQGr06mFy2RXVHoy7idannJ6kK/4XYcbm6sPPL2zm1DU1NTvqamwOyvkMIdHABnti1xTkR6YVF78pVDBxpry77avaPx/OB4VN26eUP3w3WVjTWVgRHTTPoj0zGjwDDmwuEw+S0R4xwAL723WB29HidXhm/kj96y6gq9riQU5ylChC1Tnvb7neSHkYlyVZIzJR7fvGmbVlVVFQMAcu2aUD2eWS+xSP6CZa99fNfBL3MmU2prylpf2l7/bU2lb9HO2DkAAtCIEFmuKB5LUZxZjwcZQogJAEQIIQPIG52a9XvySH5P72R1xbrSSxUB/1w0GjUYYxYhJKNpmiWEhwNxGIbBAJgArF/ahdyeRTN6Op2fF00sGoUeTZ5PpbRExiLFeZ64rtNENpvNFhUVWQD40haEEH5nscnSYJNisZiTMc2ZFbZOiUndimIpirK4hGQppUwI8Yfd/zNiwriQ3V0Z+QAAAABJRU5ErkJggg==") 0 0/18px 21px no-repeat}
 .fcur::after{content:"";position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;
   border:2px solid var(--orange);opacity:0;transform:scale(.3)}
 .fcur.press::after{animation:tap .5s ease-out}
@@ -146,7 +149,7 @@
 @keyframes pop{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}
 @keyframes strike{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 @keyframes swapin{0%{opacity:0;transform:translateY(70%);color:var(--orange)}60%{color:var(--orange)}100%{opacity:1;transform:none}}
-.answer-card-float.follow,.answer-card-float.follow *{cursor:none!important}
+/* No cursor override here: the visitor's own pointer (app.css) is the only pointer once the mouse is on the card. */
 
 /* Remove the click ring from the fake cursor */
 .fcur.press::after{animation:none!important;opacity:0!important}

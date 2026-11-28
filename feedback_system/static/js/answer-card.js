@@ -1,5 +1,6 @@
 // Answer card on the landing page: a fake cursor taps ratings on its own,
-// the stamp slams down on each pick, and the card follows the visitor's mouse once they move it.
+// the stamp slams down on each pick, and the demo pointer steps aside as soon as the visitor's own mouse is on the card
+// (so only one pointer is ever shown, and it is always the real one).
 (function () {
   var sheet = document.getElementById('demo'), box = document.getElementById('float'), cur = document.getElementById('fcur');
   var bubbles = Array.prototype.slice.call(sheet.querySelectorAll('.bubble'));
@@ -36,7 +37,7 @@
     later(auto, 3200);
   }
   function start() {
-    clearAll(); touched = false; step = 0; clearHover(); following = false; box.classList.remove('follow'); box.style.animationPlayState = ''; cur.classList.remove('press');
+    clearAll(); touched = false; step = 0; clearHover(); following = false; box.style.animationPlayState = ''; cur.classList.remove('press');
     idle.hidden = false; body.hidden = true; sheet.classList.remove('is-stamped'); replay(sheet, 'intro');
     bubbles.forEach(function (b) { b.setAttribute('aria-checked', 'false'); });
     var a = box.getBoundingClientRect();
@@ -45,21 +46,15 @@
     void cur.offsetWidth; cur.style.transition = ''; cur.classList.add('show');
     later(auto, 2100);
   }
-  var following = false;
-  function follow(e) { var a = box.getBoundingClientRect(); cur.style.transform = 'translate(' + (e.clientX - a.left) + 'px,' + (e.clientY - a.top) + 'px)'; }
-  box.addEventListener('pointermove', function (e) {         // the visitor takes over: the A becomes their cursor
-    if (e.pointerType !== 'mouse') return;
-    if (!following) {
-      following = true; touched = true; clearAll(); clearHover(); cur.classList.remove('press');
-      box.classList.add('follow'); box.style.animationPlayState = 'paused';
-      cur.classList.add('show'); cur.style.transition = 'transform .25s ease-out';
-    } else { cur.style.transition = 'transform .03s linear'; }
-    follow(e);
-  });
-  box.addEventListener('pointerleave', function () { if (following) { box.classList.remove('follow'); cur.classList.remove('show'); } });
-  box.addEventListener('pointerenter', function (e) { if (following && e.pointerType === 'mouse') { box.classList.add('follow'); cur.classList.add('show'); } });
-  box.addEventListener('pointerdown', function () { if (following) cur.classList.add('press'); });
-  window.addEventListener('pointerup', function () { if (following) cur.classList.remove('press'); });
+  var following = false;                                   // true once the visitor's own mouse has been on the card
+  function handOver(e) {                                   // the visitor's real pointer takes over from the demo pointer
+    if (e.pointerType !== 'mouse' || following) return;
+    following = true; touched = true; clearAll(); clearHover(); cur.classList.remove('press');
+    cur.style.transition = 'none'; cur.classList.remove('show');   // hide the demo pointer at once (no fade), so two never overlap
+    box.style.animationPlayState = 'paused';                        // keep the card still under the mouse
+  }
+  box.addEventListener('pointerenter', handOver);
+  box.addEventListener('pointermove', handOver);
   bubbles.forEach(function (b, i) {
     b.addEventListener('click', function () {
       if (!following) {                                       // touch or keyboard: the A taps the circle, then leaves
