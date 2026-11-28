@@ -14,7 +14,7 @@ import pyotp
 import pytest
 
 from feedback_system import authenticator, db
-from helpers import (eligible_rolls, find_session, login_student, make_form,
+from helpers import (eligible_rolls, find_session, login, login_student, make_form,
                      publish_form, question_ids, token_from)
 
 STUDENT_STATE = {}
@@ -291,7 +291,12 @@ def test_submit_then_log_out_of_the_anonymous_id(app, admin, client, gate_setup)
         assert r.status_code == 302 and r.headers['Location'].endswith('/student/progress')
         progress = client.get('/student/progress').get_data(as_text=True)
         assert gate_setup['roll'] in progress and 'Submitted' in progress
-        third = _open_form(app, admin, gate_setup['sid'], 'Anon third')
+        # `admin` and `client` are the same test client, now logged in as the student, so a
+        # separate admin client creates the next form.
+        admin2 = app.test_client()
+        assert login(admin2, '/admin/login', {'email': 'admin@college.edu',
+                                              'password': 'admin123'}).status_code == 302
+        third = _open_form(app, admin2, gate_setup['sid'], 'Anon third')
         again = client.get(f'/student/form/{third}')
         assert again.status_code == 302 and 'verify-code' in again.headers['Location']
         assert client.get('/student/anonymous/submitted').status_code == 302
