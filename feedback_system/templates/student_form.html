@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% import '_macros.html' as m %}
 {% block title %}{{ form.title }} — Feedback{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='css/anonymous_session.css') }}">{% endblock %}
 {% block body %}
 {{ m.back(url_for('student.dashboard'), 'Back to my feedback') }}
 
@@ -37,6 +38,7 @@
   <div>
     <strong>Your feedback is anonymous.</strong>
     {% if not already and form.status == 'open' %}<span>You can submit once.</span>{% endif %}
+    <div class="as-chip" id="asChip" data-uid="{{ current_user.id }}" role="note" hidden>Your anonymous ID <span class="as-tiles"></span></div>
   </div>
 </div>
 
@@ -139,6 +141,7 @@
 {% endif %}
 {% endblock %}
 {% block scripts %}
+<script src="{{ url_for('static', filename='js/anonymous_session.js') }}"></script>
 <script src="{{ url_for('static', filename='js/comment-stars.js') }}" defer></script>
 <script>
 (function(){
