@@ -285,7 +285,7 @@ def publish(actor, form_id):
     return _open_with_snapshot(actor, form_id, sc)
 
 
-def publish_many(actor, form_ids, max_forms=200):
+def publish_many(actor, form_ids, max_forms=None):
     """Publish many draft forms with partial success.
 
     * Authorization is checked per form (HOD branch / admin).
@@ -311,7 +311,7 @@ def publish_many(actor, form_ids, max_forms=200):
             continue
         seen.add(fid)
         ids.append(fid)
-    if len(ids) > max_forms:
+    if max_forms is not None and len(ids) > max_forms:
         raise ScopeError('too_many', f'At most {max_forms} forms can be published at once.', 400)
 
     published, failed, skipped = [], [], []

@@ -333,8 +333,6 @@ def api_preview():
             return jsonify(ok=False, error='Invalid session id.'), 400
     if not ids:
         return jsonify(ok=False, error='Select at least one section.'), 400
-    if len(ids) > 50:
-        return jsonify(ok=False, error='Too many sections selected (maximum 50).'), 400
     out = []
     for sid in ids:
         sess = _session_in_scope(user, sid)
@@ -385,8 +383,6 @@ def api_create():
             return jsonify(ok=False, error='Invalid session id.'), 400
     if not session_ids:
         return jsonify(ok=False, error='Select at least one section.'), 400
-    if len(session_ids) > 50:
-        return jsonify(ok=False, error='Too many sections (maximum 50).'), 400
 
     questions = _questions_from_set(user['id'], data.get('question_set_id'))
     if questions is None:
@@ -641,8 +637,6 @@ def api_lab_preview():
             return jsonify(ok=False, error='Invalid session id.'), 400
     if not ids:
         return jsonify(ok=False, error='Select at least one lab section.'), 400
-    if len(ids) > 50:
-        return jsonify(ok=False, error='Too many sections selected (maximum 50).'), 400
     out = []
     for sid in ids:
         sess = _session_in_scope(user, sid)
@@ -682,8 +676,6 @@ def api_lab_create():
             return jsonify(ok=False, error='Invalid session id.'), 400
     if not session_ids:
         return jsonify(ok=False, error='Select at least one lab section.'), 400
-    if len(session_ids) > 50:
-        return jsonify(ok=False, error='Too many sections (maximum 50).'), 400
 
     questions = _questions_from_set(user['id'], data.get('question_set_id'))
     if questions is None:
@@ -922,8 +914,6 @@ def api_second_preview():
             return jsonify(ok=False, error='Invalid assignment id.'), 400
     if not ids:
         return jsonify(ok=False, error='Select at least one assignment.'), 400
-    if len(ids) > 50:
-        return jsonify(ok=False, error='Too many assignments (maximum 50).'), 400
     out = []
     for aid in ids:
         try:
@@ -965,8 +955,6 @@ def api_second_create():
             return jsonify(ok=False, error='Invalid assignment id.'), 400
     if not assignment_ids:
         return jsonify(ok=False, error='Select at least one assignment.'), 400
-    if len(assignment_ids) > 50:
-        return jsonify(ok=False, error='Too many assignments (maximum 50).'), 400
 
     questions = _questions_from_set(user['id'], data.get('question_set_id'))
     if questions is None:
