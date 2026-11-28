@@ -509,6 +509,34 @@ def _parse_grace(raw):
     return out
 
 
+def enforce_roles_from_env(raw):
+    """``AUTHENTICATOR_ENFORCE_ROLES`` from the environment, with ``student`` always first.
+
+    Students must always link an authenticator app at first sign-in. The variable exists to
+    roll the requirement out to staff, so a blank value or a list such as ``teacher,hod,dean``
+    must never switch it off for students.
+    """
+    roles = []
+    for r in str(raw or '').split(','):
+        r = r.strip().lower()
+        if r and r not in roles:
+            roles.append(r)
+    return ','.join(['student'] + [r for r in roles if r != 'student'])
+
+
+def grace_from_env(raw):
+    """``AUTHENTICATOR_GRACE_UNTIL`` from the environment without any ``student=`` entry.
+
+    A grace date only reminds (never blocks), which would let a new student skip setup.
+    """
+    parts = []
+    for part in str(raw or '').split(','):
+        part = part.strip()
+        if part and part.partition('=')[0].strip().lower() != 'student':
+            parts.append(part)
+    return ','.join(parts)
+
+
 def enforcement_state(role, config, today=None):
     """Return ``(state, grace_until)`` for a role.
 

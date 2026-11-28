@@ -71,9 +71,9 @@ New environment variables (set them in the production environment, never in the 
 | `PREVIOUS_DEFAULT_STUDENT_PASSWORDS` | If the default was ever changed | Comma-separated older defaults, still detected. Values must not contain commas. |
 | `STUDENT_EMAIL_DOMAIN` | No (default `adityauniversity.in`) | Students confirm their e-mail as `<roll>@<this domain>` only. Empty switches the rule off. |
 | `MICROSOFT_CLIENT_ID` / `MICROSOFT_CLIENT_SECRET` / `MICROSOFT_TENANT_ID` | For "Continue with Microsoft" | Azure app registration; redirect URI `https://<site>/sso/microsoft/callback`. Students get Microsoft only when `MICROSOFT_TENANT_ID` is the college tenant GUID (not `common`). |
-| `AUTHENTICATOR_ENFORCE_ROLES` | No (default `student`) | Comma list of roles that must set up an authenticator, e.g. `student,teacher,hod,dean`. `admin` is ignored (with a start-up warning) until the Admin recovery procedure is implemented. Non-student roles are never forced while `TOTP_ENCRYPTION_KEY` is unset. |
+| `AUTHENTICATOR_ENFORCE_ROLES` | No (default `student`) | Comma list of roles that must set up an authenticator, e.g. `student,teacher,hod,dean`. `student` is always enforced, even if this is blank or omits it. `admin` is ignored (with a start-up warning) until the Admin recovery procedure is implemented. Non-student roles are never forced while `TOTP_ENCRYPTION_KEY` is unset. |
 | `LOST_DEVICE_IP_MAX_ATTEMPTS` | No (default 10) | Lost-device recovery requests allowed per address per 15 minutes before a lockout. Raise it if many users share one address. |
-| `AUTHENTICATOR_GRACE_UNTIL` | No | `role=YYYY-MM-DD` pairs, e.g. `teacher=2026-12-31,hod=2026-12-31`. Before the date the role only sees a reminder; from the date it must enrol at sign-in. |
+| `AUTHENTICATOR_GRACE_UNTIL` | No | `role=YYYY-MM-DD` pairs, e.g. `teacher=2026-12-31,hod=2026-12-31`. A `student=` entry is ignored: students have no grace period. Before the date the role only sees a reminder; from the date it must enrol at sign-in. |
 | `OTP_MAX_ATTEMPTS` | No (default 5) | Wrong codes allowed in a 15-minute window before the account is locked. |
 | `OTP_LOCKOUT_SECONDS` | No (default 900) | Length of the lock. |
 
